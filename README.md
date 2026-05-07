@@ -18,7 +18,6 @@ connects to it over HTTP.
 - `.github/workflows/`: GitHub Actions CI and release artifact automation.
 - `docs/`: architecture, integration, and operations notes.
 - `docker-compose.yml`: self-hosted API deployment entrypoint.
-- `AGENTS.md`: repository-specific guidance for coding agents.
 
 ## Key Behaviors
 
