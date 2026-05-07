@@ -113,6 +113,10 @@ dotnet build windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj
 dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj -c Release /p:PublishProfile=win-x64.pubxml
 ```
 
+MSIX output path after publish:
+
+- `windows-client\ComponentVault.WinUI\bin\Release\net9.0-windows10.0.19041.0\win-x64\AppPackages\`
+
 Implemented client behaviors:
 
 - local SQLite persistence for components, stock movements, and sync queue
@@ -127,7 +131,7 @@ The repository includes two GitHub Actions workflows:
 - `.github/workflows/ci.yml`
   Runs server tests, Android debug compilation, and Windows build validation.
 - `.github/workflows/release.yml`
-  Runs Android release packaging and Windows publish packaging on manual trigger
+  Runs Android release packaging and Windows MSIX packaging on manual trigger
   and `v*` tag pushes.
 
 ### Android Release Secrets
@@ -148,9 +152,23 @@ The workflow decodes the keystore into a runner-local temp file and exports:
 `release.yml` produces:
 
 - `component-vault-android-release.apk`
-- `component-vault-windows-win-x64.zip`
+- `component-vault-windows-x64.msix`
+- `component-vault-windows-test-certificate.cer`
+- `Install-ComponentVault.ps1`
 
-On `v*` tags, the workflow also attaches both files to the GitHub Release.
+On `v*` tags, the workflow also attaches all three Windows files and the
+Android APK to the GitHub Release.
+
+### Installing The Windows Release
+
+GitHub Release now ships a test-signed MSIX bundle set:
+
+1. Download `component-vault-windows-x64.msix`
+2. Download `component-vault-windows-test-certificate.cer`
+3. Run `Install-ComponentVault.ps1`
+
+The script imports the certificate into `Cert:\CurrentUser\TrustedPeople` and
+then runs `Add-AppxPackage` for the MSIX package.
 
 ### Legacy Flutter
 
@@ -209,6 +227,16 @@ curl -X POST http://localhost:8787/auth/ping `
   repository settings.
 - Fix: add all four required Android signing secrets before rerunning the
   release workflow.
+
+### Windows MSIX install is blocked by certificate trust
+
+- Symptom: Windows refuses to install the MSIX package or says the publisher is
+  untrusted.
+- Cause: the test signing certificate from the release has not been imported
+  into the current user's trusted certificate store.
+- Fix: download `component-vault-windows-test-certificate.cer` and run
+  `Install-ComponentVault.ps1`, or manually import the certificate into
+  `Cert:\CurrentUser\TrustedPeople` before installing the MSIX package.
 
 ### Duplicate SKU push rejected
 

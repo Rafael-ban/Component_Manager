@@ -9,7 +9,7 @@
     <ScrollViewer>
         <StackPanel Padding="24">
             <TextBlock FontSize="30" FontWeight="SemiBold" Text="Sync settings" />
-            <TextBlock Margin="0,6,0,20" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Windows-form layout aligned with the future real sync configuration flow." />
+            <TextBlock Margin="0,6,0,20" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Windows-form sync configuration for the active self-hosted endpoint and local device state." />
 
             <Border Style="{StaticResource CardBorderStyle}">
                 <Grid ColumnSpacing="16">

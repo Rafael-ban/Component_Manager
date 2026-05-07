@@ -8,11 +8,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.componentvault.android.R
 import com.componentvault.android.data.InventoryRepository
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.InventoryUiState
 import com.componentvault.android.model.MovementEntryDraft
+import com.componentvault.android.model.SyncConfiguration
 import kotlinx.coroutines.launch
 
 class InventoryViewModel(
@@ -20,8 +22,22 @@ class InventoryViewModel(
 ) : AndroidViewModel(application) {
     private val repository = InventoryRepository(application)
     private var allComponentsCache: List<ComponentRecord> = emptyList()
+    private val defaultSyncMessage = application.getString(R.string.sync_no_sync_yet)
+    private val defaultLastSyncedAt = application.getString(R.string.sync_never)
 
-    var uiState by mutableStateOf(InventoryUiState())
+    var uiState by mutableStateOf(
+        InventoryUiState(
+            syncConfiguration = SyncConfiguration(
+                deviceId = "",
+                serverBaseUrl = "",
+                apiToken = "",
+                autoSyncEnabled = false,
+                lastSyncedAt = defaultLastSyncedAt,
+                lastSyncMessage = defaultSyncMessage,
+            ),
+            statusMessage = defaultSyncMessage,
+        ),
+    )
         private set
 
     init {
@@ -75,7 +91,7 @@ class InventoryViewModel(
     fun deleteSelectedComponent() {
         val componentId = uiState.selectedComponentId
         if (componentId == null) {
-            uiState = uiState.copy(statusMessage = "Select a component first.")
+            uiState = uiState.copy(statusMessage = getApplication<Application>().getString(R.string.sync_select_component_first))
             return
         }
 

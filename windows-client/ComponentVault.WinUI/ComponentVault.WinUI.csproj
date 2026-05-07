@@ -5,13 +5,14 @@
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <RootNamespace>ComponentVault.WinUI</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AppxManifest>Package.appxmanifest</AppxManifest>
     <Platforms>x64</Platforms>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <EnableMsixTooling>false</EnableMsixTooling>
-    <WindowsPackageType>None</WindowsPackageType>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsPackageType>MSIX</WindowsPackageType>
     <PublishProfile>win-x64.pubxml</PublishProfile>
   </PropertyGroup>
 

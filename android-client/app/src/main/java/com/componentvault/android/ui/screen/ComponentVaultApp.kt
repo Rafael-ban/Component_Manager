@@ -1,5 +1,6 @@
 package com.componentvault.android.ui.screen
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -62,10 +63,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.componentvault.android.R
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.DashboardSnapshot
@@ -77,13 +80,13 @@ import com.componentvault.android.ui.theme.VaultWarning
 import com.componentvault.android.ui.theme.VaultWarningContainer
 
 private enum class InventoryDestination(
-    val label: String,
+    @StringRes val labelResId: Int,
     val icon: ImageVector,
 ) {
-    Dashboard("Dashboard", Icons.Outlined.Analytics),
-    Components("Components", Icons.Outlined.Memory),
-    Movements("Movements", Icons.Outlined.Inventory2),
-    Settings("Settings", Icons.Outlined.Settings),
+    Dashboard(R.string.destination_dashboard, Icons.Outlined.Analytics),
+    Components(R.string.destination_components, Icons.Outlined.Memory),
+    Movements(R.string.destination_movements, Icons.Outlined.Inventory2),
+    Settings(R.string.destination_settings, Icons.Outlined.Settings),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -129,7 +132,7 @@ fun ComponentVaultApp(
 
     val topBar: @Composable () -> Unit = {
         CenterAlignedTopAppBar(
-            title = { Text("Component Vault") },
+            title = { Text(stringResource(R.string.top_bar_title)) },
             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                 containerColor = MaterialTheme.colorScheme.background,
             ),
@@ -148,7 +151,7 @@ fun ComponentVaultApp(
                     ) {
                         Icon(Icons.Rounded.Sync, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Sync")
+                        Text(stringResource(R.string.action_sync))
                     }
                 }
             },
@@ -179,11 +182,12 @@ fun ComponentVaultApp(
                 },
             ) {
                 InventoryDestination.entries.forEach { item ->
+                    val label = stringResource(item.labelResId)
                     NavigationRailItem(
                         selected = destination == item,
                         onClick = { destination = item },
-                        icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) },
+                        icon = { Icon(item.icon, contentDescription = label) },
+                        label = { Text(label) },
                     )
                 }
             }
@@ -221,11 +225,12 @@ fun ComponentVaultApp(
             bottomBar = {
                 NavigationBar {
                     InventoryDestination.entries.forEach { item ->
+                        val label = stringResource(item.labelResId)
                         NavigationBarItem(
                             selected = destination == item,
                             onClick = { destination = item },
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) },
+                            icon = { Icon(item.icon, contentDescription = label) },
+                            label = { Text(label) },
                         )
                     }
                 }
@@ -318,7 +323,7 @@ private fun DashboardScreen(
     ) {
         item {
             Text(
-                text = "Overview",
+                text = stringResource(R.string.dashboard_overview),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
@@ -328,23 +333,23 @@ private fun DashboardScreen(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Components", uiState.dashboard.componentCount.toString(), Modifier.weight(1f))
-                MetricCard("Units", uiState.dashboard.totalUnits.toString(), Modifier.weight(1f))
+                MetricCard(stringResource(R.string.metric_components), uiState.dashboard.componentCount.toString(), Modifier.weight(1f))
+                MetricCard(stringResource(R.string.metric_units), uiState.dashboard.totalUnits.toString(), Modifier.weight(1f))
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Low stock", uiState.dashboard.lowStockCount.toString(), Modifier.weight(1f))
-                MetricCard("Movements", uiState.dashboard.movementCount.toString(), Modifier.weight(1f))
+                MetricCard(stringResource(R.string.metric_low_stock), uiState.dashboard.lowStockCount.toString(), Modifier.weight(1f))
+                MetricCard(stringResource(R.string.metric_movements), uiState.dashboard.movementCount.toString(), Modifier.weight(1f))
             }
         }
         item {
             SectionCard(
-                title = "Low-stock watchlist",
-                subtitle = "Components at or below the configured threshold.",
+                title = stringResource(R.string.section_low_stock_watchlist_title),
+                subtitle = stringResource(R.string.section_low_stock_watchlist_subtitle),
             ) {
                 if (uiState.lowStockComponents.isEmpty()) {
-                    EmptyState("All tracked components are above minimum stock.")
+                    EmptyState(stringResource(R.string.empty_all_components_healthy))
                 } else {
                     uiState.lowStockComponents.forEach { component ->
                         ComponentLine(component = component)
@@ -354,11 +359,11 @@ private fun DashboardScreen(
         }
         item {
             SectionCard(
-                title = "Recent activity",
-                subtitle = "Latest stock movements stored on the device.",
+                title = stringResource(R.string.section_recent_activity_title),
+                subtitle = stringResource(R.string.section_recent_activity_subtitle),
             ) {
                 if (uiState.movements.isEmpty()) {
-                    EmptyState("No stock movements recorded yet.")
+                    EmptyState(stringResource(R.string.empty_no_movements))
                 } else {
                     uiState.movements.take(8).forEach { movement ->
                         MovementLine(movement = movement)
@@ -391,7 +396,7 @@ private fun ComponentsScreen(
     ) {
         item {
             Text(
-                text = "Components",
+                text = stringResource(R.string.components_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
@@ -401,8 +406,8 @@ private fun ComponentsScreen(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Visible", uiState.components.size.toString(), Modifier.weight(1f))
-                MetricCard("Low stock", uiState.lowStockComponents.size.toString(), Modifier.weight(1f))
+                MetricCard(stringResource(R.string.metric_visible), uiState.components.size.toString(), Modifier.weight(1f))
+                MetricCard(stringResource(R.string.metric_low_stock), uiState.lowStockComponents.size.toString(), Modifier.weight(1f))
             }
         }
         item {
@@ -410,8 +415,8 @@ private fun ComponentsScreen(
                 value = uiState.componentQuery,
                 onValueChange = onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Search components") },
-                placeholder = { Text("SKU, name, category, location") },
+                label = { Text(stringResource(R.string.search_components_label)) },
+                placeholder = { Text(stringResource(R.string.search_components_placeholder)) },
                 singleLine = true,
             )
         }
@@ -420,26 +425,26 @@ private fun ComponentsScreen(
                 FilterChip(
                     selected = !uiState.lowStockOnly,
                     onClick = { onLowStockToggle(false) },
-                    label = { Text("All") },
+                    label = { Text(stringResource(R.string.filter_all)) },
                 )
                 FilterChip(
                     selected = uiState.lowStockOnly,
                     onClick = { onLowStockToggle(true) },
-                    label = { Text("Low stock") },
+                    label = { Text(stringResource(R.string.filter_low_stock)) },
                 )
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = onAddComponent) { Text("Add") }
+                Button(onClick = onAddComponent) { Text(stringResource(R.string.action_add)) }
                 OutlinedButton(
                     onClick = onEditComponent,
                     enabled = uiState.selectedComponentId != null,
-                ) { Text("Edit") }
+                ) { Text(stringResource(R.string.action_edit)) }
                 OutlinedButton(
                     onClick = onDeleteComponent,
                     enabled = uiState.selectedComponentId != null,
-                ) { Text("Delete") }
+                ) { Text(stringResource(R.string.action_delete)) }
             }
         }
         item {
@@ -447,7 +452,7 @@ private fun ComponentsScreen(
         }
         if (uiState.components.isEmpty()) {
             item {
-                EmptyState("No components match the current filter.")
+                EmptyState(stringResource(R.string.empty_no_components_match_filter))
             }
         }
         items(uiState.components, key = { it.id }) { component ->
@@ -484,18 +489,35 @@ private fun ComponentsScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "${component.sku} | ${component.category} | ${component.packageName}",
+                                text = stringResource(
+                                    R.string.component_subtitle_format,
+                                    component.sku,
+                                    component.category,
+                                    component.packageName,
+                                ),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         AssistChip(
                             onClick = { onSelectComponent(component.id) },
-                            label = { Text("${component.quantity} pcs") },
+                            label = {
+                                Text(
+                                    stringResource(
+                                        R.string.component_quantity_pieces_format,
+                                        component.quantity,
+                                    ),
+                                )
+                            },
                         )
                     }
+                    val description = if (component.description.isBlank()) {
+                        stringResource(R.string.label_no_description)
+                    } else {
+                        component.description
+                    }
                     Text(
-                        text = component.description.ifBlank { "No description." },
+                        text = description,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -507,7 +529,14 @@ private fun ComponentsScreen(
                         )
                         AssistChip(
                             onClick = { onSelectComponent(component.id) },
-                            label = { Text("Min ${component.minStock}") },
+                            label = {
+                                Text(
+                                    stringResource(
+                                        R.string.component_min_stock_format,
+                                        component.minStock,
+                                    ),
+                                )
+                            },
                             colors = if (component.isLowStock) {
                                 androidx.compose.material3.AssistChipDefaults.assistChipColors(
                                     containerColor = VaultWarningContainer,
@@ -526,28 +555,35 @@ private fun ComponentsScreen(
 
 @Composable
 private fun ComponentDetailCard(component: ComponentRecord?) {
+    val subtitle = component?.let {
+        stringResource(
+            R.string.component_subtitle_format,
+            it.sku,
+            it.category,
+            it.packageName,
+        )
+    } ?: stringResource(R.string.selected_component_empty_subtitle)
+
     SectionCard(
-        title = "Selected component",
-        subtitle = component?.let {
-            "${it.sku} | ${it.category} | ${it.packageName}"
-        } ?: "Pick a component from the list to review stock level, storage location, and update timing.",
+        title = stringResource(R.string.selected_component_title),
+        subtitle = subtitle,
     ) {
         if (component == null) {
-            EmptyState("No component selected yet.")
+            EmptyState(stringResource(R.string.empty_no_component_selected))
             return@SectionCard
         }
 
         StatusCard(
             if (component.isLowStock) {
-                "Reorder recommended. Quantity is at or below the configured minimum stock."
+                stringResource(R.string.selected_component_low_stock_status)
             } else {
-                "Stock is above the configured minimum threshold."
+                stringResource(R.string.selected_component_healthy_status)
             },
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricCard("Quantity", component.quantity.toString(), Modifier.weight(1f))
-            MetricCard("Min stock", component.minStock.toString(), Modifier.weight(1f))
+            MetricCard(stringResource(R.string.metric_quantity), component.quantity.toString(), Modifier.weight(1f))
+            MetricCard(stringResource(R.string.metric_min_stock), component.minStock.toString(), Modifier.weight(1f))
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -558,7 +594,15 @@ private fun ComponentDetailCard(component: ComponentRecord?) {
             )
             AssistChip(
                 onClick = {},
-                label = { Text(if (component.isLowStock) "Low stock" else "Healthy") },
+                label = {
+                    Text(
+                        if (component.isLowStock) {
+                            stringResource(R.string.status_low_stock)
+                        } else {
+                            stringResource(R.string.status_healthy)
+                        },
+                    )
+                },
                 colors = if (component.isLowStock) {
                     androidx.compose.material3.AssistChipDefaults.assistChipColors(
                         containerColor = VaultWarningContainer,
@@ -570,9 +614,14 @@ private fun ComponentDetailCard(component: ComponentRecord?) {
             )
         }
 
-        SettingRow("Updated", component.updatedAt)
+        SettingRow(stringResource(R.string.label_updated), component.updatedAt)
+        val description = if (component.description.isBlank()) {
+            stringResource(R.string.label_no_description)
+        } else {
+            component.description
+        }
         Text(
-            text = component.description.ifBlank { "No description." },
+            text = description,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -593,7 +642,7 @@ private fun MovementsScreen(
     ) {
         item {
             Text(
-                text = "Stock movements",
+                text = stringResource(R.string.movements_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
@@ -603,24 +652,24 @@ private fun MovementsScreen(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Recorded", uiState.movements.size.toString(), Modifier.weight(1f))
-                MetricCard("Components", uiState.availableComponents.size.toString(), Modifier.weight(1f))
+                MetricCard(stringResource(R.string.metric_recorded), uiState.movements.size.toString(), Modifier.weight(1f))
+                MetricCard(stringResource(R.string.metric_components), uiState.availableComponents.size.toString(), Modifier.weight(1f))
             }
         }
         item {
             SectionCard(
-                title = "Record next movement",
+                title = stringResource(R.string.record_next_movement_title),
                 subtitle = if (canRecordMovement) {
-                    "Capture inbound, outbound, or adjustment activity after it has been stored locally."
+                    stringResource(R.string.record_next_movement_subtitle)
                 } else {
-                    "Create at least one component before recording stock movement."
+                    stringResource(R.string.record_next_movement_subtitle_disabled)
                 },
             ) {
                 StatusCard(
                     if (canRecordMovement) {
-                        "Use positive quantities for inbound and outbound. Adjustment can be positive or negative."
+                        stringResource(R.string.record_next_movement_status)
                     } else {
-                        "Movement capture is unavailable until a component exists in the local inventory."
+                        stringResource(R.string.record_next_movement_status_disabled)
                     },
                 )
                 Button(
@@ -628,19 +677,23 @@ private fun MovementsScreen(
                     enabled = canRecordMovement,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Record movement")
+                    Text(stringResource(R.string.action_record_movement))
                 }
             }
         }
         if (uiState.movements.isEmpty()) {
             item {
-                EmptyState("No stock movements recorded yet.")
+                EmptyState(stringResource(R.string.empty_no_movements))
             }
         }
         items(uiState.movements, key = { it.id }) { movement ->
             SectionCard(
                 title = movement.componentName,
-                subtitle = "${movement.componentSku} | ${movement.happenedAt}",
+                subtitle = stringResource(
+                    R.string.movement_card_subtitle_format,
+                    movement.componentSku,
+                    movement.happenedAt,
+                ),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -648,13 +701,23 @@ private fun MovementsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val reason = if (movement.reason.isBlank()) {
+                            stringResource(R.string.label_no_reason_recorded)
+                        } else {
+                            movement.reason
+                        }
                         Text(
-                            text = movement.reason.ifBlank { "No reason recorded." },
+                            text = reason,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
                         )
+                        val note = if (movement.note.isBlank()) {
+                            stringResource(R.string.label_no_note)
+                        } else {
+                            movement.note
+                        }
                         Text(
-                            text = movement.note.ifBlank { "No note." },
+                            text = note,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -665,7 +728,7 @@ private fun MovementsScreen(
                     MovementTypeChip(movement.movementType)
                     AssistChip(
                         onClick = {},
-                        label = { Text("Updated ${movement.updatedAt}") },
+                        label = { Text(stringResource(R.string.updated_at_format, movement.updatedAt)) },
                     )
                 }
             }
@@ -701,7 +764,7 @@ private fun SettingsScreen(
     ) {
         item {
             Text(
-                text = "Sync settings",
+                text = stringResource(R.string.settings_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
@@ -711,42 +774,47 @@ private fun SettingsScreen(
         }
         item {
             SectionCard(
-                title = "Sync summary",
-                subtitle = "Local changes always land on the device first. Cloud sync remains optional.",
+                title = stringResource(R.string.sync_summary_title),
+                subtitle = stringResource(R.string.sync_summary_subtitle),
             ) {
+                val notConfigured = stringResource(R.string.label_not_configured)
                 SettingRow(
-                    "Endpoint",
-                    syncConfiguration.serverBaseUrl.ifBlank { "Not configured" },
+                    stringResource(R.string.setting_endpoint),
+                    syncConfiguration.serverBaseUrl.ifBlank { notConfigured },
                 )
                 SettingRow(
-                    "Token",
-                    syncConfiguration.apiTokenMasked.ifBlank { "Not configured" },
+                    stringResource(R.string.setting_token),
+                    syncConfiguration.apiTokenMasked.ifBlank { notConfigured },
                 )
                 SettingRow(
-                    "Auto sync",
-                    if (syncConfiguration.autoSyncEnabled) "Enabled" else "Disabled",
+                    stringResource(R.string.setting_auto_sync),
+                    if (syncConfiguration.autoSyncEnabled) {
+                        stringResource(R.string.label_enabled)
+                    } else {
+                        stringResource(R.string.label_disabled)
+                    },
                 )
-                SettingRow("Last synced", syncConfiguration.lastSyncedAt)
+                SettingRow(stringResource(R.string.setting_last_synced), syncConfiguration.lastSyncedAt)
             }
         }
         item {
             SectionCard(
-                title = "Server connection",
-                subtitle = "Local-first sync remains optional and administrator-controlled.",
+                title = stringResource(R.string.server_connection_title),
+                subtitle = stringResource(R.string.server_connection_subtitle),
             ) {
                 OutlinedTextField(
                     value = serverUrl,
                     onValueChange = { serverUrl = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Server URL") },
-                    placeholder = { Text("http://localhost:8787") },
+                    label = { Text(stringResource(R.string.field_server_url)) },
+                    placeholder = { Text(stringResource(R.string.server_url_placeholder)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = apiToken,
                     onValueChange = { apiToken = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("API token") },
+                    label = { Text(stringResource(R.string.field_api_token)) },
                     singleLine = true,
                     visualTransformation = if (showToken) {
                         VisualTransformation.None
@@ -755,9 +823,15 @@ private fun SettingsScreen(
                     },
                 )
                 TextButton(onClick = { showToken = !showToken }) {
-                    Text(if (showToken) "Hide token" else "Show token")
+                    Text(
+                        if (showToken) {
+                            stringResource(R.string.action_hide_token)
+                        } else {
+                            stringResource(R.string.action_show_token)
+                        },
+                    )
                 }
-                SettingRow("Device ID", syncConfiguration.deviceId)
+                SettingRow(stringResource(R.string.setting_device_id), syncConfiguration.deviceId)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -765,12 +839,12 @@ private fun SettingsScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Auto sync",
+                            text = stringResource(R.string.setting_auto_sync),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Medium,
                         )
                         Text(
-                            text = "Run on app start and after successful local changes.",
+                            text = stringResource(R.string.auto_sync_description),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -784,17 +858,17 @@ private fun SettingsScreen(
         }
         item {
             SectionCard(
-                title = "Sync actions",
-                subtitle = "Save settings before testing connectivity or pushing and pulling changes.",
+                title = stringResource(R.string.sync_actions_title),
+                subtitle = stringResource(R.string.sync_actions_subtitle),
             ) {
                 StatusCard(
                     if (isBusy) {
-                        "A sync-related action is currently running."
+                        stringResource(R.string.sync_action_busy)
                     } else {
                         syncConfiguration.lastSyncMessage
                     },
                 )
-                SettingRow("Last result", syncConfiguration.lastSyncMessage)
+                SettingRow(stringResource(R.string.setting_last_result), syncConfiguration.lastSyncMessage)
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
                         onClick = {
@@ -802,7 +876,7 @@ private fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Save settings")
+                        Text(stringResource(R.string.action_save_settings))
                     }
                     OutlinedButton(
                         onClick = {
@@ -812,7 +886,7 @@ private fun SettingsScreen(
                         enabled = !isBusy,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Test connection")
+                        Text(stringResource(R.string.action_test_connection))
                     }
                     OutlinedButton(
                         onClick = {
@@ -822,7 +896,7 @@ private fun SettingsScreen(
                         enabled = !isBusy,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Sync now")
+                        Text(stringResource(R.string.action_sync_now))
                     }
                 }
             }
@@ -928,7 +1002,15 @@ private fun ComponentLine(component: ComponentRecord) {
         }
         AssistChip(
             onClick = {},
-            label = { Text("${component.quantity}/${component.minStock}") },
+            label = {
+                Text(
+                    stringResource(
+                        R.string.component_ratio_format,
+                        component.quantity,
+                        component.minStock,
+                    ),
+                )
+            },
             colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
                 containerColor = VaultWarningContainer,
                 labelColor = VaultWarning,
@@ -939,6 +1021,12 @@ private fun ComponentLine(component: ComponentRecord) {
 
 @Composable
 private fun MovementLine(movement: StockMovementRecord) {
+    val movementLabel = movementTypeLabel(movement.movementType)
+    val reason = if (movement.reason.isBlank()) {
+        stringResource(R.string.label_no_reason_recorded)
+    } else {
+        movement.reason
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -953,13 +1041,17 @@ private fun MovementLine(movement: StockMovementRecord) {
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                text = "${movement.movementType} | ${movement.reason}",
+                text = stringResource(
+                    R.string.movement_line_reason_format,
+                    movementLabel,
+                    reason,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Text(
-            text = if (movement.quantity > 0) "+${movement.quantity}" else movement.quantity.toString(),
+            text = formatMovementQuantity(movement.quantity),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
@@ -968,7 +1060,7 @@ private fun MovementLine(movement: StockMovementRecord) {
 
 @Composable
 private fun MovementTypeChip(movementType: String) {
-    val label = movementType.replaceFirstChar { it.uppercase() }
+    val label = movementTypeLabel(movementType)
     val colors = when (movementType) {
         "inbound" -> androidx.compose.material3.AssistChipDefaults.assistChipColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -993,7 +1085,7 @@ private fun MovementTypeChip(movementType: String) {
 
 @Composable
 private fun MovementQuantityChip(movement: StockMovementRecord) {
-    val text = if (movement.quantity > 0) "+${movement.quantity}" else movement.quantity.toString()
+    val text = formatMovementQuantity(movement.quantity)
     val colors = when (movement.movementType) {
         "inbound" -> androidx.compose.material3.AssistChipDefaults.assistChipColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -1068,6 +1160,20 @@ private fun Dot(color: Color) {
 }
 
 @Composable
+private fun movementTypeLabel(movementType: String): String = when (movementType.lowercase()) {
+    "inbound" -> stringResource(R.string.movement_type_inbound)
+    "outbound" -> stringResource(R.string.movement_type_outbound)
+    else -> stringResource(R.string.movement_type_adjustment)
+}
+
+@Composable
+private fun formatMovementQuantity(quantity: Int): String = if (quantity > 0) {
+    stringResource(R.string.movement_positive_quantity_format, quantity)
+} else {
+    quantity.toString()
+}
+
+@Composable
 private fun ComponentEditorDialog(
     existing: ComponentRecord?,
     onDismiss: () -> Unit,
@@ -1082,10 +1188,19 @@ private fun ComponentEditorDialog(
     var quantityText by remember(existing?.id) { mutableStateOf((existing?.quantity ?: 0).toString()) }
     var minStockText by remember(existing?.id) { mutableStateOf((existing?.minStock ?: 0).toString()) }
     var errorMessage by remember { mutableStateOf("") }
+    val invalidNumberMessage = stringResource(R.string.dialog_invalid_quantity_min_stock)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (existing == null) "Add component" else "Edit component") },
+        title = {
+            Text(
+                if (existing == null) {
+                    stringResource(R.string.dialog_add_component_title)
+                } else {
+                    stringResource(R.string.dialog_edit_component_title)
+                },
+            )
+        },
         text = {
             LazyColumn(
                 modifier = Modifier.widthIn(max = 520.dp),
@@ -1096,7 +1211,7 @@ private fun ComponentEditorDialog(
                         value = sku,
                         onValueChange = { sku = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("SKU") },
+                        label = { Text(stringResource(R.string.field_sku)) },
                         singleLine = true,
                     )
                 }
@@ -1105,7 +1220,7 @@ private fun ComponentEditorDialog(
                         value = name,
                         onValueChange = { name = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Name") },
+                        label = { Text(stringResource(R.string.field_name)) },
                         singleLine = true,
                     )
                 }
@@ -1114,7 +1229,7 @@ private fun ComponentEditorDialog(
                         value = category,
                         onValueChange = { category = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Category") },
+                        label = { Text(stringResource(R.string.field_category)) },
                         singleLine = true,
                     )
                 }
@@ -1123,7 +1238,7 @@ private fun ComponentEditorDialog(
                         value = packageName,
                         onValueChange = { packageName = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Package") },
+                        label = { Text(stringResource(R.string.field_package)) },
                         singleLine = true,
                     )
                 }
@@ -1132,7 +1247,7 @@ private fun ComponentEditorDialog(
                         value = location,
                         onValueChange = { location = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Location") },
+                        label = { Text(stringResource(R.string.field_location)) },
                         singleLine = true,
                     )
                 }
@@ -1141,7 +1256,7 @@ private fun ComponentEditorDialog(
                         value = description,
                         onValueChange = { description = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Description") },
+                        label = { Text(stringResource(R.string.field_description)) },
                     )
                 }
                 item {
@@ -1149,7 +1264,7 @@ private fun ComponentEditorDialog(
                         value = quantityText,
                         onValueChange = { quantityText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Quantity") },
+                        label = { Text(stringResource(R.string.field_quantity)) },
                         singleLine = true,
                     )
                 }
@@ -1158,7 +1273,7 @@ private fun ComponentEditorDialog(
                         value = minStockText,
                         onValueChange = { minStockText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Minimum stock") },
+                        label = { Text(stringResource(R.string.field_minimum_stock)) },
                         singleLine = true,
                     )
                 }
@@ -1179,7 +1294,7 @@ private fun ComponentEditorDialog(
                     val quantity = quantityText.toIntOrNull()
                     val minStock = minStockText.toIntOrNull()
                     if (quantity == null || minStock == null) {
-                        errorMessage = "Quantity and minimum stock must be valid integers."
+                        errorMessage = invalidNumberMessage
                         return@TextButton
                     }
                     onSave(
@@ -1197,12 +1312,12 @@ private fun ComponentEditorDialog(
                     )
                 },
             ) {
-                Text("Save")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         },
     )
@@ -1229,10 +1344,11 @@ private fun MovementEditorDialog(
     var note by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf("") }
     val movementTypes = listOf("inbound", "outbound", "adjustment")
+    val invalidMovementMessage = stringResource(R.string.movement_editor_invalid_selection)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Record stock movement") },
+        title = { Text(stringResource(R.string.dialog_record_stock_movement_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 ExposedDropdownMenuBox(
@@ -1249,7 +1365,7 @@ private fun MovementEditorDialog(
                                 enabled = true,
                             )
                             .fillMaxWidth(),
-                        label = { Text("Component") },
+                        label = { Text(stringResource(R.string.field_component)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedComponents) },
                     )
                     ExposedDropdownMenu(
@@ -1273,7 +1389,7 @@ private fun MovementEditorDialog(
                     onExpandedChange = { expandedTypes = !expandedTypes },
                 ) {
                     OutlinedTextField(
-                        value = movementType.replaceFirstChar { it.uppercase() },
+                        value = movementTypeLabel(movementType),
                         onValueChange = {},
                         readOnly = true,
                         modifier = Modifier
@@ -1282,7 +1398,7 @@ private fun MovementEditorDialog(
                                 enabled = true,
                             )
                             .fillMaxWidth(),
-                        label = { Text("Movement type") },
+                        label = { Text(stringResource(R.string.field_movement_type)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedTypes) },
                     )
                     ExposedDropdownMenu(
@@ -1291,7 +1407,7 @@ private fun MovementEditorDialog(
                     ) {
                         movementTypes.forEach { type ->
                             androidx.compose.material3.DropdownMenuItem(
-                                text = { Text(type.replaceFirstChar { it.uppercase() }) },
+                                text = { Text(movementTypeLabel(type)) },
                                 onClick = {
                                     movementType = type
                                     expandedTypes = false
@@ -1305,24 +1421,24 @@ private fun MovementEditorDialog(
                     value = quantityText,
                     onValueChange = { quantityText = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Quantity") },
+                    label = { Text(stringResource(R.string.field_quantity)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = reason,
                     onValueChange = { reason = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Reason") },
+                    label = { Text(stringResource(R.string.field_reason)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Note") },
+                    label = { Text(stringResource(R.string.field_note)) },
                 )
                 Text(
-                    text = "Use positive values for inbound/outbound. Adjustment can be positive or negative.",
+                    text = stringResource(R.string.movement_editor_instruction),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1340,7 +1456,7 @@ private fun MovementEditorDialog(
                 onClick = {
                     val quantity = quantityText.toIntOrNull()
                     if (selectedComponent == null || quantity == null) {
-                        errorMessage = "Choose a component and enter a valid quantity."
+                        errorMessage = invalidMovementMessage
                         return@TextButton
                     }
                     onSave(
@@ -1354,12 +1470,12 @@ private fun MovementEditorDialog(
                     )
                 },
             ) {
-                Text("Save")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         },
     )

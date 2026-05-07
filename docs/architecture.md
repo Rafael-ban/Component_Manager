@@ -15,6 +15,8 @@
 - Built with Jetpack Compose and Material 3.
 - Current implementation is a stable-mode local-first client backed by
   on-device SQLite and shared preferences.
+- User-facing copy is now routed through Android string resources, with
+  Simplified Chinese (`zh-CN`) coverage for the primary UI.
 - Navigation covers dashboard, components, movements, and sync settings.
 - Components, movements, and settings screens now use stable-mode summary and
   detail layouts tuned for mobile-first Material 3 UI.
@@ -28,6 +30,8 @@
 - Built with WinUI 3 and Windows App SDK.
 - Current implementation is a native desktop client backed by local SQLite in
   the user's local app data directory.
+- Release distribution is now oriented around a single-project MSIX package
+  instead of shipping the raw unpackaged publish directory.
 - Navigation uses `NavigationView` with dedicated dashboard, components,
   movements, and settings pages.
 - Components, movements, and settings pages use desktop-oriented summary and
@@ -86,9 +90,9 @@
   - runtime and sync posture details
 - inventory and sync pages emphasize low-stock watchlists, sync posture, and
   read-only operational checks for administrators.
-- The admin UI is informational first; it does not yet replace API-driven client
-  editing flows.
-- It now reflects live server SQLite content rather than placeholder rows.
+- The admin UI focuses on monitoring, inventory posture, and runtime checks
+  rather than replacing API-driven client editing flows.
+- It reflects live server SQLite content.
 
 ## Sync Flow
 
@@ -137,7 +141,7 @@
 
 ## Settings Surface
 
-The target native clients persist these sync settings locally:
+The native clients persist these sync settings locally:
 
 - `device_id`
 - `server_base_url`

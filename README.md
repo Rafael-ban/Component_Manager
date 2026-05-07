@@ -7,8 +7,8 @@ stores sync data behind FastAPI and now exposes a `NiceGUI` admin console.
 
 ## Workspace Layout
 
-- `android-client/`: Android native client skeleton with Jetpack Compose.
-- `windows-client/`: Windows native desktop client skeleton with WinUI 3.
+- `android-client/`: Android native client implemented with Jetpack Compose.
+- `windows-client/`: Windows native desktop client implemented with WinUI 3.
 - `client/`: legacy Flutter reference kept for migration and field parity.
 - `server/`: FastAPI sync service with project-local virtual environment and
   NiceGUI admin UI.
@@ -31,10 +31,12 @@ stores sync data behind FastAPI and now exposes a `NiceGUI` admin console.
 ## Platform Status
 
 - Windows native client: local SQLite, component editing, movement recording,
-  sync settings, and server sync wiring are implemented; `dotnet build` and
-  `dotnet publish` verified successfully on `2026-05-07`.
+  sync settings, server sync wiring, and MSIX packaging are implemented;
+  `dotnet build` and MSIX-oriented `dotnet publish` verified successfully on
+  `2026-05-07`.
 - Android native client: local SQLite, component editing, movement recording,
-  sync settings, and server sync wiring are implemented; `help`,
+  sync settings, server sync wiring, and `zh-CN` interface resources are
+  implemented; `help`,
   `assembleDebug`, and `assembleRelease` verified successfully on `2026-05-07`
   on this host with the configured Android SDK and JDK paths.
 - Server admin UI: verified on `2026-05-07` with `server/.venv`, `pytest`,
@@ -69,9 +71,13 @@ user's local app data directory and supports:
 - sync settings save/test/sync-now
 - push/pull against the FastAPI sync service
 
+`dotnet publish` now emits an MSIX package under:
+
+- `windows-client\ComponentVault.WinUI\bin\Release\net9.0-windows10.0.19041.0\win-x64\AppPackages\`
+
 ## Android Client
 
-The Android client is scaffolded as a Gradle/Compose app in `android-client/`.
+The Android client lives in `android-client/` as a Gradle/Compose app.
 Before building, make sure the machine has:
 
 - Android SDK installed
@@ -106,6 +112,7 @@ preferences and supports:
 - inventory movement entry
 - sync settings save/test/sync-now
 - push/pull against the FastAPI sync service
+- localized string resources, including a Simplified Chinese (`zh-CN`) UI
 
 ## GitHub Actions
 
@@ -118,7 +125,9 @@ The repository now includes two workflows under `.github/workflows/`:
 Release artifacts produced by GitHub Actions:
 
 - `component-vault-android-release.apk`
-- `component-vault-windows-win-x64.zip`
+- `component-vault-windows-x64.msix`
+- `component-vault-windows-test-certificate.cer`
+- `Install-ComponentVault.ps1`
 
 Required GitHub Secrets for Android release signing:
 
@@ -126,6 +135,12 @@ Required GitHub Secrets for Android release signing:
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
+
+Windows release packaging uses a runner-generated self-signed certificate for
+test distribution. The release workflow publishes both the `.msix` package and
+the matching `.cer` certificate, plus an install script that imports the
+certificate into the current user's `TrustedPeople` store before calling
+`Add-AppxPackage`.
 
 ## Legacy Flutter Reference
 

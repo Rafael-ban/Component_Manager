@@ -6,6 +6,8 @@ import android.content.SharedPreferences
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.provider.Settings
+import androidx.annotation.StringRes
+import com.componentvault.android.R
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.DashboardSnapshot
@@ -147,8 +149,10 @@ class InventoryRepository(
             serverBaseUrl = preferences.getString(KEY_SERVER_BASE_URL, "") ?: "",
             apiToken = preferences.getString(KEY_API_TOKEN, "") ?: "",
             autoSyncEnabled = preferences.getBoolean(KEY_AUTO_SYNC_ENABLED, false),
-            lastSyncedAt = preferences.getString(KEY_LAST_SYNCED_AT, "Never") ?: "Never",
-            lastSyncMessage = preferences.getString(KEY_LAST_SYNC_MESSAGE, "No sync yet.") ?: "No sync yet.",
+            lastSyncedAt = preferences.getString(KEY_LAST_SYNCED_AT, text(R.string.sync_never))
+                ?: text(R.string.sync_never),
+            lastSyncMessage = preferences.getString(KEY_LAST_SYNC_MESSAGE, text(R.string.sync_no_sync_yet))
+                ?: text(R.string.sync_no_sync_yet),
         )
     }
 
@@ -166,7 +170,7 @@ class InventoryRepository(
 
         return OperationResult(
             isSuccess = true,
-            message = "Sync settings saved locally.",
+            message = text(R.string.sync_settings_saved_local),
         )
     }
 
@@ -210,22 +214,22 @@ class InventoryRepository(
             OperationResult(
                 isSuccess = true,
                 message = if (draft.id == null) {
-                    "Component created locally."
+                    text(R.string.sync_component_created_local)
                 } else {
-                    "Component changes saved locally."
+                    text(R.string.sync_component_saved_local)
                 },
             )
         } catch (exception: Exception) {
             OperationResult(
                 isSuccess = false,
-                message = exception.message ?: "Failed to save component.",
+                message = exception.message ?: text(R.string.sync_component_save_failed),
             )
         }
     }
 
     suspend fun softDeleteComponent(componentId: String): OperationResult = withContext(Dispatchers.IO) {
         if (componentId.isBlank()) {
-            return@withContext OperationResult(false, "Select a component to delete.")
+            return@withContext OperationResult(false, text(R.string.sync_select_component_first))
         }
 
         databaseHelper.writableDatabase.use { db ->
@@ -243,7 +247,7 @@ class InventoryRepository(
                     arrayOf(componentId),
                 )
                 if (affectedRows == 0) {
-                    return@withContext OperationResult(false, "Component not found.")
+                    return@withContext OperationResult(false, text(R.string.sync_component_not_found))
                 }
 
                 enqueueEntity(db, "component", componentId, updatedAt)
@@ -255,7 +259,7 @@ class InventoryRepository(
 
         OperationResult(
             isSuccess = true,
-            message = "Component soft-deleted locally.",
+            message = text(R.string.sync_component_deleted_local),
         )
     }
 
@@ -269,7 +273,7 @@ class InventoryRepository(
                     val component = getComponentById(db, draft.componentId)
                         ?: return@withContext OperationResult(
                             isSuccess = false,
-                            message = "Choose an active component first.",
+                            message = text(R.string.sync_choose_active_component_first),
                         )
 
                     val delta = calculateQuantityDelta(draft.movementType, draft.quantity)
@@ -277,7 +281,7 @@ class InventoryRepository(
                     if (newQuantity < 0) {
                         return@withContext OperationResult(
                             isSuccess = false,
-                            message = "This movement would make stock negative.",
+                            message = text(R.string.sync_negative_stock_error),
                         )
                     }
 
@@ -322,12 +326,12 @@ class InventoryRepository(
 
             OperationResult(
                 isSuccess = true,
-                message = "Movement recorded locally.",
+                message = text(R.string.sync_movement_recorded_local),
             )
         } catch (exception: Exception) {
             OperationResult(
                 isSuccess = false,
-                message = exception.message ?: "Failed to record movement.",
+                message = exception.message ?: text(R.string.sync_movement_record_failed),
             )
         }
     }
@@ -335,10 +339,10 @@ class InventoryRepository(
     suspend fun testConnection(): OperationResult = withContext(Dispatchers.IO) {
         val settings = loadSyncConfiguration()
         if (settings.serverBaseUrl.isBlank()) {
-            return@withContext OperationResult(false, "Enter a server URL first.")
+            return@withContext OperationResult(false, text(R.string.sync_enter_server_url_first))
         }
         if (settings.apiToken.isBlank()) {
-            return@withContext OperationResult(false, "Enter an API token first.")
+            return@withContext OperationResult(false, text(R.string.sync_enter_api_token_first))
         }
 
         return@withContext try {
@@ -350,12 +354,12 @@ class InventoryRepository(
             )
             OperationResult(
                 isSuccess = true,
-                message = "Connection ok. Server time: ${response.optString("server_time")}",
+                message = text(R.string.sync_connection_ok, response.optString("server_time")),
             )
         } catch (exception: Exception) {
             OperationResult(
                 isSuccess = false,
-                message = exception.message ?: "Connection failed.",
+                message = exception.message ?: text(R.string.sync_connection_failed),
             )
         }
     }
@@ -363,10 +367,10 @@ class InventoryRepository(
     suspend fun runSync(): OperationResult = withContext(Dispatchers.IO) {
         val settings = loadSyncConfiguration()
         if (settings.serverBaseUrl.isBlank()) {
-            return@withContext OperationResult(false, "Enter a server URL before syncing.")
+            return@withContext OperationResult(false, text(R.string.sync_enter_server_url_before_sync))
         }
         if (settings.apiToken.isBlank()) {
-            return@withContext OperationResult(false, "Enter an API token before syncing.")
+            return@withContext OperationResult(false, text(R.string.sync_enter_api_token_before_sync))
         }
 
         try {
@@ -408,26 +412,33 @@ class InventoryRepository(
             val pulledComponents = pullResponse.optJSONArray("components")?.length() ?: 0
             val pulledMovements = pullResponse.optJSONArray("stock_movements")?.length() ?: 0
             val serverTime = pullResponse.optString("server_time")
+            val successMessage = text(
+                R.string.sync_complete_summary,
+                acceptedComponents,
+                acceptedMovements,
+                pulledComponents,
+                pulledMovements,
+            )
 
             updateSyncStatus(
                 lastSyncedAt = serverTime,
-                message = "Sync complete. Push C:$acceptedComponents M:$acceptedMovements, Pull C:$pulledComponents M:$pulledMovements.",
+                message = successMessage,
                 preserveTimestamp = false,
             )
 
             OperationResult(
                 isSuccess = true,
-                message = "Sync complete. Push C:$acceptedComponents M:$acceptedMovements, Pull C:$pulledComponents M:$pulledMovements.",
+                message = successMessage,
             )
         } catch (exception: Exception) {
             updateSyncStatus(
                 lastSyncedAt = null,
-                message = exception.message ?: "Sync failed.",
+                message = exception.message ?: text(R.string.sync_failed),
                 preserveTimestamp = true,
             )
             OperationResult(
                 isSuccess = false,
-                message = exception.message ?: "Sync failed.",
+                message = exception.message ?: text(R.string.sync_failed),
             )
         }
     }
@@ -486,8 +497,8 @@ class InventoryRepository(
         if (!preferences.contains(KEY_DEVICE_ID)) {
             preferences.edit()
                 .putString(KEY_DEVICE_ID, defaultDeviceId())
-                .putString(KEY_LAST_SYNCED_AT, "Never")
-                .putString(KEY_LAST_SYNC_MESSAGE, "No sync yet.")
+                .putString(KEY_LAST_SYNCED_AT, text(R.string.sync_never))
+                .putString(KEY_LAST_SYNC_MESSAGE, text(R.string.sync_no_sync_yet))
                 .apply()
         }
     }
@@ -508,23 +519,23 @@ class InventoryRepository(
             draft.packageName.isBlank() ||
             draft.location.isBlank()
         ) {
-            throw IllegalStateException("Fill in SKU, name, category, package, and location.")
+            throw IllegalStateException(text(R.string.sync_component_required_fields))
         }
         if (draft.quantity < 0 || draft.minStock < 0) {
-            throw IllegalStateException("Quantity and minimum stock cannot be negative.")
+            throw IllegalStateException(text(R.string.sync_component_non_negative))
         }
     }
 
     private fun validateMovementDraft(draft: MovementEntryDraft) {
         if (draft.componentId.isBlank() || draft.reason.isBlank() || draft.movementType.isBlank()) {
-            throw IllegalStateException("Choose a component, movement type, and reason.")
+            throw IllegalStateException(text(R.string.sync_choose_component_type_reason))
         }
         if (draft.movementType == "adjustment") {
             if (draft.quantity == 0) {
-                throw IllegalStateException("Adjustment quantity cannot be zero.")
+                throw IllegalStateException(text(R.string.sync_adjustment_non_zero))
             }
         } else if (draft.quantity <= 0) {
-            throw IllegalStateException("Movement quantity must be greater than zero.")
+            throw IllegalStateException(text(R.string.sync_movement_quantity_positive))
         }
     }
 
@@ -543,7 +554,7 @@ class InventoryRepository(
         ).use { cursor ->
             cursor.moveToFirst()
             if (cursor.getInt(cursor.getColumnIndexOrThrow("duplicate_count")) > 0) {
-                throw IllegalStateException("An active component with the same SKU already exists.")
+                throw IllegalStateException(text(R.string.sync_duplicate_active_sku))
             }
         }
     }
@@ -791,18 +802,18 @@ class InventoryRepository(
         body: String,
     ): String {
         if (body.isBlank()) {
-            return "Sync server error ($statusCode)."
+            return text(R.string.sync_server_error, statusCode)
         }
 
         return try {
             val detail = JSONObject(body).optString("detail")
             if (detail.isBlank()) {
-                "Sync server error ($statusCode): $body"
+                text(R.string.sync_server_error_detail, statusCode, body)
             } else {
-                "Sync server error ($statusCode): $detail"
+                text(R.string.sync_server_error_detail, statusCode, detail)
             }
         } catch (_: Exception) {
-            "Sync server error ($statusCode): $body"
+            text(R.string.sync_server_error_detail, statusCode, body)
         }
     }
 
@@ -936,7 +947,7 @@ class InventoryRepository(
 
     private fun readStoredLastSyncedAt(): String? {
         val value = preferences.getString(KEY_LAST_SYNCED_AT, null)
-        return if (value.isNullOrBlank() || value == "Never") {
+        return if (value.isNullOrBlank() || value == text(R.string.sync_never)) {
             null
         } else {
             value
@@ -950,7 +961,7 @@ class InventoryRepository(
         "inbound" -> quantity
         "outbound" -> -quantity
         "adjustment" -> quantity
-        else -> throw IllegalStateException("Unsupported movement type.")
+        else -> throw IllegalStateException(text(R.string.sync_unsupported_movement_type))
     }
 
     private fun normalizeMovementQuantity(
@@ -964,6 +975,11 @@ class InventoryRepository(
     private fun utcNow(): String = TIMESTAMP_FORMATTER.format(Instant.now())
 
     private fun randomId(): String = java.util.UUID.randomUUID().toString().replace("-", "")
+
+    private fun text(
+        @StringRes resId: Int,
+        vararg args: Any,
+    ): String = appContext.getString(resId, *args)
 
     private data class SyncPayload(
         val payload: JSONObject,

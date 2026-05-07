@@ -19,6 +19,7 @@ windows-client/**/bin/
 windows-client/**/obj/
 .dotnet-home/
 .gradle-user-home/
+.local-secrets/
 env/
 
 server/.pytest_cache/
@@ -31,3 +32,5 @@ server/app/__pycache__/
 *.sqlite3
 *.db
 *.log
+*.jks
+*.keystore

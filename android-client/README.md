@@ -1,7 +1,7 @@
 # Android Native Client
 
-This directory contains the Android-native client skeleton built with Jetpack
-Compose and Material 3.
+This directory contains the Android-native client built with Jetpack Compose
+and Material 3.
 
 ## Current State
 
@@ -11,6 +11,7 @@ Compose and Material 3.
 - Component create/edit/soft delete workflow implemented
 - Movement entry workflow implemented
 - Push/pull sync wiring implemented against the FastAPI service
+- Simplified Chinese (`zh-CN`) UI resources implemented for the primary screens
 - `gradle -p android-client help` verified successfully on `2026-05-07`
 - `assembleDebug` verified successfully on `2026-05-07` on this host
 - `assembleRelease` verified successfully on `2026-05-07` on this host
