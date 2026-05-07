@@ -165,6 +165,23 @@ jobs:
             /p:AppxPackageSigningEnabled=true `
             /p:PackageCertificateThumbprint="$env:WINDOWS_CERT_THUMBPRINT"
 
+      - name: Stage Windows MSIX package
+        shell: pwsh
+        run: |
+          $releaseRoot = Join-Path $env:GITHUB_WORKSPACE 'windows-client\ComponentVault.WinUI\bin\Release'
+          $stagedMsixPath = Join-Path $env:RUNNER_TEMP 'component-vault-windows-x64.msix'
+          $msix = Get-ChildItem -Path $releaseRoot -Recurse -Filter *.msix |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+
+          if (-not $msix) {
+            throw 'Windows MSIX package was not generated immediately after publish.'
+          }
+
+          Copy-Item $msix.FullName $stagedMsixPath -Force
+          "WINDOWS_MSIX_PATH=$stagedMsixPath" >> $env:GITHUB_ENV
+          Write-Host "Staged Windows MSIX: $($msix.FullName)"
+
       - name: Publish Windows portable bundle
         shell: pwsh
         run: |
@@ -186,26 +203,42 @@ jobs:
             -p:PublishSingleFile=false `
             -o $portablePublishDir
 
+      - name: Verify staged Windows MSIX package
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_MSIX_PATH)) {
+            throw 'WINDOWS_MSIX_PATH was not set by the staging step.'
+          }
+
+          if (!(Test-Path $env:WINDOWS_MSIX_PATH)) {
+            throw "Staged MSIX package is missing: $env:WINDOWS_MSIX_PATH"
+          }
+
+          Write-Host "Verified staged Windows MSIX: $env:WINDOWS_MSIX_PATH"
+
       - name: Normalize Windows release artifacts
         shell: pwsh
         run: |
           $artifactDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts\windows'
-          $packageRoot = Join-Path $env:GITHUB_WORKSPACE 'windows-client\ComponentVault.WinUI\bin\Release\net9.0-windows10.0.19041.0\win-x64\AppPackages'
+          $stagedMsixPath = $env:WINDOWS_MSIX_PATH
           $portablePublishDir = Join-Path $env:RUNNER_TEMP 'component-vault-portable-x64'
           $portableStageDir = Join-Path $env:RUNNER_TEMP 'component-vault-windows-portable-x64'
           $portableZipPath = Join-Path $artifactDir 'component-vault-windows-portable-x64.zip'
           New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
 
-          $msix = Get-ChildItem -Path $packageRoot -Recurse -Filter *.msix | Select-Object -First 1
-          if (-not $msix) {
-            throw 'Windows MSIX package was not generated.'
+          if ([string]::IsNullOrWhiteSpace($stagedMsixPath)) {
+            throw 'WINDOWS_MSIX_PATH is not available during artifact normalization.'
+          }
+
+          if (!(Test-Path $stagedMsixPath)) {
+            throw "Staged Windows MSIX package was not found: $stagedMsixPath"
           }
 
           if (!(Test-Path $portablePublishDir)) {
             throw 'Windows portable publish output was not generated.'
           }
 
-          Copy-Item $msix.FullName (Join-Path $artifactDir 'component-vault-windows-x64.msix') -Force
+          Copy-Item $stagedMsixPath (Join-Path $artifactDir 'component-vault-windows-x64.msix') -Force
           Copy-Item $env:WINDOWS_CER_PATH (Join-Path $artifactDir 'component-vault-windows-test-certificate.cer') -Force
 
           if (Test-Path $portableStageDir) {

@@ -3,6 +3,7 @@
 .vscode/
 .vs/
 .dotnet-cli/
+.dotnet-cli-*/
 .android-user/
 .gradle-home/
 
@@ -41,4 +42,3 @@ admin-web/.vite/
 *.log
 *.jks
 *.keystore
-AGENTS.md
