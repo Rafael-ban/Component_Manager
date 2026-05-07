@@ -18,6 +18,8 @@ android-client/local.properties
 windows-client/**/bin/
 windows-client/**/obj/
 .dotnet-home/
+.dotnet-appdata/
+.dotnet-localappdata/
 .gradle-user-home/
 .local-secrets/
 .npm-cache/

@@ -14,7 +14,9 @@ internal static class ViewModelResolver
 
         if (Application.Current is App app)
         {
-            return app.MainViewModel;
+            return app.MainViewModel is not null
+                ? app.MainViewModel
+                : new DesignMainViewModel();
         }
 
         return new DesignMainViewModel();

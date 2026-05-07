@@ -11,7 +11,9 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _viewModel = ((App)Application.Current).MainViewModel;
+        _viewModel =
+            ((App)Application.Current).MainViewModel
+            ?? throw new InvalidOperationException("MainViewModel was not initialized.");
         AppNavigationView.SelectedItem = DashboardItem;
         RootFrame.Navigate(typeof(DashboardView));
     }

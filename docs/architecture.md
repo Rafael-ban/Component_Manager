@@ -34,15 +34,19 @@
   the user's local app data directory.
 - User-facing copy is now organized around Chinese-first WinUI pages while
   retaining Windows-native layout and interaction patterns.
-- Release distribution is now oriented around a single-project MSIX package
-  instead of shipping the raw unpackaged publish directory.
+- Release distribution now supports both a test-signed MSIX install flow and a
+  portable unpackaged publish that can be zipped and launched directly.
 - Navigation uses `NavigationView` with dedicated dashboard, components,
   movements, and settings pages.
 - Components, movements, and settings pages use desktop-oriented summary and
   detail panels rather than mobile-style stacked forms.
 - The implemented behavior matches Android at the business level and follows
   Windows-native layout conventions.
-- Windows build verification completed successfully on `2026-05-07`.
+- Startup diagnostics now log fatal launch/runtime exceptions under
+  `%LOCALAPPDATA%\ComponentVault\logs\startup.log` and surface the log path in
+  a native Windows error dialog.
+- Windows build verification completed successfully on `2026-05-08`, and the
+  portable publish path was verified successfully on `2026-05-08`.
 
 ## Legacy Flutter Reference
 

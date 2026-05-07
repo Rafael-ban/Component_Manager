@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   android-release:
     runs-on: ubuntu-latest
@@ -21,21 +24,31 @@ jobs:
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '9.2.1'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Add Android SDK tools to PATH
+        run: |
+          if [ -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          elif [ -x "$ANDROID_SDK_ROOT/cmdline-tools/bin/sdkmanager" ]; then
+            echo "$ANDROID_SDK_ROOT/cmdline-tools/bin" >> "$GITHUB_PATH"
+          else
+            echo "sdkmanager not found under $ANDROID_SDK_ROOT" >&2
+            find "$ANDROID_SDK_ROOT" -maxdepth 4 -name sdkmanager >&2 || true
+            exit 1
+          fi
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
 
       - name: Install Android SDK packages
         run: |
@@ -66,10 +79,47 @@ jobs:
           cp "$APK_PATH" artifacts/android/component-vault-android-release.apk
 
       - name: Upload Android artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-release-apk
           path: artifacts/android/component-vault-android-release.apk
+          if-no-files-found: error
+
+  admin-web-release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin-web
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: admin-web/package-lock.json
+
+      - name: Install admin web dependencies
+        run: npm ci
+
+      - name: Build admin web
+        env:
+          VITE_DEFAULT_API_BASE_URL: http://localhost:8787
+        run: npm run build
+
+      - name: Package admin web artifact
+        run: |
+          mkdir -p ../artifacts/admin-web
+          cd dist
+          zip -r ../../artifacts/admin-web/component-vault-admin-web.zip .
+
+      - name: Upload admin web artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: admin-web-static
+          path: artifacts/admin-web/component-vault-admin-web.zip
           if-no-files-found: error
 
   windows-release:
@@ -78,31 +128,139 @@ jobs:
       DOTNET_CLI_HOME: ${{ github.workspace }}\.dotnet-cli
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '9.0.x'
 
-      - name: Publish Windows client
-        run: dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj -c Release /p:PublishProfile=win-x64.pubxml
-
-      - name: Create Windows publish archive
+      - name: Create temporary Windows signing certificate
         shell: pwsh
         run: |
-          $publishDir = Join-Path $env:GITHUB_WORKSPACE 'windows-client\ComponentVault.WinUI\bin\Release\net9.0-windows10.0.19041.0\win-x64\publish'
-          $zipPath = Join-Path $env:RUNNER_TEMP 'component-vault-windows-win-x64.zip'
-          if (Test-Path $zipPath) {
-            Remove-Item $zipPath -Force
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject 'CN=ComponentVault' `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -KeyExportPolicy Exportable `
+            -KeyUsage DigitalSignature `
+            -FriendlyName 'ComponentVault Release Signing' `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.19={text}CA=false','2.5.29.37={text}1.3.6.1.5.5.7.3.3')
+          $cerPath = Join-Path $env:RUNNER_TEMP 'component-vault-release-signing.cer'
+
+          Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
+
+          "WINDOWS_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+          "WINDOWS_CER_PATH=$cerPath" >> $env:GITHUB_ENV
+
+      - name: Publish Windows MSIX package
+        shell: pwsh
+        run: |
+          dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj `
+            -c Release `
+            /p:PublishProfile=win-x64.pubxml `
+            /p:AppxPackageSigningEnabled=true `
+            /p:PackageCertificateThumbprint="$env:WINDOWS_CERT_THUMBPRINT"
+
+      - name: Publish Windows portable bundle
+        shell: pwsh
+        run: |
+          $portablePublishDir = Join-Path $env:RUNNER_TEMP 'component-vault-portable-x64'
+
+          if (Test-Path $portablePublishDir) {
+            Remove-Item -LiteralPath $portablePublishDir -Recurse -Force
           }
-          Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath
+
+          dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj `
+            -c Release `
+            -r win-x64 `
+            -p:PublishProfile= `
+            -p:WindowsPackageType=None `
+            -p:GenerateAppxPackageOnBuild=false `
+            -p:AppxPackageSigningEnabled=false `
+            -p:WindowsAppSDKSelfContained=true `
+            -p:SelfContained=true `
+            -p:PublishSingleFile=false `
+            -o $portablePublishDir
+
+      - name: Normalize Windows release artifacts
+        shell: pwsh
+        run: |
+          $artifactDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts\windows'
+          $packageRoot = Join-Path $env:GITHUB_WORKSPACE 'windows-client\ComponentVault.WinUI\bin\Release\net9.0-windows10.0.19041.0\win-x64\AppPackages'
+          $portablePublishDir = Join-Path $env:RUNNER_TEMP 'component-vault-portable-x64'
+          $portableStageDir = Join-Path $env:RUNNER_TEMP 'component-vault-windows-portable-x64'
+          $portableZipPath = Join-Path $artifactDir 'component-vault-windows-portable-x64.zip'
+          New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+
+          $msix = Get-ChildItem -Path $packageRoot -Recurse -Filter *.msix | Select-Object -First 1
+          if (-not $msix) {
+            throw 'Windows MSIX package was not generated.'
+          }
+
+          if (!(Test-Path $portablePublishDir)) {
+            throw 'Windows portable publish output was not generated.'
+          }
+
+          Copy-Item $msix.FullName (Join-Path $artifactDir 'component-vault-windows-x64.msix') -Force
+          Copy-Item $env:WINDOWS_CER_PATH (Join-Path $artifactDir 'component-vault-windows-test-certificate.cer') -Force
+
+          if (Test-Path $portableStageDir) {
+            Remove-Item -LiteralPath $portableStageDir -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Force -Path $portableStageDir | Out-Null
+          Copy-Item (Join-Path $portablePublishDir '*') $portableStageDir -Recurse -Force
+
+          if (Test-Path $portableZipPath) {
+            Remove-Item -LiteralPath $portableZipPath -Force
+          }
+
+          Compress-Archive -Path $portableStageDir -DestinationPath $portableZipPath
+
+          @'
+          param(
+              [string]$PackagePath = "component-vault-windows-x64.msix",
+              [string]$CertificatePath = "component-vault-windows-test-certificate.cer"
+          )
+
+          $packageFullPath = Join-Path $PSScriptRoot $PackagePath
+          $certificateFullPath = Join-Path $PSScriptRoot $CertificatePath
+
+          if (!(Test-Path $packageFullPath)) {
+              throw "MSIX package not found: $packageFullPath"
+          }
+
+          if (!(Test-Path $certificateFullPath)) {
+              throw "Certificate file not found: $certificateFullPath"
+          }
+
+          Import-Certificate -FilePath $certificateFullPath -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
+          Add-AppxPackage -Path $packageFullPath
+          Write-Host "Component Vault installation completed."
+          '@ | Set-Content (Join-Path $artifactDir 'Install-ComponentVault.ps1')
+
+          @'
+          Component Vault Windows release bundle
+
+          Portable package:
+          1. Unzip component-vault-windows-portable-x64.zip
+          2. Open the extracted component-vault-windows-portable-x64 folder
+          3. Run ComponentVault.WinUI.exe
+
+          MSIX package:
+          1. Keep component-vault-windows-x64.msix and component-vault-windows-test-certificate.cer in the same folder
+          2. Run Install-ComponentVault.ps1 from PowerShell
+          '@ | Set-Content (Join-Path $artifactDir 'README-Windows-Release.txt')
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: windows-release-zip
-          path: ${{ runner.temp }}/component-vault-windows-win-x64.zip
+          name: windows-release-bundle
+          path: artifacts/windows
           if-no-files-found: error
 
   github-release:
@@ -110,24 +268,43 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - android-release
+      - admin-web-release
       - windows-release
     steps:
       - name: Download Android artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: android-release-apk
           path: release-assets/android
 
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v4
+      - name: Download admin web artifact
+        uses: actions/download-artifact@v7
         with:
-          name: windows-release-zip
+          name: admin-web-static
+          path: release-assets/admin-web
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: windows-release-bundle
           path: release-assets/windows
 
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: |
-            release-assets/android/component-vault-android-release.apk
-            release-assets/windows/component-vault-windows-win-x64.zip
+      - name: Create or update GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" \
+              release-assets/android/component-vault-android-release.apk \
+              release-assets/admin-web/component-vault-admin-web.zip \
+              release-assets/windows/* \
+              --clobber
+          else
+            gh release create "$TAG_NAME" \
+              release-assets/android/component-vault-android-release.apk \
+              release-assets/admin-web/component-vault-admin-web.zip \
+              release-assets/windows/* \
+              --generate-notes
+          fi

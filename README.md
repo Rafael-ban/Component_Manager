@@ -33,10 +33,12 @@ connects to it over HTTP.
 ## Platform Status
 
 - Windows native client: local SQLite, component editing, movement recording,
-  sync settings, server sync wiring, Chinese-first WinUI pages, and MSIX
+  sync settings, server sync wiring, Chinese-first WinUI pages, and dual-mode
   packaging are implemented; XAML designer sample data is now wired for the
-  main pages; `dotnet build` verified successfully on `2026-05-08`, and
-  MSIX-oriented `dotnet publish` was verified successfully on `2026-05-07`.
+  main pages; `dotnet build` verified successfully on `2026-05-08`,
+  MSIX-oriented `dotnet publish` was verified successfully on `2026-05-07`,
+  and unpackaged portable `dotnet publish` was verified successfully on
+  `2026-05-08`.
 - Android native client: local SQLite, component editing, movement recording,
   sync settings, server sync wiring, and Chinese-first Compose interface
   resources are implemented; Compose Preview sample states are now wired for
@@ -66,6 +68,7 @@ Build the WinUI 3 client with:
 ```powershell
 dotnet build windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj
 dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj -c Release /p:PublishProfile=win-x64.pubxml
+dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj -c Release -r win-x64 -p:PublishProfile= -p:WindowsPackageType=None -p:GenerateAppxPackageOnBuild=false -p:AppxPackageSigningEnabled=false -p:WindowsAppSDKSelfContained=true -p:SelfContained=true -p:PublishSingleFile=false -o windows-client\artifacts\portable-local
 ```
 
 The current desktop implementation uses a local SQLite database under the
@@ -76,9 +79,14 @@ user's local app data directory and supports:
 - sync settings save/test/sync-now
 - push/pull against the FastAPI sync service
 
-`dotnet publish` now emits an MSIX package under:
+`dotnet publish` now supports two Windows release shapes:
 
 - `windows-client\ComponentVault.WinUI\bin\Release\net9.0-windows10.0.19041.0\win-x64\AppPackages\`
+- `windows-client\artifacts\portable-local\`
+
+The first path is the test-signed MSIX package output. The second path is an
+unpackaged portable folder that can be zipped and run directly via
+`ComponentVault.WinUI.exe`.
 
 ## Android Client
 
@@ -168,9 +176,11 @@ Release artifacts produced by GitHub Actions:
 
 - `component-vault-android-release.apk`
 - `component-vault-admin-web.zip`
+- `component-vault-windows-portable-x64.zip`
 - `component-vault-windows-x64.msix`
 - `component-vault-windows-test-certificate.cer`
 - `Install-ComponentVault.ps1`
+- `README-Windows-Release.txt`
 
 Required GitHub Secrets for Android release signing:
 
@@ -180,10 +190,15 @@ Required GitHub Secrets for Android release signing:
 - `ANDROID_KEY_PASSWORD`
 
 Windows release packaging uses a runner-generated self-signed certificate for
-test distribution. The release workflow publishes both the `.msix` package and
-the matching `.cer` certificate, plus an install script that imports the
-certificate into the current user's `TrustedPeople` store before calling
-`Add-AppxPackage`.
+test distribution. The release workflow publishes both a portable zip and an
+MSIX package. The portable zip can be extracted and launched directly with
+`ComponentVault.WinUI.exe`. The MSIX path still ships with the matching `.cer`
+certificate plus an install script that imports the certificate into the
+current user's `TrustedPeople` store before calling `Add-AppxPackage`.
+
+When downloading from the GitHub Actions run page instead of a tagged GitHub
+Release, first extract the outer workflow artifact archive, then use the inner
+`component-vault-windows-portable-x64.zip` or the MSIX install set.
 
 The release workflow also publishes a zipped `admin-web/dist` bundle for
 static deployment of the separated web admin.

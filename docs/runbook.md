@@ -17,9 +17,9 @@ cd server
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Verified on `2026-05-07`:
+Verified on `2026-05-08`:
 
-- `.\.venv\Scripts\python.exe -m pytest` -> `7 passed`
+- `.\.venv\Scripts\python.exe -m pytest` -> `9 passed`
 - `/admin-api/dashboard` smoke request with token -> `200 OK`
 
 ## Local Admin Web Development
@@ -128,11 +128,13 @@ Basic check:
 ```powershell
 dotnet build windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj
 dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj -c Release /p:PublishProfile=win-x64.pubxml
+dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj -c Release -r win-x64 -p:PublishProfile= -p:WindowsPackageType=None -p:GenerateAppxPackageOnBuild=false -p:AppxPackageSigningEnabled=false -p:WindowsAppSDKSelfContained=true -p:SelfContained=true -p:PublishSingleFile=false -o windows-client\artifacts\portable-local
 ```
 
-MSIX output path after publish:
+Windows output paths after publish:
 
 - `windows-client\ComponentVault.WinUI\bin\Release\net9.0-windows10.0.19041.0\win-x64\AppPackages\`
+- `windows-client\artifacts\portable-local\`
 
 Implemented client behaviors:
 
@@ -149,8 +151,8 @@ The repository includes two GitHub Actions workflows:
   Runs server tests, admin-web build validation, Android debug compilation, and
   Windows build validation.
 - `.github/workflows/release.yml`
-  Runs Android release packaging and Windows MSIX packaging on manual trigger
-  and `v*` tag pushes.
+  Runs Android release packaging, admin-web static bundle packaging, and
+  Windows dual-mode packaging on manual trigger and `v*` tag pushes.
 
 ### Android Release Secrets
 
@@ -171,16 +173,34 @@ The workflow decodes the keystore into a runner-local temp file and exports:
 
 - `component-vault-android-release.apk`
 - `component-vault-admin-web.zip`
+- `component-vault-windows-portable-x64.zip`
 - `component-vault-windows-x64.msix`
 - `component-vault-windows-test-certificate.cer`
 - `Install-ComponentVault.ps1`
+- `README-Windows-Release.txt`
 
-On `v*` tags, the workflow also attaches all three Windows files and the
-Android APK plus the `admin-web` static bundle to the GitHub Release.
+On `v*` tags, the workflow also attaches the Windows portable zip, the MSIX
+install set, the Android APK, and the `admin-web` static bundle to the GitHub
+Release.
 
 ### Installing The Windows Release
 
-GitHub Release now ships a test-signed MSIX bundle set:
+GitHub Release now ships two Windows distribution modes.
+
+Portable zip:
+
+1. If the file came from the GitHub Actions artifact page, extract the outer
+   workflow artifact archive first
+2. Download or locate `component-vault-windows-portable-x64.zip`
+3. Extract it
+4. Open the extracted `component-vault-windows-portable-x64` folder
+5. Run `ComponentVault.WinUI.exe`
+
+If the executable fails during startup, check:
+
+- `%LOCALAPPDATA%\ComponentVault\logs\startup.log`
+
+MSIX package:
 
 1. Download `component-vault-windows-x64.msix`
 2. Download `component-vault-windows-test-certificate.cer`
@@ -271,6 +291,25 @@ curl -X POST http://localhost:8787/auth/ping `
 - Fix: download `component-vault-windows-test-certificate.cer` and run
   `Install-ComponentVault.ps1`, or manually import the certificate into
   `Cert:\CurrentUser\TrustedPeople` before installing the MSIX package.
+
+### Windows artifact is downloaded and extracted but nothing obvious runs
+
+- Symptom: the GitHub Actions Windows artifact is unpacked, but there is no
+  direct executable at the root or the user expects the MSIX file itself to
+  behave like a portable app.
+- Cause: the Windows release now contains both a packaged MSIX flow and a
+  separate portable zip; the artifact root is only a bundle of release files.
+- Fix: either extract `component-vault-windows-portable-x64.zip` and run
+  `ComponentVault.WinUI.exe`, or use `Install-ComponentVault.ps1` for the MSIX
+  package flow.
+
+### Windows client exits during startup
+
+- Symptom: `ComponentVault.WinUI.exe` appears briefly, or the app shows a
+  startup failure dialog.
+- Cause: an unhandled startup or UI exception occurred on the target machine.
+- Fix: open `%LOCALAPPDATA%\ComponentVault\logs\startup.log`, keep the dialog
+  text, and use that exception message for the next debugging pass.
 
 ### Duplicate SKU push rejected
 
