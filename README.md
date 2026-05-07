@@ -15,7 +15,6 @@ stores sync data behind FastAPI and now exposes a `NiceGUI` admin console.
 - `.github/workflows/`: GitHub Actions CI and release artifact automation.
 - `docs/`: architecture, integration, and operations notes.
 - `docker-compose.yml`: self-hosted API deployment entrypoint.
-- `AGENTS.md`: repository-specific guidance for coding agents.
 
 ## Key Behaviors
 
