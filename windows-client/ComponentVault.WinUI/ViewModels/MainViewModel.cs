@@ -138,10 +138,10 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public string ComponentInventorySummary =>
-        $"{Components.Count} visible of {Dashboard.ComponentCount} tracked components";
+        $"当前显示 {Components.Count} 项，共跟踪 {Dashboard.ComponentCount} 项元器件";
 
     public string MovementFeedSummary =>
-        $"{Movements.Count} recorded movements stored locally";
+        $"本机已记录 {Movements.Count} 条库存变动";
 
     public string InboundMovementCount =>
         Movements.Count(movement => movement.MovementType == "inbound").ToString();
@@ -157,11 +157,11 @@ public sealed class MainViewModel : ObservableObject
     public bool CanRecordMovement => AvailableComponents.Count > 0 && !IsBusy;
 
     public string SelectedComponentName =>
-        SelectedComponent?.Name ?? "No component selected";
+        SelectedComponent?.Name ?? "尚未选择元器件";
 
     public string SelectedComponentSubtitle =>
         SelectedComponent is null
-            ? "Select a component from the list to inspect package, location, and reorder posture."
+            ? "请先从左侧列表选择一项，以查看封装、库位和补货风险。"
             : $"{SelectedComponent.Sku} | {SelectedComponent.Category} | {SelectedComponent.PackageName}";
 
     public string SelectedComponentQuantityText => (SelectedComponent?.Quantity ?? 0).ToString();
@@ -169,25 +169,25 @@ public sealed class MainViewModel : ObservableObject
     public string SelectedComponentMinStockText => (SelectedComponent?.MinStock ?? 0).ToString();
 
     public string SelectedComponentLocation =>
-        SelectedComponent?.Location ?? "No storage location selected.";
+        SelectedComponent?.Location ?? "尚未选择库位。";
 
     public string SelectedComponentUpdatedAt =>
-        SelectedComponent?.UpdatedAt ?? "No selection";
+        SelectedComponent?.UpdatedAt ?? "尚未选择";
 
     public string SelectedComponentDescription =>
         string.IsNullOrWhiteSpace(SelectedComponent?.Description)
-            ? "No description recorded for this component."
+            ? "当前元器件没有填写说明。"
             : SelectedComponent.Description;
 
     public string SelectedComponentStatusTitle =>
-        SelectedComponent?.Status ?? "Selection needed";
+        SelectedComponent?.Status ?? "等待选择";
 
     public string SelectedComponentStatusMessage =>
         SelectedComponent is null
-            ? "Choose a row to review stock risk and storage details."
+            ? "选择一项后，这里会显示库存风险和存放详情。"
             : SelectedComponent.IsLowStock
-                ? "Quantity is at or below the configured minimum stock."
-                : "Quantity is above the configured minimum stock.";
+                ? "当前库存已低于或等于最低库存，建议尽快补货。"
+                : "当前库存高于最低库存阈值。";
 
     public InfoBarSeverity SelectedComponentStatusSeverity =>
         SelectedComponent is null
@@ -198,48 +198,48 @@ public sealed class MainViewModel : ObservableObject
 
     public string SelectedComponentActionHint =>
         SelectedComponent is null
-            ? "Edit and soft delete actions become available after you select a component."
-            : "Edit and soft delete actions now target the selected component.";
+            ? "选择元器件后，才能执行编辑和软删除。"
+            : "编辑和软删除操作将作用于当前选中的元器件。";
 
     public string SelectedMovementTitle =>
-        SelectedMovement?.ComponentName ?? "No movement selected";
+        SelectedMovement?.ComponentName ?? "尚未选择变动记录";
 
     public string SelectedMovementSubtitle =>
         SelectedMovement is null
-            ? "Select a stock movement to inspect the exact quantity change and audit note."
+            ? "选择一条记录后，这里会显示数量变化、原因和备注。"
             : $"{SelectedMovement.ComponentSku} | {SelectedMovement.HappenedAt}";
 
     public string SelectedMovementQuantityText =>
         SelectedMovement?.QuantityLabel ?? "0";
 
     public string SelectedMovementTypeText =>
-        SelectedMovement?.MovementTypeLabel ?? "Selection needed";
+        SelectedMovement?.MovementTypeLabel ?? "等待选择";
 
     public string SelectedMovementReason =>
         string.IsNullOrWhiteSpace(SelectedMovement?.Reason)
-            ? "No reason recorded."
+            ? "未填写原因。"
             : SelectedMovement.Reason;
 
     public string SelectedMovementNote =>
         string.IsNullOrWhiteSpace(SelectedMovement?.Note)
-            ? "No note recorded for this movement."
+            ? "未填写备注。"
             : SelectedMovement.Note;
 
     public string SelectedMovementUpdatedAt =>
-        SelectedMovement?.UpdatedAt ?? "No selection";
+        SelectedMovement?.UpdatedAt ?? "尚未选择";
 
     public string SelectedMovementStatusTitle =>
-        SelectedMovement?.MovementTypeLabel ?? "Audit detail";
+        SelectedMovement?.MovementTypeLabel ?? "审计详情";
 
     public string SelectedMovementStatusMessage =>
         SelectedMovement is null
-            ? "Use the list to review recent inbound, outbound, and adjustment activity."
+            ? "从左侧列表选择记录后，可检查最近的入库、出库与调整明细。"
             : SelectedMovement.MovementType switch
             {
-                "inbound" => "This movement increases the on-hand quantity for the related component.",
-                "outbound" => "This movement decreases the on-hand quantity for the related component.",
-                "adjustment" => "This movement manually corrects the stored quantity for the related component.",
-                _ => "This movement is stored in the local audit trail.",
+                "inbound" => "这条记录会增加关联元器件的现存数量。",
+                "outbound" => "这条记录会减少关联元器件的现存数量。",
+                "adjustment" => "这条记录用于手动修正关联元器件的库存数量。",
+                _ => "这条记录已存入本地审计日志。",
             };
 
     public InfoBarSeverity SelectedMovementStatusSeverity =>
@@ -255,39 +255,39 @@ public sealed class MainViewModel : ObservableObject
 
     public string SelectedMovementActionHint =>
         AvailableComponents.Count == 0
-            ? "Add a component before recording stock movement."
-            : "Use positive values for inbound and outbound. Adjustment can be positive or negative.";
+            ? "请先新增元器件，再记录库存变动。"
+            : "入库和出库请使用正数；库存调整可以填写正数或负数。";
 
     public string SyncEndpointDisplay =>
         string.IsNullOrWhiteSpace(SyncConfiguration.ServerBaseUrl)
-            ? "Not configured"
+            ? "未配置"
             : SyncConfiguration.ServerBaseUrl;
 
     public string SyncTokenDisplay =>
         string.IsNullOrWhiteSpace(SyncConfiguration.ApiTokenMasked)
-            ? "Not configured"
+            ? "未配置"
             : SyncConfiguration.ApiTokenMasked;
 
     public string SyncAutoSyncDisplay =>
-        SyncConfiguration.AutoSyncEnabled ? "Enabled" : "Disabled";
+        SyncConfiguration.AutoSyncEnabled ? "已启用" : "未启用";
 
     public string SyncRiskTitle =>
         string.IsNullOrWhiteSpace(SyncConfiguration.ServerBaseUrl)
-            ? "Server URL required"
+            ? "需要填写服务器地址"
             : string.IsNullOrWhiteSpace(SyncConfiguration.ApiToken)
-                ? "API token required"
+                ? "需要填写 API 令牌"
                 : SyncConfiguration.ApiToken == "change-me"
-                    ? "Default token in use"
-                    : "Ready to sync";
+                    ? "仍在使用默认令牌"
+                    : "可以开始同步";
 
     public string SyncRiskMessage =>
         string.IsNullOrWhiteSpace(SyncConfiguration.ServerBaseUrl)
-            ? "Enter the self-hosted server URL to enable connection tests and sync."
+            ? "填写自建服务端地址后，才能进行连接测试和同步。"
             : string.IsNullOrWhiteSpace(SyncConfiguration.ApiToken)
-                ? "Enter the shared API token before testing the connection."
+                ? "测试连接前，请先填写共享 API 令牌。"
                 : SyncConfiguration.ApiToken == "change-me"
-                    ? "Replace the default token before using this desktop client outside local development."
-                    : "Server URL and token are configured for manual or automatic sync.";
+                    ? "在本地开发之外使用此桌面客户端前，请先替换默认令牌。"
+                    : "服务器地址和令牌均已配置，可执行手动同步或自动同步。";
 
     public InfoBarSeverity SyncRiskSeverity =>
         string.IsNullOrWhiteSpace(SyncConfiguration.ServerBaseUrl)
@@ -299,8 +299,8 @@ public sealed class MainViewModel : ObservableObject
 
     public string SyncActionHint =>
         IsBusy
-            ? "A sync-related action is running. Wait for completion before starting another one."
-            : "Save configuration changes before testing the connection or running sync now.";
+            ? "当前有同步相关操作正在执行，请等待完成后再发起新的操作。"
+            : "建议先保存配置，再测试连接或立即同步。";
 
     public void Refresh()
     {
@@ -327,8 +327,8 @@ public sealed class MainViewModel : ObservableObject
             SelectedComponent = Components.FirstOrDefault(component => component.Id == savedComponent.Id);
             return OperationResult.Success(
                 draft.Id is null
-                    ? "Component created locally."
-                    : "Component changes saved locally."
+                    ? "元器件已在本机创建。"
+                    : "元器件改动已保存到本机。"
             );
         }
         catch (Exception exception)
@@ -341,7 +341,7 @@ public sealed class MainViewModel : ObservableObject
     {
         if (SelectedComponent is null)
         {
-            return OperationResult.Failure("Select a component to delete.");
+            return OperationResult.Failure("请先选择一个要删除的元器件。");
         }
 
         var result = _store.SoftDeleteComponent(SelectedComponent.Id);

@@ -158,7 +158,7 @@ public sealed class InventoryStore
                 api_token,
                 auto_sync_enabled,
                 COALESCE(last_synced_at, '') AS last_synced_at,
-                COALESCE(last_sync_message, 'No sync yet.') AS last_sync_message
+                COALESCE(last_sync_message, '尚未同步。') AS last_sync_message
             FROM sync_settings
             WHERE id = 1
             """;
@@ -173,7 +173,7 @@ public sealed class InventoryStore
             ApiToken = reader.GetString(2),
             AutoSyncEnabled = reader.GetInt32(3) == 1,
             LastSyncedAt = string.IsNullOrWhiteSpace(reader.GetString(4))
-                ? "Never"
+                ? "从未同步"
                 : reader.GetString(4),
             LastSyncMessage = reader.GetString(5),
         };
@@ -206,7 +206,7 @@ public sealed class InventoryStore
         command.Parameters.AddWithValue("$auto_sync_enabled", autoSyncEnabled ? 1 : 0);
         command.ExecuteNonQuery();
 
-        return OperationResult.Success("Sync settings saved locally.");
+        return OperationResult.Success("同步设置已保存到本机。");
     }
 
     public ComponentRecord SaveComponent(ComponentDraft draft)
@@ -286,7 +286,7 @@ public sealed class InventoryStore
 
         if (!ComponentExists(connection, componentId))
         {
-            return OperationResult.Failure("Select a component to delete.");
+            return OperationResult.Failure("请先选择一个要删除的元器件。");
         }
 
         var updatedAt = UtcNow();
@@ -303,7 +303,7 @@ public sealed class InventoryStore
 
         EnqueueEntity(connection, "component", componentId, updatedAt);
         transaction.Commit();
-        return OperationResult.Success("Component soft-deleted locally.");
+        return OperationResult.Success("元器件已在本机软删除。");
     }
 
     public OperationResult RecordMovement(MovementEntryDraft draft)
@@ -316,14 +316,14 @@ public sealed class InventoryStore
         var component = GetComponentById(connection, draft.ComponentId);
         if (component is null || component.Deleted)
         {
-            return OperationResult.Failure("Select an active component first.");
+            return OperationResult.Failure("请先选择一个可用元器件。");
         }
 
         var quantityDelta = CalculateQuantityDelta(draft.MovementType, draft.Quantity);
         var newQuantity = component.Quantity + quantityDelta;
         if (newQuantity < 0)
         {
-            return OperationResult.Failure("This movement would make stock negative.");
+            return OperationResult.Failure("这次变动会让库存变成负数。");
         }
 
         var happenedAt = UtcNow();
@@ -385,7 +385,7 @@ public sealed class InventoryStore
         EnqueueEntity(connection, "stock_movement", movementId, happenedAt);
 
         transaction.Commit();
-        return OperationResult.Success("Movement recorded locally.");
+        return OperationResult.Success("库存变动已记录到本机。");
     }
 
     public SyncEnvelope CreateSyncEnvelope()
@@ -435,7 +435,7 @@ public sealed class InventoryStore
     {
         if (result.PullResponse is null)
         {
-            throw new InvalidOperationException("Successful sync results must include a pull payload.");
+            throw new InvalidOperationException("同步成功结果必须包含拉取数据。");
         }
 
         using var connection = OpenConnection();
@@ -466,7 +466,7 @@ public sealed class InventoryStore
         UpdateStoredSyncStatus(
             connection,
             result.PullResponse.ServerTime,
-            $"Sync complete. Push C:{result.AcceptedComponents} M:{result.AcceptedStockMovements}, Pull C:{result.PullResponse.Components.Count} M:{result.PullResponse.StockMovements.Count}.",
+            $"同步完成。上传 元器件:{result.AcceptedComponents} 变动:{result.AcceptedStockMovements}；下载 元器件:{result.PullResponse.Components.Count} 变动:{result.PullResponse.StockMovements.Count}。",
             preserveTimestamp: false
         );
 
@@ -546,7 +546,7 @@ public sealed class InventoryStore
                 api_token TEXT NOT NULL DEFAULT '',
                 auto_sync_enabled INTEGER NOT NULL DEFAULT 0,
                 last_synced_at TEXT,
-                last_sync_message TEXT NOT NULL DEFAULT 'No sync yet.'
+                last_sync_message TEXT NOT NULL DEFAULT '尚未同步。'
             )
             """,
         };
@@ -580,7 +580,7 @@ public sealed class InventoryStore
                 '',
                 0,
                 NULL,
-                'No sync yet.'
+                '尚未同步。'
             )
             ON CONFLICT(id) DO NOTHING
             """;
@@ -655,7 +655,7 @@ public sealed class InventoryStore
     {
         using var connection = OpenConnection();
         var component = GetComponentById(connection, componentId);
-        return component ?? throw new InvalidOperationException("Component not found after save.");
+        return component ?? throw new InvalidOperationException("保存后未找到对应元器件。");
     }
 
     private static ComponentRecord? GetComponentById(SqliteConnection connection, string componentId)
@@ -725,7 +725,7 @@ public sealed class InventoryStore
         var duplicates = Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
         if (duplicates > 0)
         {
-            throw new InvalidOperationException("An active component with the same SKU already exists.");
+            throw new InvalidOperationException("已存在相同 SKU 的有效元器件。");
         }
     }
 
@@ -737,12 +737,12 @@ public sealed class InventoryStore
             || string.IsNullOrWhiteSpace(draft.PackageName)
             || string.IsNullOrWhiteSpace(draft.Location))
         {
-            throw new InvalidOperationException("Fill in SKU, name, category, package, and location.");
+            throw new InvalidOperationException("请填写 SKU、名称、分类、封装和库位。");
         }
 
         if (draft.Quantity < 0 || draft.MinStock < 0)
         {
-            throw new InvalidOperationException("Quantity and minimum stock cannot be negative.");
+            throw new InvalidOperationException("数量和最低库存不能为负数。");
         }
     }
 
@@ -752,19 +752,19 @@ public sealed class InventoryStore
             || string.IsNullOrWhiteSpace(draft.MovementType)
             || string.IsNullOrWhiteSpace(draft.Reason))
         {
-            throw new InvalidOperationException("Choose a component, movement type, and reason.");
+            throw new InvalidOperationException("请选择元器件、变动类型并填写原因。");
         }
 
         if (draft.MovementType.Equals("adjustment", StringComparison.OrdinalIgnoreCase))
         {
             if (draft.Quantity == 0)
             {
-                throw new InvalidOperationException("Adjustment quantity cannot be zero.");
+                throw new InvalidOperationException("调整数量不能为 0。");
             }
         }
         else if (draft.Quantity <= 0)
         {
-            throw new InvalidOperationException("Movement quantity must be greater than zero.");
+            throw new InvalidOperationException("变动数量必须大于 0。");
         }
     }
 
@@ -774,7 +774,7 @@ public sealed class InventoryStore
             "inbound" => quantity,
             "outbound" => -quantity,
             "adjustment" => quantity,
-            _ => throw new InvalidOperationException("Unsupported movement type."),
+            _ => throw new InvalidOperationException("不支持的变动类型。"),
         };
 
     private static int NormalizeMovementQuantity(string movementType, int quantity) =>

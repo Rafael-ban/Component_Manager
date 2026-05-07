@@ -3,20 +3,22 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:design="using:ComponentVault.WinUI.Design"
     xmlns:models="using:ComponentVault.WinUI.Models"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DataContext="{d:DesignInstance Type=design:DesignMainViewModel, IsDesignTimeCreatable=True}"
     mc:Ignorable="d">
 
     <ScrollViewer>
         <StackPanel Padding="24">
-            <TextBlock FontSize="30" FontWeight="SemiBold" Text="Stock movements" />
-            <TextBlock Margin="0,6,0,20" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Desktop audit trail for inbound, outbound, and adjustment activity." />
+            <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="出入库记录" />
+            <TextBlock Margin="0,6,0,20" Style="{StaticResource PageSubtitleTextStyle}" Text="查看本机保存的入库、出库与库存调整记录，并追踪每次库存变化。" />
 
             <Border Style="{StaticResource CardBorderStyle}">
                 <StackPanel Spacing="16">
                     <CommandBar Background="Transparent" DefaultLabelPosition="Right">
-                        <AppBarButton Click="OnRecordMovementClicked" Icon="Add" IsEnabled="{Binding CanRecordMovement}" Label="Record movement" />
-                        <AppBarButton Click="OnRefreshFeedClicked" Icon="Refresh" Label="Refresh feed" />
+                        <AppBarButton Click="OnRecordMovementClicked" Icon="Add" IsEnabled="{Binding CanRecordMovement}" Label="记录变动" />
+                        <AppBarButton Click="OnRefreshFeedClicked" Icon="Refresh" Label="刷新列表" />
                     </CommandBar>
 
                     <Grid ColumnSpacing="12">
@@ -33,7 +35,7 @@
                             BorderThickness="1"
                             CornerRadius="14">
                             <StackPanel Spacing="4">
-                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Inbound" />
+                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="入库" />
                                 <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding InboundMovementCount}" />
                             </StackPanel>
                         </Border>
@@ -46,7 +48,7 @@
                             BorderThickness="1"
                             CornerRadius="14">
                             <StackPanel Spacing="4">
-                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Outbound" />
+                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="出库" />
                                 <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding OutboundMovementCount}" />
                             </StackPanel>
                         </Border>
@@ -59,7 +61,7 @@
                             BorderThickness="1"
                             CornerRadius="14">
                             <StackPanel Spacing="4">
-                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Adjustment" />
+                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="调整" />
                                 <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding AdjustmentMovementCount}" />
                             </StackPanel>
                         </Border>
@@ -82,10 +84,10 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Spacing="12">
-                            <TextBlock FontSize="20" FontWeight="SemiBold" Text="Activity feed" />
+                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="最近记录" />
                             <TextBlock
                                 Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                Text="Recent inbound, outbound, and adjustment events stored on the device."
+                                Text="这里展示设备本地保存的最近变动，方便核对数量变化与操作原因。"
                                 TextWrapping="Wrap" />
 
                             <ListView
@@ -124,15 +126,9 @@
                             </ListView>
                         </StackPanel>
 
-                        <Border
-                            Grid.Column="1"
-                            Padding="18"
-                            Background="{StaticResource ControlFillColorSecondaryBrush}"
-                            BorderBrush="{StaticResource VaultBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="18">
+                        <Border Grid.Column="1" Style="{StaticResource InsetPanelStyle}">
                             <StackPanel Spacing="14">
-                                <TextBlock FontSize="20" FontWeight="SemiBold" Text="Movement detail" />
+                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="变动详情" />
                                 <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding SelectedMovementTitle}" />
                                 <TextBlock
                                     Foreground="{StaticResource TextFillColorSecondaryBrush}"
@@ -153,13 +149,13 @@
                                     BorderThickness="1"
                                     CornerRadius="14">
                                     <StackPanel Spacing="4">
-                                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Quantity delta" />
+                                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="数量变化" />
                                         <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding SelectedMovementQuantityText}" />
                                     </StackPanel>
                                 </Border>
 
                                 <StackPanel Spacing="10">
-                                    <TextBlock FontWeight="SemiBold" Text="Audit fields" />
+                                    <TextBlock FontWeight="SemiBold" Text="审计字段" />
                                     <Grid ColumnSpacing="12" RowSpacing="10">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="84" />
@@ -172,16 +168,16 @@
                                             <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
 
-                                        <TextBlock Grid.Row="0" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Type" />
+                                        <TextBlock Grid.Row="0" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="类型" />
                                         <TextBlock Grid.Row="0" Grid.Column="1" FontWeight="Medium" Text="{Binding SelectedMovementTypeText}" TextWrapping="Wrap" />
 
-                                        <TextBlock Grid.Row="1" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Reason" />
+                                        <TextBlock Grid.Row="1" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="原因" />
                                         <TextBlock Grid.Row="1" Grid.Column="1" FontWeight="Medium" Text="{Binding SelectedMovementReason}" TextWrapping="Wrap" />
 
-                                        <TextBlock Grid.Row="2" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Note" />
+                                        <TextBlock Grid.Row="2" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="备注" />
                                         <TextBlock Grid.Row="2" Grid.Column="1" FontWeight="Medium" Text="{Binding SelectedMovementNote}" TextWrapping="Wrap" />
 
-                                        <TextBlock Grid.Row="3" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Updated" />
+                                        <TextBlock Grid.Row="3" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="更新时间" />
                                         <TextBlock Grid.Row="3" Grid.Column="1" FontWeight="Medium" Text="{Binding SelectedMovementUpdatedAt}" TextWrapping="Wrap" />
                                     </Grid>
                                 </StackPanel>

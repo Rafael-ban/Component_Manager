@@ -1,0 +1,165 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends
+
+from ..auth import require_token
+from ..config import Settings, get_settings
+from ..schemas import (
+    AdminDashboardResponse,
+    AdminInventoryResponse,
+    AdminKeyValueItem,
+    AdminMetricSnapshot,
+    AdminSettingsResponse,
+    AdminSyncResponse,
+)
+from .data import AdminSnapshot, load_admin_snapshot
+
+router = APIRouter(
+    prefix="/admin-api",
+    tags=["admin"],
+    dependencies=[Depends(require_token)],
+)
+
+
+@router.get("/dashboard", response_model=AdminDashboardResponse)
+def get_dashboard(
+    settings: Settings = Depends(get_settings),
+) -> AdminDashboardResponse:
+    snapshot = load_admin_snapshot(settings)
+    return AdminDashboardResponse(
+        metrics=_metrics(snapshot),
+        recent_components=snapshot.recent_components,
+        sync_notes=snapshot.sync_notes,
+    )
+
+
+@router.get("/inventory", response_model=AdminInventoryResponse)
+def get_inventory(
+    settings: Settings = Depends(get_settings),
+) -> AdminInventoryResponse:
+    snapshot = load_admin_snapshot(settings)
+    return AdminInventoryResponse(
+        metrics=_metrics(snapshot),
+        low_stock_components=snapshot.low_stock_components,
+        recent_components=snapshot.recent_components,
+        inventory_rules=[
+            AdminKeyValueItem(
+                label="Conflict mode",
+                value="Last write wins on updated_at",
+            ),
+            AdminKeyValueItem(
+                label="Soft delete",
+                value="Enabled for synchronized rows",
+            ),
+            AdminKeyValueItem(
+                label="Low-stock trigger",
+                value="quantity <= min_stock",
+            ),
+            AdminKeyValueItem(
+                label="Inventory browser",
+                value="Server-side read verification only",
+            ),
+        ],
+    )
+
+
+@router.get("/sync", response_model=AdminSyncResponse)
+def get_sync(
+    settings: Settings = Depends(get_settings),
+) -> AdminSyncResponse:
+    snapshot = load_admin_snapshot(settings)
+    return AdminSyncResponse(
+        metrics=_metrics(snapshot),
+        recent_movements=snapshot.recent_movements,
+        sync_assumptions=[
+            AdminKeyValueItem(label="Conflict mode", value="Last write wins"),
+            AdminKeyValueItem(label="Soft delete", value="Enabled"),
+            AdminKeyValueItem(label="Device registry", value="Not implemented"),
+            AdminKeyValueItem(
+                label="Authenticated routes",
+                value="/auth/ping, /sync/push, /sync/pull, /admin-api/*",
+            ),
+        ],
+        attention_items=_attention_items(settings),
+    )
+
+
+@router.get("/settings", response_model=AdminSettingsResponse)
+def get_settings_overview(
+    settings: Settings = Depends(get_settings),
+) -> AdminSettingsResponse:
+    return AdminSettingsResponse(
+        runtime_configuration=[
+            AdminKeyValueItem(label="App name", value=settings.app_name),
+            AdminKeyValueItem(label="Host", value=settings.app_host),
+            AdminKeyValueItem(label="Port", value=str(settings.app_port)),
+            AdminKeyValueItem(label="Database path", value=settings.database_path),
+            AdminKeyValueItem(
+                label="Admin web origins",
+                value=", ".join(settings.admin_web_origins),
+            ),
+            AdminKeyValueItem(
+                label="API token status",
+                value=(
+                    "Default token in use"
+                    if settings.api_token == "change-me"
+                    else "Custom token configured"
+                ),
+            ),
+        ],
+        access_posture=[
+            AdminKeyValueItem(
+                label="Health URL",
+                value=f"http://{settings.app_host}:{settings.app_port}/health",
+            ),
+            AdminKeyValueItem(
+                label="Auth URL",
+                value=f"http://{settings.app_host}:{settings.app_port}/auth/ping",
+            ),
+            AdminKeyValueItem(
+                label="Admin API",
+                value=f"http://{settings.app_host}:{settings.app_port}/admin-api/dashboard",
+            ),
+            AdminKeyValueItem(
+                label="Sync API",
+                value=f"http://{settings.app_host}:{settings.app_port}/sync/pull",
+            ),
+            AdminKeyValueItem(
+                label="Token risk",
+                value=(
+                    "Replace before deployment"
+                    if settings.api_token == "change-me"
+                    else "Custom token present"
+                ),
+            ),
+        ],
+        next_backend_additions=[
+            "Per-device sync audit log",
+            "Conflict history and resolution records",
+            "Backend session auth for the web admin",
+        ],
+    )
+
+
+def _metrics(snapshot: AdminSnapshot) -> AdminMetricSnapshot:
+    return AdminMetricSnapshot(
+        component_count=snapshot.component_count,
+        total_units=snapshot.total_units,
+        low_stock_count=snapshot.low_stock_count,
+        movement_count=snapshot.movement_count,
+    )
+
+
+def _attention_items(settings: Settings) -> list[str]:
+    if settings.api_token == "change-me":
+        token_item = (
+            "API token is still the default value. Replace it before deployment."
+        )
+    else:
+        token_item = "Custom API token is configured for authenticated routes."
+
+    return [
+        token_item,
+        "Clients still own all inventory writes; this admin API is read-only.",
+        "Sync visibility is derived from the latest accepted server-side rows.",
+    ]

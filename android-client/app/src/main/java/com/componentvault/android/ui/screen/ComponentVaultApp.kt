@@ -67,6 +67,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.R
 import com.componentvault.android.model.ComponentDraft
@@ -76,6 +77,7 @@ import com.componentvault.android.model.InventoryUiState
 import com.componentvault.android.model.MovementEntryDraft
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.SyncConfiguration
+import com.componentvault.android.ui.theme.ComponentVaultTheme
 import com.componentvault.android.ui.theme.VaultWarning
 import com.componentvault.android.ui.theme.VaultWarningContainer
 
@@ -322,14 +324,16 @@ private fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text(
-                text = stringResource(R.string.dashboard_overview),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+            PageHeader(
+                title = stringResource(R.string.dashboard_overview),
+                subtitle = stringResource(R.string.dashboard_subtitle),
             )
         }
         item {
-            StatusCard(uiState.statusMessage)
+            SyncOverviewCard(
+                syncConfiguration = uiState.syncConfiguration,
+                statusMessage = uiState.statusMessage,
+            )
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -395,14 +399,10 @@ private fun ComponentsScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Text(
-                text = stringResource(R.string.components_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+            PageHeader(
+                title = stringResource(R.string.components_title),
+                subtitle = stringResource(R.string.components_subtitle),
             )
-        }
-        item {
-            StatusCard(uiState.statusMessage)
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -411,48 +411,66 @@ private fun ComponentsScreen(
             }
         }
         item {
-            OutlinedTextField(
-                value = uiState.componentQuery,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.search_components_label)) },
-                placeholder = { Text(stringResource(R.string.search_components_placeholder)) },
-                singleLine = true,
-            )
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = !uiState.lowStockOnly,
-                    onClick = { onLowStockToggle(false) },
-                    label = { Text(stringResource(R.string.filter_all)) },
+            SectionCard(
+                title = stringResource(R.string.section_inventory_actions_title),
+                subtitle = stringResource(R.string.section_inventory_actions_subtitle),
+            ) {
+                StatusCard(uiState.statusMessage)
+                OutlinedTextField(
+                    value = uiState.componentQuery,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.search_components_label)) },
+                    placeholder = { Text(stringResource(R.string.search_components_placeholder)) },
+                    singleLine = true,
                 )
-                FilterChip(
-                    selected = uiState.lowStockOnly,
-                    onClick = { onLowStockToggle(true) },
-                    label = { Text(stringResource(R.string.filter_low_stock)) },
-                )
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = onAddComponent) { Text(stringResource(R.string.action_add)) }
-                OutlinedButton(
-                    onClick = onEditComponent,
-                    enabled = uiState.selectedComponentId != null,
-                ) { Text(stringResource(R.string.action_edit)) }
-                OutlinedButton(
-                    onClick = onDeleteComponent,
-                    enabled = uiState.selectedComponentId != null,
-                ) { Text(stringResource(R.string.action_delete)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !uiState.lowStockOnly,
+                        onClick = { onLowStockToggle(false) },
+                        label = { Text(stringResource(R.string.filter_all)) },
+                    )
+                    FilterChip(
+                        selected = uiState.lowStockOnly,
+                        onClick = { onLowStockToggle(true) },
+                        label = { Text(stringResource(R.string.filter_low_stock)) },
+                    )
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = onAddComponent,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.action_add))
+                    }
+                    OutlinedButton(
+                        onClick = onEditComponent,
+                        enabled = uiState.selectedComponentId != null,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.action_edit))
+                    }
+                    OutlinedButton(
+                        onClick = onDeleteComponent,
+                        enabled = uiState.selectedComponentId != null,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.action_delete))
+                    }
+                }
             }
         }
         item {
             ComponentDetailCard(selectedComponent)
         }
-        if (uiState.components.isEmpty()) {
-            item {
-                EmptyState(stringResource(R.string.empty_no_components_match_filter))
+        item {
+            SectionCard(
+                title = stringResource(R.string.section_inventory_list_title),
+                subtitle = stringResource(R.string.section_inventory_list_subtitle),
+            ) {
+                if (uiState.components.isEmpty()) {
+                    EmptyState(stringResource(R.string.empty_no_components_match_filter))
+                }
             }
         }
         items(uiState.components, key = { it.id }) { component ->
@@ -641,10 +659,9 @@ private fun MovementsScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Text(
-                text = stringResource(R.string.movements_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+            PageHeader(
+                title = stringResource(R.string.movements_title),
+                subtitle = stringResource(R.string.movements_subtitle),
             )
         }
         item {
@@ -681,9 +698,14 @@ private fun MovementsScreen(
                 }
             }
         }
-        if (uiState.movements.isEmpty()) {
-            item {
-                EmptyState(stringResource(R.string.empty_no_movements))
+        item {
+            SectionCard(
+                title = stringResource(R.string.section_movement_feed_title),
+                subtitle = stringResource(R.string.section_movement_feed_subtitle),
+            ) {
+                if (uiState.movements.isEmpty()) {
+                    EmptyState(stringResource(R.string.empty_no_movements))
+                }
             }
         }
         items(uiState.movements, key = { it.id }) { movement ->
@@ -763,10 +785,9 @@ private fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text(
-                text = stringResource(R.string.settings_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+            PageHeader(
+                title = stringResource(R.string.settings_title),
+                subtitle = stringResource(R.string.settings_subtitle),
             )
         }
         item {
@@ -799,8 +820,8 @@ private fun SettingsScreen(
         }
         item {
             SectionCard(
-                title = stringResource(R.string.server_connection_title),
-                subtitle = stringResource(R.string.server_connection_subtitle),
+                title = stringResource(R.string.settings_form_title),
+                subtitle = stringResource(R.string.settings_form_subtitle),
             ) {
                 OutlinedTextField(
                     value = serverUrl,
@@ -905,6 +926,89 @@ private fun SettingsScreen(
 }
 
 @Composable
+private fun PageHeader(
+    title: String,
+    subtitle: String,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun SyncOverviewCard(
+    syncConfiguration: SyncConfiguration,
+    statusMessage: String,
+) {
+    val notConfigured = stringResource(R.string.label_not_configured)
+    val safeStatusMessage = if (statusMessage.isBlank()) {
+        stringResource(R.string.sync_no_sync_yet)
+    } else {
+        statusMessage
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+        shape = RoundedCornerShape(28.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.dashboard_sync_summary_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                text = stringResource(R.string.dashboard_sync_summary_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            AssistChip(
+                onClick = {},
+                label = { Text(stringResource(R.string.dashboard_sync_summary_local_first)) },
+                colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    labelColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
+            SettingRow(
+                label = stringResource(R.string.setting_endpoint),
+                value = syncConfiguration.serverBaseUrl.ifBlank { notConfigured },
+                labelColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                valueColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            SettingRow(
+                label = stringResource(R.string.setting_last_synced),
+                value = syncConfiguration.lastSyncedAt,
+                labelColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                valueColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            StatusCard(
+                message = safeStatusMessage,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
+@Composable
 private fun MetricCard(
     label: String,
     value: String,
@@ -917,11 +1021,11 @@ private fun MetricCard(
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
@@ -946,7 +1050,7 @@ private fun SectionCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
@@ -966,15 +1070,28 @@ private fun SectionCard(
 
 @Composable
 private fun StatusCard(message: String) {
+    StatusCard(
+        message = message,
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun StatusCard(
+    message: String,
+    containerColor: Color,
+    contentColor: Color,
+) {
     Surface(
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = containerColor,
     ) {
         Text(
             text = message,
             modifier = Modifier.padding(16.dp),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = contentColor,
         )
     }
 }
@@ -1109,24 +1226,38 @@ private fun MovementQuantityChip(movement: StockMovementRecord) {
 }
 
 @Composable
-private fun SettingRow(label: String, value: String) {
-    Row(
+private fun SettingRow(
+    label: String,
+    value: String,
+    labelColor: Color = Color.Unspecified,
+    valueColor: Color = Color.Unspecified,
+) {
+    val resolvedLabelColor = if (labelColor == Color.Unspecified) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        labelColor
+    }
+    val resolvedValueColor = if (valueColor == Color.Unspecified) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        valueColor
+    }
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Top,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            color = resolvedLabelColor,
         )
-        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
+            color = resolvedValueColor,
         )
     }
 }
@@ -1140,7 +1271,7 @@ private fun EmptyState(message: String) {
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(18.dp),
             )
-            .padding(16.dp),
+            .padding(18.dp),
     ) {
         Text(
             text = message,
@@ -1479,4 +1610,251 @@ private fun MovementEditorDialog(
             }
         },
     )
+}
+
+private object InventoryPreviewData {
+    private val previewComponents = listOf(
+        ComponentRecord(
+            id = "cmp-1",
+            sku = "CAP-100NF-0603",
+            name = "100nF Ceramics Capacitor",
+            category = "Capacitor",
+            packageName = "0603",
+            location = "A-01-03",
+            description = "General-purpose decoupling capacitor for MCU and sensor rails.",
+            quantity = 420,
+            minStock = 120,
+            updatedAt = "2026-05-08T09:32:00Z",
+            deleted = false,
+        ),
+        ComponentRecord(
+            id = "cmp-2",
+            sku = "RES-10K-0402",
+            name = "10k Ohm Resistor",
+            category = "Resistor",
+            packageName = "0402",
+            location = "B-02-01",
+            description = "Common pull-up and divider resistor kept in the mobile repair kit.",
+            quantity = 16,
+            minStock = 40,
+            updatedAt = "2026-05-08T10:12:00Z",
+            deleted = false,
+        ),
+        ComponentRecord(
+            id = "cmp-3",
+            sku = "MCU-STM32G431CB",
+            name = "STM32G431CBT6",
+            category = "MCU",
+            packageName = "LQFP-48",
+            location = "C-04-02",
+            description = "Main controller used by the latest motor and power control boards.",
+            quantity = 28,
+            minStock = 12,
+            updatedAt = "2026-05-07T18:05:00Z",
+            deleted = false,
+        ),
+    )
+
+    private val previewMovements = listOf(
+        StockMovementRecord(
+            id = "mov-1",
+            componentId = "cmp-2",
+            componentSku = "RES-10K-0402",
+            componentName = "10k Ohm Resistor",
+            movementType = "outbound",
+            quantity = -24,
+            reason = "Prototype assembly",
+            note = "Reserved for the handheld tester batch.",
+            happenedAt = "2026-05-08T09:05:00Z",
+            updatedAt = "2026-05-08T09:05:00Z",
+            deleted = false,
+        ),
+        StockMovementRecord(
+            id = "mov-2",
+            componentId = "cmp-1",
+            componentSku = "CAP-100NF-0603",
+            componentName = "100nF Ceramics Capacitor",
+            movementType = "inbound",
+            quantity = 200,
+            reason = "Restock delivery",
+            note = "Supplier batch 2026-W19.",
+            happenedAt = "2026-05-08T08:10:00Z",
+            updatedAt = "2026-05-08T08:10:00Z",
+            deleted = false,
+        ),
+        StockMovementRecord(
+            id = "mov-3",
+            componentId = "cmp-3",
+            componentSku = "MCU-STM32G431CB",
+            componentName = "STM32G431CBT6",
+            movementType = "adjustment",
+            quantity = -2,
+            reason = "Stock correction",
+            note = "Removed two damaged units after incoming inspection.",
+            happenedAt = "2026-05-07T17:52:00Z",
+            updatedAt = "2026-05-07T17:52:00Z",
+            deleted = false,
+        ),
+    )
+
+    private val configuredSync = SyncConfiguration(
+        deviceId = "android-preview-device",
+        serverBaseUrl = "https://lab.example.net:8787",
+        apiToken = "preview-sync-token",
+        autoSyncEnabled = true,
+        lastSyncedAt = "2026-05-08T10:18:00Z",
+        lastSyncMessage = "同步完成。上传 元器件:1 变动:1；下载 元器件:0 变动:2。",
+    )
+
+    private val dashboard = DashboardSnapshot(
+        componentCount = previewComponents.size,
+        totalUnits = previewComponents.sumOf { it.quantity },
+        lowStockCount = previewComponents.count { it.isLowStock },
+        movementCount = previewMovements.size,
+    )
+
+    val dashboardState = InventoryUiState(
+        dashboard = dashboard,
+        availableComponents = previewComponents,
+        components = previewComponents,
+        lowStockComponents = previewComponents.filter { it.isLowStock },
+        movements = previewMovements,
+        syncConfiguration = configuredSync,
+        selectedComponentId = "cmp-2",
+        statusMessage = configuredSync.lastSyncMessage,
+    )
+
+    val componentsState = dashboardState.copy(
+        componentQuery = "",
+        lowStockOnly = false,
+        selectedComponentId = "cmp-2",
+        statusMessage = "元器件改动已保存到本机。",
+    )
+
+    val filteredEmptyComponentsState = dashboardState.copy(
+        components = emptyList(),
+        componentQuery = "BGA",
+        lowStockOnly = false,
+        selectedComponentId = null,
+        statusMessage = "当前筛选条件下没有匹配的元器件。",
+    )
+
+    val movementsState = dashboardState.copy(
+        statusMessage = "库存变动已记录到本机。",
+    )
+
+    val settingsState = dashboardState.copy(
+        statusMessage = configuredSync.lastSyncMessage,
+    )
+
+    val busySettingsState = dashboardState.copy(
+        syncConfiguration = configuredSync.copy(
+            serverBaseUrl = "https://staging.example.net:8787",
+            lastSyncMessage = "正在测试服务器连接，请稍候。",
+        ),
+        isBusy = true,
+        statusMessage = "正在测试服务器连接，请稍候。",
+    )
+}
+
+@Composable
+private fun PreviewHost(content: @Composable () -> Unit) {
+    ComponentVaultTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
+        ) {
+            content()
+        }
+    }
+}
+
+@Preview(name = "Dashboard / Alert", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun DashboardScreenPreview() {
+    PreviewHost {
+        DashboardScreen(
+            modifier = Modifier.fillMaxSize(),
+            uiState = InventoryPreviewData.dashboardState,
+        )
+    }
+}
+
+@Preview(name = "Components / Selected", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun ComponentsScreenPreview() {
+    PreviewHost {
+        ComponentsScreen(
+            modifier = Modifier.fillMaxSize(),
+            uiState = InventoryPreviewData.componentsState,
+            onQueryChange = {},
+            onLowStockToggle = {},
+            onSelectComponent = {},
+            onAddComponent = {},
+            onEditComponent = {},
+            onDeleteComponent = {},
+        )
+    }
+}
+
+@Preview(name = "Components / Empty", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun ComponentsScreenEmptyPreview() {
+    PreviewHost {
+        ComponentsScreen(
+            modifier = Modifier.fillMaxSize(),
+            uiState = InventoryPreviewData.filteredEmptyComponentsState,
+            onQueryChange = {},
+            onLowStockToggle = {},
+            onSelectComponent = {},
+            onAddComponent = {},
+            onEditComponent = {},
+            onDeleteComponent = {},
+        )
+    }
+}
+
+@Preview(name = "Movements / Feed", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun MovementsScreenPreview() {
+    PreviewHost {
+        MovementsScreen(
+            modifier = Modifier.fillMaxSize(),
+            uiState = InventoryPreviewData.movementsState,
+            canRecordMovement = true,
+            onRecordMovement = {},
+        )
+    }
+}
+
+@Preview(name = "Settings / Configured", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun SettingsScreenPreview() {
+    PreviewHost {
+        SettingsScreen(
+            modifier = Modifier.fillMaxSize(),
+            syncConfiguration = InventoryPreviewData.settingsState.syncConfiguration,
+            isBusy = InventoryPreviewData.settingsState.isBusy,
+            statusMessage = InventoryPreviewData.settingsState.statusMessage,
+            onSaveSettings = { _, _, _ -> },
+            onTestConnection = {},
+            onSyncNow = {},
+        )
+    }
+}
+
+@Preview(name = "Settings / Busy", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun SettingsScreenBusyPreview() {
+    PreviewHost {
+        SettingsScreen(
+            modifier = Modifier.fillMaxSize(),
+            syncConfiguration = InventoryPreviewData.busySettingsState.syncConfiguration,
+            isBusy = InventoryPreviewData.busySettingsState.isBusy,
+            statusMessage = InventoryPreviewData.busySettingsState.statusMessage,
+            onSaveSettings = { _, _, _ -> },
+            onTestConnection = {},
+            onSyncNow = {},
+        )
+    }
 }

@@ -11,11 +11,17 @@ private val VaultColorScheme: ColorScheme = lightColorScheme(
     primaryContainer = VaultPrimaryContainer,
     onPrimaryContainer = VaultOnPrimaryContainer,
     secondary = VaultSecondary,
+    onSecondary = VaultOnSecondary,
     secondaryContainer = VaultSecondaryContainer,
+    onSecondaryContainer = VaultOnSecondaryContainer,
+    tertiary = VaultTertiary,
+    tertiaryContainer = VaultTertiaryContainer,
     background = VaultBackground,
     surface = VaultSurface,
     surfaceVariant = VaultSurfaceVariant,
     outline = VaultOutline,
+    error = VaultError,
+    errorContainer = VaultErrorContainer,
 )
 
 @Composable
@@ -28,4 +34,3 @@ fun ComponentVaultTheme(
         content = content,
     )
 }
-

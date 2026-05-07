@@ -9,9 +9,19 @@ services:
       DATABASE_PATH: /data/component_vault.db
       APP_HOST: 0.0.0.0
       APP_PORT: "8787"
+      ADMIN_WEB_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081
     volumes:
       - component_vault_data:/data
 
+  admin-web:
+    build:
+      context: ./admin-web
+      args:
+        VITE_DEFAULT_API_BASE_URL: http://localhost:8787
+    depends_on:
+      - api
+    ports:
+      - "8081:80"
+
 volumes:
   component_vault_data:
-

@@ -9,9 +9,10 @@ Examples in this document assume `http://localhost:8787`.
 
 - `GET /health` does not require authentication.
 - All sync endpoints require `Authorization: Bearer <API_TOKEN>`.
+- All `/admin-api/*` endpoints also require `Authorization: Bearer <API_TOKEN>`.
 - The server also accepts `X-API-Token`, but the client uses bearer auth.
-- NiceGUI admin UI is served separately at `/admin/` and is not part of the API
-  contract described here.
+- The separated `admin-web/` console authenticates through `POST /auth/ping`
+  and then calls `/admin-api/*`.
 
 ## Endpoints
 
@@ -105,6 +106,30 @@ full snapshot.
 curl "http://localhost:8787/sync/pull?since=2026-05-07T00:00:00Z" `
   -H "Authorization: Bearer change-me"
 ```
+
+### `GET /admin-api/dashboard`
+
+Returns the top-level read-only admin snapshot used by the separated web
+console.
+
+```powershell
+curl http://localhost:8787/admin-api/dashboard `
+  -H "Authorization: Bearer change-me"
+```
+
+### `GET /admin-api/inventory`
+
+Returns low-stock watchlist data plus the latest server-side component rows.
+
+### `GET /admin-api/sync`
+
+Returns recent stock movement activity and sync posture details for the admin
+console.
+
+### `GET /admin-api/settings`
+
+Returns runtime configuration and operational endpoint details used by the
+admin console.
 
 ## Payload Rules
 

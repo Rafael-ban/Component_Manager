@@ -5,35 +5,49 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
-from app.main import app
+from app.main import create_app
 
 
 def test_health_endpoint() -> None:
-    with TestClient(app) as client:
+    with TestClient(create_app()) as client:
         response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
 
-def test_admin_ui_mounts(tmp_path: Path, monkeypatch) -> None:
+def test_admin_api_requires_token(tmp_path: Path, monkeypatch) -> None:
     _configure_env(tmp_path, monkeypatch)
 
-    with TestClient(app) as client:
-        response = client.get("/admin/")
+    with TestClient(create_app()) as client:
+        response = client.get("/admin-api/dashboard")
 
-    assert response.status_code == 200
-    assert "Component Vault" in response.text
-    assert "Admin Console" in response.text
+    assert response.status_code == 401
 
 
 def test_sync_requires_token(tmp_path: Path, monkeypatch) -> None:
     _configure_env(tmp_path, monkeypatch)
 
-    with TestClient(app) as client:
+    with TestClient(create_app()) as client:
         response = client.post("/sync/push", json={"device_id": "desktop-1"})
 
     assert response.status_code == 401
+
+
+def test_admin_api_allows_configured_origin(tmp_path: Path, monkeypatch) -> None:
+    _configure_env(tmp_path, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        response = client.options(
+            "/admin-api/dashboard",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
 def test_push_then_pull_round_trip(tmp_path: Path, monkeypatch) -> None:
@@ -42,7 +56,7 @@ def test_push_then_pull_round_trip(tmp_path: Path, monkeypatch) -> None:
     component = _component_payload()
     stock_movement = _movement_payload()
 
-    with TestClient(app) as client:
+    with TestClient(create_app()) as client:
         push_response = client.post(
             "/sync/push",
             headers={"Authorization": "Bearer test-token"},
@@ -66,6 +80,46 @@ def test_push_then_pull_round_trip(tmp_path: Path, monkeypatch) -> None:
     assert body["components"][0]["sku"] == "ATMEGA328P-AU"
 
 
+def test_admin_api_returns_snapshot_data(tmp_path: Path, monkeypatch) -> None:
+    _configure_env(tmp_path, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        client.post(
+            "/sync/push",
+            headers={"Authorization": "Bearer test-token"},
+            json={
+                "device_id": "desktop-1",
+                "components": [_component_payload()],
+                "stock_movements": [_movement_payload()],
+            },
+        )
+        dashboard_response = client.get(
+            "/admin-api/dashboard",
+            headers={"Authorization": "Bearer test-token"},
+        )
+        inventory_response = client.get(
+            "/admin-api/inventory",
+            headers={"Authorization": "Bearer test-token"},
+        )
+        sync_response = client.get(
+            "/admin-api/sync",
+            headers={"Authorization": "Bearer test-token"},
+        )
+        settings_response = client.get(
+            "/admin-api/settings",
+            headers={"Authorization": "Bearer test-token"},
+        )
+
+    assert dashboard_response.status_code == 200
+    assert inventory_response.status_code == 200
+    assert sync_response.status_code == 200
+    assert settings_response.status_code == 200
+    assert dashboard_response.json()["metrics"]["component_count"] == 1
+    assert inventory_response.json()["recent_components"][0]["sku"] == "ATMEGA328P-AU"
+    assert sync_response.json()["recent_movements"][0]["movement_type"] == "inbound"
+    assert settings_response.json()["runtime_configuration"][0]["label"] == "App name"
+
+
 def test_older_component_push_is_ignored(tmp_path: Path, monkeypatch) -> None:
     _configure_env(tmp_path, monkeypatch)
 
@@ -79,7 +133,7 @@ def test_older_component_push_is_ignored(tmp_path: Path, monkeypatch) -> None:
         updated_at="2026-05-07T05:00:00Z",
     )
 
-    with TestClient(app) as client:
+    with TestClient(create_app()) as client:
         first_push = client.post(
             "/sync/push",
             headers={"Authorization": "Bearer test-token"},
@@ -108,7 +162,7 @@ def test_duplicate_active_sku_returns_conflict(tmp_path: Path, monkeypatch) -> N
     first_component = _component_payload(id="cmp-1", sku="NE555P")
     conflicting_component = _component_payload(id="cmp-2", sku="NE555P")
 
-    with TestClient(app) as client:
+    with TestClient(create_app()) as client:
         first_push = client.post(
             "/sync/push",
             headers={"Authorization": "Bearer test-token"},
@@ -133,7 +187,7 @@ def test_soft_deleted_component_is_returned_in_pull(tmp_path: Path, monkeypatch)
         deleted=True,
     )
 
-    with TestClient(app) as client:
+    with TestClient(create_app()) as client:
         client.post(
             "/sync/push",
             headers={"Authorization": "Bearer test-token"},
@@ -159,6 +213,10 @@ def test_soft_deleted_component_is_returned_in_pull(tmp_path: Path, monkeypatch)
 def _configure_env(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("API_TOKEN", "test-token")
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "sync.db"))
+    monkeypatch.setenv(
+        "ADMIN_WEB_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081",
+    )
     get_settings.cache_clear()
 
 

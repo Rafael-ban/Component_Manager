@@ -1,0 +1,76 @@
+export interface AdminSession {
+  apiBaseUrl: string;
+  token: string;
+}
+
+export interface AdminMetricSnapshot {
+  component_count: number;
+  total_units: number;
+  low_stock_count: number;
+  movement_count: number;
+}
+
+export interface AdminComponentRecord {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  location: string;
+  quantity: number;
+  min_stock: number;
+  updated_at: string;
+  status: string;
+}
+
+export interface AdminLowStockRecord {
+  id: string;
+  sku: string;
+  name: string;
+  location: string;
+  quantity: number;
+  min_stock: number;
+  updated_at: string;
+}
+
+export interface AdminMovementRecord {
+  id: string;
+  sku: string;
+  component_name: string;
+  movement_type: "inbound" | "outbound" | "adjustment";
+  quantity: number;
+  reason: string;
+  note: string | null;
+  happened_at: string;
+  updated_at: string;
+}
+
+export interface AdminKeyValueItem {
+  label: string;
+  value: string;
+}
+
+export interface AdminDashboardResponse {
+  metrics: AdminMetricSnapshot;
+  recent_components: AdminComponentRecord[];
+  sync_notes: string[];
+}
+
+export interface AdminInventoryResponse {
+  metrics: AdminMetricSnapshot;
+  low_stock_components: AdminLowStockRecord[];
+  recent_components: AdminComponentRecord[];
+  inventory_rules: AdminKeyValueItem[];
+}
+
+export interface AdminSyncResponse {
+  metrics: AdminMetricSnapshot;
+  recent_movements: AdminMovementRecord[];
+  sync_assumptions: AdminKeyValueItem[];
+  attention_items: string[];
+}
+
+export interface AdminSettingsResponse {
+  runtime_configuration: AdminKeyValueItem[];
+  access_posture: AdminKeyValueItem[];
+  next_backend_additions: string[];
+}

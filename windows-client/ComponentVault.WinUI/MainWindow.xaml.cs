@@ -47,7 +47,7 @@ public sealed partial class MainWindow : Window
     {
         var result = await _viewModel.RunSyncAsync();
         await ShowMessageAsync(
-            result.IsSuccess ? "Sync complete" : "Sync failed",
+            result.IsSuccess ? "同步完成" : "同步失败",
             result.IsSuccess ? _viewModel.SyncConfiguration.LastSyncMessage : result.Message
         );
     }
@@ -58,7 +58,7 @@ public sealed partial class MainWindow : Window
         {
             Title = title,
             Content = message,
-            CloseButtonText = "Close",
+            CloseButtonText = "关闭",
             XamlRoot = AppNavigationView.XamlRoot,
         };
         await dialog.ShowAsync();

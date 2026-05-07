@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+using ComponentVault.WinUI.Design;
 using Microsoft.UI.Xaml.Controls;
 
 namespace ComponentVault.WinUI.Views;
@@ -8,6 +8,6 @@ public sealed partial class DashboardView : Page
     public DashboardView()
     {
         InitializeComponent();
-        DataContext = ((App)Application.Current).MainViewModel;
+        DataContext = ViewModelResolver.ResolveMainViewModel();
     }
 }

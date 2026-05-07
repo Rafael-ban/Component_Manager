@@ -3,15 +3,18 @@
 Component Vault is a local-first electronic component inventory system for
 Windows and Android. The current implementation direction is native UI on both
 clients: `Jetpack Compose` for Android and `WinUI 3` for Windows. The service
-stores sync data behind FastAPI and now exposes a `NiceGUI` admin console.
+stores sync data behind FastAPI, and a separate `shadcn/ui` web admin console
+connects to it over HTTP.
 
 ## Workspace Layout
 
 - `android-client/`: Android native client implemented with Jetpack Compose.
 - `windows-client/`: Windows native desktop client implemented with WinUI 3.
+- `admin-web/`: separated React + `shadcn/ui` admin console for server
+  operations and inventory verification.
 - `client/`: legacy Flutter reference kept for migration and field parity.
 - `server/`: FastAPI sync service with project-local virtual environment and
-  NiceGUI admin UI.
+  read-only admin APIs for the web console.
 - `.github/workflows/`: GitHub Actions CI and release artifact automation.
 - `docs/`: architecture, integration, and operations notes.
 - `docker-compose.yml`: self-hosted API deployment entrypoint.
@@ -24,23 +27,26 @@ stores sync data behind FastAPI and now exposes a `NiceGUI` admin console.
 - Soft delete for synchronized entities.
 - Inventory history recorded as stock movements.
 - Self-hosted API secured by a shared API token.
-- NiceGUI admin UI mounted in the same Python service at `/admin`.
+- Separated admin web console backed by token-protected `/admin-api/*`.
 - Active components enforce unique `sku`.
 - Component `quantity` and `min_stock` are non-negative.
 
 ## Platform Status
 
 - Windows native client: local SQLite, component editing, movement recording,
-  sync settings, server sync wiring, and MSIX packaging are implemented;
-  `dotnet build` and MSIX-oriented `dotnet publish` verified successfully on
-  `2026-05-07`.
+  sync settings, server sync wiring, Chinese-first WinUI pages, and MSIX
+  packaging are implemented; XAML designer sample data is now wired for the
+  main pages; `dotnet build` verified successfully on `2026-05-08`, and
+  MSIX-oriented `dotnet publish` was verified successfully on `2026-05-07`.
 - Android native client: local SQLite, component editing, movement recording,
-  sync settings, server sync wiring, and `zh-CN` interface resources are
-  implemented; `help`,
-  `assembleDebug`, and `assembleRelease` verified successfully on `2026-05-07`
-  on this host with the configured Android SDK and JDK paths.
-- Server admin UI: verified on `2026-05-07` with `server/.venv`, `pytest`,
-  and a `/admin/` smoke request.
+  sync settings, server sync wiring, and Chinese-first Compose interface
+  resources are implemented; Compose Preview sample states are now wired for
+  the main screens; `help` and `assembleRelease` were verified successfully on
+  `2026-05-07`, and `assembleDebug` verified successfully on `2026-05-08` on
+  this host with the configured Android SDK and JDK paths.
+- Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
+  separate `admin-web/` React application; backend `pytest` and `admin-web`
+  production build were both verified successfully on `2026-05-08`.
 
 ## Data Model
 
@@ -112,19 +118,57 @@ preferences and supports:
 - inventory movement entry
 - sync settings save/test/sync-now
 - push/pull against the FastAPI sync service
-- localized string resources, including a Simplified Chinese (`zh-CN`) UI
+- Chinese-first UI resources for the primary screens, with a matching
+  Simplified Chinese (`zh-CN`) resource set
+
+Android visual editing is based on Compose Preview in Android Studio. Open
+`android-client/app/src/main/java/com/componentvault/android/ui/screen/ComponentVaultApp.kt`
+to use the built-in preview states. Visual Studio does not provide an
+equivalent native Compose designer.
+
+## UI Editing
+
+- Android: use Android Studio Compose Preview on
+  `android-client/app/src/main/java/com/componentvault/android/ui/screen/ComponentVaultApp.kt`.
+- Windows: use Visual Studio XAML Designer and Hot Reload on the WinUI page
+  files under `windows-client/ComponentVault.WinUI/Views/`.
+- Detailed platform-specific notes live in `android-client/README.md` and
+  `windows-client/README.md`.
+
+## Admin Web
+
+The separated web admin lives in `admin-web/` and uses `React`, `Vite`,
+`Tailwind CSS`, and `shadcn/ui`.
+
+Run it locally with:
+
+```powershell
+cd admin-web
+cmd /c npm install
+cmd /c npm run dev
+```
+
+The login screen validates the shared API token through `POST /auth/ping`,
+stores the configured API base URL and token in browser local storage, and then
+uses `/admin-api/dashboard`, `/admin-api/inventory`, `/admin-api/sync`, and
+`/admin-api/settings` for read-only monitoring.
+
+Platform-specific notes live in:
+
+- `admin-web/README.md`
 
 ## GitHub Actions
 
 The repository now includes two workflows under `.github/workflows/`:
 
-- `ci.yml`: runs backend tests, Android debug build, and Windows build on
-  push/pull request
+- `ci.yml`: runs backend tests, separated admin-web build validation, Android
+  debug build, and Windows build on push/pull request
 - `release.yml`: builds release artifacts on `workflow_dispatch` and `v*` tags
 
 Release artifacts produced by GitHub Actions:
 
 - `component-vault-android-release.apk`
+- `component-vault-admin-web.zip`
 - `component-vault-windows-x64.msix`
 - `component-vault-windows-test-certificate.cer`
 - `Install-ComponentVault.ps1`
@@ -141,6 +185,9 @@ test distribution. The release workflow publishes both the `.msix` package and
 the matching `.cer` certificate, plus an install script that imports the
 certificate into the current user's `TrustedPeople` store before calling
 `Add-AppxPackage`.
+
+The release workflow also publishes a zipped `admin-web/dist` bundle for
+static deployment of the separated web admin.
 
 ## Legacy Flutter Reference
 
@@ -176,8 +223,8 @@ cd server
 
 Current local verification:
 
-- `.\.venv\Scripts\python.exe -m pytest` -> `7 passed`
-- `GET /admin/` -> `200 OK`
+- `.\.venv\Scripts\python.exe -m pytest` -> `9 passed`
+- `GET /admin-api/dashboard` -> `200 OK` with bearer token
 
 ## Docker Deployment
 
@@ -188,17 +235,18 @@ docker compose up --build
 The service listens on `http://localhost:8787` by default and persists data in
 the Docker volume `component_vault_data`.
 
-NiceGUI admin is mounted at:
+The separated admin web container is available at:
 
-- `http://localhost:8787/admin/`
+- `http://localhost:8081/`
 
 ### Server Environment Variables
 
 - `API_TOKEN`: shared bearer token required by `/auth/ping`, `/sync/push`, and
-  `/sync/pull`
+  `/sync/pull`, and `/admin-api/*`
 - `DATABASE_PATH`: SQLite file path used by the FastAPI service
 - `APP_HOST`: bind host for local development
 - `APP_PORT`: bind port for local development
+- `ADMIN_WEB_ORIGINS`: comma-separated browser origins allowed to call the API
 
 ## Sync Contract
 
@@ -207,6 +255,7 @@ NiceGUI admin is mounted at:
 - `POST /sync/push`: upload the latest local entity state.
 - `GET /sync/pull?since=<iso8601>`: download all remote changes after the
   provided timestamp.
+- `GET /admin-api/*`: read-only admin snapshots for the separated web console.
 
 All synchronized entities use:
 

@@ -4,9 +4,10 @@
 
 - `android-client/` is the Android Jetpack Compose client.
 - `windows-client/` is the WinUI 3 Windows desktop client.
+- `admin-web/` is a separated React + `shadcn/ui` operations console.
 - `client/` remains as a legacy Flutter reference only.
-- `server/` is a FastAPI service for single-user self-hosted sync with a
-  NiceGUI admin console mounted in the same process.
+- `server/` is a FastAPI service for single-user self-hosted sync and
+  read-only admin APIs consumed by the web console.
 - Android, Windows, and server all use SQLite in the current architecture, and
   each runtime is now implemented against live storage.
 
@@ -15,8 +16,9 @@
 - Built with Jetpack Compose and Material 3.
 - Current implementation is a stable-mode local-first client backed by
   on-device SQLite and shared preferences.
-- User-facing copy is now routed through Android string resources, with
-  Simplified Chinese (`zh-CN`) coverage for the primary UI.
+- User-facing copy is now routed through Android string resources, with a
+  Chinese-first default UI and matching Simplified Chinese (`zh-CN`) resource
+  coverage for the primary screens.
 - Navigation covers dashboard, components, movements, and sync settings.
 - Components, movements, and settings screens now use stable-mode summary and
   detail layouts tuned for mobile-first Material 3 UI.
@@ -30,6 +32,8 @@
 - Built with WinUI 3 and Windows App SDK.
 - Current implementation is a native desktop client backed by local SQLite in
   the user's local app data directory.
+- User-facing copy is now organized around Chinese-first WinUI pages while
+  retaining Windows-native layout and interaction patterns.
 - Release distribution is now oriented around a single-project MSIX package
   instead of shipping the raw unpackaged publish directory.
 - Navigation uses `NavigationView` with dedicated dashboard, components,
@@ -72,17 +76,19 @@
 ## Server
 
 - FastAPI exposes a small token-protected sync API.
-- NiceGUI is mounted in the same service at `/admin`.
+- FastAPI also exposes token-protected read-only admin APIs at `/admin-api/*`.
 - SQLite is used for a single-user self-hosted deployment.
 - Incoming entities are merged with last-write-wins based on `updated_at`.
 - `GET /health` is public.
 - `POST /auth/ping`, `POST /sync/push`, and `GET /sync/pull` require the shared
   bearer token.
 - Duplicate active `sku` values are rejected with a conflict response.
+- CORS is enabled for the configured admin web origins.
 
-## Server Admin UI
+## Server Admin Web
 
-- NiceGUI provides a stable-mode admin console for inventory administrators.
+- `admin-web/` provides a separated `shadcn/ui` admin console for inventory
+  administrators.
 - Initial pages cover:
   - dashboard metrics
   - recent inventory records
@@ -90,9 +96,12 @@
   - runtime and sync posture details
 - inventory and sync pages emphasize low-stock watchlists, sync posture, and
   read-only operational checks for administrators.
-- The admin UI focuses on monitoring, inventory posture, and runtime checks
-  rather than replacing API-driven client editing flows.
-- It reflects live server SQLite content.
+- The admin web app authenticates with the same shared bearer token already
+  used by sync clients.
+- The admin surface focuses on monitoring, inventory posture, and runtime
+  checks rather than replacing API-driven client editing flows.
+- It reflects live server SQLite content through dedicated `/admin-api/*`
+  snapshot endpoints.
 
 ## Sync Flow
 

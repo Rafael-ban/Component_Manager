@@ -30,12 +30,12 @@ public sealed class SyncApiClient
     {
         if (string.IsNullOrWhiteSpace(settings.ServerBaseUrl))
         {
-            return OperationResult.Failure("Enter a server URL first.");
+            return OperationResult.Failure("请先填写服务器地址。");
         }
 
         if (string.IsNullOrWhiteSpace(settings.ApiToken))
         {
-            return OperationResult.Failure("Enter an API token first.");
+            return OperationResult.Failure("请先填写 API 令牌。");
         }
 
         using var request = new HttpRequestMessage(
@@ -53,11 +53,11 @@ public sealed class SyncApiClient
             }
 
             var payload = await DeserializeAsync<SyncTokenStatusResponse>(response, cancellationToken);
-            return OperationResult.Success($"Connection ok. Server time: {payload.ServerTime}");
+            return OperationResult.Success($"连接成功。服务器时间：{payload.ServerTime}");
         }
         catch (Exception exception)
         {
-            return OperationResult.Failure($"Connection failed: {exception.Message}");
+            return OperationResult.Failure($"连接失败：{exception.Message}");
         }
     }
 
@@ -70,12 +70,12 @@ public sealed class SyncApiClient
     {
         if (string.IsNullOrWhiteSpace(settings.ServerBaseUrl))
         {
-            return SyncRunResult.Failure("Enter a server URL before syncing.");
+            return SyncRunResult.Failure("同步前请先填写服务器地址。");
         }
 
         if (string.IsNullOrWhiteSpace(settings.ApiToken))
         {
-            return SyncRunResult.Failure("Enter an API token before syncing.");
+            return SyncRunResult.Failure("同步前请先填写 API 令牌。");
         }
 
         try
@@ -95,7 +95,7 @@ public sealed class SyncApiClient
             return new SyncRunResult
             {
                 IsSuccess = true,
-                Message = "Sync completed successfully.",
+                Message = "同步已成功完成。",
                 AcceptedComponents = pushResponse.Payload!.AcceptedComponents,
                 AcceptedStockMovements = pushResponse.Payload.AcceptedStockMovements,
                 PullResponse = pullResponse.Payload!,
@@ -103,7 +103,7 @@ public sealed class SyncApiClient
         }
         catch (Exception exception)
         {
-            return SyncRunResult.Failure($"Sync failed: {exception.Message}");
+            return SyncRunResult.Failure($"同步失败：{exception.Message}");
         }
     }
 
@@ -172,7 +172,7 @@ public sealed class SyncApiClient
             _jsonOptions,
             cancellationToken
         );
-        return payload ?? throw new InvalidOperationException("Server returned an empty payload.");
+        return payload ?? throw new InvalidOperationException("服务端返回了空数据。");
     }
 
     private async Task<string> BuildErrorMessageAsync(
@@ -186,14 +186,14 @@ public sealed class SyncApiClient
             var payload = JsonSerializer.Deserialize<ApiErrorResponse>(body, _jsonOptions);
             if (!string.IsNullOrWhiteSpace(payload?.Detail))
             {
-                return $"Sync server error ({(int)response.StatusCode}): {payload.Detail}";
+                return $"同步服务端错误（{(int)response.StatusCode}）：{payload.Detail}";
             }
         }
         catch
         {
         }
 
-        return $"Sync server error ({(int)response.StatusCode}): {body}";
+        return $"同步服务端错误（{(int)response.StatusCode}）：{body}";
     }
 
     private static Uri BuildUri(string serverBaseUrl, string path) =>

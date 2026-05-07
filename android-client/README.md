@@ -11,7 +11,10 @@ and Material 3.
 - Component create/edit/soft delete workflow implemented
 - Movement entry workflow implemented
 - Push/pull sync wiring implemented against the FastAPI service
-- Simplified Chinese (`zh-CN`) UI resources implemented for the primary screens
+- Chinese-first Material 3 UI implemented for the primary screens, with a
+  matching Simplified Chinese (`zh-CN`) resource set
+- Compose Preview sample states added for dashboard, components, movements,
+  and settings so the main screens can be inspected without booting an emulator
 - `gradle -p android-client help` verified successfully on `2026-05-07`
 - `assembleDebug` verified successfully on `2026-05-07` on this host
 - `assembleRelease` verified successfully on `2026-05-07` on this host
@@ -50,6 +53,30 @@ $env:ANDROID_HOME='D:\Ide\sdk\Android\android-sdk'
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleDebug
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
 ```
+
+## Visual Editing
+
+Jetpack Compose does not use the old XML layout designer. For this client,
+visual editing means Compose Preview and interactive preview rendering inside
+Android Studio.
+
+Use this workflow:
+
+1. Open `android-client/` in Android Studio.
+2. Open
+   `app/src/main/java/com/componentvault/android/ui/screen/ComponentVaultApp.kt`.
+3. In the editor, switch to `Split` or `Design`.
+4. Use the preview functions at the bottom of the file:
+   `DashboardScreenPreview`, `ComponentsScreenPreview`,
+   `ComponentsScreenEmptyPreview`, `MovementsScreenPreview`,
+   `SettingsScreenPreview`, and `SettingsScreenBusyPreview`.
+5. If the preview does not refresh, click `Build & Refresh`.
+
+Important limitation:
+
+- Visual Studio can edit and build this Kotlin project when the Android toolchain
+  is configured, but it does not provide the Google-native Compose Preview
+  experience. For Android UI visual editing, use Android Studio.
 
 ## GitHub Release Build
 

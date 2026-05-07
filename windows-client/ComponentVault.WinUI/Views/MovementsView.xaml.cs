@@ -1,66 +1,82 @@
+using ComponentVault.WinUI.Design;
+using ComponentVault.WinUI.Models;
+using ComponentVault.WinUI.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
-using ComponentVault.WinUI.Models;
-using ComponentVault.WinUI.ViewModels;
 
 namespace ComponentVault.WinUI.Views;
 
 public sealed partial class MovementsView : Page
 {
-    private MainViewModel ViewModel => ((App)Application.Current).MainViewModel;
+    private sealed record MovementTypeOption(string Value, string Label);
+
+    private MainViewModel? RuntimeViewModel => ViewModelResolver.GetRuntimeViewModel(DataContext);
 
     public MovementsView()
     {
         InitializeComponent();
-        DataContext = ViewModel;
+        DataContext = ViewModelResolver.ResolveMainViewModel();
     }
 
     private void OnRefreshFeedClicked(object sender, RoutedEventArgs e)
     {
-        ViewModel.Refresh();
+        RuntimeViewModel?.Refresh();
     }
 
     private async void OnRecordMovementClicked(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.IsBusy)
+        var viewModel = RuntimeViewModel;
+        if (viewModel is null || viewModel.IsBusy)
         {
             return;
         }
 
-        if (ViewModel.AvailableComponents.Count == 0)
+        if (viewModel.AvailableComponents.Count == 0)
         {
-            await ShowMessageAsync("Record movement", "Add a component before recording stock movement.");
+            await ShowMessageAsync("记录库存变动", "请先新增一个元器件，再记录库存变动。");
             return;
         }
 
-        var draft = await ShowMovementDialogAsync();
+        var draft = await ShowMovementDialogAsync(viewModel);
         if (draft is null)
         {
             return;
         }
 
-        var result = ViewModel.RecordMovement(draft);
-        await ShowMessageAsync(result.IsSuccess ? "Movement saved" : "Movement failed", result.Message);
+        var result = viewModel.RecordMovement(draft);
+        await ShowMessageAsync(result.IsSuccess ? "记录已保存" : "记录失败", result.Message);
     }
 
     private void OnMovementSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        ViewModel.SelectedMovement = MovementsListView.SelectedItem as StockMovementRecord;
+        var viewModel = RuntimeViewModel;
+        if (viewModel is null)
+        {
+            return;
+        }
+
+        viewModel.SelectedMovement = MovementsListView.SelectedItem as StockMovementRecord;
     }
 
-    private async Task<MovementEntryDraft?> ShowMovementDialogAsync()
+    private async Task<MovementEntryDraft?> ShowMovementDialogAsync(MainViewModel viewModel)
     {
         var componentCombo = new ComboBox
         {
-            ItemsSource = ViewModel.AvailableComponents,
+            ItemsSource = viewModel.AvailableComponents,
             DisplayMemberPath = nameof(ComponentRecord.Name),
             SelectedIndex = 0,
         };
         var movementTypeCombo = new ComboBox
         {
-            ItemsSource = new[] { "inbound", "outbound", "adjustment" },
+            ItemsSource = new[]
+            {
+                new MovementTypeOption("inbound", "入库"),
+                new MovementTypeOption("outbound", "出库"),
+                new MovementTypeOption("adjustment", "调整"),
+            },
+            DisplayMemberPath = nameof(MovementTypeOption.Label),
             SelectedIndex = 0,
         };
         var quantityBox = new NumberBox
@@ -79,7 +95,7 @@ public sealed partial class MovementsView : Page
         var helperText = new TextBlock
         {
             Foreground = new SolidColorBrush(Color.FromArgb(255, 96, 96, 96)),
-            Text = "Use positive values for inbound and outbound. Adjustment can be positive or negative.",
+            Text = "入库和出库请填写正数；库存调整可以填写正数或负数。",
             TextWrapping = TextWrapping.Wrap,
         };
         var errorText = new TextBlock
@@ -89,21 +105,21 @@ public sealed partial class MovementsView : Page
         };
 
         var panel = new StackPanel { Spacing = 12 };
-        panel.Children.Add(CreateField("Component", componentCombo));
-        panel.Children.Add(CreateField("Movement type", movementTypeCombo));
-        panel.Children.Add(CreateField("Quantity", quantityBox));
+        panel.Children.Add(CreateField("元器件", componentCombo));
+        panel.Children.Add(CreateField("变动类型", movementTypeCombo));
+        panel.Children.Add(CreateField("数量", quantityBox));
         panel.Children.Add(helperText);
-        panel.Children.Add(CreateField("Reason", reasonBox));
-        panel.Children.Add(CreateField("Note", noteBox));
+        panel.Children.Add(CreateField("原因", reasonBox));
+        panel.Children.Add(CreateField("备注", noteBox));
         panel.Children.Add(errorText);
 
         MovementEntryDraft? draft = null;
         var dialog = new ContentDialog
         {
-            Title = "Record stock movement",
+            Title = "记录库存变动",
             Content = panel,
-            PrimaryButtonText = "Save",
-            CloseButtonText = "Cancel",
+            PrimaryButtonText = "保存",
+            CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot,
         };
@@ -111,21 +127,21 @@ public sealed partial class MovementsView : Page
         {
             if (componentCombo.SelectedItem is not ComponentRecord component)
             {
-                errorText.Text = "Choose a component.";
+                errorText.Text = "请选择一个元器件。";
                 args.Cancel = true;
                 return;
             }
 
-            if (movementTypeCombo.SelectedItem is not string movementType)
+            if (movementTypeCombo.SelectedItem is not MovementTypeOption movementType)
             {
-                errorText.Text = "Choose a movement type.";
+                errorText.Text = "请选择变动类型。";
                 args.Cancel = true;
                 return;
             }
 
             if (double.IsNaN(quantityBox.Value))
             {
-                errorText.Text = "Enter a valid quantity.";
+                errorText.Text = "请输入有效数量。";
                 args.Cancel = true;
                 return;
             }
@@ -133,7 +149,7 @@ public sealed partial class MovementsView : Page
             draft = new MovementEntryDraft
             {
                 ComponentId = component.Id,
-                MovementType = movementType,
+                MovementType = movementType.Value,
                 Quantity = (int)Math.Round(quantityBox.Value),
                 Reason = reasonBox.Text,
                 Note = noteBox.Text,
@@ -150,7 +166,7 @@ public sealed partial class MovementsView : Page
         {
             Title = title,
             Content = message,
-            CloseButtonText = "Close",
+            CloseButtonText = "关闭",
             XamlRoot = XamlRoot,
         };
         await dialog.ShowAsync();

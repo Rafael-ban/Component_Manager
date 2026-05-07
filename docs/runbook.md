@@ -20,7 +20,22 @@ cd server
 Verified on `2026-05-07`:
 
 - `.\.venv\Scripts\python.exe -m pytest` -> `7 passed`
-- `/admin/` smoke request -> `200 OK`
+- `/admin-api/dashboard` smoke request with token -> `200 OK`
+
+## Local Admin Web Development
+
+The separated admin web console lives in `admin-web/`.
+
+```powershell
+cd admin-web
+cmd /c npm install
+cmd /c npm run dev
+```
+
+Default local addresses:
+
+- FastAPI API: `http://localhost:8787`
+- Admin web: `http://localhost:5173`
 
 ## Docker Deployment
 
@@ -33,9 +48,9 @@ docker compose up --build
 The compose file publishes `8787` and stores the SQLite database in the Docker
 volume `component_vault_data`.
 
-Admin UI is available at:
+Admin web is available at:
 
-- `http://localhost:8787/admin/`
+- `http://localhost:8081/`
 
 ## Environment Variables
 
@@ -45,6 +60,8 @@ Admin UI is available at:
 - `DATABASE_PATH`: SQLite file path used by the FastAPI service
 - `APP_HOST`: host binding for direct local development
 - `APP_PORT`: port binding for direct local development
+- `ADMIN_WEB_ORIGINS`: comma-separated origins allowed to call the API from the
+  separated admin web app
 
 ## Client Bootstrap
 
@@ -129,7 +146,8 @@ Implemented client behaviors:
 The repository includes two GitHub Actions workflows:
 
 - `.github/workflows/ci.yml`
-  Runs server tests, Android debug compilation, and Windows build validation.
+  Runs server tests, admin-web build validation, Android debug compilation, and
+  Windows build validation.
 - `.github/workflows/release.yml`
   Runs Android release packaging and Windows MSIX packaging on manual trigger
   and `v*` tag pushes.
@@ -152,12 +170,13 @@ The workflow decodes the keystore into a runner-local temp file and exports:
 `release.yml` produces:
 
 - `component-vault-android-release.apk`
+- `component-vault-admin-web.zip`
 - `component-vault-windows-x64.msix`
 - `component-vault-windows-test-certificate.cer`
 - `Install-ComponentVault.ps1`
 
 On `v*` tags, the workflow also attaches all three Windows files and the
-Android APK to the GitHub Release.
+Android APK plus the `admin-web` static bundle to the GitHub Release.
 
 ### Installing The Windows Release
 
@@ -181,6 +200,13 @@ treated as the primary production UI target.
 
 ```powershell
 curl http://localhost:8787/health
+```
+
+### Admin API Check
+
+```powershell
+curl http://localhost:8787/admin-api/dashboard `
+  -H "Authorization: Bearer change-me"
 ```
 
 ### Auth Check
@@ -219,6 +245,14 @@ curl -X POST http://localhost:8787/auth/ping `
   `com.google.android.material` dependency is missing.
 - Fix: keep `com.google.android.material:material` in
   `android-client/app/build.gradle.kts`.
+
+### Admin web cannot reach the API
+
+- Symptom: login succeeds locally in one environment but browser requests fail
+  with CORS errors.
+- Cause: the browser origin is missing from `ADMIN_WEB_ORIGINS`.
+- Fix: add the origin to `ADMIN_WEB_ORIGINS`, restart the FastAPI service, and
+  retry from the admin web console.
 
 ### Android release workflow fails immediately
 

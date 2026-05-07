@@ -1,20 +1,21 @@
+using ComponentVault.WinUI.Design;
+using ComponentVault.WinUI.Models;
+using ComponentVault.WinUI.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
-using ComponentVault.WinUI.Models;
-using ComponentVault.WinUI.ViewModels;
 
 namespace ComponentVault.WinUI.Views;
 
 public sealed partial class ComponentsView : Page
 {
-    private MainViewModel ViewModel => ((App)Application.Current).MainViewModel;
+    private MainViewModel? RuntimeViewModel => ViewModelResolver.GetRuntimeViewModel(DataContext);
 
     public ComponentsView()
     {
         InitializeComponent();
-        DataContext = ViewModel;
+        DataContext = ViewModelResolver.ResolveMainViewModel();
     }
 
     private void OnSearchTextChanged(
@@ -22,63 +23,99 @@ public sealed partial class ComponentsView : Page
         AutoSuggestBoxTextChangedEventArgs args
     )
     {
-        ViewModel.ComponentSearchText = sender.Text;
+        var viewModel = RuntimeViewModel;
+        if (viewModel is null)
+        {
+            return;
+        }
+
+        viewModel.ComponentSearchText = sender.Text;
     }
 
     private void OnLowStockOnlyToggled(object sender, RoutedEventArgs e)
     {
-        ViewModel.ShowLowStockOnly = LowStockOnlyToggle.IsOn;
+        var viewModel = RuntimeViewModel;
+        if (viewModel is null)
+        {
+            return;
+        }
+
+        viewModel.ShowLowStockOnly = LowStockOnlyToggle.IsOn;
     }
 
     private void OnComponentSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        ViewModel.SelectedComponent = ComponentsListView.SelectedItem as ComponentRecord;
+        var viewModel = RuntimeViewModel;
+        if (viewModel is null)
+        {
+            return;
+        }
+
+        viewModel.SelectedComponent = ComponentsListView.SelectedItem as ComponentRecord;
     }
 
     private async void OnAddComponentClicked(object sender, RoutedEventArgs e)
     {
+        var viewModel = RuntimeViewModel;
+        if (viewModel is null)
+        {
+            return;
+        }
+
         var draft = await ShowComponentDialogAsync(null);
         if (draft is null)
         {
             return;
         }
 
-        var result = ViewModel.SaveComponent(draft);
+        var result = viewModel.SaveComponent(draft);
         await ShowOperationResultAsync(result);
     }
 
     private async void OnEditComponentClicked(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.SelectedComponent is null)
+        var viewModel = RuntimeViewModel;
+        if (viewModel is null)
         {
-            await ShowMessageAsync("Edit component", "Select a component first.");
             return;
         }
 
-        var draft = await ShowComponentDialogAsync(ViewModel.SelectedComponent);
+        if (viewModel.SelectedComponent is null)
+        {
+            await ShowMessageAsync("编辑元器件", "请先选择一个元器件。");
+            return;
+        }
+
+        var draft = await ShowComponentDialogAsync(viewModel.SelectedComponent);
         if (draft is null)
         {
             return;
         }
 
-        var result = ViewModel.SaveComponent(draft);
+        var result = viewModel.SaveComponent(draft);
         await ShowOperationResultAsync(result);
     }
 
     private async void OnDeleteComponentClicked(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.SelectedComponent is null)
+        var viewModel = RuntimeViewModel;
+        if (viewModel is null)
         {
-            await ShowMessageAsync("Soft delete", "Select a component first.");
+            return;
+        }
+
+        if (viewModel.SelectedComponent is null)
+        {
+            await ShowMessageAsync("软删除元器件", "请先选择一个元器件。");
             return;
         }
 
         var dialog = new ContentDialog
         {
-            Title = "Soft delete component",
-            Content = $"Mark {ViewModel.SelectedComponent.Name} as deleted? Existing sync history stays intact.",
-            PrimaryButtonText = "Delete",
-            CloseButtonText = "Cancel",
+            Title = "软删除元器件",
+            Content = $"确认将 {viewModel.SelectedComponent.Name} 标记为已删除吗？历史同步记录会保留。",
+            PrimaryButtonText = "确认删除",
+            CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
         };
@@ -88,7 +125,7 @@ public sealed partial class ComponentsView : Page
             return;
         }
 
-        var result = ViewModel.DeleteSelectedComponent();
+        var result = viewModel.DeleteSelectedComponent();
         await ShowOperationResultAsync(result);
     }
 
@@ -126,22 +163,22 @@ public sealed partial class ComponentsView : Page
 
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(CreateField("SKU", skuBox));
-        panel.Children.Add(CreateField("Name", nameBox));
-        panel.Children.Add(CreateField("Category", categoryBox));
-        panel.Children.Add(CreateField("Package", packageBox));
-        panel.Children.Add(CreateField("Location", locationBox));
-        panel.Children.Add(CreateField("Description", descriptionBox));
-        panel.Children.Add(CreateField("Quantity", quantityBox));
-        panel.Children.Add(CreateField("Minimum stock", minStockBox));
+        panel.Children.Add(CreateField("名称", nameBox));
+        panel.Children.Add(CreateField("分类", categoryBox));
+        panel.Children.Add(CreateField("封装", packageBox));
+        panel.Children.Add(CreateField("库位", locationBox));
+        panel.Children.Add(CreateField("说明", descriptionBox));
+        panel.Children.Add(CreateField("数量", quantityBox));
+        panel.Children.Add(CreateField("最低库存", minStockBox));
         panel.Children.Add(errorText);
 
         ComponentDraft? draft = null;
         var dialog = new ContentDialog
         {
-            Title = existing is null ? "Add component" : "Edit component",
+            Title = existing is null ? "新增元器件" : "编辑元器件",
             Content = panel,
-            PrimaryButtonText = "Save",
-            CloseButtonText = "Cancel",
+            PrimaryButtonText = "保存",
+            CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot,
         };
@@ -149,14 +186,14 @@ public sealed partial class ComponentsView : Page
         {
             if (double.IsNaN(quantityBox.Value) || double.IsNaN(minStockBox.Value))
             {
-                errorText.Text = "Quantity and minimum stock must be valid numbers.";
+                errorText.Text = "数量和最低库存必须是有效数字。";
                 args.Cancel = true;
                 return;
             }
 
             if (quantityBox.Value < 0 || minStockBox.Value < 0)
             {
-                errorText.Text = "Quantity and minimum stock cannot be negative.";
+                errorText.Text = "数量和最低库存不能为负数。";
                 args.Cancel = true;
                 return;
             }
@@ -183,11 +220,11 @@ public sealed partial class ComponentsView : Page
     {
         if (!result.IsSuccess)
         {
-            await ShowMessageAsync("Operation failed", result.Message);
+            await ShowMessageAsync("操作失败", result.Message);
             return;
         }
 
-        await ShowMessageAsync("Component updated", result.Message);
+        await ShowMessageAsync("操作完成", result.Message);
     }
 
     private async Task ShowMessageAsync(string title, string message)
@@ -196,7 +233,7 @@ public sealed partial class ComponentsView : Page
         {
             Title = title,
             Content = message,
-            CloseButtonText = "Close",
+            CloseButtonText = "关闭",
             XamlRoot = XamlRoot,
         };
         await dialog.ShowAsync();
@@ -211,12 +248,7 @@ public sealed partial class ComponentsView : Page
     private static FrameworkElement CreateField(string label, FrameworkElement control)
     {
         var panel = new StackPanel { Spacing = 6 };
-        panel.Children.Add(
-            new TextBlock
-            {
-                Text = label,
-            }
-        );
+        panel.Children.Add(new TextBlock { Text = label });
         panel.Children.Add(control);
         return panel;
     }

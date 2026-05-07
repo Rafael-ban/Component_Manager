@@ -15,7 +15,11 @@ public sealed class StockMovementRecord
     public required bool Deleted { get; init; }
 
     public string QuantityLabel => Quantity > 0 ? $"+{Quantity}" : Quantity.ToString();
-    public string MovementTypeLabel => string.IsNullOrWhiteSpace(MovementType)
-        ? string.Empty
-        : char.ToUpperInvariant(MovementType[0]) + MovementType[1..];
+    public string MovementTypeLabel => MovementType.Trim().ToLowerInvariant() switch
+    {
+        "inbound" => "入库",
+        "outbound" => "出库",
+        "adjustment" => "调整",
+        _ => MovementType,
+    };
 }

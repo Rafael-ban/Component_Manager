@@ -5,7 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:ComponentVault.WinUI"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    Title="Component Vault"
+    Title="元件仓库"
     mc:Ignorable="d">
 
     <Grid Background="{StaticResource VaultBackgroundBrush}">
@@ -23,35 +23,35 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Spacing="2">
-                        <TextBlock FontSize="28" FontWeight="SemiBold" Text="Component Vault" />
-                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="WinUI 3 native desktop client shell" />
+                        <TextBlock FontSize="28" FontWeight="SemiBold" Text="元件仓库" />
+                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="WinUI 3 原生桌面客户端" />
                     </StackPanel>
                     <Button
                         Grid.Column="1"
                         HorizontalAlignment="Right"
                         Style="{StaticResource AccentButtonStyle}"
                         Click="OnSyncNowClicked"
-                        Content="Sync now" />
+                        Content="立即同步" />
                 </Grid>
             </NavigationView.Header>
 
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="DashboardItem" Content="Dashboard" Tag="Dashboard">
+                <NavigationViewItem x:Name="DashboardItem" Content="概览" Tag="Dashboard">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Home" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Components" Tag="Components">
+                <NavigationViewItem Content="元器件" Tag="Components">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Library" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Movements" Tag="Movements">
+                <NavigationViewItem Content="出入库" Tag="Movements">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Sort" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Settings" Tag="Settings">
+                <NavigationViewItem Content="同步设置" Tag="Settings">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Setting" />
                     </NavigationViewItem.Icon>
