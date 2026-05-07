@@ -1,0 +1,140 @@
+<Page
+    x:Class="ComponentVault.WinUI.Views.SettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer>
+        <StackPanel Padding="24">
+            <TextBlock FontSize="30" FontWeight="SemiBold" Text="Sync settings" />
+            <TextBlock Margin="0,6,0,20" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Windows-form layout aligned with the future real sync configuration flow." />
+
+            <Border Style="{StaticResource CardBorderStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="360" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Spacing="18">
+                        <Grid ColumnSpacing="16" RowSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Server URL" />
+                            <TextBox x:Name="ServerUrlTextBox" Grid.Row="0" Grid.Column="1" PlaceholderText="http://localhost:8787" />
+
+                            <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="API token" />
+                            <PasswordBox x:Name="ApiTokenBox" Grid.Row="1" Grid.Column="1" />
+
+                            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Device ID" />
+                            <TextBox x:Name="DeviceIdTextBox" Grid.Row="2" Grid.Column="1" IsReadOnly="True" />
+
+                            <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Last synced" />
+                            <TextBox x:Name="LastSyncedTextBox" Grid.Row="3" Grid.Column="1" IsReadOnly="True" />
+
+                            <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="Last result" />
+                            <TextBox x:Name="LastResultTextBox" Grid.Row="4" Grid.Column="1" IsReadOnly="True" TextWrapping="Wrap" />
+                        </Grid>
+
+                        <ToggleSwitch
+                            x:Name="AutoSyncToggle"
+                            Header="Enable auto sync"
+                            IsOn="False" />
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <ProgressRing
+                                Width="24"
+                                Height="24"
+                                IsActive="{Binding IsBusy}" />
+                            <TextBlock
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextFillColorSecondaryBrush}"
+                                Text="{Binding SyncActionHint}"
+                                TextWrapping="Wrap" />
+                        </Grid>
+
+                        <TextBlock
+                            Foreground="{StaticResource TextFillColorSecondaryBrush}"
+                            Text="{Binding StatusMessage}"
+                            TextWrapping="Wrap" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button Click="OnSaveSettingsClicked" IsEnabled="{Binding CanRunSyncActions}" Style="{StaticResource AccentButtonStyle}" Content="Save settings" />
+                            <Button Click="OnTestConnectionClicked" IsEnabled="{Binding CanRunSyncActions}" Content="Test connection" />
+                            <Button Click="OnSyncNowClicked" IsEnabled="{Binding CanRunSyncActions}" Content="Sync now" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Border
+                        Grid.Column="1"
+                        Padding="18"
+                        Background="{StaticResource ControlFillColorSecondaryBrush}"
+                        BorderBrush="{StaticResource VaultBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="18">
+                        <StackPanel Spacing="14">
+                            <TextBlock FontSize="20" FontWeight="SemiBold" Text="Sync posture" />
+                            <TextBlock
+                                Foreground="{StaticResource TextFillColorSecondaryBrush}"
+                                Text="Desktop summary for the configured sync endpoint and current risk level."
+                                TextWrapping="Wrap" />
+
+                            <InfoBar
+                                IsOpen="True"
+                                IsClosable="False"
+                                Severity="{Binding SyncRiskSeverity}"
+                                Title="{Binding SyncRiskTitle}"
+                                Message="{Binding SyncRiskMessage}" />
+
+                            <StackPanel Spacing="10">
+                                <TextBlock FontWeight="SemiBold" Text="Current values" />
+                                <Grid ColumnSpacing="12" RowSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Endpoint" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" FontWeight="Medium" Text="{Binding SyncEndpointDisplay}" TextWrapping="Wrap" />
+
+                                    <TextBlock Grid.Row="1" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Token" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" FontWeight="Medium" Text="{Binding SyncTokenDisplay}" TextWrapping="Wrap" />
+
+                                    <TextBlock Grid.Row="2" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Auto sync" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" FontWeight="Medium" Text="{Binding SyncAutoSyncDisplay}" TextWrapping="Wrap" />
+
+                                    <TextBlock Grid.Row="3" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Device ID" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" FontWeight="Medium" Text="{Binding SyncConfiguration.DeviceId}" TextWrapping="Wrap" />
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -1,0 +1,200 @@
+<Page
+    x:Class="ComponentVault.WinUI.Views.MovementsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:models="using:ComponentVault.WinUI.Models"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer>
+        <StackPanel Padding="24">
+            <TextBlock FontSize="30" FontWeight="SemiBold" Text="Stock movements" />
+            <TextBlock Margin="0,6,0,20" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Desktop audit trail for inbound, outbound, and adjustment activity." />
+
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="16">
+                    <CommandBar Background="Transparent" DefaultLabelPosition="Right">
+                        <AppBarButton Click="OnRecordMovementClicked" Icon="Add" IsEnabled="{Binding CanRecordMovement}" Label="Record movement" />
+                        <AppBarButton Click="OnRefreshFeedClicked" Icon="Refresh" Label="Refresh feed" />
+                    </CommandBar>
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border
+                            Padding="14"
+                            Background="{StaticResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{StaticResource VaultBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="14">
+                            <StackPanel Spacing="4">
+                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Inbound" />
+                                <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding InboundMovementCount}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Grid.Column="1"
+                            Padding="14"
+                            Background="{StaticResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{StaticResource VaultBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="14">
+                            <StackPanel Spacing="4">
+                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Outbound" />
+                                <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding OutboundMovementCount}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Grid.Column="2"
+                            Padding="14"
+                            Background="{StaticResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{StaticResource VaultBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="14">
+                            <StackPanel Spacing="4">
+                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Adjustment" />
+                                <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding AdjustmentMovementCount}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <TextBlock
+                        Foreground="{StaticResource TextFillColorSecondaryBrush}"
+                        Text="{Binding MovementFeedSummary}"
+                        TextWrapping="Wrap" />
+
+                    <TextBlock
+                        Foreground="{StaticResource TextFillColorSecondaryBrush}"
+                        Text="{Binding StatusMessage}"
+                        TextWrapping="Wrap" />
+
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="360" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Spacing="12">
+                            <TextBlock FontSize="20" FontWeight="SemiBold" Text="Activity feed" />
+                            <TextBlock
+                                Foreground="{StaticResource TextFillColorSecondaryBrush}"
+                                Text="Recent inbound, outbound, and adjustment events stored on the device."
+                                TextWrapping="Wrap" />
+
+                            <ListView
+                                x:Name="MovementsListView"
+                                ItemsSource="{Binding Movements}"
+                                SelectedItem="{Binding SelectedMovement, Mode=TwoWay}"
+                                SelectionChanged="OnMovementSelectionChanged">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="models:StockMovementRecord">
+                                        <Grid Padding="0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" />
+                                                <ColumnDefinition Width="2*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding ComponentName}" />
+                                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="{Binding ComponentSku}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding MovementTypeLabel}" />
+                                                <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="{Binding Reason}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding HappenedAt}" />
+                                            <Border
+                                                Grid.Column="3"
+                                                Padding="10,6"
+                                                Background="{StaticResource VaultAccentSoftBrush}"
+                                                CornerRadius="999">
+                                                <TextBlock Foreground="{StaticResource VaultAccentBrush}" Text="{Binding QuantityLabel}" />
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </StackPanel>
+
+                        <Border
+                            Grid.Column="1"
+                            Padding="18"
+                            Background="{StaticResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{StaticResource VaultBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="18">
+                            <StackPanel Spacing="14">
+                                <TextBlock FontSize="20" FontWeight="SemiBold" Text="Movement detail" />
+                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding SelectedMovementTitle}" />
+                                <TextBlock
+                                    Foreground="{StaticResource TextFillColorSecondaryBrush}"
+                                    Text="{Binding SelectedMovementSubtitle}"
+                                    TextWrapping="Wrap" />
+
+                                <InfoBar
+                                    IsOpen="True"
+                                    IsClosable="False"
+                                    Severity="{Binding SelectedMovementStatusSeverity}"
+                                    Title="{Binding SelectedMovementStatusTitle}"
+                                    Message="{Binding SelectedMovementStatusMessage}" />
+
+                                <Border
+                                    Padding="14"
+                                    Background="{StaticResource VaultSurfaceBrush}"
+                                    BorderBrush="{StaticResource VaultBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="14">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Quantity delta" />
+                                        <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding SelectedMovementQuantityText}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontWeight="SemiBold" Text="Audit fields" />
+                                    <Grid ColumnSpacing="12" RowSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="84" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Type" />
+                                        <TextBlock Grid.Row="0" Grid.Column="1" FontWeight="Medium" Text="{Binding SelectedMovementTypeText}" TextWrapping="Wrap" />
+
+                                        <TextBlock Grid.Row="1" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Reason" />
+                                        <TextBlock Grid.Row="1" Grid.Column="1" FontWeight="Medium" Text="{Binding SelectedMovementReason}" TextWrapping="Wrap" />
+
+                                        <TextBlock Grid.Row="2" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Note" />
+                                        <TextBlock Grid.Row="2" Grid.Column="1" FontWeight="Medium" Text="{Binding SelectedMovementNote}" TextWrapping="Wrap" />
+
+                                        <TextBlock Grid.Row="3" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Updated" />
+                                        <TextBlock Grid.Row="3" Grid.Column="1" FontWeight="Medium" Text="{Binding SelectedMovementUpdatedAt}" TextWrapping="Wrap" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <TextBlock
+                                    Foreground="{StaticResource TextFillColorSecondaryBrush}"
+                                    Text="{Binding SelectedMovementActionHint}"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

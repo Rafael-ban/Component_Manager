@@ -1,0 +1,21 @@
+namespace ComponentVault.WinUI.Models;
+
+public sealed class StockMovementRecord
+{
+    public required string Id { get; init; }
+    public required string ComponentId { get; init; }
+    public required string ComponentSku { get; init; }
+    public required string ComponentName { get; init; }
+    public required string MovementType { get; init; }
+    public required int Quantity { get; init; }
+    public required string Reason { get; init; }
+    public required string Note { get; init; }
+    public required string HappenedAt { get; init; }
+    public required string UpdatedAt { get; init; }
+    public required bool Deleted { get; init; }
+
+    public string QuantityLabel => Quantity > 0 ? $"+{Quantity}" : Quantity.ToString();
+    public string MovementTypeLabel => string.IsNullOrWhiteSpace(MovementType)
+        ? string.Empty
+        : char.ToUpperInvariant(MovementType[0]) + MovementType[1..];
+}

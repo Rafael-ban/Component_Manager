@@ -1,0 +1,108 @@
+<Page
+    x:Class="ComponentVault.WinUI.Views.DashboardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer>
+        <StackPanel Padding="24">
+            <TextBlock FontSize="30" FontWeight="SemiBold" Text="Overview" />
+            <TextBlock Margin="0,6,0,20" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Windows-native desktop shell for inventory and sync operations." />
+
+            <Grid Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Components" />
+                        <TextBlock FontSize="28" FontWeight="Bold" Text="{Binding Dashboard.ComponentCount}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Margin="16,0,0,0" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Units on hand" />
+                        <TextBlock FontSize="28" FontWeight="Bold" Text="{Binding Dashboard.TotalUnits}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Margin="16,0,0,0" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Low stock" />
+                        <TextBlock FontSize="28" FontWeight="Bold" Text="{Binding Dashboard.LowStockCount}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="3" Margin="16,0,0,0" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Movements" />
+                        <TextBlock FontSize="28" FontWeight="Bold" Text="{Binding Dashboard.MovementCount}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="14">
+                        <TextBlock FontSize="20" FontWeight="SemiBold" Text="Low-stock watchlist" />
+                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Components at or below their minimum stock threshold." />
+                        <ListView ItemsSource="{Binding LowStockComponents}">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                                            <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="{Binding Sku}" />
+                                        </StackPanel>
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            FontWeight="SemiBold"
+                                            Text="{Binding Quantity}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Margin="16,0,0,0" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="14">
+                        <TextBlock FontSize="20" FontWeight="SemiBold" Text="Sync posture" />
+                        <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="Current desktop sync configuration and last known result." />
+                        <InfoBar
+                            IsOpen="True"
+                            IsClosable="False"
+                            Severity="Informational"
+                            Title="Server endpoint"
+                            Message="{Binding SyncConfiguration.ServerBaseUrl}" />
+                        <InfoBar
+                            IsOpen="True"
+                            IsClosable="False"
+                            Severity="Success"
+                            Title="Last sync status"
+                            Message="{Binding SyncConfiguration.LastSyncMessage}" />
+                        <InfoBar
+                            IsOpen="True"
+                            IsClosable="False"
+                            Severity="Success"
+                            Title="Last synced"
+                            Message="{Binding SyncConfiguration.LastSyncedAt}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -1,0 +1,13 @@
+package com.componentvault.android.model
+
+data class ComponentDraft(
+    val id: String? = null,
+    val sku: String,
+    val name: String,
+    val category: String,
+    val packageName: String,
+    val location: String,
+    val description: String,
+    val quantity: Int,
+    val minStock: Int,
+)
