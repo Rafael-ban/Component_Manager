@@ -30,9 +30,12 @@ and Material 3.
 
 - Android SDK installed
 - `ANDROID_HOME` or `ANDROID_SDK_ROOT` configured
+- Java provided through `JAVA_HOME`, Android Studio, or the CI runner toolchain
 - Gradle can resolve Android plugins and dependencies from Google Maven
 - Alternatively, copy `local.properties.example` to `local.properties` and set
   `sdk.dir=<absolute-sdk-path>`
+- The repository intentionally does not commit `org.gradle.java.home`, so
+  machine-specific JDK paths do not break other environments
 
 ## This Host Setup
 

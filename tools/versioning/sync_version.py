@@ -402,6 +402,24 @@ def stage_version_files() -> None:
     run_subprocess(command, cwd=git_root)
 
 
+def write_github_outputs(
+    output_path: Path | None,
+    *,
+    released: bool,
+    version: SemVer,
+) -> None:
+    if output_path is None:
+        return
+
+    lines = [
+        f"released={'true' if released else 'false'}\n",
+        f"version={version}\n",
+        f"tag=v{version}\n",
+    ]
+    with output_path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.writelines(lines)
+
+
 def find_git_root() -> Path | None:
     try:
         completed = subprocess.run(
@@ -429,9 +447,14 @@ def run_subprocess(command: list[str], cwd: Path) -> None:
         ) from exc
 
 
-def apply_version_sync() -> None:
+def apply_version_sync(output_path: Path | None = None) -> None:
     changelog_state = parse_changelog()
     if not changelog_state.unreleased_has_entries:
+        write_github_outputs(
+            output_path,
+            released=False,
+            version=changelog_state.latest_release,
+        )
         print("No unreleased changelog entries found; version sync skipped.")
         return
 
@@ -444,6 +467,11 @@ def apply_version_sync() -> None:
     update_admin_web(next_version)
     update_windows(next_version)
     stage_version_files()
+    write_github_outputs(
+        output_path,
+        released=True,
+        version=next_version,
+    )
 
     print(f"Synchronized repository version to {next_version}.")
 
@@ -454,6 +482,19 @@ def check_version_sync() -> None:
         raise VersionSyncError(
             "docs/CHANGELOG.md still has unreleased entries. Run the version sync before pushing or merge the commit created by the pre-commit hook.",
         )
+
+    validate_synced_versions(changelog_state.latest_release)
+    print(f"Version files are synchronized at {changelog_state.latest_release}.")
+
+
+def validate_version_state() -> None:
+    changelog_state = parse_changelog()
+    if changelog_state.unreleased_has_entries:
+        next_version = changelog_state.next_version
+        if next_version is None:
+            raise VersionSyncError("Unable to determine the unreleased target version.")
+        print(f"Unreleased changelog entries target {next_version}.")
+        return
 
     validate_synced_versions(changelog_state.latest_release)
     print(f"Version files are synchronized at {changelog_state.latest_release}.")
@@ -473,6 +514,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Validate that all version files match the latest released changelog entry.",
     )
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="Validate changelog structure and accept unreleased entries on active branches.",
+    )
+    parser.add_argument(
+        "--github-output",
+        help="Append release metadata to the provided GitHub Actions output file.",
+    )
     return parser
 
 
@@ -480,17 +530,21 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    apply_mode = args.apply or not args.check
-    check_mode = args.check
+    selected_modes = sum(bool(flag) for flag in (args.apply, args.check, args.validate))
+    if selected_modes > 1:
+        parser.error("Use only one of --apply, --check, or --validate.")
+    if args.github_output and (args.check or args.validate):
+        parser.error("--github-output can only be used with apply mode.")
 
-    if args.apply and args.check:
-        parser.error("Use either --apply or --check, not both.")
+    output_path = Path(args.github_output) if args.github_output else None
 
     try:
-        if apply_mode and not check_mode:
-            apply_version_sync()
-        else:
+        if args.check:
             check_version_sync()
+        elif args.validate:
+            validate_version_state()
+        else:
+            apply_version_sync(output_path)
     except VersionSyncError as exc:
         print(f"Version sync error: {exc}", file=sys.stderr)
         return 1

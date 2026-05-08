@@ -1,0 +1,80 @@
+name: Release From Changelog
+
+on:
+  push:
+    paths:
+      - 'docs/CHANGELOG.md'
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: release-from-changelog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sync-and-tag:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && !startsWith(github.event.head_commit.message, 'chore(release): sync version to ')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate release automation token
+        env:
+          RELEASE_AUTOMATION_TOKEN: ${{ secrets.RELEASE_AUTOMATION_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_AUTOMATION_TOKEN" ]; then
+            echo "Missing required GitHub secret: RELEASE_AUTOMATION_TOKEN"
+            echo "Configure a token with contents:write so this workflow can push release commits and tags."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.RELEASE_AUTOMATION_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Apply changelog-driven version sync
+        id: version_sync
+        run: python tools/versioning/sync_version.py --apply --github-output "$GITHUB_OUTPUT"
+
+      - name: Configure git author
+        run: |
+          git config user.name "component-vault-release-bot"
+          git config user.email "component-vault-release-bot@users.noreply.github.com"
+
+      - name: Commit synchronized version files
+        if: steps.version_sync.outputs.released == 'true'
+        env:
+          VERSION: ${{ steps.version_sync.outputs.version }}
+        run: |
+          if git diff --cached --quiet; then
+            echo "Version sync reported a release but no staged changes were found."
+            exit 1
+          fi
+
+          git commit -m "chore(release): sync version to ${VERSION}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Fetch remote tags
+        run: git fetch --tags origin
+
+      - name: Create and push release tag
+        env:
+          TAG: ${{ steps.version_sync.outputs.tag }}
+          VERSION: ${{ steps.version_sync.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists on origin; skipping tag creation."
+            exit 0
+          fi
+
+          git tag -a "${TAG}" -m "Release ${VERSION}"
+          git push origin "${TAG}"

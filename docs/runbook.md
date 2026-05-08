@@ -92,7 +92,27 @@ The pre-commit hook then:
 - converts `Unreleased` into a concrete release section
 - creates a fresh empty `Unreleased` template
 
-Manual consistency check:
+CI/default-branch flow:
+
+- `ci.yml` runs `python tools/versioning/sync_version.py --validate`
+- `release-from-changelog.yml` watches `docs/CHANGELOG.md` on the repository
+  default branch
+- if unreleased notes arrive without the local hook, the workflow applies the
+  same sync server-side and pushes `chore(release): sync version to X.Y.Z`
+- whether the release was synced locally or by GitHub Actions, the workflow
+  pushes the matching `vX.Y.Z` tag if it does not already exist
+- the tag then triggers `release.yml` to build Android, admin-web, and Windows
+  artifacts
+
+Manual checks:
+
+Active branch validation:
+
+```powershell
+python tools/versioning/sync_version.py --validate
+```
+
+Strict released-state validation:
 
 ```powershell
 python tools/versioning/sync_version.py --check
@@ -123,6 +143,8 @@ Verified working configuration on this host (`2026-05-08`):
 - Gradle: `D:\dev-tool\gradle\bin\gradle.bat`
 - project-local Gradle cache: `D:\Project_Folder\Component_warehouse\.gradle-user-home`
 - project-local Android user home: `D:\Project_Folder\Component_warehouse\.android-user`
+- the repository does not hardcode `org.gradle.java.home`, so Gradle now uses
+  `JAVA_HOME` or the toolchain configured by the host/runner
 
 Create or confirm `android-client/local.properties`:
 
@@ -192,11 +214,14 @@ Implemented client behaviors:
 
 ## GitHub Actions
 
-The repository includes two GitHub Actions workflows:
+The repository includes three GitHub Actions workflows:
 
 - `.github/workflows/ci.yml`
-  Runs server tests, admin-web build validation, Android debug compilation, and
-  Windows build validation.
+  Runs server tests, admin-web build validation, Android debug compilation,
+  Windows build validation, and changelog/version validation.
+- `.github/workflows/release-from-changelog.yml`
+  Watches `docs/CHANGELOG.md` on the default branch, applies version sync if
+  needed, and pushes the release tag.
 - `.github/workflows/release.yml`
   Runs Android release packaging, admin-web static bundle packaging, and
   Windows dual-mode packaging on manual trigger and `v*` tag pushes.
@@ -209,6 +234,16 @@ Configure these GitHub repository secrets before running `release.yml`:
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
+
+Configure this additional GitHub repository secret for changelog-triggered
+release automation:
+
+- `RELEASE_AUTOMATION_TOKEN`
+
+`RELEASE_AUTOMATION_TOKEN` should be a personal access token or fine-grained
+token with `contents:write` permission. The workflow uses it instead of the
+default `GITHUB_TOKEN` because downstream workflows are not guaranteed to fire
+when commits or tags are created with `GITHUB_TOKEN`.
 
 The workflow decodes the keystore into a runner-local temp file and exports:
 
@@ -304,6 +339,15 @@ curl -X POST http://localhost:8787/auth/ping `
 - Fix: install the Android SDK, set `ANDROID_HOME` or `ANDROID_SDK_ROOT`, or
   create `android-client/local.properties` with `sdk.dir=<absolute-sdk-path>`.
 
+### Gradle is pinned to a local Java path
+
+- Symptom: GitHub Actions or another machine fails with
+  `Value '.../jbr' given for org.gradle.java.home Gradle property is invalid`.
+- Cause: `android-client/gradle.properties` contains a machine-specific
+  `org.gradle.java.home` override.
+- Fix: keep that property out of the repository and provide Java through
+  `JAVA_HOME`, Android Studio, or the CI runner toolchain instead.
+
 ### Android theme resource missing
 
 - Symptom: AAPT fails with `resource style/Theme.Material3.DayNight.NoActionBar
@@ -328,6 +372,22 @@ curl -X POST http://localhost:8787/auth/ping `
   repository settings.
 - Fix: add all four required Android signing secrets before rerunning the
   release workflow.
+
+### Changelog release automation fails before tagging
+
+- Symptom: `release-from-changelog.yml` fails at the token validation step.
+- Cause: `RELEASE_AUTOMATION_TOKEN` is missing or empty in repository secrets.
+- Fix: add `RELEASE_AUTOMATION_TOKEN` with `contents:write` permission, then
+  rerun the workflow.
+
+### Changelog release automation cannot push commit or tag
+
+- Symptom: `release-from-changelog.yml` reaches `git push` and fails with a
+  permission or protection error.
+- Cause: the token does not have `contents:write`, the default branch blocks
+  workflow pushes, or tag creation is restricted.
+- Fix: grant the token repository write access for contents and allow the
+  workflow bot to push the synchronized release commit and `v*` tags.
 
 ### Windows MSIX install is blocked by certificate trust
 

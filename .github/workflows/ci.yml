@@ -25,7 +25,7 @@ jobs:
           python-version: '3.12'
 
       - name: Validate changelog-driven version sync
-        run: python tools/versioning/sync_version.py --check
+        run: python tools/versioning/sync_version.py --validate
 
   server-test:
     runs-on: ubuntu-latest
