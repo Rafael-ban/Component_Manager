@@ -18,14 +18,37 @@
   on-device SQLite and shared preferences.
 - User-facing copy is now routed through Android string resources, with a
   Chinese-first default UI and matching Simplified Chinese (`zh-CN`) resource
-  coverage for the primary screens.
-- Navigation covers dashboard, components, movements, and sync settings.
-- Components, movements, and settings screens now use stable-mode summary and
-  detail layouts tuned for mobile-first Material 3 UI.
+  coverage for the primary screens. Compose Preview uses injected
+  `ComponentVaultStrings` sample bundles plus content-level preview composables
+  so Preview rendering does not depend on Android Studio resolving the runtime
+  `R.string` graph.
+- Navigation now centers on four adaptive destinations:
+  `Inventory`, `Movements`, `Overview`, and `Settings`.
+- `Inventory` is the default high-frequency workflow and uses dense search,
+  filter, and list-first layouts on phones, plus persistent list-detail panes
+  on larger widths.
+- `Movements` uses the same adaptive approach: compact history-first layouts on
+  phones and split history/detail arrangements on larger widths.
+- `Overview` is now a summary surface that routes users back into inventory or
+  movement flows rather than acting as the primary editing page.
+- `Settings` is organized as grouped sync forms and status blocks instead of
+  large summary-card stacks.
 - The app writes locally first, queues changed entities, and optionally syncs
   to the FastAPI service.
-- Android build verification completed successfully on `2026-05-07` on the
-  current host machine after local SDK and JDK configuration.
+- Android build verification completed successfully on `2026-05-08` on the
+  current host machine after local SDK and JDK configuration. Preview-focused
+  `Phone`, `Tablet`, `Locale`, `Theme`, `Accessibility`, `Shell`, and `Dialogs`
+  surfaces are now isolated under `ui/screen/preview/`.
+
+## Versioning
+
+- `docs/CHANGELOG.md` is the repository-wide version source.
+- A local pre-commit hook consumes the `Unreleased` changelog section and
+  synchronizes semantic versions to Android, admin-web, and Windows targets.
+- Android uses semver for `versionName` plus a monotonically increasing
+  `versionCode`.
+- Windows package and assembly metadata use the same semver mapped to four-part
+  versions as `major.minor.patch.0`.
 
 ## Windows Client
 
@@ -59,7 +82,7 @@
 
 ### components
 
-- Primary inventory entity rendered by the dashboard and list views.
+- Primary inventory entity rendered by overview summaries and inventory lists.
 - Active records must have unique `sku`.
 - `quantity` and `min_stock` are constrained to non-negative values.
 

@@ -1,16 +1,10 @@
 package com.componentvault.android.model
 
 data class InventoryUiState(
-    val dashboard: DashboardSnapshot = DashboardSnapshot(
-        componentCount = 0,
-        totalUnits = 0,
-        lowStockCount = 0,
-        movementCount = 0,
-    ),
+    val overview: OverviewUiState = OverviewUiState(),
     val availableComponents: List<ComponentRecord> = emptyList(),
-    val components: List<ComponentRecord> = emptyList(),
-    val lowStockComponents: List<ComponentRecord> = emptyList(),
-    val movements: List<StockMovementRecord> = emptyList(),
+    val inventory: InventoryScreenUiState = InventoryScreenUiState(),
+    val movements: MovementsUiState = MovementsUiState(),
     val syncConfiguration: SyncConfiguration = SyncConfiguration(
         deviceId = "",
         serverBaseUrl = "",
@@ -19,9 +13,71 @@ data class InventoryUiState(
         lastSyncedAt = "",
         lastSyncMessage = "",
     ),
-    val componentQuery: String = "",
-    val lowStockOnly: Boolean = false,
-    val selectedComponentId: String? = null,
     val isBusy: Boolean = false,
     val statusMessage: String = "",
 )
+
+data class OverviewUiState(
+    val componentCount: Int = 0,
+    val totalUnits: Int = 0,
+    val lowStockCount: Int = 0,
+    val movementCount: Int = 0,
+    val lowStockItems: List<InventoryListItemUiState> = emptyList(),
+    val recentMovements: List<StockMovementRecord> = emptyList(),
+)
+
+data class InventoryScreenUiState(
+    val filters: InventoryFiltersUiState = InventoryFiltersUiState(),
+    val availableCategories: List<String> = emptyList(),
+    val availableLocations: List<String> = emptyList(),
+    val list: InventoryListUiState = InventoryListUiState(),
+    val detail: InventoryDetailUiState = InventoryDetailUiState(),
+)
+
+data class InventoryFiltersUiState(
+    val query: String = "",
+    val stockFilter: InventoryStockFilter = InventoryStockFilter.All,
+    val category: String? = null,
+    val location: String? = null,
+    val sort: InventorySortOption = InventorySortOption.UpdatedNewest,
+)
+
+data class InventoryListUiState(
+    val items: List<InventoryListItemUiState> = emptyList(),
+    val selectedComponentId: String? = null,
+)
+
+data class InventoryListItemUiState(
+    val id: String,
+    val name: String,
+    val sku: String,
+    val category: String,
+    val packageName: String,
+    val location: String,
+    val quantity: Int,
+    val minStock: Int,
+    val isLowStock: Boolean,
+    val updatedAt: String,
+)
+
+data class InventoryDetailUiState(
+    val component: ComponentRecord? = null,
+    val recentMovements: List<StockMovementRecord> = emptyList(),
+)
+
+data class MovementsUiState(
+    val items: List<StockMovementRecord> = emptyList(),
+    val componentCount: Int = 0,
+)
+
+enum class InventoryStockFilter {
+    All,
+    LowStock,
+}
+
+enum class InventorySortOption {
+    UpdatedNewest,
+    Name,
+    QuantityLowToHigh,
+    QuantityHighToLow,
+}

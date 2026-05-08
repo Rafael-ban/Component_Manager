@@ -13,6 +13,20 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Validate changelog-driven version sync
+        run: python tools/versioning/sync_version.py --check
+
   server-test:
     runs-on: ubuntu-latest
     defaults:

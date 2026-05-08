@@ -63,6 +63,41 @@ Admin web is available at:
 - `ADMIN_WEB_ORIGINS`: comma-separated origins allowed to call the API from the
   separated admin web app
 
+## Versioning Workflow
+
+Repository versions are driven by `docs/CHANGELOG.md`.
+
+Install the Git hook once after cloning:
+
+```powershell
+.\scripts\setup-git-hooks.ps1
+```
+
+On macOS/Linux:
+
+```sh
+sh ./scripts/setup-git-hooks.sh
+```
+
+Daily flow:
+
+1. Add release notes under `## [Unreleased]` in `docs/CHANGELOG.md`
+2. Set `bump:` to `major`, `minor`, or `patch`
+3. Run `git commit`
+
+The pre-commit hook then:
+
+- computes the next version from the latest released changelog entry
+- updates Android, admin-web, and Windows version files
+- converts `Unreleased` into a concrete release section
+- creates a fresh empty `Unreleased` template
+
+Manual consistency check:
+
+```powershell
+python tools/versioning/sync_version.py --check
+```
+
 ## Client Bootstrap
 
 ### Android
@@ -81,28 +116,31 @@ Basic check:
 gradle -p android-client help
 ```
 
-Verified working configuration on this host (`2026-05-07`):
+Verified working configuration on this host (`2026-05-08`):
 
-- Android SDK: `D:\Ide\sdk\Android\android-sdk`
-- JDK: `D:\Ide\sdk\Android\openjdk\jdk-21.0.8`
+- Android SDK: `C:\Users\gdblz\AppData\Local\Android\Sdk`
+- JDK: `D:\android_studio\jbr`
 - Gradle: `D:\dev-tool\gradle\bin\gradle.bat`
 - project-local Gradle cache: `D:\Project_Folder\Component_warehouse\.gradle-user-home`
+- project-local Android user home: `D:\Project_Folder\Component_warehouse\.android-user`
 
 Create or confirm `android-client/local.properties`:
 
 ```properties
-sdk.dir=D:\\Ide\\sdk\\Android\\android-sdk
+sdk.dir=C:\\Users\\gdblz\\AppData\\Local\\Android\\Sdk
 ```
 
 Build verification:
 
 ```powershell
 $env:GRADLE_USER_HOME='D:\Project_Folder\Component_warehouse\.gradle-user-home'
-$env:JAVA_HOME='D:\Ide\sdk\Android\openjdk\jdk-21.0.8'
-$env:ANDROID_SDK_ROOT='D:\Ide\sdk\Android\android-sdk'
-$env:ANDROID_HOME='D:\Ide\sdk\Android\android-sdk'
+$env:JAVA_HOME='D:\android_studio\jbr'
+$env:ANDROID_SDK_ROOT='C:\Users\gdblz\AppData\Local\Android\Sdk'
+$env:ANDROID_HOME='C:\Users\gdblz\AppData\Local\Android\Sdk'
+$env:ANDROID_USER_HOME='D:\Project_Folder\Component_warehouse\.android-user'
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client help
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleDebug
+& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
 ```
 
 Verification result on this host:
@@ -110,6 +148,15 @@ Verification result on this host:
 - `help` -> success
 - `assembleDebug` -> success
 - `assembleRelease` -> success
+- Android metrics warnings and Kotlin daemon fallback messages may appear on
+  this host, but the builds still complete successfully
+
+Android Studio note:
+
+- The official `Layout Editor` tutorial applies to View/XML layouts.
+- This project uses Jetpack Compose, so visual editing should use Compose
+  Preview, Interactive Preview, Run Preview, and Live Edit inside Android
+  Studio.
 
 Implemented client behaviors:
 

@@ -30,6 +30,21 @@ connects to it over HTTP.
 - Active components enforce unique `sku`.
 - Component `quantity` and `min_stock` are non-negative.
 
+## Versioning
+
+- `docs/CHANGELOG.md` is the single source of truth for repository versions.
+- Before committing, add notes under `## [Unreleased]` and set `bump:` to
+  `major`, `minor`, or `patch`.
+- Install the repository-managed Git hook once after cloning:
+  `.\scripts\setup-git-hooks.ps1` on Windows or `sh ./scripts/setup-git-hooks.sh`
+  on macOS/Linux.
+- Each local `git commit` then auto-syncs:
+  - Android `versionName` and `versionCode`
+  - `admin-web/package.json` and `package-lock.json`
+  - Windows assembly and MSIX package versions
+- CI also runs `python tools/versioning/sync_version.py --check` to catch
+  changelog/version drift if the hook is bypassed.
+
 ## Platform Status
 
 - Windows native client: local SQLite, component editing, movement recording,
@@ -41,10 +56,12 @@ connects to it over HTTP.
   `2026-05-08`.
 - Android native client: local SQLite, component editing, movement recording,
   sync settings, server sync wiring, and Chinese-first Compose interface
-  resources are implemented; Compose Preview sample states are now wired for
-  the main screens; `help` and `assembleRelease` were verified successfully on
-  `2026-05-07`, and `assembleDebug` verified successfully on `2026-05-08` on
-  this host with the configured Android SDK and JDK paths.
+  resources are implemented; the Android UI now follows an inventory-first
+  adaptive Compose shell with `Inventory`, `Movements`, `Overview`, and
+  `Settings` destinations, compact phone detail drill-down, and tablet
+  list-detail layouts; `help`, `assembleDebug`, and `assembleRelease` were
+  verified successfully on `2026-05-08` on this host with the configured
+  Android SDK and JDK paths.
 - Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
   separate `admin-web/` React application; backend `pytest` and `admin-web`
   production build were both verified successfully on `2026-05-08`.
@@ -101,18 +118,20 @@ Before building, make sure the machine has:
 
 Verified working setup on this host:
 
-- Android SDK: `D:\Ide\sdk\Android\android-sdk`
-- JDK: `D:\Ide\sdk\Android\openjdk\jdk-21.0.8`
+- Android SDK: `C:\Users\gdblz\AppData\Local\Android\Sdk`
+- JDK: `D:\android_studio\jbr`
 - Gradle launcher: `D:\dev-tool\gradle\bin\gradle.bat`
 - local SDK file: `android-client/local.properties`
+- project-local Android user home: `D:\Project_Folder\Component_warehouse\.android-user`
 
 Then run:
 
 ```powershell
 $env:GRADLE_USER_HOME='D:\Project_Folder\Component_warehouse\.gradle-user-home'
-$env:JAVA_HOME='D:\Ide\sdk\Android\openjdk\jdk-21.0.8'
-$env:ANDROID_SDK_ROOT='D:\Ide\sdk\Android\android-sdk'
-$env:ANDROID_HOME='D:\Ide\sdk\Android\android-sdk'
+$env:JAVA_HOME='D:\android_studio\jbr'
+$env:ANDROID_SDK_ROOT='C:\Users\gdblz\AppData\Local\Android\Sdk'
+$env:ANDROID_HOME='C:\Users\gdblz\AppData\Local\Android\Sdk'
+$env:ANDROID_USER_HOME='D:\Project_Folder\Component_warehouse\.android-user'
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client help
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleDebug
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
@@ -127,16 +146,26 @@ preferences and supports:
 - push/pull against the FastAPI sync service
 - Chinese-first UI resources for the primary screens, with a matching
   Simplified Chinese (`zh-CN`) resource set
+- an inventory-first adaptive shell:
+  `Inventory`, `Movements`, `Overview`, `Settings`
+- compact phone flows centered on search, filters, dense lists, and full-screen
+  detail or form routes
+- tablet layouts that keep persistent list-detail panes for inventory and
+  movement history
 
 Android visual editing is based on Compose Preview in Android Studio. Open
-`android-client/app/src/main/java/com/componentvault/android/ui/screen/ComponentVaultApp.kt`
-to use the built-in preview states. Visual Studio does not provide an
-equivalent native Compose designer.
+the files under
+`android-client/app/src/main/java/com/componentvault/android/ui/screen/preview/`
+to use the built-in preview states. Those preview entrypoints now render
+content-level composables backed by static preview strings so Android Studio
+Preview is not blocked by stale `R.string` state. The Android Studio `Layout
+Editor` tutorial for View/XML layouts does not apply to this Compose client.
+Visual Studio does not provide an equivalent native Compose designer.
 
 ## UI Editing
 
 - Android: use Android Studio Compose Preview on
-  `android-client/app/src/main/java/com/componentvault/android/ui/screen/ComponentVaultApp.kt`.
+  `android-client/app/src/main/java/com/componentvault/android/ui/screen/preview/`.
 - Windows: use Visual Studio XAML Designer and Hot Reload on the WinUI page
   files under `windows-client/ComponentVault.WinUI/Views/`.
 - Detailed platform-specific notes live in `android-client/README.md` and

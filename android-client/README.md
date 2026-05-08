@@ -6,18 +6,25 @@ and Material 3.
 ## Current State
 
 - Native navigation shell implemented
-- Dashboard, components, movements, and settings screens implemented
+- Inventory-first adaptive shell implemented with `Inventory`, `Movements`,
+  `Overview`, and `Settings` destinations
 - Local SQLite persistence and sync settings persistence implemented
 - Component create/edit/soft delete workflow implemented
 - Movement entry workflow implemented
 - Push/pull sync wiring implemented against the FastAPI service
 - Chinese-first Material 3 UI implemented for the primary screens, with a
   matching Simplified Chinese (`zh-CN`) resource set
-- Compose Preview sample states added for dashboard, components, movements,
-  and settings so the main screens can be inspected without booting an emulator
-- `gradle -p android-client help` verified successfully on `2026-05-07`
-- `assembleDebug` verified successfully on `2026-05-07` on this host
-- `assembleRelease` verified successfully on `2026-05-07` on this host
+- Compose Preview sample states added for inventory, overview, movements,
+  settings, shell, and form flows so the main screens can be inspected without
+  booting an emulator
+- Preview rendering now uses injected static `ComponentVaultStrings` sample
+  bundles plus content-level preview composables so Android Studio does not
+  have to resolve the runtime `R.string` graph for preview-only rendering
+- `gradle -p android-client help` verified successfully on `2026-05-08`
+- `assembleDebug` verified successfully on `2026-05-08` on this host
+- `assembleRelease` verified successfully on `2026-05-08` on this host
+- On this host, non-blocking Android metrics warnings and Kotlin daemon
+  fallback messages can appear during verification
 
 ## Build Preconditions
 
@@ -31,46 +38,114 @@ and Material 3.
 
 Verified working paths on this Windows machine:
 
-- Android SDK: `D:\Ide\sdk\Android\android-sdk`
-- JDK: `D:\Ide\sdk\Android\openjdk\jdk-21.0.8`
+- Android SDK: `C:\Users\gdblz\AppData\Local\Android\Sdk`
+- JDK: `D:\android_studio\jbr`
 - Gradle launcher: `D:\dev-tool\gradle\bin\gradle.bat`
 - Project-local Gradle cache: `D:\Project_Folder\Component_warehouse\.gradle-user-home`
+- Project-local Android user home: `D:\Project_Folder\Component_warehouse\.android-user`
 
 `android-client/local.properties` should contain:
 
 ```properties
-sdk.dir=D:\\Ide\\sdk\\Android\\android-sdk
+sdk.dir=C:\\Users\\gdblz\\AppData\\Local\\Android\\Sdk
 ```
 
 ## Quick Check
 
 ```powershell
 $env:GRADLE_USER_HOME='D:\Project_Folder\Component_warehouse\.gradle-user-home'
-$env:JAVA_HOME='D:\Ide\sdk\Android\openjdk\jdk-21.0.8'
-$env:ANDROID_SDK_ROOT='D:\Ide\sdk\Android\android-sdk'
-$env:ANDROID_HOME='D:\Ide\sdk\Android\android-sdk'
+$env:JAVA_HOME='D:\android_studio\jbr'
+$env:ANDROID_SDK_ROOT='C:\Users\gdblz\AppData\Local\Android\Sdk'
+$env:ANDROID_HOME='C:\Users\gdblz\AppData\Local\Android\Sdk'
+$env:ANDROID_USER_HOME='D:\Project_Folder\Component_warehouse\.android-user'
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client help
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleDebug
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
 ```
 
+If this host logs Kotlin daemon access warnings under
+`C:\Users\gdblz\AppData\Local\kotlin\daemon\...`, Gradle may fall back to
+non-daemon compilation and still finish successfully.
+
 ## Visual Editing
 
 Jetpack Compose does not use the old XML layout designer. For this client,
-visual editing means Compose Preview and interactive preview rendering inside
-Android Studio.
+visual editing means Compose Preview, Interactive Preview, Run Preview, and
+Live Edit inside Android Studio.
+
+The Android Studio tutorial for `Layout Editor` applies to View/XML layouts,
+not to this Compose client. For this project, use the Compose tooling flow
+instead of the XML drag-and-drop editor.
 
 Use this workflow:
 
 1. Open `android-client/` in Android Studio.
-2. Open
-   `app/src/main/java/com/componentvault/android/ui/screen/ComponentVaultApp.kt`.
-3. In the editor, switch to `Split` or `Design`.
-4. Use the preview functions at the bottom of the file:
-   `DashboardScreenPreview`, `ComponentsScreenPreview`,
-   `ComponentsScreenEmptyPreview`, `MovementsScreenPreview`,
-   `SettingsScreenPreview`, and `SettingsScreenBusyPreview`.
-5. If the preview does not refresh, click `Build & Refresh`.
+2. Open one of the dedicated preview files under
+   `app/src/main/java/com/componentvault/android/ui/screen/preview/`.
+3. Start with:
+   `OverviewScreenPreview.kt`, `InventoryScreenPreview.kt`,
+   `MovementsScreenPreview.kt`, `SettingsScreenPreview.kt`,
+   `AppShellPreviews.kt`, or `DialogsPreview.kt`.
+4. In the editor, switch to `Split` or `Design`.
+5. Use the Preview panel group filter to start with `Phone` and `Tablet`.
+6. Use `Locale`, `Theme`, `Accessibility`, `Shell`, and `Dialogs` only for
+   targeted follow-up checks after the baseline previews render cleanly.
+7. If the preview does not refresh, click `Build & Refresh`.
+8. If Preview still shows stale `R.string` / `NoSuchFieldError` render
+   problems after code changes, run `Build > Rebuild Project` once and reopen
+   the preview file.
+9. For lightweight taps, text entry, and dialog-state checks, use
+   `Interactive Preview`.
+10. For real device context, permissions, and runtime behavior, use
+   `Run Preview` or a normal emulator/device run.
+11. Once the app is running, use `Live Edit` for rapid spacing, color, and
+    typography adjustments.
+
+The current preview catalog is baseline-first:
+
+- baseline light previews for inventory phone and tablet states, overview,
+  movements, settings, shell, and form surfaces
+- targeted secondary previews for `zh-CN`, dark theme, and large-font checks
+  on selected high-value states instead of multiplying every screen by every
+  variant
+- dialog and shell previews kept to single light variants to reduce Compose
+  Preview rendering load inside Android Studio
+
+This lighter matrix keeps Preview more reliable while still covering the
+important density, locale, theme, and accessibility checks before running an
+emulator.
+
+## UI Structure
+
+The Android UI is now split so Preview-friendly composables are isolated from
+the `ViewModel` entrypoint:
+
+- `ui/screen/ComponentVaultApp.kt`
+  Route/container that connects `InventoryViewModel` to the UI
+- `ui/screen/ComponentVaultStrings.kt`
+  Runtime string bundle assembly plus preview-safe composition locals for
+  shared UI copy
+- `ui/screen/ComponentVaultShell.kt`
+  Adaptive app shell and destination routing
+- `ui/screen/OverviewScreen.kt`
+  Summary-first overview surface
+- `ui/screen/InventoryScreen.kt`
+  Search/filter-driven inventory list and detail flows
+- `ui/screen/MovementsScreen.kt`
+  Movement history and detail flows
+- `ui/screen/SettingsScreen.kt`
+  Grouped sync form layout
+- `ui/screen/InventoryForms.kt`
+  Adaptive full-screen and dialog-based editing forms
+- `ui/screen/InventoryUiParts.kt`
+  Shared dense list rows, badges, and section containers
+- `ui/screen/preview/`
+  Preview annotations, preview host, static preview string bundles, sample
+  states, and dedicated preview files
+
+This split keeps the Preview targets parameter-driven so Android Studio can
+render them without booting the full runtime graph, and lets preview-only
+surfaces bypass runtime resource lookups that can go stale inside the IDE.
 
 Important limitation:
 
