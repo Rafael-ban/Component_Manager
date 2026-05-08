@@ -5,15 +5,18 @@ This directory contains the Windows-native desktop client built with WinUI 3.
 ## Current State
 
 - NavigationView-based desktop shell implemented
-- Dashboard, components, movements, and settings pages implemented
+- Inventory-first Windows IA implemented with `Inventory`, `Movements`,
+  `Overview`, and `Settings` destinations
+- Dense inventory list/detail workspace, movement ledger, overview summary, and
+  grouped sync settings surfaces implemented
 - Local SQLite persistence implemented
 - Component create/edit/soft delete workflow implemented
 - Movement entry workflow implemented
 - Push/pull sync wiring implemented against the FastAPI service
 - Chinese-first WinUI page copy and desktop-oriented detail panels implemented
-- XAML designer sample data added for dashboard, components, movements, and
+- XAML designer sample data added for overview, inventory, movements, and
   settings pages so the main screens can be previewed directly in Visual Studio
-- `dotnet build` verified successfully on `2026-05-07`
+- `dotnet build` verified successfully on `2026-05-09`
 - MSIX-oriented `dotnet publish` verified successfully on `2026-05-07`
 - portable unpackaged `dotnet publish` verified successfully on `2026-05-08`
 
@@ -46,10 +49,14 @@ Use Visual Studio 2022 with the WinUI 3 workload installed.
 
 1. Open `windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj`.
 2. Open one of the page files under `ComponentVault.WinUI\Views\`:
-   `DashboardView.xaml`, `ComponentsView.xaml`, `MovementsView.xaml`, or
-   `SettingsView.xaml`.
+   `DashboardView.xaml` (Overview), `ComponentsView.xaml` (Inventory),
+   `MovementsView.xaml`, or `SettingsView.xaml`.
 3. Open the XAML Designer or split view.
 4. Use Hot Reload while the app is running for runtime refinement.
+5. If the designer or app reports missing resources such as
+   `TextFillColorSecondaryBrush`, verify that `App.xaml` still merges
+   `XamlControlsResources`. The page previews depend on those WinUI theme
+   resources being present at the application level.
 
 Designer support is backed by:
 

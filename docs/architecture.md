@@ -64,16 +64,22 @@
   retaining Windows-native layout and interaction patterns.
 - Release distribution now supports both a test-signed MSIX install flow and a
   portable unpackaged publish that can be zipped and launched directly.
-- Navigation uses `NavigationView` with dedicated dashboard, components,
-  movements, and settings pages.
-- Components, movements, and settings pages use desktop-oriented summary and
-  detail panels rather than mobile-style stacked forms.
+- Navigation uses `NavigationView` with four top-level destinations:
+  `Inventory`, `Movements`, `Overview`, and `Settings`.
+- `Inventory` is the default landing page and uses a dense desktop workspace
+  with search, fixed filters, a continuous list, and a persistent inspector.
+- `Movements` is organized as a history-first ledger with compact metrics and a
+  right-side audit inspector.
+- `Overview` is a summary surface with KPI blocks, low-stock watch entries,
+  recent activity, and sync posture instead of acting as the primary edit page.
+- `Settings` is organized as grouped sync forms plus diagnostics rather than
+  mirrored summary cards.
 - The implemented behavior matches Android at the business level and follows
   Windows-native layout conventions.
 - Startup diagnostics now log fatal launch/runtime exceptions under
   `%LOCALAPPDATA%\ComponentVault\logs\startup.log` and surface the log path in
   a native Windows error dialog.
-- Windows build verification completed successfully on `2026-05-08`, and the
+- Windows build verification completed successfully on `2026-05-09`, and the
   portable publish path was verified successfully on `2026-05-08`.
 
 ## Legacy Flutter Reference

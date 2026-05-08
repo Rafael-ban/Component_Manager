@@ -14,8 +14,41 @@ public sealed partial class MainWindow : Window
         _viewModel =
             ((App)Application.Current).MainViewModel
             ?? throw new InvalidOperationException("MainViewModel was not initialized.");
-        AppNavigationView.SelectedItem = DashboardItem;
-        RootFrame.Navigate(typeof(DashboardView));
+        AppNavigationView.DataContext = _viewModel;
+        NavigateTo("Inventory");
+    }
+
+    public void NavigateTo(string tag)
+    {
+        var targetPage = tag switch
+        {
+            "Inventory" => typeof(ComponentsView),
+            "Movements" => typeof(MovementsView),
+            "Overview" => typeof(DashboardView),
+            "Settings" => typeof(SettingsView),
+            _ => null,
+        };
+
+        if (targetPage is null)
+        {
+            return;
+        }
+
+        var targetItem = tag switch
+        {
+            "Inventory" => InventoryItem,
+            "Movements" => MovementsItem,
+            "Overview" => OverviewItem,
+            "Settings" => SettingsItem,
+            _ => null,
+        };
+
+        if (!ReferenceEquals(AppNavigationView.SelectedItem, targetItem))
+        {
+            AppNavigationView.SelectedItem = targetItem;
+        }
+
+        RootFrame.Navigate(targetPage);
     }
 
     private void OnSelectionChanged(
@@ -28,21 +61,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        switch (tag)
-        {
-            case "Dashboard":
-                RootFrame.Navigate(typeof(DashboardView));
-                break;
-            case "Components":
-                RootFrame.Navigate(typeof(ComponentsView));
-                break;
-            case "Movements":
-                RootFrame.Navigate(typeof(MovementsView));
-                break;
-            case "Settings":
-                RootFrame.Navigate(typeof(SettingsView));
-                break;
-        }
+        NavigateTo(tag);
     }
 
     private async void OnSyncNowClicked(object sender, RoutedEventArgs e)

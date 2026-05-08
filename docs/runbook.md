@@ -211,6 +211,8 @@ Implemented client behaviors:
 - component create/edit/soft delete
 - movement entry and quantity recalculation
 - manual sync, connection test, and optional auto sync
+- WinUI XAML Designer previews are available in Visual Studio 2022 by opening
+  the page files under `windows-client\ComponentVault.WinUI\Views\`
 
 ## GitHub Actions
 
@@ -286,9 +288,10 @@ MSIX package:
 
 1. Download `component-vault-windows-x64.msix`
 2. Download `component-vault-windows-test-certificate.cer`
-3. Run `Install-ComponentVault.ps1`
+3. Open PowerShell as Administrator
+4. Run `Install-ComponentVault.ps1`
 
-The script imports the certificate into `Cert:\CurrentUser\TrustedPeople` and
+The script imports the certificate into `Cert:\LocalMachine\TrustedPeople` and
 then runs `Add-AppxPackage` for the MSIX package.
 
 ### Legacy Flutter
@@ -394,10 +397,12 @@ curl -X POST http://localhost:8787/auth/ping `
 - Symptom: Windows refuses to install the MSIX package or says the publisher is
   untrusted.
 - Cause: the test signing certificate from the release has not been imported
-  into the current user's trusted certificate store.
+  into `Cert:\LocalMachine\TrustedPeople`, or the install script was not run
+  from an elevated PowerShell session.
 - Fix: download `component-vault-windows-test-certificate.cer` and run
-  `Install-ComponentVault.ps1`, or manually import the certificate into
-  `Cert:\CurrentUser\TrustedPeople` before installing the MSIX package.
+  `Install-ComponentVault.ps1` as Administrator, or manually import the
+  certificate into `Cert:\LocalMachine\TrustedPeople` before installing the
+  MSIX package.
 
 ### Windows artifact is downloaded and extracted but nothing obvious runs
 
@@ -417,6 +422,17 @@ curl -X POST http://localhost:8787/auth/ping `
 - Cause: an unhandled startup or UI exception occurred on the target machine.
 - Fix: open `%LOCALAPPDATA%\ComponentVault\logs\startup.log`, keep the dialog
   text, and use that exception message for the next debugging pass.
+
+### Windows app or designer cannot resolve `TextFillColorSecondaryBrush`
+
+- Symptom: startup log or XAML Designer reports
+  `Cannot find a Resource with the Name/Key TextFillColorSecondaryBrush`.
+- Cause: `windows-client\ComponentVault.WinUI\App.xaml` is missing the merged
+  `XamlControlsResources` dictionary, so WinUI theme brushes and styles such as
+  `TextFillColorSecondaryBrush`, `ControlFillColorSecondaryBrush`, and
+  `AccentButtonStyle` are not available.
+- Fix: restore `XamlControlsResources` in `App.xaml`, then rebuild the WinUI
+  project and reopen the XAML page in Visual Studio.
 
 ### Duplicate SKU push rejected
 
