@@ -15,6 +15,7 @@ public sealed class StockMovementRecord
     public required bool Deleted { get; init; }
 
     public string QuantityLabel => Quantity > 0 ? $"+{Quantity}" : Quantity.ToString();
+
     public string MovementTypeLabel => MovementType.Trim().ToLowerInvariant() switch
     {
         "inbound" => "入库",

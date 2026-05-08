@@ -15,5 +15,6 @@ public sealed class ComponentRecord
     public required bool Deleted { get; init; }
 
     public bool IsLowStock => !Deleted && Quantity <= MinStock;
+
     public string Status => IsLowStock ? "低库存" : "库存正常";
 }

@@ -58,8 +58,10 @@ connects to it over HTTP.
 
 - Windows native client: local SQLite, component editing, movement recording,
   sync settings, server sync wiring, Chinese-first WinUI pages, and dual-mode
-  packaging are implemented; XAML designer sample data is now wired for the
-  main pages; `dotnet build` verified successfully on `2026-05-08`,
+  packaging are implemented; the Windows UI now follows an inventory-first
+  `NavigationView` shell with `Inventory`, `Movements`, `Overview`, and
+  `Settings` destinations, dense list/detail workspaces, and updated XAML
+  designer sample data; `dotnet build` verified successfully on `2026-05-09`,
   MSIX-oriented `dotnet publish` was verified successfully on `2026-05-07`,
   and unpackaged portable `dotnet publish` was verified successfully on
   `2026-05-08`.
@@ -100,6 +102,8 @@ dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj -
 The current desktop implementation uses a local SQLite database under the
 user's local app data directory and supports:
 
+- an inventory-first desktop shell:
+  `Inventory`, `Movements`, `Overview`, `Settings`
 - component create/edit/soft delete
 - inventory movement entry
 - sync settings save/test/sync-now
@@ -239,8 +243,9 @@ Windows release packaging uses a runner-generated self-signed certificate for
 test distribution. The release workflow publishes both a portable zip and an
 MSIX package. The portable zip can be extracted and launched directly with
 `ComponentVault.WinUI.exe`. The MSIX path still ships with the matching `.cer`
-certificate plus an install script that imports the certificate into the
-current user's `TrustedPeople` store before calling `Add-AppxPackage`.
+certificate plus an install script that must be run from an elevated
+PowerShell window. The script imports the certificate into
+`Cert:\LocalMachine\TrustedPeople` before calling `Add-AppxPackage`.
 
 `release-from-changelog.yml` should use a personal access token or fine-grained
 token with `contents:write` permission. That token allows the workflow to push

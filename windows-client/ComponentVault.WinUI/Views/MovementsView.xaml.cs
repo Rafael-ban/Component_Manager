@@ -51,13 +51,10 @@ public sealed partial class MovementsView : Page
 
     private void OnMovementSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var viewModel = RuntimeViewModel;
-        if (viewModel is null)
+        if (RuntimeViewModel is { } viewModel)
         {
-            return;
+            viewModel.SelectedMovement = MovementsListView.SelectedItem as StockMovementRecord;
         }
-
-        viewModel.SelectedMovement = MovementsListView.SelectedItem as StockMovementRecord;
     }
 
     private async Task<MovementEntryDraft?> ShowMovementDialogAsync(MainViewModel viewModel)
@@ -84,12 +81,17 @@ public sealed partial class MovementsView : Page
             Value = 1,
             Minimum = -100000,
             SmallChange = 1,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
         };
-        var reasonBox = new TextBox();
+        var reasonBox = new TextBox
+        {
+            PlaceholderText = "例如 到货、样机装配、盘点修正",
+        };
         var noteBox = new TextBox
         {
+            PlaceholderText = "填写批次、工单、责任人或额外说明",
             AcceptsReturn = true,
-            MinHeight = 70,
+            MinHeight = 92,
             TextWrapping = TextWrapping.Wrap,
         };
         var helperText = new TextBlock
@@ -104,12 +106,21 @@ public sealed partial class MovementsView : Page
             TextWrapping = TextWrapping.Wrap,
         };
 
-        var panel = new StackPanel { Spacing = 12 };
+        var panel = new StackPanel
+        {
+            Spacing = 16,
+            Width = 500,
+        };
+        panel.Children.Add(CreateSectionHeader("记录对象", "先选择元器件，再填写变动类型。"));
         panel.Children.Add(CreateField("元器件", componentCombo));
         panel.Children.Add(CreateField("变动类型", movementTypeCombo));
+
+        panel.Children.Add(CreateSectionHeader("数量与原因", "数量将直接影响本地库存。"));
         panel.Children.Add(CreateField("数量", quantityBox));
         panel.Children.Add(helperText);
         panel.Children.Add(CreateField("原因", reasonBox));
+
+        panel.Children.Add(CreateSectionHeader("补充说明", "可填写工单号、批次或盘点备注。"));
         panel.Children.Add(CreateField("备注", noteBox));
         panel.Children.Add(errorText);
 
@@ -117,7 +128,11 @@ public sealed partial class MovementsView : Page
         var dialog = new ContentDialog
         {
             Title = "记录库存变动",
-            Content = panel,
+            Content = new ScrollViewer
+            {
+                Content = panel,
+                MaxHeight = 600,
+            },
             PrimaryButtonText = "保存",
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Primary,
@@ -175,8 +190,30 @@ public sealed partial class MovementsView : Page
     private static FrameworkElement CreateField(string label, FrameworkElement control)
     {
         var panel = new StackPanel { Spacing = 6 };
-        panel.Children.Add(new TextBlock { Text = label });
+        panel.Children.Add(new TextBlock { Text = label, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         panel.Children.Add(control);
+        return panel;
+    }
+
+    private static FrameworkElement CreateSectionHeader(string title, string description)
+    {
+        var panel = new StackPanel { Spacing = 2 };
+        panel.Children.Add(
+            new TextBlock
+            {
+                Text = title,
+                FontSize = 18,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            }
+        );
+        panel.Children.Add(
+            new TextBlock
+            {
+                Text = description,
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 96, 96, 96)),
+                TextWrapping = TextWrapping.Wrap,
+            }
+        );
         return panel;
     }
 }

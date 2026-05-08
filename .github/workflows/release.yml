@@ -262,6 +262,7 @@ jobs:
 
           $packageFullPath = Join-Path $PSScriptRoot $PackagePath
           $certificateFullPath = Join-Path $PSScriptRoot $CertificatePath
+          $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 
           if (!(Test-Path $packageFullPath)) {
               throw "MSIX package not found: $packageFullPath"
@@ -271,7 +272,11 @@ jobs:
               throw "Certificate file not found: $certificateFullPath"
           }
 
-          Import-Certificate -FilePath $certificateFullPath -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
+          if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+              throw "Run this script from an elevated PowerShell window. MSIX test certificates must be imported into Cert:\LocalMachine\TrustedPeople."
+          }
+
+          Import-Certificate -FilePath $certificateFullPath -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
           Add-AppxPackage -Path $packageFullPath
           Write-Host "Component Vault installation completed."
           '@ | Set-Content (Join-Path $artifactDir 'Install-ComponentVault.ps1')
@@ -286,7 +291,8 @@ jobs:
 
           MSIX package:
           1. Keep component-vault-windows-x64.msix and component-vault-windows-test-certificate.cer in the same folder
-          2. Run Install-ComponentVault.ps1 from PowerShell
+          2. Open PowerShell as Administrator
+          3. Run Install-ComponentVault.ps1
           '@ | Set-Content (Join-Path $artifactDir 'README-Windows-Release.txt')
 
       - name: Upload Windows artifact

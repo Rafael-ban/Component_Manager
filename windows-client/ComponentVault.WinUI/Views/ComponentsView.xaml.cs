@@ -23,35 +23,26 @@ public sealed partial class ComponentsView : Page
         AutoSuggestBoxTextChangedEventArgs args
     )
     {
-        var viewModel = RuntimeViewModel;
-        if (viewModel is null)
+        if (RuntimeViewModel is { } viewModel)
         {
-            return;
+            viewModel.ComponentSearchText = sender.Text;
         }
-
-        viewModel.ComponentSearchText = sender.Text;
     }
 
     private void OnLowStockOnlyToggled(object sender, RoutedEventArgs e)
     {
-        var viewModel = RuntimeViewModel;
-        if (viewModel is null)
+        if (RuntimeViewModel is { } viewModel)
         {
-            return;
+            viewModel.ShowLowStockOnly = LowStockOnlyToggle.IsOn;
         }
-
-        viewModel.ShowLowStockOnly = LowStockOnlyToggle.IsOn;
     }
 
     private void OnComponentSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var viewModel = RuntimeViewModel;
-        if (viewModel is null)
+        if (RuntimeViewModel is { } viewModel)
         {
-            return;
+            viewModel.SelectedComponent = ComponentsListView.SelectedItem as ComponentRecord;
         }
-
-        viewModel.SelectedComponent = ComponentsListView.SelectedItem as ComponentRecord;
     }
 
     private async void OnAddComponentClicked(object sender, RoutedEventArgs e)
@@ -68,8 +59,7 @@ public sealed partial class ComponentsView : Page
             return;
         }
 
-        var result = viewModel.SaveComponent(draft);
-        await ShowOperationResultAsync(result);
+        await ShowOperationResultAsync(viewModel.SaveComponent(draft));
     }
 
     private async void OnEditComponentClicked(object sender, RoutedEventArgs e)
@@ -92,8 +82,7 @@ public sealed partial class ComponentsView : Page
             return;
         }
 
-        var result = viewModel.SaveComponent(draft);
-        await ShowOperationResultAsync(result);
+        await ShowOperationResultAsync(viewModel.SaveComponent(draft));
     }
 
     private async void OnDeleteComponentClicked(object sender, RoutedEventArgs e)
@@ -113,11 +102,16 @@ public sealed partial class ComponentsView : Page
         var dialog = new ContentDialog
         {
             Title = "软删除元器件",
-            Content = $"确认将 {viewModel.SelectedComponent.Name} 标记为已删除吗？历史同步记录会保留。",
             PrimaryButtonText = "确认删除",
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
+            Content = new TextBlock
+            {
+                Text = $"确认将 {viewModel.SelectedComponent.Name} 标记为已删除吗？历史出入库记录会保留。",
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 420,
+            },
         };
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
@@ -125,22 +119,22 @@ public sealed partial class ComponentsView : Page
             return;
         }
 
-        var result = viewModel.DeleteSelectedComponent();
-        await ShowOperationResultAsync(result);
+        await ShowOperationResultAsync(viewModel.DeleteSelectedComponent());
     }
 
     private async Task<ComponentDraft?> ShowComponentDialogAsync(ComponentRecord? existing)
     {
-        var skuBox = CreateTextBox(existing?.Sku);
-        var nameBox = CreateTextBox(existing?.Name);
-        var categoryBox = CreateTextBox(existing?.Category);
-        var packageBox = CreateTextBox(existing?.PackageName);
-        var locationBox = CreateTextBox(existing?.Location);
+        var skuBox = CreateTextBox(existing?.Sku, "例如 RES-10K-0402");
+        var nameBox = CreateTextBox(existing?.Name, "例如 10k 电阻");
+        var categoryBox = CreateTextBox(existing?.Category, "例如 Resistor");
+        var packageBox = CreateTextBox(existing?.PackageName, "例如 0402");
+        var locationBox = CreateTextBox(existing?.Location, "例如 B-02-01");
         var descriptionBox = new TextBox
         {
             Text = existing?.Description ?? string.Empty,
+            PlaceholderText = "填写用途、兼容料号或补货说明",
             AcceptsReturn = true,
-            MinHeight = 80,
+            MinHeight = 96,
             TextWrapping = TextWrapping.Wrap,
         };
         var quantityBox = new NumberBox
@@ -148,12 +142,14 @@ public sealed partial class ComponentsView : Page
             Value = existing?.Quantity ?? 0,
             Minimum = 0,
             SmallChange = 1,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
         };
         var minStockBox = new NumberBox
         {
             Value = existing?.MinStock ?? 0,
             Minimum = 0,
             SmallChange = 1,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
         };
         var errorText = new TextBlock
         {
@@ -161,22 +157,35 @@ public sealed partial class ComponentsView : Page
             TextWrapping = TextWrapping.Wrap,
         };
 
-        var panel = new StackPanel { Spacing = 12 };
+        var panel = new StackPanel
+        {
+            Spacing = 16,
+            Width = 520,
+        };
+        panel.Children.Add(CreateSectionHeader("基本信息", "名称、SKU、分类与封装。"));
         panel.Children.Add(CreateField("SKU", skuBox));
         panel.Children.Add(CreateField("名称", nameBox));
         panel.Children.Add(CreateField("分类", categoryBox));
         panel.Children.Add(CreateField("封装", packageBox));
-        panel.Children.Add(CreateField("库位", locationBox));
-        panel.Children.Add(CreateField("说明", descriptionBox));
-        panel.Children.Add(CreateField("数量", quantityBox));
+
+        panel.Children.Add(CreateSectionHeader("库存与仓位", "数量与最低库存均不能为负数。"));
+        panel.Children.Add(CreateField("仓位", locationBox));
+        panel.Children.Add(CreateField("当前库存", quantityBox));
         panel.Children.Add(CreateField("最低库存", minStockBox));
+
+        panel.Children.Add(CreateSectionHeader("备注", "填写用途、风险或替代料信息。"));
+        panel.Children.Add(CreateField("描述 / 备注", descriptionBox));
         panel.Children.Add(errorText);
 
         ComponentDraft? draft = null;
         var dialog = new ContentDialog
         {
             Title = existing is null ? "新增元器件" : "编辑元器件",
-            Content = panel,
+            Content = new ScrollViewer
+            {
+                Content = panel,
+                MaxHeight = 620,
+            },
             PrimaryButtonText = "保存",
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Primary,
@@ -218,13 +227,7 @@ public sealed partial class ComponentsView : Page
 
     private async Task ShowOperationResultAsync(OperationResult result)
     {
-        if (!result.IsSuccess)
-        {
-            await ShowMessageAsync("操作失败", result.Message);
-            return;
-        }
-
-        await ShowMessageAsync("操作完成", result.Message);
+        await ShowMessageAsync(result.IsSuccess ? "操作完成" : "操作失败", result.Message);
     }
 
     private async Task ShowMessageAsync(string title, string message)
@@ -239,17 +242,40 @@ public sealed partial class ComponentsView : Page
         await dialog.ShowAsync();
     }
 
-    private static TextBox CreateTextBox(string? value) =>
+    private static TextBox CreateTextBox(string? value, string placeholderText) =>
         new()
         {
             Text = value ?? string.Empty,
+            PlaceholderText = placeholderText,
         };
 
     private static FrameworkElement CreateField(string label, FrameworkElement control)
     {
         var panel = new StackPanel { Spacing = 6 };
-        panel.Children.Add(new TextBlock { Text = label });
+        panel.Children.Add(new TextBlock { Text = label, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         panel.Children.Add(control);
+        return panel;
+    }
+
+    private static FrameworkElement CreateSectionHeader(string title, string description)
+    {
+        var panel = new StackPanel { Spacing = 2 };
+        panel.Children.Add(
+            new TextBlock
+            {
+                Text = title,
+                FontSize = 18,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            }
+        );
+        panel.Children.Add(
+            new TextBlock
+            {
+                Text = description,
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 96, 96, 96)),
+                TextWrapping = TextWrapping.Wrap,
+            }
+        );
         return panel;
     }
 }
