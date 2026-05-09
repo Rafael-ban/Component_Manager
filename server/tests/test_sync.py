@@ -5,7 +5,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
+from app.lcsc import LookupConfigurationError
 from app.main import create_app
+from app.schemas import LcscLookupResponse
 
 
 def test_health_endpoint() -> None:
@@ -120,6 +122,76 @@ def test_admin_api_returns_snapshot_data(tmp_path: Path, monkeypatch) -> None:
     assert settings_response.json()["runtime_configuration"][0]["label"] == "App name"
 
 
+def test_lcsc_lookup_requires_query(tmp_path: Path, monkeypatch) -> None:
+    _configure_env(tmp_path, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/admin-api/lcsc/lookup",
+            headers={"Authorization": "Bearer test-token"},
+        )
+
+    assert response.status_code == 422
+
+
+def test_lcsc_lookup_returns_proxy_result(tmp_path: Path, monkeypatch) -> None:
+    _configure_env(tmp_path, monkeypatch)
+
+    def fake_lookup_lcsc_product(**_: object) -> LcscLookupResponse:
+        return LcscLookupResponse(
+            found=True,
+            sku="C30926",
+            name="100nF Ceramic Capacitor",
+            mpn="0603B104K500NT",
+            package_name="0603",
+            category="Ceramic Capacitors",
+            category_path="Passives / Capacitors / Ceramic Capacitors",
+            brand="TDK",
+            official_url="https://www.lcsc.com/product-detail/C30926.html",
+            matched_by="sku",
+            confidence="exact",
+        )
+
+    monkeypatch.setattr(
+        "app.admin.api.lookup_lcsc_product",
+        fake_lookup_lcsc_product,
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/admin-api/lcsc/lookup",
+            headers={"Authorization": "Bearer test-token"},
+            params={"sku": "C30926"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["found"] is True
+    assert body["package_name"] == "0603"
+    assert body["matched_by"] == "sku"
+
+
+def test_lcsc_lookup_returns_configuration_error(tmp_path: Path, monkeypatch) -> None:
+    _configure_env(tmp_path, monkeypatch)
+
+    def fake_lookup_lcsc_product(**_: object) -> LcscLookupResponse:
+        raise LookupConfigurationError("LCSC lookup is not configured on this server.")
+
+    monkeypatch.setattr(
+        "app.admin.api.lookup_lcsc_product",
+        fake_lookup_lcsc_product,
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/admin-api/lcsc/lookup",
+            headers={"Authorization": "Bearer test-token"},
+            params={"sku": "C30926"},
+        )
+
+    assert response.status_code == 503
+
+
 def test_older_component_push_is_ignored(tmp_path: Path, monkeypatch) -> None:
     _configure_env(tmp_path, monkeypatch)
 
@@ -217,6 +289,8 @@ def _configure_env(tmp_path: Path, monkeypatch) -> None:
         "ADMIN_WEB_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081",
     )
+    monkeypatch.setenv("LCSC_OPENAPI_KEY", "")
+    monkeypatch.setenv("LCSC_OPENAPI_SECRET", "")
     get_settings.cache_clear()
 
 

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..auth import require_token
 from ..config import Settings, get_settings
+from ..lcsc import LookupConfigurationError, LookupRequestError, lookup_lcsc_product
 from ..schemas import (
     AdminDashboardResponse,
     AdminInventoryResponse,
     AdminKeyValueItem,
+    LcscLookupResponse,
     AdminMetricSnapshot,
     AdminSettingsResponse,
     AdminSyncResponse,
@@ -106,6 +108,14 @@ def get_settings_overview(
                     else "Custom token configured"
                 ),
             ),
+            AdminKeyValueItem(
+                label="LCSC lookup status",
+                value=(
+                    "Configured"
+                    if settings.lcsc_openapi_key and settings.lcsc_openapi_secret
+                    else "Not configured"
+                ),
+            ),
         ],
         access_posture=[
             AdminKeyValueItem(
@@ -139,6 +149,38 @@ def get_settings_overview(
             "Backend session auth for the web admin",
         ],
     )
+
+
+@router.get("/lcsc/lookup", response_model=LcscLookupResponse)
+def get_lcsc_lookup(
+    sku: str | None = Query(default=None, max_length=120),
+    mpn: str | None = Query(default=None, max_length=200),
+    name: str | None = Query(default=None, max_length=300),
+    settings: Settings = Depends(get_settings),
+) -> LcscLookupResponse:
+    if not any(value and value.strip() for value in (sku, mpn, name)):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="At least one of sku, mpn, or name is required.",
+        )
+
+    try:
+        return lookup_lcsc_product(
+            settings=settings,
+            sku=sku,
+            mpn=mpn,
+            name=name,
+        )
+    except LookupConfigurationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+    except LookupRequestError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
 
 
 def _metrics(snapshot: AdminSnapshot) -> AdminMetricSnapshot:

@@ -130,3 +130,19 @@ class AdminSettingsResponse(BaseModel):
     runtime_configuration: list[AdminKeyValueItem] = Field(default_factory=list)
     access_posture: list[AdminKeyValueItem] = Field(default_factory=list)
     next_backend_additions: list[str] = Field(default_factory=list)
+
+
+class LcscLookupResponse(BaseModel):
+    found: bool
+    source: str = "lcsc_openapi"
+    sku: str | None = None
+    name: str | None = None
+    mpn: str | None = None
+    package_name: str | None = None
+    category: str | None = None
+    category_path: str | None = None
+    brand: str | None = None
+    official_url: str | None = None
+    matched_by: Literal["sku", "mpn", "name"] | None = None
+    confidence: Literal["exact", "fallback", "none"] = "none"
+    cache_hit: bool = False
