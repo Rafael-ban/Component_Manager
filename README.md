@@ -27,6 +27,9 @@ connects to it over HTTP.
 - Inventory history recorded as stock movements.
 - Self-hosted API secured by a shared API token.
 - Separated admin web console backed by token-protected `/admin-api/*`.
+- Android JLC imports are local-first: on-device parsing and learned mappings
+  work offline, while optional LCSC metadata lookup can fill missing fields
+  through a token-protected server-side lookup proxy.
 - Active components enforce unique `sku`.
 - Component `quantity` and `min_stock` are non-negative.
 
@@ -72,9 +75,11 @@ connects to it over HTTP.
   inventory-first adaptive Compose shell with `Inventory`, `Movements`,
   `Overview`, and `Settings` destinations, compact phone detail drill-down,
   tablet list-detail layouts, quantity-first import confirmation, generated
-  JLC-compatible or warehouse QR labels, and scroll-safe `Scaffold` inset
-  handling; `assembleDebug` and `assembleRelease` were verified successfully
-  on `2026-05-10` on this host with the configured Android SDK and JDK paths.
+  JLC-compatible or warehouse QR labels, local import learning backed by a
+  device-only SQLite mapping table, optional LCSC-backed official metadata
+  lookup for filling missing JLC fields, and scroll-safe `Scaffold` inset
+  handling; `assembleDebug` and release packaging were re-verified on
+  `2026-05-10` on this host with the configured Android SDK and JDK paths.
 - Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
   separate `admin-web/` React application; backend `pytest` and `admin-web`
   production build were both verified successfully on `2026-05-08`.
@@ -154,6 +159,15 @@ $env:ANDROID_USER_HOME='D:\Project_Folder\Component_warehouse\.android-user'
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
 ```
 
+On Windows, the repository also includes a helper that prefers Android Studio's
+embedded JBR when the system `java` is newer than the Android lint toolchain
+supports:
+
+```powershell
+.\scripts\android-gradle.ps1 assembleDebug
+.\scripts\android-gradle.ps1 assembleRelease
+```
+
 The current Android implementation uses on-device SQLite plus shared
 preferences and supports:
 
@@ -166,9 +180,14 @@ preferences and supports:
   bundled ML Kit Chinese text recognition
 - compact label preview plus PNG/PDF export, generating JLC-compatible QR
   payloads for JLC-sourced items and warehouse QR payloads for other items
+- local-first JLC import enrichment through parser heuristics plus a device-only
+  learned mapping table keyed by JLC SKU and fallback MPN reuse
+- optional official LCSC metadata enrichment for JLC text and QR imports via
+  `GET /admin-api/lcsc/lookup`, with client-side cache reuse, missing-field-only
+  merge behavior, and an in-app server-lookup toggle
 - sync settings save/test/sync-now
 - separate sync-on-launch and sync-after-write behavior controls
-- import defaults and an in-app About section
+- import defaults, local-learning controls, and an in-app About section
 - push/pull against the FastAPI sync service
 - Chinese-first UI resources for the primary screens, with a matching
   Simplified Chinese (`zh-CN`) resource set
@@ -213,7 +232,9 @@ cmd /c npm run dev
 The login screen validates the shared API token through `POST /auth/ping`,
 stores the configured API base URL and token in browser local storage, and then
 uses `/admin-api/dashboard`, `/admin-api/inventory`, `/admin-api/sync`, and
-`/admin-api/settings` for read-only monitoring.
+`/admin-api/settings` for read-only monitoring. The Android client also uses
+`/admin-api/lcsc/lookup` for optional supplier metadata enrichment during JLC
+import flows.
 
 Platform-specific notes live in:
 
@@ -262,6 +283,10 @@ PowerShell window. The script imports the certificate into
 token with `contents:write` permission. That token allows the workflow to push
 the synchronized release commit and `vX.Y.Z` tag so `release.yml` can run from
 the tag event.
+
+GitHub Actions already pins Android builds to Java 21. The local
+`.\scripts\android-gradle.ps1` helper exists only to avoid Windows machines
+using unsupported newer system JDKs such as Java 25 for `assembleRelease`.
 
 When downloading from the GitHub Actions run page instead of a tagged GitHub
 Release, first extract the outer workflow artifact archive, then use the inner
@@ -328,6 +353,12 @@ The separated admin web container is available at:
 - `APP_HOST`: bind host for local development
 - `APP_PORT`: bind port for local development
 - `ADMIN_WEB_ORIGINS`: comma-separated browser origins allowed to call the API
+- `LCSC_OPENAPI_KEY`: optional LCSC OpenAPI key for official part lookup
+- `LCSC_OPENAPI_SECRET`: optional LCSC OpenAPI secret for official part lookup
+- `LCSC_OPENAPI_BASE_URL`: base URL for the LCSC OpenAPI, default
+  `https://ips.lcsc.com`
+- `LCSC_LOOKUP_CACHE_TTL_SECONDS`: server-side in-memory cache TTL for LCSC
+  lookup responses, default `43200`
 
 ## Sync Contract
 
@@ -337,6 +368,8 @@ The separated admin web container is available at:
 - `GET /sync/pull?since=<iso8601>`: download all remote changes after the
   provided timestamp.
 - `GET /admin-api/*`: read-only admin snapshots for the separated web console.
+- `GET /admin-api/lcsc/lookup?sku=<part>&mpn=<mpn>&name=<name>`: token-protected
+  official supplier metadata lookup used by the Android JLC import flow.
 
 All synchronized entities use:
 
