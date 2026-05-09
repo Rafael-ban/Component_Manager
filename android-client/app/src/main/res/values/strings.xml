@@ -186,8 +186,6 @@
     <string name="settings_sync_after_writes_description">Push changes automatically after create, edit, delete, and movement writes.</string>
     <string name="settings_remember_last_import_location">Remember last import location</string>
     <string name="settings_remember_last_import_location_description">Reuse the most recent import location as the next default.</string>
-    <string name="settings_scanner_auto_zoom">Scanner auto zoom</string>
-    <string name="settings_scanner_auto_zoom_description">Enable Google Code Scanner auto zoom for small QR labels.</string>
     <string name="settings_app_version">App version</string>
     <string name="settings_local_storage">Local storage</string>
     <string name="settings_local_storage_value">SQLite + SharedPreferences</string>
@@ -210,6 +208,16 @@
     <string name="importer_quantity_hint">Most fields are already mapped. Usually only quantity needs attention.</string>
     <string name="importer_import_preview_title">Description preview</string>
     <string name="importer_parse_first_error">Parse a JLC payload before saving.</string>
-    <string name="importer_scan_cancelled">Scan cancelled.</string>
     <string name="importer_scan_failed_pattern">Scan failed: %1$s</string>
+    <string name="importer_scanner_permission_title">Camera access required</string>
+    <string name="importer_scanner_permission_description">Allow camera access to scan JLC package QR codes inside the app.</string>
+    <string name="importer_scanner_permission_denied_title">Camera access denied</string>
+    <string name="importer_scanner_permission_denied_description">Grant camera access and retry, or return to manual import.</string>
+    <string name="importer_scanner_starting">Starting camera...</string>
+    <string name="importer_scanner_scanning_hint">Align the JLC package QR code inside the frame.</string>
+    <string name="importer_scanner_failed_title">Scanner unavailable</string>
+    <string name="importer_scanner_failed_description">The in-app camera scanner could not start.</string>
+    <string name="importer_action_grant_camera_access">Grant camera access</string>
+    <string name="importer_action_retry_scan">Retry scan</string>
+    <string name="importer_action_return_to_import">Return to import</string>
 </resources>

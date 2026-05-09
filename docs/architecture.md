@@ -28,13 +28,16 @@
   filter, and list-first layouts on phones, plus persistent list-detail panes
   on larger widths. It now also includes quantity-first JLC import flows for
   copied mobile product text and package QR payloads.
+- Package QR scanning now runs through an in-app CameraX surface backed by the
+  bundled ML Kit Barcode Scanning API, so first use does not depend on Google
+  Play services downloading an external scanner module.
 - `Movements` uses the same adaptive approach: compact history-first layouts on
   phones and split history/detail arrangements on larger widths.
 - `Overview` is now a summary surface that routes users back into inventory or
   movement flows rather than acting as the primary editing page.
 - `Settings` is organized as grouped sync forms and status blocks instead of
-  large summary-card stacks, with local-only import defaults, scanner
-  preferences, and an About section.
+  large summary-card stacks, with local-only import defaults and an About
+  section.
 - The app writes locally first, queues changed entities, and optionally syncs
   to the FastAPI service.
 - JLC import metadata is mapped into existing component fields and appended to
@@ -210,4 +213,3 @@ The Android client also persists local-only app behavior settings:
 - `default_import_min_stock`
 - `remember_last_import_location`
 - `sync_after_local_changes`
-- `scanner_auto_zoom_enabled`

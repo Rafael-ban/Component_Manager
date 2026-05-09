@@ -4,6 +4,9 @@
 bump: patch
 
 <!-- Add unreleased notes below this line. -->
+- Switched Android JLC package QR scanning from Google Code Scanner to an
+  in-app CameraX scanner backed by bundled ML Kit barcode scanning, removing
+  the runtime dependency on downloading the Barcode UI module before first use.
 
 ## [0.3.0] - 2026-05-09
 

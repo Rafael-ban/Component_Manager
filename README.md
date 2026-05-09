@@ -159,11 +159,11 @@ preferences and supports:
 - component create/edit/soft delete
 - inventory movement entry
 - JLC copied-text import with automatic field mapping
-- JLC package QR import through Google Code Scanner without adding direct
-  camera permission handling to the app
+- JLC package QR import through an in-app CameraX scanner backed by bundled
+  ML Kit barcode scanning, with runtime camera permission handling
 - sync settings save/test/sync-now
 - separate sync-on-launch and sync-after-write behavior controls
-- import defaults, scanner preferences, and an in-app About section
+- import defaults and an in-app About section
 - push/pull against the FastAPI sync service
 - Chinese-first UI resources for the primary screens, with a matching
   Simplified Chinese (`zh-CN`) resource set

@@ -11,10 +11,11 @@ and Material 3.
 - Local SQLite persistence and sync settings persistence implemented
 - Component create/edit/soft delete workflow implemented
 - Movement entry workflow implemented
-- JLC copied-text import and package QR import implemented
+- JLC copied-text import and package QR import implemented through an in-app
+  CameraX scanner backed by bundled ML Kit barcode scanning
 - Quantity-first JLC import confirmation implemented with optional full editor handoff
 - Expanded local-only settings implemented for sync behavior, import defaults,
-  scanner preferences, and About
+  and About
 - Push/pull sync wiring implemented against the FastAPI service
 - Chinese-first Material 3 UI implemented for the primary screens, with a
   matching Simplified Chinese (`zh-CN`) resource set
@@ -92,6 +93,7 @@ Use this workflow:
 3. Start with:
    `OverviewScreenPreview.kt`, `InventoryScreenPreview.kt`,
    `MovementsScreenPreview.kt`, `SettingsScreenPreview.kt`,
+   `QrScannerPreview.kt`,
    `AppShellPreviews.kt`, or `DialogsPreview.kt`.
 4. In the editor, switch to `Split` or `Design`.
 5. Use the Preview panel group filter to start with `Phone` and `Tablet`.
@@ -144,6 +146,8 @@ the `ViewModel` entrypoint:
   Grouped sync, import, scanner, and About layout
 - `ui/screen/JlcImportScreen.kt`
   Quantity-first JLC text and QR import surface
+- `ui/screen/JlcQrScannerScreen.kt`
+  App-internal CameraX + bundled ML Kit QR scanner surface with permission handling
 - `ui/screen/InventoryForms.kt`
   Adaptive full-screen and dialog-based editing forms
 - `ui/screen/InventoryUiParts.kt`

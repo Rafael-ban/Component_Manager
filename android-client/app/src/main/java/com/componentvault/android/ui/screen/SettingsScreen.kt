@@ -95,9 +95,6 @@ internal fun SettingsContent(
     var syncAfterLocalChanges by remember(appPreferences.syncAfterLocalChanges) {
         mutableStateOf(appPreferences.syncAfterLocalChanges)
     }
-    var scannerAutoZoomEnabled by remember(appPreferences.scannerAutoZoomEnabled) {
-        mutableStateOf(appPreferences.scannerAutoZoomEnabled)
-    }
     var showToken by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -116,7 +113,6 @@ internal fun SettingsContent(
                     defaultImportMinStock = minStock,
                     rememberLastImportLocation = rememberLastImportLocation,
                     syncAfterLocalChanges = syncAfterLocalChanges,
-                    scannerAutoZoomEnabled = scannerAutoZoomEnabled,
                 ),
             )
             true
@@ -170,8 +166,6 @@ internal fun SettingsContent(
                     onRememberLastImportLocationChange = { rememberLastImportLocation = it },
                     syncAfterLocalChanges = syncAfterLocalChanges,
                     onSyncAfterLocalChangesChange = { syncAfterLocalChanges = it },
-                    scannerAutoZoomEnabled = scannerAutoZoomEnabled,
-                    onScannerAutoZoomEnabledChange = { scannerAutoZoomEnabled = it },
                     strings = strings,
                     showToken = showToken,
                     onToggleToken = { showToken = !showToken },
@@ -221,8 +215,6 @@ internal fun SettingsContent(
                 onRememberLastImportLocationChange = { rememberLastImportLocation = it },
                 syncAfterLocalChanges = syncAfterLocalChanges,
                 onSyncAfterLocalChangesChange = { syncAfterLocalChanges = it },
-                scannerAutoZoomEnabled = scannerAutoZoomEnabled,
-                onScannerAutoZoomEnabledChange = { scannerAutoZoomEnabled = it },
                 strings = strings,
                 showToken = showToken,
                 onToggleToken = { showToken = !showToken },
@@ -322,8 +314,6 @@ private fun LazyListScope.settingsFormItems(
     onRememberLastImportLocationChange: (Boolean) -> Unit,
     syncAfterLocalChanges: Boolean,
     onSyncAfterLocalChangesChange: (Boolean) -> Unit,
-    scannerAutoZoomEnabled: Boolean,
-    onScannerAutoZoomEnabledChange: (Boolean) -> Unit,
     strings: ComponentVaultStrings,
     showToken: Boolean,
     onToggleToken: () -> Unit,
@@ -419,12 +409,6 @@ private fun LazyListScope.settingsFormItems(
                 subtitle = strings.settings.rememberLastImportLocationDescription,
                 checked = rememberLastImportLocation,
                 onCheckedChange = onRememberLastImportLocationChange,
-            )
-            SettingsToggleRow(
-                title = strings.settings.scannerAutoZoom,
-                subtitle = strings.settings.scannerAutoZoomDescription,
-                checked = scannerAutoZoomEnabled,
-                onCheckedChange = onScannerAutoZoomEnabledChange,
             )
         }
     }

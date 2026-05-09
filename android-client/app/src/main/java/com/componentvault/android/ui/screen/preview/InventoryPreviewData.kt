@@ -291,7 +291,6 @@ internal object InventoryPreviewData {
         defaultImportMinStock = 12,
         rememberLastImportLocation = true,
         syncAfterLocalChanges = true,
-        scannerAutoZoomEnabled = true,
     )
 
     fun overviewState(): InventoryUiState {

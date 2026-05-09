@@ -168,7 +168,6 @@ class InventoryRepository(
                 KEY_SYNC_AFTER_LOCAL_CHANGES,
                 preferences.getBoolean(KEY_AUTO_SYNC_ENABLED, false),
             ),
-            scannerAutoZoomEnabled = preferences.getBoolean(KEY_SCANNER_AUTO_ZOOM_ENABLED, true),
         )
     }
 
@@ -199,7 +198,6 @@ class InventoryRepository(
             .putInt(KEY_DEFAULT_IMPORT_MIN_STOCK, preferencesState.defaultImportMinStock.coerceAtLeast(0))
             .putBoolean(KEY_REMEMBER_LAST_IMPORT_LOCATION, preferencesState.rememberLastImportLocation)
             .putBoolean(KEY_SYNC_AFTER_LOCAL_CHANGES, preferencesState.syncAfterLocalChanges)
-            .putBoolean(KEY_SCANNER_AUTO_ZOOM_ENABLED, preferencesState.scannerAutoZoomEnabled)
             .apply()
 
         return OperationResult(
@@ -573,11 +571,6 @@ class InventoryRepository(
             )
             changed = true
         }
-        if (!preferences.contains(KEY_SCANNER_AUTO_ZOOM_ENABLED)) {
-            editor.putBoolean(KEY_SCANNER_AUTO_ZOOM_ENABLED, true)
-            changed = true
-        }
-
         if (changed) {
             editor.apply()
         }
@@ -1085,7 +1078,6 @@ class InventoryRepository(
         const val KEY_DEFAULT_IMPORT_MIN_STOCK = "default_import_min_stock"
         const val KEY_REMEMBER_LAST_IMPORT_LOCATION = "remember_last_import_location"
         const val KEY_SYNC_AFTER_LOCAL_CHANGES = "sync_after_local_changes"
-        const val KEY_SCANNER_AUTO_ZOOM_ENABLED = "scanner_auto_zoom_enabled"
 
         val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter
             .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")

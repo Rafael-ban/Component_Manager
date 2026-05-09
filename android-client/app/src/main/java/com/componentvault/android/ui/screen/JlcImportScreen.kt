@@ -1,6 +1,6 @@
 package com.componentvault.android.ui.screen
 
-import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,19 +14,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.JlcImportParser
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.JlcImportPayload
-import com.google.android.gms.tasks.Task
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
 @Composable
 internal fun JlcImportSurface(
@@ -37,10 +33,10 @@ internal fun JlcImportSurface(
     onOpenFullEditor: (ComponentDraft) -> Unit,
 ) {
     val strings = vaultStrings()
-    val context = LocalContext.current
     var rawInput by remember { mutableStateOf("") }
     var parsedPayload by remember { mutableStateOf<JlcImportPayload?>(null) }
     var quantityText by remember { mutableStateOf("1") }
+    var scannerVisible by rememberSaveable { mutableStateOf(false) }
     var location by remember(appPreferences.suggestedImportLocation) {
         mutableStateOf(appPreferences.suggestedImportLocation)
     }
@@ -53,6 +49,23 @@ internal fun JlcImportSurface(
         parsedPayload = payload
         quantityText = (payload.suggestedQuantity ?: 1).coerceAtLeast(1).toString()
         feedbackMessage = null
+    }
+
+    if (scannerVisible) {
+        BackHandler(onBack = { scannerVisible = false })
+        JlcQrScannerSurface(
+            onDismiss = { scannerVisible = false },
+            onScanResult = { result ->
+                rawInput = result
+                scannerVisible = false
+                runCatching { JlcImportParser.parseQr(result) }
+                    .onSuccess(::applyParsedPayload)
+                    .onFailure {
+                        feedbackMessage = it.message ?: strings.importer.scannerFailedDescription
+                    }
+            },
+        )
+        return
     }
 
     AdaptiveFormSurface(
@@ -96,27 +109,7 @@ internal fun JlcImportSurface(
                 supporting = strings.importer.supportedFormatHint,
             ) {
                 FilledTonalButton(
-                    onClick = {
-                        startJlcQrScan(
-                            context = context,
-                            enableAutoZoom = appPreferences.scannerAutoZoomEnabled,
-                            onSuccess = { result ->
-                                rawInput = result
-                                runCatching { JlcImportParser.parseQr(result) }
-                                    .onSuccess(::applyParsedPayload)
-                                    .onFailure {
-                                        feedbackMessage = it.message ?: strings.importer.scanCancelled
-                                    }
-                            },
-                            onFailure = { error ->
-                                feedbackMessage = if (error.isNullOrBlank()) {
-                                    strings.importer.scanCancelled
-                                } else {
-                                    strings.importer.scanFailed(error)
-                                }
-                            },
-                        )
-                    },
+                    onClick = { scannerVisible = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(strings.importer.actionScanQr)
@@ -236,31 +229,4 @@ internal fun JlcImportSurface(
             }
         }
     }
-}
-
-private fun startJlcQrScan(
-    context: Context,
-    enableAutoZoom: Boolean,
-    onSuccess: (String) -> Unit,
-    onFailure: (String?) -> Unit,
-) {
-    val optionsBuilder = GmsBarcodeScannerOptions.Builder()
-        .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-
-    if (enableAutoZoom) {
-        optionsBuilder.enableAutoZoom()
-    }
-
-    val scanner = GmsBarcodeScanning.getClient(context, optionsBuilder.build())
-    val scanTask: Task<Barcode> = scanner.startScan()
-    scanTask
-        .addOnSuccessListener { result ->
-            onSuccess(result.rawValue.orEmpty())
-        }
-        .addOnCanceledListener {
-            onFailure(null)
-        }
-        .addOnFailureListener { error ->
-            onFailure(error.message)
-        }
 }
