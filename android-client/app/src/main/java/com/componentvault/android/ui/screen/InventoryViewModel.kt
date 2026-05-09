@@ -12,6 +12,7 @@ import com.componentvault.android.R
 import com.componentvault.android.data.InventoryRepository
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ComponentDraft
+import com.componentvault.android.model.ComponentImportCandidate
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.DashboardSnapshot
 import com.componentvault.android.model.InventoryDetailUiState
@@ -134,7 +135,32 @@ class InventoryViewModel(
     fun saveImportedComponent(draft: ComponentDraft) {
         viewModelScope.launch {
             uiState = uiState.copy(isBusy = true)
-            val result = repository.saveComponent(draft)
+            val result = repository.saveImportedComponent(
+                draft = draft,
+                sourceCandidate = null,
+                appPreferences = uiState.appPreferences,
+            )
+            if (result.isSuccess && uiState.appPreferences.rememberLastImportLocation) {
+                repository.rememberLastImportLocation(draft.location)
+            }
+            reloadState(result.message)
+            if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
+                runSyncInternal()
+            }
+        }
+    }
+
+    fun saveImportedComponent(
+        draft: ComponentDraft,
+        sourceCandidate: ComponentImportCandidate?,
+    ) {
+        viewModelScope.launch {
+            uiState = uiState.copy(isBusy = true)
+            val result = repository.saveImportedComponent(
+                draft = draft,
+                sourceCandidate = sourceCandidate,
+                appPreferences = uiState.appPreferences,
+            )
             if (result.isSuccess && uiState.appPreferences.rememberLastImportLocation) {
                 repository.rememberLastImportLocation(draft.location)
             }
@@ -216,10 +242,19 @@ class InventoryViewModel(
         }
     }
 
+    fun clearImportLearningMappings() {
+        viewModelScope.launch {
+            uiState = uiState.copy(isBusy = true)
+            val result = repository.clearImportLearningMappings()
+            reloadState(result.message)
+        }
+    }
+
     private suspend fun runSyncInternal() {
         val result = repository.runSync()
         val syncConfiguration = repository.loadSyncConfiguration()
         val appPreferences = repository.loadAppPreferences()
+        val importLearningSummary = repository.loadImportLearningSummary()
         allComponentsCache = repository.loadComponents()
         allMovementsCache = repository.loadMovements()
         val dashboardSnapshot = repository.loadDashboardSnapshot()
@@ -228,6 +263,7 @@ class InventoryViewModel(
             availableComponents = allComponentsCache,
             inventory = buildInventoryScreenUiState(),
             movements = buildMovementsUiState(),
+            importLearningSummary = importLearningSummary,
             appPreferences = appPreferences,
             syncConfiguration = syncConfiguration,
             statusMessage = if (result.isSuccess) {
@@ -244,12 +280,14 @@ class InventoryViewModel(
         allMovementsCache = repository.loadMovements()
         val appPreferences = repository.loadAppPreferences()
         val syncConfiguration = repository.loadSyncConfiguration()
+        val importLearningSummary = repository.loadImportLearningSummary()
         val dashboardSnapshot = repository.loadDashboardSnapshot()
         uiState = uiState.copy(
             overview = buildOverviewUiState(dashboardSnapshot),
             availableComponents = allComponentsCache,
             inventory = buildInventoryScreenUiState(),
             movements = buildMovementsUiState(),
+            importLearningSummary = importLearningSummary,
             appPreferences = appPreferences,
             syncConfiguration = syncConfiguration,
             statusMessage = statusMessage ?: syncConfiguration.lastSyncMessage,

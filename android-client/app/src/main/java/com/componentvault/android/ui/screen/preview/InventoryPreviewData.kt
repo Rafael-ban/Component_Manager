@@ -2,6 +2,7 @@ package com.componentvault.android.ui.screen.preview
 
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.AppPreferences
+import com.componentvault.android.model.ImportLearningSummary
 import com.componentvault.android.model.InventoryDetailUiState
 import com.componentvault.android.model.InventoryFiltersUiState
 import com.componentvault.android.model.InventoryListItemUiState
@@ -279,6 +280,7 @@ internal object InventoryPreviewData {
             items = previewMovements,
             componentCount = previewComponents.size,
         ),
+        importLearningSummary = ImportLearningSummary(mappingCount = 6),
         appPreferences = previewAppPreferences(),
         syncConfiguration = syncConfiguration,
         isBusy = isBusy,
@@ -291,6 +293,8 @@ internal object InventoryPreviewData {
         defaultImportMinStock = 12,
         rememberLastImportLocation = true,
         syncAfterLocalChanges = true,
+        enableLocalImportLearning = true,
+        enableServerJlcLookup = false,
     )
 
     fun overviewState(): InventoryUiState {

@@ -238,7 +238,7 @@ internal fun JlcQrScannerContent(
 }
 
 @Composable
-private fun ScannerMessagePane(
+internal fun ScannerMessagePane(
     title: String,
     message: String,
     primaryAction: Pair<String, () -> Unit>,
@@ -272,7 +272,7 @@ private fun ScannerMessagePane(
 }
 
 @Composable
-private fun ScannerPreviewOverlay(
+internal fun ScannerPreviewOverlay(
     headline: String,
     supporting: String?,
     showProgress: Boolean,

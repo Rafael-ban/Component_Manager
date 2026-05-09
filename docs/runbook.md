@@ -62,6 +62,14 @@ Admin web is available at:
 - `APP_PORT`: port binding for direct local development
 - `ADMIN_WEB_ORIGINS`: comma-separated origins allowed to call the API from the
   separated admin web app
+- `LCSC_OPENAPI_KEY`: optional LCSC OpenAPI key used by
+  `/admin-api/lcsc/lookup`
+- `LCSC_OPENAPI_SECRET`: optional LCSC OpenAPI secret used by
+  `/admin-api/lcsc/lookup`
+- `LCSC_OPENAPI_BASE_URL`: optional LCSC OpenAPI base URL, default
+  `https://ips.lcsc.com`
+- `LCSC_LOOKUP_CACHE_TTL_SECONDS`: server-side in-memory cache TTL for official
+  lookup responses, default `43200`
 
 ## Versioning Workflow
 
@@ -165,6 +173,16 @@ $env:ANDROID_USER_HOME='D:\Project_Folder\Component_warehouse\.android-user'
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
 ```
 
+Simpler Windows helper:
+
+```powershell
+.\scripts\android-gradle.ps1 assembleDebug
+.\scripts\android-gradle.ps1 assembleRelease
+```
+
+That helper prefers Android Studio's embedded JBR if the current machine
+default `java` is newer than the Android lint toolchain supports.
+
 Verification result on this host:
 
 - `help` -> success
@@ -187,6 +205,10 @@ Implemented client behaviors:
 - component create/edit/soft delete
 - movement entry and quantity recalculation
 - manual sync, connection test, and optional auto sync
+- JLC text/QR import with optional official LCSC metadata enrichment through
+  the server-side lookup proxy
+- supplier packaging OCR import plus generated JLC-compatible or warehouse QR
+  labels
 
 ### Windows
 
@@ -375,6 +397,17 @@ curl -X POST http://localhost:8787/auth/ping `
   repository settings.
 - Fix: add all four required Android signing secrets before rerunning the
   release workflow.
+
+### Android `assembleRelease` fails in `lintVitalAnalyzeRelease` on Java 25
+
+- Symptom: local Windows `gradle -p android-client assembleRelease` fails in
+  `:app:lintVitalAnalyzeRelease` with `IllegalArgumentException: 25.0.1` or a
+  follow-up `org.jetbrains.uast.UastFacade` initialization error.
+- Cause: the Android lint/UAST stack in the current toolchain is not compatible
+  with the system Java 25 runtime.
+- Fix: run builds with Android Studio's embedded JBR 21, either by setting
+  `JAVA_HOME=D:\android_studio\jbr` before invoking Gradle or by using
+  `.\scripts\android-gradle.ps1 assembleRelease`.
 
 ### Changelog release automation fails before tagging
 

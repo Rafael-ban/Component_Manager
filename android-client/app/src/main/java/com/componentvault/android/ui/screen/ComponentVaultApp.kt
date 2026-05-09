@@ -8,7 +8,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.componentvault.android.model.ComponentDraft
+import com.componentvault.android.model.ComponentImportCandidate
 import com.componentvault.android.model.InventoryStockFilter
+import com.componentvault.android.model.toLabelSeed
 
 @Composable
 fun ComponentVaultApp(
@@ -28,6 +30,8 @@ fun ComponentVaultApp(
     var importSurfaceVisible by rememberSaveable { mutableStateOf(false) }
     var showDeleteConfirmation by rememberSaveable { mutableStateOf(false) }
     var componentEditorInitialDraft by remember { mutableStateOf<ComponentDraft?>(null) }
+    var componentEditorImportCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
+    var labelPreviewSeed by remember { mutableStateOf<com.componentvault.android.model.ComponentLabelSeed?>(null) }
 
     val editingComponent = uiState.availableComponents.firstOrNull { it.id == componentEditorTargetId }
     val compactDetailComponent = uiState.inventory.detail.component
@@ -43,6 +47,7 @@ fun ComponentVaultApp(
         componentEditorVisible = false
         componentEditorTargetId = null
         componentEditorInitialDraft = null
+        componentEditorImportCandidate = null
     }
     BackHandler(enabled = movementEditorVisible && !layoutMode.prefersDialogForms) {
         movementEditorVisible = false
@@ -51,6 +56,9 @@ fun ComponentVaultApp(
     BackHandler(enabled = importSurfaceVisible && !layoutMode.prefersDialogForms) {
         importSurfaceVisible = false
     }
+    BackHandler(enabled = labelPreviewSeed != null && !layoutMode.prefersDialogForms) {
+        labelPreviewSeed = null
+    }
     BackHandler(enabled = compactDetailComponentId != null && !layoutMode.showsListDetail) {
         compactDetailComponentId = null
     }
@@ -58,9 +66,11 @@ fun ComponentVaultApp(
     fun openComponentEditor(
         componentId: String?,
         initialDraft: ComponentDraft? = null,
+        importCandidate: ComponentImportCandidate? = null,
     ) {
         componentEditorTargetId = componentId
         componentEditorInitialDraft = initialDraft
+        componentEditorImportCandidate = importCandidate
         componentEditorVisible = true
     }
 
@@ -80,16 +90,30 @@ fun ComponentVaultApp(
                         componentEditorVisible = false
                         componentEditorTargetId = null
                         componentEditorInitialDraft = null
+                        componentEditorImportCandidate = null
                     },
                     onSave = { draft ->
                         if (editingComponent == null && componentEditorInitialDraft != null) {
-                            viewModel.saveImportedComponent(draft)
+                            viewModel.saveImportedComponent(draft, componentEditorImportCandidate)
                         } else {
                             viewModel.saveComponent(draft)
                         }
                         componentEditorVisible = false
                         componentEditorTargetId = null
                         componentEditorInitialDraft = null
+                        componentEditorImportCandidate = null
+                    },
+                    onSaveAndGenerateLabel = { draft ->
+                        if (editingComponent == null && componentEditorInitialDraft != null) {
+                            viewModel.saveImportedComponent(draft, componentEditorImportCandidate)
+                        } else {
+                            viewModel.saveComponent(draft)
+                        }
+                        componentEditorVisible = false
+                        componentEditorTargetId = null
+                        componentEditorInitialDraft = null
+                        componentEditorImportCandidate = null
+                        labelPreviewSeed = draft.toLabelSeed()
                     },
                 )
             }
@@ -114,16 +138,30 @@ fun ComponentVaultApp(
             importSurfaceVisible && !layoutMode.prefersDialogForms -> {
                 JlcImportSurface(
                     layoutMode = layoutMode,
+                    syncConfiguration = uiState.syncConfiguration,
                     appPreferences = uiState.appPreferences,
                     onDismiss = { importSurfaceVisible = false },
-                    onSaveImportedComponent = { draft ->
-                        viewModel.saveImportedComponent(draft)
+                    onSaveImportedComponent = { draft, sourceCandidate ->
+                        viewModel.saveImportedComponent(draft, sourceCandidate)
                         importSurfaceVisible = false
+                        labelPreviewSeed = draft.toLabelSeed()
                     },
-                    onOpenFullEditor = { draft ->
+                    onOpenFullEditor = { draft, sourceCandidate ->
                         importSurfaceVisible = false
-                        openComponentEditor(componentId = null, initialDraft = draft)
+                        openComponentEditor(
+                            componentId = null,
+                            initialDraft = draft,
+                            importCandidate = sourceCandidate,
+                        )
                     },
+                )
+            }
+
+            labelPreviewSeed != null && !layoutMode.prefersDialogForms -> {
+                ComponentLabelPreviewSurface(
+                    seed = requireNotNull(labelPreviewSeed),
+                    layoutMode = layoutMode,
+                    onDismiss = { labelPreviewSeed = null },
                 )
             }
 
@@ -133,6 +171,9 @@ fun ComponentVaultApp(
                     recentMovements = compactDetailMovements,
                     onDismiss = { compactDetailComponentId = null },
                     onEditComponent = { componentId -> openComponentEditor(componentId) },
+                    onGenerateLabel = { component ->
+                        labelPreviewSeed = component.toLabelSeed()
+                    },
                     onRequestDeleteComponent = { componentId ->
                         viewModel.selectComponent(componentId)
                         showDeleteConfirmation = true
@@ -167,6 +208,11 @@ fun ComponentVaultApp(
                     },
                     onAddComponent = { openComponentEditor(null) },
                     onImportComponent = { importSurfaceVisible = true },
+                    onGenerateLabel = { componentId ->
+                        uiState.availableComponents.firstOrNull { it.id == componentId }?.let { component ->
+                            labelPreviewSeed = component.toLabelSeed()
+                        }
+                    },
                     onEditComponent = { componentId ->
                         viewModel.selectComponent(componentId)
                         openComponentEditor(componentId)
@@ -183,6 +229,7 @@ fun ComponentVaultApp(
                     onSaveAppPreferences = viewModel::saveAppPreferences,
                     onTestConnection = viewModel::testConnection,
                     onSyncNow = viewModel::runSync,
+                    onClearImportLearningMappings = viewModel::clearImportLearningMappings,
                     onOpenLowStockInventory = {
                         destination = InventoryDestination.Inventory
                         compactDetailComponentId = null
@@ -216,16 +263,30 @@ fun ComponentVaultApp(
                         componentEditorVisible = false
                         componentEditorTargetId = null
                         componentEditorInitialDraft = null
+                        componentEditorImportCandidate = null
                     },
                     onSave = { draft ->
                         if (editingComponent == null && componentEditorInitialDraft != null) {
-                            viewModel.saveImportedComponent(draft)
+                            viewModel.saveImportedComponent(draft, componentEditorImportCandidate)
                         } else {
                             viewModel.saveComponent(draft)
                         }
                         componentEditorVisible = false
                         componentEditorTargetId = null
                         componentEditorInitialDraft = null
+                        componentEditorImportCandidate = null
+                    },
+                    onSaveAndGenerateLabel = { draft ->
+                        if (editingComponent == null && componentEditorInitialDraft != null) {
+                            viewModel.saveImportedComponent(draft, componentEditorImportCandidate)
+                        } else {
+                            viewModel.saveComponent(draft)
+                        }
+                        componentEditorVisible = false
+                        componentEditorTargetId = null
+                        componentEditorInitialDraft = null
+                        componentEditorImportCandidate = null
+                        labelPreviewSeed = draft.toLabelSeed()
                     },
                 )
             }
@@ -250,16 +311,30 @@ fun ComponentVaultApp(
             if (importSurfaceVisible) {
                 JlcImportSurface(
                     layoutMode = layoutMode,
+                    syncConfiguration = uiState.syncConfiguration,
                     appPreferences = uiState.appPreferences,
                     onDismiss = { importSurfaceVisible = false },
-                    onSaveImportedComponent = { draft ->
-                        viewModel.saveImportedComponent(draft)
+                    onSaveImportedComponent = { draft, sourceCandidate ->
+                        viewModel.saveImportedComponent(draft, sourceCandidate)
                         importSurfaceVisible = false
+                        labelPreviewSeed = draft.toLabelSeed()
                     },
-                    onOpenFullEditor = { draft ->
+                    onOpenFullEditor = { draft, sourceCandidate ->
                         importSurfaceVisible = false
-                        openComponentEditor(componentId = null, initialDraft = draft)
+                        openComponentEditor(
+                            componentId = null,
+                            initialDraft = draft,
+                            importCandidate = sourceCandidate,
+                        )
                     },
+                )
+            }
+
+            if (labelPreviewSeed != null) {
+                ComponentLabelPreviewSurface(
+                    seed = requireNotNull(labelPreviewSeed),
+                    layoutMode = layoutMode,
+                    onDismiss = { labelPreviewSeed = null },
                 )
             }
         }

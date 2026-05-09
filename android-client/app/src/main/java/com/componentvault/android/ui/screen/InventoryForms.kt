@@ -46,6 +46,7 @@ internal fun ComponentEditorSurface(
     layoutMode: InventoryLayoutMode,
     onDismiss: () -> Unit,
     onSave: (ComponentDraft) -> Unit,
+    onSaveAndGenerateLabel: ((ComponentDraft) -> Unit)? = null,
 ) {
     val strings = vaultStrings()
     val stateKey = existing?.id ?: initialDraft?.sku.orEmpty()
@@ -77,35 +78,46 @@ internal fun ComponentEditorSurface(
         title = title,
         layoutMode = layoutMode,
         onDismiss = onDismiss,
+        saveLabel = if (onSaveAndGenerateLabel == null) {
+            null
+        } else {
+            strings.common.actionSaveAndGenerateLabel
+        },
         onSave = {
-            val quantity = quantityText.toIntOrNull()
-            val minStock = minStockText.toIntOrNull()
-            if (sku.isBlank() || name.isBlank() || category.isBlank() || packageName.isBlank() || location.isBlank()) {
-                errorMessage = strings.forms.componentRequiredFields
-                return@AdaptiveFormSurface
+            validateComponentDraft(
+                strings = strings,
+                existingId = existing?.id,
+                sku = sku,
+                name = name,
+                category = category,
+                packageName = packageName,
+                location = location,
+                description = description,
+                quantityText = quantityText,
+                minStockText = minStockText,
+                onError = { errorMessage = it },
+            )?.let { draft ->
+                errorMessage = null
+                onSave(draft)
             }
-            if (quantity == null || minStock == null) {
-                errorMessage = strings.forms.invalidQuantityMinStock
-                return@AdaptiveFormSurface
+        },
+        onSecondarySave = {
+            validateComponentDraft(
+                strings = strings,
+                existingId = existing?.id,
+                sku = sku,
+                name = name,
+                category = category,
+                packageName = packageName,
+                location = location,
+                description = description,
+                quantityText = quantityText,
+                minStockText = minStockText,
+                onError = { errorMessage = it },
+            )?.let { draft ->
+                errorMessage = null
+                onSaveAndGenerateLabel?.invoke(draft)
             }
-            if (quantity < 0 || minStock < 0) {
-                errorMessage = strings.forms.componentNonNegative
-                return@AdaptiveFormSurface
-            }
-            errorMessage = null
-            onSave(
-                ComponentDraft(
-                    id = existing?.id,
-                    sku = sku,
-                    name = name,
-                    category = category,
-                    packageName = packageName,
-                    location = location,
-                    description = description,
-                    quantity = quantity,
-                    minStock = minStock,
-                ),
-            )
         },
     ) {
         item {
@@ -191,6 +203,47 @@ internal fun ComponentEditorSurface(
             }
         }
     }
+}
+
+private fun validateComponentDraft(
+    strings: ComponentVaultStrings,
+    existingId: String?,
+    sku: String,
+    name: String,
+    category: String,
+    packageName: String,
+    location: String,
+    description: String,
+    quantityText: String,
+    minStockText: String,
+    onError: (String) -> Unit,
+): ComponentDraft? {
+    val quantity = quantityText.toIntOrNull()
+    val minStock = minStockText.toIntOrNull()
+    if (sku.isBlank() || name.isBlank() || category.isBlank() || packageName.isBlank() || location.isBlank()) {
+        onError(strings.forms.componentRequiredFields)
+        return null
+    }
+    if (quantity == null || minStock == null) {
+        onError(strings.forms.invalidQuantityMinStock)
+        return null
+    }
+    if (quantity < 0 || minStock < 0) {
+        onError(strings.forms.componentNonNegative)
+        return null
+    }
+
+    return ComponentDraft(
+        id = existingId,
+        sku = sku,
+        name = name,
+        category = category,
+        packageName = packageName,
+        location = location,
+        description = description,
+        quantity = quantity,
+        minStock = minStock,
+    )
 }
 
 @Composable
@@ -355,7 +408,9 @@ internal fun AdaptiveFormSurface(
     title: String,
     layoutMode: InventoryLayoutMode,
     onDismiss: () -> Unit,
+    saveLabel: String? = null,
     onSave: () -> Unit,
+    onSecondarySave: (() -> Unit)? = null,
     content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
 ) {
     val strings = vaultStrings()
@@ -386,6 +441,11 @@ internal fun AdaptiveFormSurface(
                             }
                         },
                         actions = {
+                            if (saveLabel != null && onSecondarySave != null) {
+                                TextButton(onClick = onSecondarySave) {
+                                    Text(saveLabel)
+                                }
+                            }
                             TextButton(onClick = onSave) {
                                 Text(strings.common.actionSave)
                             }
@@ -414,6 +474,11 @@ internal fun AdaptiveFormSurface(
                         }
                     },
                     actions = {
+                        if (saveLabel != null && onSecondarySave != null) {
+                            TextButton(onClick = onSecondarySave) {
+                                Text(saveLabel)
+                            }
+                        }
                         TextButton(onClick = onSave) {
                             Text(strings.common.actionSave)
                         }

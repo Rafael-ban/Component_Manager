@@ -26,11 +26,19 @@
   `Inventory`, `Movements`, `Overview`, and `Settings`.
 - `Inventory` is the default high-frequency workflow and uses dense search,
   filter, and list-first layouts on phones, plus persistent list-detail panes
-  on larger widths. It now also includes quantity-first JLC import flows for
-  copied mobile product text and package QR payloads.
+  on larger widths. It now also includes quantity-first import flows for JLC
+  copied mobile product text, package QR payloads, supplier packaging OCR,
+  and generated warehouse labels.
 - Package QR scanning now runs through an in-app CameraX surface backed by the
   bundled ML Kit Barcode Scanning API, so first use does not depend on Google
   Play services downloading an external scanner module.
+- Supplier text recognition runs through an in-app CameraX surface backed by
+  bundled ML Kit Chinese text recognition so OCR import is available on first
+  launch without an extra module download.
+- Label generation is client-owned and stays schema-compatible: JLC-sourced
+  items generate JLC-compatible QR payloads with app extension fields, while
+  non-JLC items generate an app-specific warehouse QR payload. Both paths can
+  be exported as PNG or PDF for physical bag, bin, or drawer labels.
 - `Movements` uses the same adaptive approach: compact history-first layouts on
   phones and split history/detail arrangements on larger widths.
 - `Overview` is now a summary surface that routes users back into inventory or
@@ -40,12 +48,21 @@
   section.
 - The app writes locally first, queues changed entities, and optionally syncs
   to the FastAPI service.
-- JLC import metadata is mapped into existing component fields and appended to
-  `description` so this workflow does not require sync API or schema changes.
+- JLC import metadata, OCR-derived metadata, and label round-trip hints are
+  mapped into existing component fields and appended to `description` so these
+  workflows do not require sync API or schema changes.
+- Android local storage now also includes an `import_learning_mappings` SQLite
+  table for device-only JLC import learning keyed by source SKU with MPN
+  fallback reuse.
+- JLC text and QR imports now resolve fields in this order: user edits, local
+  learned mappings, parser output, then optional server-side official lookup.
+- Official metadata enrichment still uses `/admin-api/lcsc/lookup`, but Android
+  now treats it as an optional missing-field filler rather than the primary
+  import path, and keeps a local cache for repeated imports.
 - Android build verification completed successfully on `2026-05-08` on the
   current host machine after local SDK and JDK configuration. The latest
-  Android `help`, `assembleDebug`, and `assembleRelease` verification completed
-  successfully on `2026-05-09`. Preview-focused
+  Android `assembleDebug` and `assembleRelease` verification completed
+  successfully on `2026-05-10`. Preview-focused
   `Phone`, `Tablet`, `Locale`, `Theme`, `Accessibility`, `Shell`, and `Dialogs`
   surfaces are now isolated under `ui/screen/preview/`.
 
@@ -124,6 +141,9 @@
 
 - FastAPI exposes a small token-protected sync API.
 - FastAPI also exposes token-protected read-only admin APIs at `/admin-api/*`.
+- The server now exposes `GET /admin-api/lcsc/lookup` as a token-protected
+  proxy to the LCSC OpenAPI, with short in-memory response caching and
+  configurable credentials through environment variables.
 - SQLite is used for a single-user self-hosted deployment.
 - Incoming entities are merged with last-write-wins based on `updated_at`.
 - `GET /health` is public.
@@ -213,3 +233,5 @@ The Android client also persists local-only app behavior settings:
 - `default_import_min_stock`
 - `remember_last_import_location`
 - `sync_after_local_changes`
+- `enable_local_import_learning`
+- `enable_server_jlc_lookup`

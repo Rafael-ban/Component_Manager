@@ -1,49 +1,40 @@
 package com.componentvault.android.data
 
-import com.componentvault.android.model.JlcImportPayload
-import com.componentvault.android.model.JlcImportSource
-import java.util.Locale
+import com.componentvault.android.model.ComponentImportCandidate
+import com.componentvault.android.model.ComponentImportSourceType
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 internal object JlcImportParser {
-    fun parseText(rawInput: String): JlcImportPayload {
+    fun parseText(rawInput: String): ComponentImportCandidate {
         val normalizedInput = rawInput.trim()
         require(normalizedInput.isNotBlank()) { "Paste JLC text before parsing." }
 
         val values = normalizedInput
             .lineSequence()
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
+            .map(String::trim)
+            .filter(String::isNotBlank)
             .mapNotNull(::parseKeyValueLine)
-            .associate { it.first to it.second }
+            .associate { it.first.lowercase() to it.second }
 
-        val name = values["名称"].orEmpty().ifBlank {
-            values["name"].orEmpty()
-        }
-        val sku = values["编号"].orEmpty().ifBlank {
-            values["sku"].orEmpty()
-        }
-        val packageName = values["封装"].orEmpty().ifBlank {
-            values["package"].orEmpty()
-        }
-        val model = values["型号"].orEmpty().ifBlank {
-            values["model"].orEmpty()
-        }.ifBlank { null }
-        val brand = values["品牌"].orEmpty().ifBlank {
-            values["brand"].orEmpty()
-        }.ifBlank { null }
+        val name = values.valueOf("\u540D\u79F0", "name")
+        val sku = values.valueOf("\u7F16\u53F7", "sku")
+        val packageName = values.valueOf("\u5C01\u88C5", "package")
+        val model = values.valueOf("\u578B\u53F7", "model").blankToNull()
+        val brand = values.valueOf("\u54C1\u724C", "brand").blankToNull()
 
         require(name.isNotBlank()) { "Unable to recognize the JLC component name." }
         require(sku.isNotBlank()) { "Unable to recognize the JLC component number." }
         require(packageName.isNotBlank()) { "Unable to recognize the JLC package field." }
 
-        return JlcImportPayload(
-            source = JlcImportSource.Text,
+        return ComponentImportCandidate(
+            sourceType = ComponentImportSourceType.JlcText,
             rawPayload = normalizedInput,
             sourceLabel = "JLC paste text",
             sku = sku,
             name = name,
             packageName = packageName,
-            category = inferCategory(name, packageName, model, brand),
+            category = ComponentCategoryInferencer.infer(name, packageName, model, brand),
             model = model,
             brand = brand,
             notes = buildList {
@@ -54,26 +45,23 @@ internal object JlcImportParser {
         )
     }
 
-    fun parseQr(rawInput: String): JlcImportPayload {
+    fun parseQr(rawInput: String): ComponentImportCandidate {
         val normalizedInput = rawInput.trim()
         require(normalizedInput.isNotBlank()) { "Scan a JLC code before importing." }
 
-        val content = normalizedInput
+        val values = normalizedInput
             .removePrefix("{")
             .removeSuffix("}")
-
-        val values = content
             .split(',')
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
+            .map(String::trim)
+            .filter(String::isNotBlank)
             .mapNotNull { token ->
                 val separatorIndex = token.indexOf(':')
                 if (separatorIndex <= 0 || separatorIndex == token.lastIndex) {
                     null
                 } else {
-                    val key = token.substring(0, separatorIndex).trim()
-                    val value = token.substring(separatorIndex + 1).trim()
-                    key to value
+                    token.substring(0, separatorIndex).trim() to
+                        decodeQrValue(token.substring(separatorIndex + 1).trim())
                 }
             }
             .associate { it.first to it.second }
@@ -81,36 +69,56 @@ internal object JlcImportParser {
         val sku = values["pc"].orEmpty()
         val model = values["pm"].cleanNullable()
         val manufacturerCode = values["mc"].cleanNullable()
+        val explicitName = values["nm"].cleanNullable()
+        val packageName = values["pkg"].cleanNullable()
+            ?: ComponentPackageInferencer.infer(
+                model,
+                explicitName,
+                manufacturerCode,
+                sku,
+            )
+            ?: model
+            ?: sku
+        val brand = values["br"].cleanNullable()
+        val explicitCategory = values["cat"].cleanNullable()
+        val explicitLocation = values["loc"].cleanNullable()
         val quantity = values["qty"]?.toIntOrNull()
-        val packageName = model ?: sku
-        val displayName = manufacturerCode
+        val displayName = explicitName
+            ?: manufacturerCode
             ?: model
             ?: "JLC Component $sku"
 
         require(sku.isNotBlank()) { "Unable to recognize the JLC part code from the QR payload." }
 
-        return JlcImportPayload(
-            source = JlcImportSource.Qr,
+        return ComponentImportCandidate(
+            sourceType = ComponentImportSourceType.JlcQr,
             rawPayload = normalizedInput,
             sourceLabel = "JLC package QR",
             sku = sku,
             name = displayName,
             packageName = packageName,
-            category = inferCategory(displayName, packageName, model, manufacturerCode),
+            category = explicitCategory ?: ComponentCategoryInferencer.infer(
+                displayName,
+                packageName,
+                model,
+                manufacturerCode,
+                brand,
+            ),
             model = model,
-            brand = null,
+            brand = brand,
             suggestedQuantity = quantity,
             notes = buildList {
                 values["on"]?.cleanNullable()?.let { add("Order number: $it") }
                 values["pdi"]?.cleanNullable()?.let { add("Package data id: $it") }
                 values["cc"]?.cleanNullable()?.let { add("Package count: $it") }
                 values["hp"]?.cleanNullable()?.let { add("Shelf hint: $it") }
+                explicitLocation?.let { add("Warehouse location: $it") }
             },
         )
     }
 
     private fun parseKeyValueLine(line: String): Pair<String, String>? {
-        val separators = listOf('：', ':')
+        val separators = listOf(':', '\uFF1A')
         val separatorIndex = separators
             .map { line.indexOf(it) }
             .filter { it > 0 }
@@ -125,42 +133,22 @@ internal object JlcImportParser {
         return key to value
     }
 
-    private fun inferCategory(vararg values: String?): String {
-        val haystack = values
-            .filterNotNull()
-            .joinToString(separator = " ")
-            .lowercase(Locale.US)
-
-        return when {
-            haystack.contains("connector") || haystack.contains("usb") || haystack.contains("pico") ||
-                haystack.contains("header") || haystack.contains("socket") || haystack.contains("端子") ->
-                "Connector"
-
-            haystack.contains("capacitor") || haystack.contains("cap") || haystack.contains("uf") ||
-                haystack.contains("nf") || haystack.contains("pf") -> "Capacitor"
-
-            haystack.contains("resistor") || haystack.contains("ohm") || haystack.contains("贴片电阻") ->
-                "Resistor"
-
-            haystack.contains("inductor") || haystack.contains("coil") -> "Inductor"
-
-            haystack.contains("diode") || haystack.contains("tvs") -> "Diode"
-
-            haystack.contains("mosfet") || haystack.contains("transistor") || haystack.contains("bjt") ->
-                "Transistor"
-
-            haystack.contains("mcu") || haystack.contains("stm32") || haystack.contains("ic") ||
-                haystack.contains("controller") -> "IC"
-
-            haystack.contains("led") -> "LED"
-
-            else -> "General"
-        }
+    private fun Map<String, String>.valueOf(vararg keys: String): String {
+        return keys.firstNotNullOfOrNull { key ->
+            entries.firstOrNull { it.key.contains(key.lowercase()) }?.value
+        }.orEmpty().trim()
     }
 
     private fun String?.cleanNullable(): String? {
         val value = this?.trim().orEmpty()
-        return value
-            .takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+        return value.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+    }
+
+    private fun String.blankToNull(): String? = takeIf { it.isNotBlank() }
+
+    private fun decodeQrValue(value: String): String {
+        return runCatching {
+            URLDecoder.decode(value, StandardCharsets.UTF_8.toString())
+        }.getOrDefault(value)
     }
 }

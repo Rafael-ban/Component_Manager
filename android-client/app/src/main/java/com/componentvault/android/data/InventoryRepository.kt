@@ -10,12 +10,25 @@ import androidx.annotation.StringRes
 import com.componentvault.android.R
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ComponentDraft
+import com.componentvault.android.model.ComponentImportCandidate
+import com.componentvault.android.model.ComponentImportLearningMapping
+import com.componentvault.android.model.ComponentImportLearningMatch
+import com.componentvault.android.model.ComponentImportLearningMatchType
+import com.componentvault.android.model.ComponentImportResolution
+import com.componentvault.android.model.ComponentOfficialLookupOutcome
+import com.componentvault.android.model.ComponentOfficialLookupResult
+import com.componentvault.android.model.ComponentOfficialMetadata
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.DashboardSnapshot
+import com.componentvault.android.model.ImportLearningSummary
 import com.componentvault.android.model.MovementEntryDraft
 import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.SyncConfiguration
+import com.componentvault.android.model.isJlcSource
+import com.componentvault.android.model.parseImportDescription
+import com.componentvault.android.model.withLearningMapping
+import com.componentvault.android.model.withOfficialMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -143,6 +156,23 @@ class InventoryRepository(
         }
     }
 
+    suspend fun loadImportLearningSummary(): ImportLearningSummary = withContext(Dispatchers.IO) {
+        databaseHelper.readableDatabase.use { db ->
+            db.rawQuery(
+                """
+                SELECT COUNT(*) AS mapping_count
+                FROM import_learning_mappings
+                """.trimIndent(),
+                null,
+            ).use { cursor ->
+                cursor.moveToFirst()
+                ImportLearningSummary(
+                    mappingCount = cursor.getInt(cursor.getColumnIndexOrThrow("mapping_count")),
+                )
+            }
+        }
+    }
+
     fun loadSyncConfiguration(): SyncConfiguration {
         ensureDefaultSettings()
         return SyncConfiguration(
@@ -168,6 +198,12 @@ class InventoryRepository(
                 KEY_SYNC_AFTER_LOCAL_CHANGES,
                 preferences.getBoolean(KEY_AUTO_SYNC_ENABLED, false),
             ),
+            enableLocalImportLearning = preferences.getBoolean(KEY_ENABLE_LOCAL_IMPORT_LEARNING, true),
+            enableServerJlcLookup = if (preferences.contains(KEY_ENABLE_SERVER_JLC_LOOKUP)) {
+                preferences.getBoolean(KEY_ENABLE_SERVER_JLC_LOOKUP, false)
+            } else {
+                preferences.getBoolean(KEY_AUTO_ENRICH_JLC_IMPORTS, false)
+            },
         )
     }
 
@@ -198,6 +234,9 @@ class InventoryRepository(
             .putInt(KEY_DEFAULT_IMPORT_MIN_STOCK, preferencesState.defaultImportMinStock.coerceAtLeast(0))
             .putBoolean(KEY_REMEMBER_LAST_IMPORT_LOCATION, preferencesState.rememberLastImportLocation)
             .putBoolean(KEY_SYNC_AFTER_LOCAL_CHANGES, preferencesState.syncAfterLocalChanges)
+            .putBoolean(KEY_ENABLE_LOCAL_IMPORT_LEARNING, preferencesState.enableLocalImportLearning)
+            .putBoolean(KEY_ENABLE_SERVER_JLC_LOOKUP, preferencesState.enableServerJlcLookup)
+            .putBoolean(KEY_AUTO_ENRICH_JLC_IMPORTS, preferencesState.enableServerJlcLookup)
             .apply()
 
         return OperationResult(
@@ -213,6 +252,182 @@ class InventoryRepository(
             .apply()
     }
 
+    suspend fun enrichImportCandidate(
+        candidate: ComponentImportCandidate,
+        appPreferences: AppPreferences,
+        syncConfiguration: SyncConfiguration,
+    ): ComponentImportResolution = withContext(Dispatchers.IO) {
+        if (!candidate.isJlcSource) {
+            return@withContext ComponentImportResolution(candidate = candidate)
+        }
+
+        var enrichedCandidate = candidate
+        val learningMatch = if (appPreferences.enableLocalImportLearning) {
+            databaseHelper.writableDatabase.use { db ->
+                findImportLearningMatch(
+                    db = db,
+                    sku = candidate.sku,
+                    mpn = candidate.model,
+                )?.also { match ->
+                    touchImportLearningMapping(
+                        db = db,
+                        mappingId = match.mapping.id,
+                    )
+                }
+            }
+        } else {
+            null
+        }
+
+        if (learningMatch != null) {
+            enrichedCandidate = enrichedCandidate.withLearningMapping(learningMatch)
+        }
+
+        val officialLookupResult = if (appPreferences.enableServerJlcLookup) {
+            lookupLcscMetadata(
+                syncConfiguration = syncConfiguration,
+                sku = candidate.sku,
+                mpn = candidate.model,
+                name = candidate.name,
+            ).also { lookupResult ->
+                if (lookupResult.outcome == ComponentOfficialLookupOutcome.Success) {
+                    lookupResult.metadata?.let { metadata ->
+                        enrichedCandidate = enrichedCandidate.withOfficialMetadata(metadata)
+                    }
+                }
+            }
+        } else {
+            null
+        }
+
+        ComponentImportResolution(
+            candidate = enrichedCandidate,
+            learningMatch = learningMatch,
+            officialLookupResult = officialLookupResult,
+        )
+    }
+
+    suspend fun lookupLcscMetadata(
+        syncConfiguration: SyncConfiguration,
+        sku: String?,
+        mpn: String?,
+        name: String?,
+    ): ComponentOfficialLookupResult = withContext(Dispatchers.IO) {
+        val normalizedSku = sku?.trim().orEmpty()
+        val normalizedMpn = mpn?.trim().orEmpty()
+        val normalizedName = name?.trim().orEmpty()
+        if (normalizedSku.isBlank() && normalizedMpn.isBlank() && normalizedName.isBlank()) {
+            return@withContext ComponentOfficialLookupResult(
+                outcome = ComponentOfficialLookupOutcome.NoMatch,
+            )
+        }
+
+        readCachedLookup(normalizedSku, normalizedMpn)?.let { cached ->
+            return@withContext ComponentOfficialLookupResult(
+                outcome = ComponentOfficialLookupOutcome.Success,
+                metadata = cached,
+                fromCache = true,
+                message = text(R.string.importer_lookup_cache_success),
+            )
+        }
+
+        if (syncConfiguration.serverBaseUrl.isBlank() || syncConfiguration.apiToken.isBlank()) {
+            return@withContext ComponentOfficialLookupResult(
+                outcome = ComponentOfficialLookupOutcome.NotConfigured,
+                message = text(R.string.importer_lookup_not_configured),
+            )
+        }
+
+        return@withContext try {
+            val queryParts = buildList {
+                if (normalizedSku.isNotBlank()) {
+                    add("sku=${java.net.URLEncoder.encode(normalizedSku, Charsets.UTF_8.name())}")
+                }
+                if (normalizedMpn.isNotBlank()) {
+                    add("mpn=${java.net.URLEncoder.encode(normalizedMpn, Charsets.UTF_8.name())}")
+                }
+                if (normalizedName.isNotBlank()) {
+                    add("name=${java.net.URLEncoder.encode(normalizedName, Charsets.UTF_8.name())}")
+                }
+            }
+            val response = callJson(
+                settings = syncConfiguration,
+                method = "GET",
+                path = "/admin-api/lcsc/lookup?${queryParts.joinToString("&")}",
+                body = null,
+            )
+            if (!response.optBoolean("found")) {
+                ComponentOfficialLookupResult(
+                    outcome = ComponentOfficialLookupOutcome.NoMatch,
+                    message = text(R.string.importer_lookup_no_match),
+                )
+            } else {
+                val rawName = response.optString("name").blankToNull()
+                val rawSku = response.optString("sku").blankToNull()
+                val rawMpn = response.optString("mpn").blankToNull()
+                val rawCategory = response.optString("category").blankToNull()
+                val rawCategoryPath = response.optString("category_path").blankToNull()
+                val rawBrand = response.optString("brand").blankToNull()
+                val rawPackage = response.optString("package_name").blankToNull()
+                    ?: ComponentPackageInferencer.infer(
+                        rawName,
+                        rawMpn,
+                        rawSku,
+                        rawCategory,
+                        rawCategoryPath,
+                    )
+                val metadata = ComponentOfficialMetadata(
+                    sku = rawSku,
+                    name = rawName,
+                    packageName = rawPackage,
+                    category = ComponentCategoryInferencer.infer(
+                        rawCategoryPath,
+                        rawCategory,
+                        rawName,
+                        rawPackage,
+                        rawMpn,
+                        rawBrand,
+                    ),
+                    model = rawMpn,
+                    brand = rawBrand,
+                    categoryPath = rawCategoryPath,
+                    officialUrl = response.optString("official_url").blankToNull(),
+                    matchedBy = response.optString("matched_by").blankToNull(),
+                    confidence = response.optString("confidence").blankToNull(),
+                )
+                cacheLookup(metadata)
+                ComponentOfficialLookupResult(
+                    outcome = ComponentOfficialLookupOutcome.Success,
+                    metadata = metadata,
+                    fromCache = response.optBoolean("cache_hit"),
+                    message = if (response.optBoolean("cache_hit")) {
+                        text(R.string.importer_lookup_cache_success)
+                    } else {
+                        text(R.string.importer_lookup_success)
+                    },
+                )
+            }
+        } catch (exception: Exception) {
+            ComponentOfficialLookupResult(
+                outcome = ComponentOfficialLookupOutcome.Failed,
+                message = text(
+                    R.string.importer_lookup_failed_pattern,
+                    exception.message ?: text(R.string.importer_scanner_failed_description),
+                ),
+            )
+        }
+    }
+
+    suspend fun clearImportLearningMappings(): OperationResult = withContext(Dispatchers.IO) {
+        databaseHelper.writableDatabase.use { db ->
+            db.delete("import_learning_mappings", null, null)
+        }
+        OperationResult(
+            isSuccess = true,
+            message = text(R.string.settings_local_learning_cleared),
+        )
+    }
+
     suspend fun saveComponent(draft: ComponentDraft): OperationResult = withContext(Dispatchers.IO) {
         try {
             validateComponentDraft(draft)
@@ -220,30 +435,50 @@ class InventoryRepository(
             databaseHelper.writableDatabase.use { db ->
                 db.beginTransaction()
                 try {
-                    ensureUniqueActiveSku(db, draft.sku.trim(), draft.id)
-                    val updatedAt = utcNow()
-                    val componentId = draft.id ?: "cmp-${randomId()}"
+                    upsertComponent(db, draft)
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+            }
 
-                    val values = ContentValues().apply {
-                        put("id", componentId)
-                        put("sku", draft.sku.trim())
-                        put("name", draft.name.trim())
-                        put("category", draft.category.trim())
-                        put("package_name", draft.packageName.trim())
-                        put("location", draft.location.trim())
-                        put("description", draft.description.trim())
-                        put("quantity", draft.quantity)
-                        put("min_stock", draft.minStock)
-                        put("updated_at", updatedAt)
-                        put("deleted", 0)
+            OperationResult(
+                isSuccess = true,
+                message = if (draft.id == null) {
+                    text(R.string.sync_component_created_local)
+                } else {
+                    text(R.string.sync_component_saved_local)
+                },
+            )
+        } catch (exception: Exception) {
+            OperationResult(
+                isSuccess = false,
+                message = exception.message ?: text(R.string.sync_component_save_failed),
+            )
+        }
+    }
+
+    suspend fun saveImportedComponent(
+        draft: ComponentDraft,
+        sourceCandidate: ComponentImportCandidate?,
+        appPreferences: AppPreferences,
+    ): OperationResult = withContext(Dispatchers.IO) {
+        try {
+            validateComponentDraft(draft)
+            val parsedDescription = parseImportDescription(draft.description)
+
+            databaseHelper.writableDatabase.use { db ->
+                db.beginTransaction()
+                try {
+                    upsertComponent(db, draft)
+                    if (appPreferences.enableLocalImportLearning && sourceCandidate?.isJlcSource == true) {
+                        upsertImportLearningMapping(
+                            db = db,
+                            sourceCandidate = sourceCandidate,
+                            draft = draft,
+                            parsedDescription = parsedDescription,
+                        )
                     }
-                    db.insertWithOnConflict(
-                        "components",
-                        null,
-                        values,
-                        SQLiteDatabase.CONFLICT_REPLACE,
-                    )
-                    enqueueEntity(db, "component", componentId, updatedAt)
                     db.setTransactionSuccessful()
                 } finally {
                     db.endTransaction()
@@ -571,9 +806,92 @@ class InventoryRepository(
             )
             changed = true
         }
+        if (!preferences.contains(KEY_ENABLE_LOCAL_IMPORT_LEARNING)) {
+            editor.putBoolean(KEY_ENABLE_LOCAL_IMPORT_LEARNING, true)
+            changed = true
+        }
+        if (!preferences.contains(KEY_ENABLE_SERVER_JLC_LOOKUP)) {
+            editor.putBoolean(
+                KEY_ENABLE_SERVER_JLC_LOOKUP,
+                if (preferences.contains(KEY_AUTO_ENRICH_JLC_IMPORTS)) {
+                    preferences.getBoolean(KEY_AUTO_ENRICH_JLC_IMPORTS, false)
+                } else {
+                    false
+                },
+            )
+            changed = true
+        }
+        if (!preferences.contains(KEY_AUTO_ENRICH_JLC_IMPORTS)) {
+            editor.putBoolean(KEY_AUTO_ENRICH_JLC_IMPORTS, false)
+            changed = true
+        }
         if (changed) {
             editor.apply()
         }
+    }
+
+    private fun readCachedLookup(
+        sku: String,
+        mpn: String,
+    ): ComponentOfficialMetadata? {
+        val now = System.currentTimeMillis()
+        val cacheKeys = buildList {
+            if (sku.isNotBlank()) {
+                add("${LOOKUP_CACHE_PREFIX}sku:${sku.lowercase(Locale.US)}")
+            }
+            if (mpn.isNotBlank()) {
+                add("${LOOKUP_CACHE_PREFIX}mpn:${mpn.lowercase(Locale.US)}")
+            }
+        }
+
+        cacheKeys.forEach { cacheKey ->
+            val raw = preferences.getString(cacheKey, null) ?: return@forEach
+            val payload = runCatching { JSONObject(raw) }.getOrNull() ?: return@forEach
+            val fetchedAt = payload.optLong("fetched_at", 0L)
+            if (fetchedAt <= 0L || now - fetchedAt > LOOKUP_CACHE_MAX_AGE_MS) {
+                preferences.edit().remove(cacheKey).apply()
+                return@forEach
+            }
+            return ComponentOfficialMetadata(
+                sku = payload.optString("sku").blankToNull(),
+                name = payload.optString("name").blankToNull(),
+                packageName = payload.optString("package_name").blankToNull(),
+                category = payload.optString("category").blankToNull(),
+                model = payload.optString("model").blankToNull(),
+                brand = payload.optString("brand").blankToNull(),
+                categoryPath = payload.optString("category_path").blankToNull(),
+                officialUrl = payload.optString("official_url").blankToNull(),
+                matchedBy = payload.optString("matched_by").blankToNull(),
+                confidence = payload.optString("confidence").blankToNull(),
+            )
+        }
+
+        return null
+    }
+
+    private fun cacheLookup(metadata: ComponentOfficialMetadata) {
+        val payload = JSONObject().apply {
+            put("sku", metadata.sku)
+            put("name", metadata.name)
+            put("package_name", metadata.packageName)
+            put("category", metadata.category)
+            put("model", metadata.model)
+            put("brand", metadata.brand)
+            put("category_path", metadata.categoryPath)
+            put("official_url", metadata.officialUrl)
+            put("matched_by", metadata.matchedBy)
+            put("confidence", metadata.confidence)
+            put("fetched_at", System.currentTimeMillis())
+        }.toString()
+
+        val editor = preferences.edit()
+        metadata.sku?.takeIf { it.isNotBlank() }?.let { value ->
+            editor.putString("${LOOKUP_CACHE_PREFIX}sku:${value.lowercase(Locale.US)}", payload)
+        }
+        metadata.model?.takeIf { it.isNotBlank() }?.let { value ->
+            editor.putString("${LOOKUP_CACHE_PREFIX}mpn:${value.lowercase(Locale.US)}", payload)
+        }
+        editor.apply()
     }
 
     private fun defaultDeviceId(): String {
@@ -582,6 +900,233 @@ class InventoryRepository(
             Settings.Secure.ANDROID_ID,
         )
         return "android-${androidId?.takeLast(8) ?: "device"}"
+    }
+
+    private fun upsertComponent(
+        db: SQLiteDatabase,
+        draft: ComponentDraft,
+    ) {
+        ensureUniqueActiveSku(db, draft.sku.trim(), draft.id)
+        val updatedAt = utcNow()
+        val componentId = draft.id ?: "cmp-${randomId()}"
+
+        val values = ContentValues().apply {
+            put("id", componentId)
+            put("sku", draft.sku.trim())
+            put("name", draft.name.trim())
+            put("category", draft.category.trim())
+            put("package_name", draft.packageName.trim())
+            put("location", draft.location.trim())
+            put("description", draft.description.trim())
+            put("quantity", draft.quantity)
+            put("min_stock", draft.minStock)
+            put("updated_at", updatedAt)
+            put("deleted", 0)
+        }
+        db.insertWithOnConflict(
+            "components",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+        enqueueEntity(db, "component", componentId, updatedAt)
+    }
+
+    private fun findImportLearningMatch(
+        db: SQLiteDatabase,
+        sku: String,
+        mpn: String?,
+    ): ComponentImportLearningMatch? {
+        val normalizedSku = sku.trim()
+        if (normalizedSku.isNotBlank()) {
+            db.rawQuery(
+                """
+                SELECT
+                    id,
+                    source_type,
+                    COALESCE(source_sku, '') AS source_sku,
+                    COALESCE(source_mpn, '') AS source_mpn,
+                    COALESCE(resolved_name, '') AS resolved_name,
+                    COALESCE(resolved_category, '') AS resolved_category,
+                    COALESCE(resolved_package_name, '') AS resolved_package_name,
+                    COALESCE(resolved_model, '') AS resolved_model,
+                    COALESCE(resolved_brand, '') AS resolved_brand,
+                    COALESCE(resolved_description, '') AS resolved_description,
+                    confidence,
+                    last_used_at
+                FROM import_learning_mappings
+                WHERE source_sku = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """.trimIndent(),
+                arrayOf(normalizedSku),
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    return ComponentImportLearningMatch(
+                        mapping = readImportLearningMapping(cursor),
+                        matchedBy = ComponentImportLearningMatchType.Sku,
+                    )
+                }
+            }
+        }
+
+        val normalizedMpn = mpn?.trim().orEmpty()
+        if (normalizedMpn.isNotBlank()) {
+            db.rawQuery(
+                """
+                SELECT
+                    id,
+                    source_type,
+                    COALESCE(source_sku, '') AS source_sku,
+                    COALESCE(source_mpn, '') AS source_mpn,
+                    COALESCE(resolved_name, '') AS resolved_name,
+                    COALESCE(resolved_category, '') AS resolved_category,
+                    COALESCE(resolved_package_name, '') AS resolved_package_name,
+                    COALESCE(resolved_model, '') AS resolved_model,
+                    COALESCE(resolved_brand, '') AS resolved_brand,
+                    COALESCE(resolved_description, '') AS resolved_description,
+                    confidence,
+                    last_used_at
+                FROM import_learning_mappings
+                WHERE source_mpn = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """.trimIndent(),
+                arrayOf(normalizedMpn),
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    return ComponentImportLearningMatch(
+                        mapping = readImportLearningMapping(cursor),
+                        matchedBy = ComponentImportLearningMatchType.Mpn,
+                    )
+                }
+            }
+        }
+
+        return null
+    }
+
+    private fun readImportLearningMapping(
+        cursor: Cursor,
+    ): ComponentImportLearningMapping {
+        return ComponentImportLearningMapping(
+            id = cursor.getString(cursor.getColumnIndexOrThrow("id")),
+            sourceType = cursor.getString(cursor.getColumnIndexOrThrow("source_type")).toImportSourceType(),
+            sourceSku = cursor.getString(cursor.getColumnIndexOrThrow("source_sku")).blankToNull(),
+            sourceMpn = cursor.getString(cursor.getColumnIndexOrThrow("source_mpn")).blankToNull(),
+            resolvedName = cursor.getString(cursor.getColumnIndexOrThrow("resolved_name")).blankToNull(),
+            resolvedCategory = cursor.getString(cursor.getColumnIndexOrThrow("resolved_category")).blankToNull(),
+            resolvedPackageName = cursor.getString(cursor.getColumnIndexOrThrow("resolved_package_name")).blankToNull(),
+            resolvedModel = cursor.getString(cursor.getColumnIndexOrThrow("resolved_model")).blankToNull(),
+            resolvedBrand = cursor.getString(cursor.getColumnIndexOrThrow("resolved_brand")).blankToNull(),
+            resolvedDescription = cursor.getString(cursor.getColumnIndexOrThrow("resolved_description")).blankToNull(),
+            confidence = cursor.getInt(cursor.getColumnIndexOrThrow("confidence")),
+            lastUsedAt = cursor.getString(cursor.getColumnIndexOrThrow("last_used_at")).blankToNull(),
+        )
+    }
+
+    private fun touchImportLearningMapping(
+        db: SQLiteDatabase,
+        mappingId: String,
+    ) {
+        db.update(
+            "import_learning_mappings",
+            ContentValues().apply {
+                put("last_used_at", utcNow())
+            },
+            "id = ?",
+            arrayOf(mappingId),
+        )
+    }
+
+    private fun upsertImportLearningMapping(
+        db: SQLiteDatabase,
+        sourceCandidate: ComponentImportCandidate,
+        draft: ComponentDraft,
+        parsedDescription: com.componentvault.android.model.ParsedImportDescription,
+    ) {
+        val normalizedSourceSku = sourceCandidate.sku.trim().blankToNull() ?: draft.sku.trim().blankToNull()
+        val normalizedSourceMpn = sourceCandidate.model?.trim()?.blankToNull()
+            ?: parsedDescription.model?.trim()?.blankToNull()
+        if (normalizedSourceSku == null && normalizedSourceMpn == null) {
+            return
+        }
+
+        val now = utcNow()
+        val existingRecord = findExistingImportLearningRecord(
+            db = db,
+            sourceSku = normalizedSourceSku,
+            sourceMpn = normalizedSourceMpn,
+        )
+        val mappingId = existingRecord?.first ?: "ilm-${randomId()}"
+        val createdAt = existingRecord?.second ?: now
+
+        val values = ContentValues().apply {
+            put("id", mappingId)
+            put("source_type", sourceCandidate.sourceType.toStorageValue())
+            put("source_sku", normalizedSourceSku)
+            put("source_mpn", normalizedSourceMpn)
+            put("resolved_name", draft.name.trim().blankToNull())
+            put("resolved_category", draft.category.trim().blankToNull())
+            put("resolved_package_name", draft.packageName.trim().blankToNull())
+            put("resolved_model", parsedDescription.model?.trim()?.blankToNull() ?: sourceCandidate.model?.trim()?.blankToNull())
+            put("resolved_brand", parsedDescription.brand?.trim()?.blankToNull() ?: sourceCandidate.brand?.trim()?.blankToNull())
+            put("resolved_description", draft.description.trim().blankToNull())
+            put("confidence", 100)
+            put("last_used_at", now)
+            put("created_at", createdAt)
+            put("updated_at", now)
+        }
+        db.insertWithOnConflict(
+            "import_learning_mappings",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+    }
+
+    private fun findExistingImportLearningRecord(
+        db: SQLiteDatabase,
+        sourceSku: String?,
+        sourceMpn: String?,
+    ): Pair<String, String>? {
+        sourceSku?.let { sku ->
+            db.rawQuery(
+                """
+                SELECT id, created_at
+                FROM import_learning_mappings
+                WHERE source_sku = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """.trimIndent(),
+                arrayOf(sku),
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    return cursor.getString(cursor.getColumnIndexOrThrow("id")) to
+                        cursor.getString(cursor.getColumnIndexOrThrow("created_at"))
+                }
+            }
+        }
+
+        sourceMpn?.let { mpn ->
+            db.rawQuery(
+                """
+                SELECT id, created_at
+                FROM import_learning_mappings
+                WHERE source_mpn = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """.trimIndent(),
+                arrayOf(mpn),
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    return cursor.getString(cursor.getColumnIndexOrThrow("id")) to
+                        cursor.getString(cursor.getColumnIndexOrThrow("created_at"))
+                }
+            }
+        }
+
+        return null
     }
 
     private fun validateComponentDraft(draft: ComponentDraft) {
@@ -1054,6 +1599,23 @@ class InventoryRepository(
         vararg args: Any,
     ): String = appContext.getString(resId, *args)
 
+    private fun String.toImportSourceType() = when (lowercase(Locale.US)) {
+        "jlc_text" -> com.componentvault.android.model.ComponentImportSourceType.JlcText
+        "jlc_qr" -> com.componentvault.android.model.ComponentImportSourceType.JlcQr
+        "supplier_ocr" -> com.componentvault.android.model.ComponentImportSourceType.SupplierOcr
+        else -> com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel
+    }
+
+    private fun com.componentvault.android.model.ComponentImportSourceType.toStorageValue(): String =
+        when (this) {
+            com.componentvault.android.model.ComponentImportSourceType.JlcText -> "jlc_text"
+            com.componentvault.android.model.ComponentImportSourceType.JlcQr -> "jlc_qr"
+            com.componentvault.android.model.ComponentImportSourceType.SupplierOcr -> "supplier_ocr"
+            com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel -> "warehouse_label"
+        }
+
+    private fun String.blankToNull(): String? = trim().takeIf { it.isNotBlank() }
+
     private data class SyncPayload(
         val payload: JSONObject,
         val queuedEntities: List<QueuedEntity>,
@@ -1078,6 +1640,11 @@ class InventoryRepository(
         const val KEY_DEFAULT_IMPORT_MIN_STOCK = "default_import_min_stock"
         const val KEY_REMEMBER_LAST_IMPORT_LOCATION = "remember_last_import_location"
         const val KEY_SYNC_AFTER_LOCAL_CHANGES = "sync_after_local_changes"
+        const val KEY_ENABLE_LOCAL_IMPORT_LEARNING = "enable_local_import_learning"
+        const val KEY_ENABLE_SERVER_JLC_LOOKUP = "enable_server_jlc_lookup"
+        const val KEY_AUTO_ENRICH_JLC_IMPORTS = "auto_enrich_jlc_imports"
+        const val LOOKUP_CACHE_PREFIX = "lcsc_lookup_cache:"
+        const val LOOKUP_CACHE_MAX_AGE_MS = 7L * 24L * 60L * 60L * 1000L
 
         val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter
             .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")

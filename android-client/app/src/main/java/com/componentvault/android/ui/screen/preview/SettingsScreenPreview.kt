@@ -15,6 +15,7 @@ private fun SettingsPhonePreview() {
             contentPadding = PaddingValues(),
             syncConfiguration = uiState.syncConfiguration,
             appPreferences = uiState.appPreferences,
+            importLearningSummary = uiState.importLearningSummary,
             isBusy = uiState.isBusy,
             statusMessage = uiState.statusMessage,
             layoutMode = InventoryLayoutMode(
@@ -27,6 +28,7 @@ private fun SettingsPhonePreview() {
             onSaveAppPreferences = {},
             onTestConnection = {},
             onSyncNow = {},
+            onClearImportLearningMappings = {},
         )
     }
 }
@@ -40,6 +42,7 @@ private fun SettingsBusyPreview() {
             contentPadding = PaddingValues(),
             syncConfiguration = uiState.syncConfiguration,
             appPreferences = uiState.appPreferences,
+            importLearningSummary = uiState.importLearningSummary,
             isBusy = uiState.isBusy,
             statusMessage = uiState.statusMessage,
             layoutMode = InventoryLayoutMode(
@@ -52,6 +55,7 @@ private fun SettingsBusyPreview() {
             onSaveAppPreferences = {},
             onTestConnection = {},
             onSyncNow = {},
+            onClearImportLearningMappings = {},
         )
     }
 }

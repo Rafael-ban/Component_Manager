@@ -1,12 +1,28 @@
 # Changelog
 
 ## [Unreleased]
-bump: patch
+bump: minor
 
 <!-- Add unreleased notes below this line. -->
 - Switched Android JLC package QR scanning from Google Code Scanner to an
   in-app CameraX scanner backed by bundled ML Kit barcode scanning, removing
   the runtime dependency on downloading the Barcode UI module before first use.
+- Added Android supplier packaging OCR import through bundled ML Kit Chinese
+  text recognition, with quantity-first confirmation and optional full-editor
+  refinement before saving inventory.
+- Added Android inventory label preview plus PNG/PDF export, generating
+  JLC-compatible QR payloads for JLC-sourced parts and warehouse QR payloads
+  for non-JLC parts so labels can round-trip back into import flows.
+- Added server-side `GET /admin-api/lcsc/lookup` plus Android-side optional
+  LCSC official metadata enrichment for JLC text and QR imports, with local
+  cache reuse and a settings toggle.
+- Reworked Android JLC import enrichment into a local-first flow with
+  device-only learned mappings stored in SQLite, SKU-first and MPN-fallback
+  reuse, field-origin review in the import form, and separate settings for
+  local learning vs optional server lookup.
+- Rebuilt Android runtime string resources and preview string bundles after the
+  import-enrichment changes, and re-verified `assembleDebug` and
+  `assembleRelease` on `2026-05-10`.
 
 ## [0.3.0] - 2026-05-09
 

@@ -13,9 +13,17 @@ and Material 3.
 - Movement entry workflow implemented
 - JLC copied-text import and package QR import implemented through an in-app
   CameraX scanner backed by bundled ML Kit barcode scanning
-- Quantity-first JLC import confirmation implemented with optional full editor handoff
+- Supplier packaging OCR import implemented through an in-app CameraX scanner
+  backed by bundled ML Kit Chinese text recognition
+- Quantity-first import confirmation implemented with optional full editor
+  handoff for JLC text, JLC-compatible QR payloads, warehouse labels, and
+  supplier packaging text
+- Compact label preview plus PNG/PDF export implemented for inventory labels
 - Expanded local-only settings implemented for sync behavior, import defaults,
   and About
+- Optional LCSC official metadata enrichment implemented for JLC text and QR
+  imports through the server-side `/admin-api/lcsc/lookup` proxy, with local
+  cache reuse and an in-app toggle
 - Push/pull sync wiring implemented against the FastAPI service
 - Chinese-first Material 3 UI implemented for the primary screens, with a
   matching Simplified Chinese (`zh-CN`) resource set
@@ -26,8 +34,8 @@ and Material 3.
   bundles plus content-level preview composables so Android Studio does not
   have to resolve the runtime `R.string` graph for preview-only rendering
 - `gradle -p android-client help` verified successfully on `2026-05-08`
-- `assembleDebug` verified successfully on `2026-05-09` on this host
-- `assembleRelease` verified successfully on `2026-05-09` on this host
+- `assembleDebug` verified successfully on `2026-05-10` on this host
+- `assembleRelease` verified successfully on `2026-05-10` on this host
 - On this host, non-blocking Android metrics warnings and Kotlin daemon
   fallback messages can appear during verification
 
@@ -41,6 +49,8 @@ and Material 3.
   `sdk.dir=<absolute-sdk-path>`
 - The repository intentionally does not commit `org.gradle.java.home`, so
   machine-specific JDK paths do not break other environments
+- For official JLC/LCSC enrichment during imports, the configured sync server
+  must also expose `/admin-api/lcsc/lookup` with valid LCSC OpenAPI credentials
 
 ## This Host Setup
 
@@ -145,13 +155,22 @@ the `ViewModel` entrypoint:
 - `ui/screen/SettingsScreen.kt`
   Grouped sync, import, scanner, and About layout
 - `ui/screen/JlcImportScreen.kt`
-  Quantity-first JLC text and QR import surface
+  Quantity-first import surface for JLC text, JLC-compatible QR payloads,
+  supplier packaging OCR, warehouse labels, and background official metadata
+  enrichment
 - `ui/screen/JlcQrScannerScreen.kt`
   App-internal CameraX + bundled ML Kit QR scanner surface with permission handling
+- `ui/screen/ImportTextScannerScreen.kt`
+  App-internal CameraX + bundled ML Kit Chinese text recognition surface for
+  supplier packaging OCR
+- `ui/screen/ComponentLabelPreviewScreen.kt`
+  Compact inventory label preview and PNG/PDF export flow
 - `ui/screen/InventoryForms.kt`
   Adaptive full-screen and dialog-based editing forms
 - `ui/screen/InventoryUiParts.kt`
   Shared dense list rows, badges, and section containers
+- `data/InventoryRepository.kt`
+  Local SQLite, sync wiring, and cached `/admin-api/lcsc/lookup` integration
 - `ui/screen/preview/`
   Preview annotations, preview host, static preview string bundles, sample
   states, and dedicated preview files

@@ -94,6 +94,8 @@ dependencies {
     implementation(composeBom)
     implementation("com.google.android.material:material:1.12.0")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")

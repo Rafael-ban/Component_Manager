@@ -13,6 +13,8 @@ Examples in this document assume `http://localhost:8787`.
 - The server also accepts `X-API-Token`, but the client uses bearer auth.
 - The separated `admin-web/` console authenticates through `POST /auth/ping`
   and then calls `/admin-api/*`.
+- Android JLC import enrichment also uses bearer auth against
+  `GET /admin-api/lcsc/lookup`.
 
 ## Endpoints
 
@@ -130,6 +132,51 @@ console.
 
 Returns runtime configuration and operational endpoint details used by the
 admin console.
+
+### `GET /admin-api/lcsc/lookup`
+
+Looks up official supplier metadata for JLC/LCSC parts. The Android client uses
+this during JLC copied-text and package-QR import flows after local parsing has
+already filled the basic fields.
+
+Query parameters:
+
+- `sku`: LCSC/JLC part number such as `C30926`
+- `mpn`: manufacturer part number such as `0603B104K500NT`
+- `name`: optional fallback product name for search matching
+
+At least one of `sku`, `mpn`, or `name` is required.
+
+```powershell
+curl "http://localhost:8787/admin-api/lcsc/lookup?sku=C30926&mpn=0603B104K500NT" `
+  -H "Authorization: Bearer change-me"
+```
+
+Typical success response:
+
+```json
+{
+  "found": true,
+  "source": "lcsc_openapi",
+  "sku": "C30926",
+  "name": "Multilayer Ceramic Capacitors MLCC - SMD/SMT 100nF 50V 0603",
+  "mpn": "0603B104K500NT",
+  "package_name": "0603",
+  "category": "Capacitor",
+  "category_path": "Capacitors / Ceramic Capacitors",
+  "brand": "FH(Guangdong Fenghua Advanced Tech)",
+  "official_url": "https://www.lcsc.com/product-detail/C30926.html",
+  "matched_by": "sku",
+  "confidence": "exact",
+  "cache_hit": false
+}
+```
+
+Failure behavior:
+
+- `422 Unprocessable Entity`: no query field was provided
+- `503 Service Unavailable`: LCSC credentials are not configured on the server
+- `502 Bad Gateway`: the upstream LCSC request failed
 
 ## Payload Rules
 

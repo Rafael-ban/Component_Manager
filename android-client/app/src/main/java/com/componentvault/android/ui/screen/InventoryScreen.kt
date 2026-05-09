@@ -64,6 +64,7 @@ internal fun InventoryScreen(
     onSelectComponent: (String) -> Unit,
     onOpenComponentDetail: (String) -> Unit,
     onImportComponent: () -> Unit,
+    onGenerateLabel: (String) -> Unit,
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
@@ -81,6 +82,7 @@ internal fun InventoryScreen(
         onSelectComponent = onSelectComponent,
         onOpenComponentDetail = onOpenComponentDetail,
         onImportComponent = onImportComponent,
+        onGenerateLabel = onGenerateLabel,
         onEditComponent = onEditComponent,
         onRequestDeleteComponent = onRequestDeleteComponent,
         onRecordMovement = onRecordMovement,
@@ -101,6 +103,7 @@ internal fun InventoryContent(
     onSelectComponent: (String) -> Unit,
     onOpenComponentDetail: (String) -> Unit,
     onImportComponent: () -> Unit,
+    onGenerateLabel: (String) -> Unit,
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
@@ -136,6 +139,7 @@ internal fun InventoryContent(
                     .weight(0.92f)
                     .fillMaxHeight(),
                 onEditComponent = onEditComponent,
+                onGenerateLabel = { component -> onGenerateLabel(component.id) },
                 onRequestDeleteComponent = onRequestDeleteComponent,
                 onRecordMovement = onRecordMovement,
             )
@@ -198,6 +202,7 @@ internal fun InventoryDetailRoute(
     recentMovements: List<StockMovementRecord>,
     onDismiss: () -> Unit,
     onEditComponent: (String) -> Unit,
+    onGenerateLabel: (ComponentRecord) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
 ) {
@@ -235,6 +240,7 @@ internal fun InventoryDetailRoute(
                 .consumeWindowInsets(padding),
             contentPadding = rememberContentPadding(padding, horizontal = 16.dp, vertical = 16.dp),
             onEditComponent = onEditComponent,
+            onGenerateLabel = onGenerateLabel,
             onRequestDeleteComponent = onRequestDeleteComponent,
             onRecordMovement = onRecordMovement,
         )
@@ -472,6 +478,7 @@ internal fun InventoryDetailPane(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(bottom = 12.dp),
     onEditComponent: (String) -> Unit,
+    onGenerateLabel: (ComponentRecord) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
 ) {
@@ -543,6 +550,9 @@ internal fun InventoryDetailPane(
                     OutlinedButton(onClick = { onRecordMovement(component.id) }) {
                         Text(strings.common.actionRecordMovement)
                     }
+                }
+                OutlinedButton(onClick = { onGenerateLabel(component) }) {
+                    Text(strings.common.actionGenerateLabel)
                 }
                 TextButton(onClick = { onRequestDeleteComponent(component.id) }) {
                     Text(strings.common.actionDelete)

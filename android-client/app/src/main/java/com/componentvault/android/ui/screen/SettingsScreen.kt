@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.BuildConfig
 import com.componentvault.android.model.AppPreferences
+import com.componentvault.android.model.ImportLearningSummary
 import com.componentvault.android.model.SyncConfiguration
 
 @Composable
@@ -38,6 +40,7 @@ internal fun SettingsScreen(
     contentPadding: PaddingValues,
     syncConfiguration: SyncConfiguration,
     appPreferences: AppPreferences,
+    importLearningSummary: ImportLearningSummary,
     isBusy: Boolean,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
@@ -45,11 +48,13 @@ internal fun SettingsScreen(
     onSaveAppPreferences: (AppPreferences) -> Unit,
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
+    onClearImportLearningMappings: () -> Unit,
 ) {
     SettingsContent(
         contentPadding = contentPadding,
         syncConfiguration = syncConfiguration,
         appPreferences = appPreferences,
+        importLearningSummary = importLearningSummary,
         isBusy = isBusy,
         statusMessage = statusMessage,
         layoutMode = layoutMode,
@@ -57,6 +62,7 @@ internal fun SettingsScreen(
         onSaveAppPreferences = onSaveAppPreferences,
         onTestConnection = onTestConnection,
         onSyncNow = onSyncNow,
+        onClearImportLearningMappings = onClearImportLearningMappings,
     )
 }
 
@@ -65,6 +71,7 @@ internal fun SettingsContent(
     contentPadding: PaddingValues,
     syncConfiguration: SyncConfiguration,
     appPreferences: AppPreferences,
+    importLearningSummary: ImportLearningSummary,
     isBusy: Boolean,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
@@ -72,6 +79,7 @@ internal fun SettingsContent(
     onSaveAppPreferences: (AppPreferences) -> Unit,
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
+    onClearImportLearningMappings: () -> Unit,
 ) {
     val strings = vaultStrings()
     var serverUrl by remember(syncConfiguration.serverBaseUrl) {
@@ -95,8 +103,15 @@ internal fun SettingsContent(
     var syncAfterLocalChanges by remember(appPreferences.syncAfterLocalChanges) {
         mutableStateOf(appPreferences.syncAfterLocalChanges)
     }
+    var enableLocalImportLearning by remember(appPreferences.enableLocalImportLearning) {
+        mutableStateOf(appPreferences.enableLocalImportLearning)
+    }
+    var enableServerJlcLookup by remember(appPreferences.enableServerJlcLookup) {
+        mutableStateOf(appPreferences.enableServerJlcLookup)
+    }
     var showToken by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showClearLearningConfirmation by remember { mutableStateOf(false) }
 
     val saveDraft: () -> Boolean = {
         val minStock = defaultImportMinStockText.toIntOrNull()
@@ -113,6 +128,8 @@ internal fun SettingsContent(
                     defaultImportMinStock = minStock,
                     rememberLastImportLocation = rememberLastImportLocation,
                     syncAfterLocalChanges = syncAfterLocalChanges,
+                    enableLocalImportLearning = enableLocalImportLearning,
+                    enableServerJlcLookup = enableServerJlcLookup,
                 ),
             )
             true
@@ -137,6 +154,7 @@ internal fun SettingsContent(
                     SettingsSummaryPane(
                         syncConfiguration = syncConfiguration,
                         appPreferences = appPreferences,
+                        importLearningSummary = importLearningSummary,
                         statusMessage = statusMessage,
                     )
                 }
@@ -166,6 +184,11 @@ internal fun SettingsContent(
                     onRememberLastImportLocationChange = { rememberLastImportLocation = it },
                     syncAfterLocalChanges = syncAfterLocalChanges,
                     onSyncAfterLocalChangesChange = { syncAfterLocalChanges = it },
+                    enableLocalImportLearning = enableLocalImportLearning,
+                    onEnableLocalImportLearningChange = { enableLocalImportLearning = it },
+                    enableServerJlcLookup = enableServerJlcLookup,
+                    onEnableServerJlcLookupChange = { enableServerJlcLookup = it },
+                    importLearningSummary = importLearningSummary,
                     strings = strings,
                     showToken = showToken,
                     onToggleToken = { showToken = !showToken },
@@ -182,6 +205,7 @@ internal fun SettingsContent(
                             onSyncNow()
                         }
                     },
+                    onClearImportLearningMappings = { showClearLearningConfirmation = true },
                 )
             }
         }
@@ -197,6 +221,7 @@ internal fun SettingsContent(
                 SettingsSummaryPane(
                     syncConfiguration = syncConfiguration,
                     appPreferences = appPreferences,
+                    importLearningSummary = importLearningSummary,
                     statusMessage = statusMessage,
                 )
             }
@@ -215,6 +240,11 @@ internal fun SettingsContent(
                 onRememberLastImportLocationChange = { rememberLastImportLocation = it },
                 syncAfterLocalChanges = syncAfterLocalChanges,
                 onSyncAfterLocalChangesChange = { syncAfterLocalChanges = it },
+                enableLocalImportLearning = enableLocalImportLearning,
+                onEnableLocalImportLearningChange = { enableLocalImportLearning = it },
+                enableServerJlcLookup = enableServerJlcLookup,
+                onEnableServerJlcLookupChange = { enableServerJlcLookup = it },
+                importLearningSummary = importLearningSummary,
                 strings = strings,
                 showToken = showToken,
                 onToggleToken = { showToken = !showToken },
@@ -231,11 +261,35 @@ internal fun SettingsContent(
                         onSyncNow()
                     }
                 },
+                onClearImportLearningMappings = { showClearLearningConfirmation = true },
             )
             item {
                 SettingsAboutPane()
             }
         }
+    }
+
+    if (showClearLearningConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showClearLearningConfirmation = false },
+            title = { Text(strings.settings.clearLearnedMappingsTitle) },
+            text = { Text(strings.settings.clearLearnedMappingsMessage) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showClearLearningConfirmation = false
+                        onClearImportLearningMappings()
+                    },
+                ) {
+                    Text(strings.settings.clearLearnedMappingsAction)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showClearLearningConfirmation = false }) {
+                    Text(strings.common.actionCancel)
+                }
+            },
+        )
     }
 }
 
@@ -243,6 +297,7 @@ internal fun SettingsContent(
 private fun SettingsSummaryPane(
     syncConfiguration: SyncConfiguration,
     appPreferences: AppPreferences,
+    importLearningSummary: ImportLearningSummary,
     statusMessage: String,
 ) {
     val strings = vaultStrings()
@@ -271,6 +326,14 @@ private fun SettingsSummaryPane(
         ValueBlock(
             label = strings.common.fieldLocation,
             value = appPreferences.suggestedImportLocation.ifBlank { strings.common.labelNotConfigured },
+        )
+        ValueBlock(
+            label = strings.settings.learnedMappingsCount,
+            value = if (importLearningSummary.mappingCount > 0) {
+                importLearningSummary.mappingCount.toString()
+            } else {
+                strings.settings.noLearnedMappings
+            },
         )
     }
 }
@@ -314,6 +377,11 @@ private fun LazyListScope.settingsFormItems(
     onRememberLastImportLocationChange: (Boolean) -> Unit,
     syncAfterLocalChanges: Boolean,
     onSyncAfterLocalChangesChange: (Boolean) -> Unit,
+    enableLocalImportLearning: Boolean,
+    onEnableLocalImportLearningChange: (Boolean) -> Unit,
+    enableServerJlcLookup: Boolean,
+    onEnableServerJlcLookupChange: (Boolean) -> Unit,
+    importLearningSummary: ImportLearningSummary,
     strings: ComponentVaultStrings,
     showToken: Boolean,
     onToggleToken: () -> Unit,
@@ -322,6 +390,7 @@ private fun LazyListScope.settingsFormItems(
     onSave: () -> Boolean,
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
+    onClearImportLearningMappings: () -> Unit,
 ) {
     item {
         SectionPane(
@@ -410,6 +479,33 @@ private fun LazyListScope.settingsFormItems(
                 checked = rememberLastImportLocation,
                 onCheckedChange = onRememberLastImportLocationChange,
             )
+            SettingsToggleRow(
+                title = strings.settings.localImportLearning,
+                subtitle = strings.settings.localImportLearningDescription,
+                checked = enableLocalImportLearning,
+                onCheckedChange = onEnableLocalImportLearningChange,
+            )
+            SettingsToggleRow(
+                title = strings.settings.serverJlcLookup,
+                subtitle = strings.settings.serverJlcLookupDescription,
+                checked = enableServerJlcLookup,
+                onCheckedChange = onEnableServerJlcLookupChange,
+            )
+            ValueBlock(
+                label = strings.settings.learnedMappingsCount,
+                value = if (importLearningSummary.mappingCount > 0) {
+                    importLearningSummary.mappingCount.toString()
+                } else {
+                    strings.settings.noLearnedMappings
+                },
+            )
+            OutlinedButton(
+                onClick = onClearImportLearningMappings,
+                enabled = importLearningSummary.mappingCount > 0 && !isBusy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(strings.settings.clearLearnedMappingsAction)
+            }
         }
     }
     item {

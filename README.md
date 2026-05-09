@@ -66,14 +66,15 @@ connects to it over HTTP.
   and unpackaged portable `dotnet publish` was verified successfully on
   `2026-05-08`.
 - Android native client: local SQLite, component editing, movement recording,
-  JLC text and QR import, expanded settings, server sync wiring, and
-  Chinese-first Compose interface resources are implemented; the Android UI now
-  follows an inventory-first adaptive Compose shell with `Inventory`,
-  `Movements`, `Overview`, and `Settings` destinations, compact phone detail
-  drill-down, tablet list-detail layouts, quantity-first JLC import
-  confirmation, and scroll-safe `Scaffold` inset handling; `help`,
-  `assembleDebug`, and `assembleRelease` were verified successfully on
-  `2026-05-09` on this host with the configured Android SDK and JDK paths.
+  JLC text and QR import, supplier packaging OCR import, compact label
+  preview/export, expanded settings, server sync wiring, and Chinese-first
+  Compose interface resources are implemented; the Android UI now follows an
+  inventory-first adaptive Compose shell with `Inventory`, `Movements`,
+  `Overview`, and `Settings` destinations, compact phone detail drill-down,
+  tablet list-detail layouts, quantity-first import confirmation, generated
+  JLC-compatible or warehouse QR labels, and scroll-safe `Scaffold` inset
+  handling; `assembleDebug` and `assembleRelease` were verified successfully
+  on `2026-05-10` on this host with the configured Android SDK and JDK paths.
 - Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
   separate `admin-web/` React application; backend `pytest` and `admin-web`
   production build were both verified successfully on `2026-05-08`.
@@ -161,6 +162,10 @@ preferences and supports:
 - JLC copied-text import with automatic field mapping
 - JLC package QR import through an in-app CameraX scanner backed by bundled
   ML Kit barcode scanning, with runtime camera permission handling
+- supplier packaging OCR import through an in-app CameraX scanner backed by
+  bundled ML Kit Chinese text recognition
+- compact label preview plus PNG/PDF export, generating JLC-compatible QR
+  payloads for JLC-sourced items and warehouse QR payloads for other items
 - sync settings save/test/sync-now
 - separate sync-on-launch and sync-after-write behavior controls
 - import defaults and an in-app About section

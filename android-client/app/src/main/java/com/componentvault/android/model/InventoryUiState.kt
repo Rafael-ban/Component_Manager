@@ -5,6 +5,7 @@ data class InventoryUiState(
     val availableComponents: List<ComponentRecord> = emptyList(),
     val inventory: InventoryScreenUiState = InventoryScreenUiState(),
     val movements: MovementsUiState = MovementsUiState(),
+    val importLearningSummary: ImportLearningSummary = ImportLearningSummary(),
     val appPreferences: AppPreferences = AppPreferences(),
     val syncConfiguration: SyncConfiguration = SyncConfiguration(
         deviceId = "",

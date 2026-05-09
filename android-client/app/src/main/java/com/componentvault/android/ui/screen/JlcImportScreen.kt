@@ -11,32 +11,56 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.componentvault.android.data.JlcImportParser
+import com.componentvault.android.data.ComponentImportParser
+import com.componentvault.android.data.InventoryRepository
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ComponentDraft
-import com.componentvault.android.model.JlcImportPayload
+import com.componentvault.android.model.ComponentImportCandidate
+import com.componentvault.android.model.ComponentImportFieldOrigin
+import com.componentvault.android.model.ComponentImportLearningMatchType
+import com.componentvault.android.model.ComponentOfficialLookupOutcome
+import com.componentvault.android.model.SyncConfiguration
+import com.componentvault.android.model.isJlcSource
+
+private enum class ImportScannerMode {
+    Qr,
+    SupplierText,
+}
 
 @Composable
 internal fun JlcImportSurface(
     layoutMode: InventoryLayoutMode,
+    syncConfiguration: SyncConfiguration,
     appPreferences: AppPreferences,
     onDismiss: () -> Unit,
-    onSaveImportedComponent: (ComponentDraft) -> Unit,
-    onOpenFullEditor: (ComponentDraft) -> Unit,
+    onSaveImportedComponent: (ComponentDraft, ComponentImportCandidate) -> Unit,
+    onOpenFullEditor: (ComponentDraft, ComponentImportCandidate) -> Unit,
 ) {
+    val context = LocalContext.current
+    val repository = remember(context) { InventoryRepository(context) }
     val strings = vaultStrings()
+
     var rawInput by remember { mutableStateOf("") }
-    var parsedPayload by remember { mutableStateOf<JlcImportPayload?>(null) }
+    var baseCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
+    var displayedCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
+    var scannerMode by rememberSaveable { mutableStateOf<ImportScannerMode?>(null) }
+    var sku by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("") }
+    var packageName by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var brand by remember { mutableStateOf("") }
     var quantityText by remember { mutableStateOf("1") }
-    var scannerVisible by rememberSaveable { mutableStateOf(false) }
     var location by remember(appPreferences.suggestedImportLocation) {
         mutableStateOf(appPreferences.suggestedImportLocation)
     }
@@ -44,28 +68,226 @@ internal fun JlcImportSurface(
         mutableStateOf(appPreferences.defaultImportMinStock.toString())
     }
     var feedbackMessage by remember { mutableStateOf<String?>(null) }
+    var lookupMessage by remember { mutableStateOf<String?>(null) }
+    var lookupIsError by remember { mutableStateOf(false) }
+    var lookupInProgress by remember { mutableStateOf(false) }
+    var learningMatchType by remember { mutableStateOf<ComponentImportLearningMatchType?>(null) }
+    var skuEdited by remember { mutableStateOf(false) }
+    var nameEdited by remember { mutableStateOf(false) }
+    var categoryEdited by remember { mutableStateOf(false) }
+    var packageEdited by remember { mutableStateOf(false) }
+    var modelEdited by remember { mutableStateOf(false) }
+    var brandEdited by remember { mutableStateOf(false) }
+    var skuOrigin by remember { mutableStateOf(ComponentImportFieldOrigin.Parsed) }
+    var nameOrigin by remember { mutableStateOf(ComponentImportFieldOrigin.Parsed) }
+    var categoryOrigin by remember { mutableStateOf(ComponentImportFieldOrigin.Parsed) }
+    var packageOrigin by remember { mutableStateOf(ComponentImportFieldOrigin.Parsed) }
+    var modelOrigin by remember { mutableStateOf(ComponentImportFieldOrigin.Parsed) }
+    var brandOrigin by remember { mutableStateOf(ComponentImportFieldOrigin.Parsed) }
 
-    fun applyParsedPayload(payload: JlcImportPayload) {
-        parsedPayload = payload
-        quantityText = (payload.suggestedQuantity ?: 1).coerceAtLeast(1).toString()
+    fun applyDisplayedCandidate(
+        candidate: ComponentImportCandidate,
+        preserveUserEdits: Boolean,
+    ) {
+        displayedCandidate = candidate
+        rawInput = candidate.rawPayload
+        if (!preserveUserEdits || !skuEdited) {
+            sku = candidate.sku
+            skuOrigin = candidate.fieldOrigins.sku
+        }
+        if (!preserveUserEdits || !nameEdited) {
+            name = candidate.name
+            nameOrigin = candidate.fieldOrigins.name
+        }
+        if (!preserveUserEdits || !categoryEdited) {
+            category = candidate.category
+            categoryOrigin = candidate.fieldOrigins.category
+        }
+        if (!preserveUserEdits || !packageEdited) {
+            packageName = candidate.packageName
+            packageOrigin = candidate.fieldOrigins.packageName
+        }
+        if (!preserveUserEdits || !modelEdited) {
+            model = candidate.model.orEmpty()
+            modelOrigin = candidate.fieldOrigins.model
+        }
+        if (!preserveUserEdits || !brandEdited) {
+            brand = candidate.brand.orEmpty()
+            brandOrigin = candidate.fieldOrigins.brand
+        }
+        if (!preserveUserEdits) {
+            quantityText = (candidate.suggestedQuantity ?: 1).coerceAtLeast(1).toString()
+            candidate.notes.firstOrNull { it.startsWith("Warehouse location: ") }?.let { note ->
+                location = note.removePrefix("Warehouse location: ").trim()
+            }
+            candidate.notes.firstOrNull { it.startsWith("Minimum stock: ") }?.let { note ->
+                note.removePrefix("Minimum stock: ").trim().toIntOrNull()?.let { parsedMinStock ->
+                    minStockText = parsedMinStock.toString()
+                }
+            }
+            skuEdited = false
+            nameEdited = false
+            categoryEdited = false
+            packageEdited = false
+            modelEdited = false
+            brandEdited = false
+        }
         feedbackMessage = null
     }
 
-    if (scannerVisible) {
-        BackHandler(onBack = { scannerVisible = false })
-        JlcQrScannerSurface(
-            onDismiss = { scannerVisible = false },
-            onScanResult = { result ->
-                rawInput = result
-                scannerVisible = false
-                runCatching { JlcImportParser.parseQr(result) }
-                    .onSuccess(::applyParsedPayload)
-                    .onFailure {
-                        feedbackMessage = it.message ?: strings.importer.scannerFailedDescription
-                    }
-            },
+    fun setBaseCandidate(candidate: ComponentImportCandidate) {
+        baseCandidate = candidate
+        learningMatchType = null
+        lookupMessage = null
+        lookupIsError = false
+        lookupInProgress = false
+        applyDisplayedCandidate(candidate, preserveUserEdits = false)
+    }
+
+    fun buildDraftOrNull(): ComponentDraft? {
+        val candidate = displayedCandidate
+        if (candidate == null) {
+            feedbackMessage = strings.importer.parseFirstError
+            return null
+        }
+
+        val quantity = quantityText.toIntOrNull()
+        val minStock = minStockText.toIntOrNull()
+        if (sku.isBlank() || name.isBlank() || category.isBlank() || packageName.isBlank() || location.isBlank()) {
+            feedbackMessage = strings.forms.componentRequiredFields
+            return null
+        }
+        if (quantity == null || quantity <= 0) {
+            feedbackMessage = strings.forms.movementQuantityPositive
+            return null
+        }
+        if (minStock == null || minStock < 0) {
+            feedbackMessage = strings.forms.componentNonNegative
+            return null
+        }
+
+        feedbackMessage = null
+        return candidate.toComponentDraft(
+            quantity = quantity,
+            location = location,
+            minStock = minStock,
+            skuOverride = sku,
+            nameOverride = name,
+            categoryOverride = category,
+            packageNameOverride = packageName,
+            modelOverride = model.blankToNull(),
+            brandOverride = brand.blankToNull(),
         )
-        return
+    }
+
+    fun buildPreviewDraft(): ComponentDraft? {
+        val candidate = displayedCandidate ?: return null
+        val quantity = quantityText.toIntOrNull()?.coerceAtLeast(1) ?: 1
+        val minStock = minStockText.toIntOrNull()?.coerceAtLeast(0) ?: 0
+        return candidate.toComponentDraft(
+            quantity = quantity,
+            location = location.ifBlank { appPreferences.suggestedImportLocation },
+            minStock = minStock,
+            skuOverride = sku.ifBlank { candidate.sku },
+            nameOverride = name.ifBlank { candidate.name },
+            categoryOverride = category.ifBlank { candidate.category },
+            packageNameOverride = packageName.ifBlank { candidate.packageName },
+            modelOverride = model.blankToNull() ?: candidate.model,
+            brandOverride = brand.blankToNull() ?: candidate.brand,
+        )
+    }
+
+    when (scannerMode) {
+        ImportScannerMode.Qr -> {
+            BackHandler(onBack = { scannerMode = null })
+            JlcQrScannerSurface(
+                onDismiss = { scannerMode = null },
+                onScanResult = { result ->
+                    scannerMode = null
+                    runCatching { ComponentImportParser.parseScannedQr(result) }
+                        .onSuccess(::setBaseCandidate)
+                        .onFailure {
+                            rawInput = result
+                            feedbackMessage = it.message ?: strings.importer.scannerFailedDescription
+                        }
+                },
+            )
+            return
+        }
+
+        ImportScannerMode.SupplierText -> {
+            BackHandler(onBack = { scannerMode = null })
+            ImportTextScannerSurface(
+                onDismiss = { scannerMode = null },
+                onTextScanned = { result ->
+                    scannerMode = null
+                    runCatching { ComponentImportParser.parseSupplierText(result) }
+                        .onSuccess(::setBaseCandidate)
+                        .onFailure {
+                            rawInput = result
+                            feedbackMessage = it.message ?: strings.importer.supplierScanFailedDescription
+                        }
+                },
+            )
+            return
+        }
+
+        null -> Unit
+    }
+
+    LaunchedEffect(
+        baseCandidate?.rawPayload,
+        appPreferences.enableLocalImportLearning,
+        appPreferences.enableServerJlcLookup,
+        syncConfiguration.serverBaseUrl,
+        syncConfiguration.apiToken,
+    ) {
+        val candidate = baseCandidate ?: return@LaunchedEffect
+        lookupInProgress = candidate.isJlcSource && appPreferences.enableServerJlcLookup
+        val resolution = repository.enrichImportCandidate(
+            candidate = candidate,
+            appPreferences = appPreferences,
+            syncConfiguration = syncConfiguration,
+        )
+        learningMatchType = resolution.learningMatch?.matchedBy
+        applyDisplayedCandidate(
+            candidate = resolution.candidate,
+            preserveUserEdits = true,
+        )
+
+        val lookupResult = resolution.officialLookupResult
+        if (lookupResult == null) {
+            lookupInProgress = false
+            lookupIsError = false
+            lookupMessage = null
+            return@LaunchedEffect
+        }
+
+        when (lookupResult.outcome) {
+            ComponentOfficialLookupOutcome.Success -> {
+                lookupInProgress = false
+                lookupIsError = false
+                lookupMessage = lookupResult.message ?: strings.importer.lookupSuccess
+            }
+
+            ComponentOfficialLookupOutcome.NoMatch -> {
+                lookupInProgress = false
+                lookupIsError = false
+                lookupMessage = lookupResult.message ?: strings.importer.lookupNoMatch
+            }
+
+            ComponentOfficialLookupOutcome.NotConfigured -> {
+                lookupInProgress = false
+                lookupIsError = false
+                lookupMessage = lookupResult.message ?: strings.importer.lookupNotConfigured
+            }
+
+            ComponentOfficialLookupOutcome.Failed -> {
+                lookupInProgress = false
+                lookupIsError = true
+                lookupMessage = lookupResult.message ?: strings.importer.lookupFailed(strings.importer.exportGenericError)
+            }
+        }
     }
 
     AdaptiveFormSurface(
@@ -73,34 +295,11 @@ internal fun JlcImportSurface(
         layoutMode = layoutMode,
         onDismiss = onDismiss,
         onSave = {
-            val payload = parsedPayload
-            if (payload == null) {
-                feedbackMessage = strings.importer.parseFirstError
-                return@AdaptiveFormSurface
+            baseCandidate?.let { sourceCandidate ->
+                buildDraftOrNull()?.let { draft ->
+                    onSaveImportedComponent(draft, sourceCandidate)
+                }
             }
-
-            val quantity = quantityText.toIntOrNull()
-            val minStock = minStockText.toIntOrNull()
-            if (quantity == null || quantity <= 0) {
-                feedbackMessage = strings.forms.movementQuantityPositive
-                return@AdaptiveFormSurface
-            }
-            if (minStock == null || minStock < 0) {
-                feedbackMessage = strings.forms.componentNonNegative
-                return@AdaptiveFormSurface
-            }
-            if (location.isBlank()) {
-                feedbackMessage = strings.forms.componentRequiredFields
-                return@AdaptiveFormSurface
-            }
-
-            onSaveImportedComponent(
-                payload.toComponentDraft(
-                    quantity = quantity,
-                    location = location.trim(),
-                    minStock = minStock,
-                ),
-            )
         },
     ) {
         item {
@@ -109,10 +308,16 @@ internal fun JlcImportSurface(
                 supporting = strings.importer.supportedFormatHint,
             ) {
                 FilledTonalButton(
-                    onClick = { scannerVisible = true },
+                    onClick = { scannerMode = ImportScannerMode.Qr },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(strings.importer.actionScanQr)
+                }
+                OutlinedButton(
+                    onClick = { scannerMode = ImportScannerMode.SupplierText },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(strings.importer.actionScanSupplierText)
                 }
                 OutlinedTextField(
                     value = rawInput,
@@ -124,38 +329,132 @@ internal fun JlcImportSurface(
                 )
                 OutlinedButton(
                     onClick = {
-                        val parser = if (rawInput.trim().startsWith("{")) {
-                            runCatching { JlcImportParser.parseQr(rawInput) }
-                        } else {
-                            runCatching { JlcImportParser.parseText(rawInput) }
-                        }
-                        parser
-                            .onSuccess(::applyParsedPayload)
+                        runCatching { ComponentImportParser.parseJlcText(rawInput) }
+                            .onSuccess(::setBaseCandidate)
                             .onFailure { feedbackMessage = it.message ?: strings.importer.parseFirstError }
                     },
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(strings.importer.actionParseText)
+                }
+                OutlinedButton(
+                    onClick = {
+                        runCatching { ComponentImportParser.parseSupplierText(rawInput) }
+                            .onSuccess(::setBaseCandidate)
+                            .onFailure { feedbackMessage = it.message ?: strings.importer.parseSupplierTextError }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(strings.importer.actionParseSupplierText)
                 }
             }
         }
 
-        parsedPayload?.let { payload ->
+        displayedCandidate?.let { candidate ->
+            item {
+                SectionPane(
+                    title = strings.importer.enrichmentTitle,
+                    supporting = strings.importer.enrichmentSubtitle,
+                ) {
+                    ValueBlock(label = strings.importer.sourceLabel, value = candidate.sourceLabel)
+                    Text(
+                        text = when (learningMatchType) {
+                            ComponentImportLearningMatchType.Sku -> strings.importer.learningMatchSku
+                            ComponentImportLearningMatchType.Mpn -> strings.importer.learningMatchMpn
+                            null -> strings.importer.localRulesOnly
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (candidate.isJlcSource) {
+                        val serverMessage = when {
+                            lookupInProgress -> strings.importer.lookupLoading
+                            appPreferences.enableServerJlcLookup -> lookupMessage ?: strings.importer.lookupOnlyFillsMissing
+                            else -> strings.importer.serverLookupDisabled
+                        }
+                        Text(
+                            text = serverMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (lookupIsError) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
+            }
             item {
                 SectionPane(
                     title = strings.importer.recognizedTitle,
                     supporting = strings.importer.recognizedSubtitle,
                 ) {
-                    ValueBlock(label = strings.common.fieldSku, value = payload.sku)
-                    ValueBlock(label = strings.common.fieldName, value = payload.name)
-                    ValueBlock(label = strings.common.fieldPackage, value = payload.packageName)
-                    ValueBlock(label = strings.common.fieldCategory, value = payload.category)
-                    ValueBlock(label = strings.importer.sourceLabel, value = payload.sourceLabel)
-                    payload.model?.let {
-                        ValueBlock(label = strings.importer.modelLabel, value = it)
-                    }
-                    payload.brand?.let {
-                        ValueBlock(label = strings.importer.brandLabel, value = it)
-                    }
+                    ImportOriginField(
+                        value = sku,
+                        onValueChange = {
+                            sku = it
+                            skuEdited = true
+                            skuOrigin = ComponentImportFieldOrigin.User
+                        },
+                        label = strings.common.fieldSku,
+                        origin = skuOrigin,
+                        strings = strings,
+                    )
+                    ImportOriginField(
+                        value = name,
+                        onValueChange = {
+                            name = it
+                            nameEdited = true
+                            nameOrigin = ComponentImportFieldOrigin.User
+                        },
+                        label = strings.common.fieldName,
+                        origin = nameOrigin,
+                        strings = strings,
+                    )
+                    ImportOriginField(
+                        value = category,
+                        onValueChange = {
+                            category = it
+                            categoryEdited = true
+                            categoryOrigin = ComponentImportFieldOrigin.User
+                        },
+                        label = strings.common.fieldCategory,
+                        origin = categoryOrigin,
+                        strings = strings,
+                    )
+                    ImportOriginField(
+                        value = packageName,
+                        onValueChange = {
+                            packageName = it
+                            packageEdited = true
+                            packageOrigin = ComponentImportFieldOrigin.User
+                        },
+                        label = strings.common.fieldPackage,
+                        origin = packageOrigin,
+                        strings = strings,
+                    )
+                    ImportOriginField(
+                        value = model,
+                        onValueChange = {
+                            model = it
+                            modelEdited = true
+                            modelOrigin = ComponentImportFieldOrigin.User
+                        },
+                        label = strings.importer.modelLabel,
+                        origin = modelOrigin,
+                        strings = strings,
+                    )
+                    ImportOriginField(
+                        value = brand,
+                        onValueChange = {
+                            brand = it
+                            brandEdited = true
+                            brandOrigin = ComponentImportFieldOrigin.User
+                        },
+                        label = strings.importer.brandLabel,
+                        origin = brandOrigin,
+                        strings = strings,
+                    )
                 }
             }
             item {
@@ -188,15 +487,11 @@ internal fun JlcImportSurface(
                     )
                     Button(
                         onClick = {
-                            val quantity = quantityText.toIntOrNull()?.coerceAtLeast(1) ?: 1
-                            val minStock = minStockText.toIntOrNull()?.coerceAtLeast(0) ?: 0
-                            onOpenFullEditor(
-                                payload.toComponentDraft(
-                                    quantity = quantity,
-                                    location = location.ifBlank { appPreferences.suggestedImportLocation },
-                                    minStock = minStock,
-                                ),
-                            )
+                            baseCandidate?.let { sourceCandidate ->
+                                buildDraftOrNull()?.let { draft ->
+                                    onOpenFullEditor(draft, sourceCandidate)
+                                }
+                            }
                         },
                     ) {
                         Text(strings.importer.actionOpenFullEditor)
@@ -206,11 +501,7 @@ internal fun JlcImportSurface(
             item {
                 SectionPane(title = strings.importer.importPreviewTitle) {
                     Text(
-                        text = payload.toComponentDraft(
-                            quantity = quantityText.toIntOrNull()?.coerceAtLeast(1) ?: 1,
-                            location = location,
-                            minStock = minStockText.toIntOrNull()?.coerceAtLeast(0) ?: 0,
-                        ).description,
+                        text = buildPreviewDraft()?.description.orEmpty(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -230,3 +521,25 @@ internal fun JlcImportSurface(
         }
     }
 }
+
+@Composable
+private fun ImportOriginField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    origin: ComponentImportFieldOrigin,
+    strings: ComponentVaultStrings,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = true,
+        supportingText = {
+            Text(strings.importer.fieldOrigin(origin))
+        },
+    )
+}
+
+private fun String.blankToNull(): String? = takeIf { it.isNotBlank() }

@@ -73,10 +73,11 @@ private fun JlcImportPreview() {
                 showsListDetail = false,
                 prefersDialogForms = false,
             ),
+            syncConfiguration = InventoryPreviewData.settingsState().syncConfiguration,
             appPreferences = InventoryPreviewData.settingsState().appPreferences,
             onDismiss = {},
-            onSaveImportedComponent = {},
-            onOpenFullEditor = {},
+            onSaveImportedComponent = { _, _ -> },
+            onOpenFullEditor = { _, _ -> },
         )
     }
 }
