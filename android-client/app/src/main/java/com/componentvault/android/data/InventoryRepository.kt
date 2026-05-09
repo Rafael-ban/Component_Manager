@@ -8,6 +8,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.provider.Settings
 import androidx.annotation.StringRes
 import com.componentvault.android.R
+import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.DashboardSnapshot
@@ -156,6 +157,21 @@ class InventoryRepository(
         )
     }
 
+    fun loadAppPreferences(): AppPreferences {
+        ensureDefaultSettings()
+        return AppPreferences(
+            defaultImportLocation = preferences.getString(KEY_DEFAULT_IMPORT_LOCATION, "") ?: "",
+            lastImportLocation = preferences.getString(KEY_LAST_IMPORT_LOCATION, "") ?: "",
+            defaultImportMinStock = preferences.getInt(KEY_DEFAULT_IMPORT_MIN_STOCK, 0),
+            rememberLastImportLocation = preferences.getBoolean(KEY_REMEMBER_LAST_IMPORT_LOCATION, true),
+            syncAfterLocalChanges = preferences.getBoolean(
+                KEY_SYNC_AFTER_LOCAL_CHANGES,
+                preferences.getBoolean(KEY_AUTO_SYNC_ENABLED, false),
+            ),
+            scannerAutoZoomEnabled = preferences.getBoolean(KEY_SCANNER_AUTO_ZOOM_ENABLED, true),
+        )
+    }
+
     fun saveSyncConfiguration(
         serverBaseUrl: String,
         apiToken: String,
@@ -172,6 +188,31 @@ class InventoryRepository(
             isSuccess = true,
             message = text(R.string.sync_settings_saved_local),
         )
+    }
+
+    fun saveAppPreferences(
+        preferencesState: AppPreferences,
+    ): OperationResult {
+        ensureDefaultSettings()
+        preferences.edit()
+            .putString(KEY_DEFAULT_IMPORT_LOCATION, preferencesState.defaultImportLocation.trim())
+            .putInt(KEY_DEFAULT_IMPORT_MIN_STOCK, preferencesState.defaultImportMinStock.coerceAtLeast(0))
+            .putBoolean(KEY_REMEMBER_LAST_IMPORT_LOCATION, preferencesState.rememberLastImportLocation)
+            .putBoolean(KEY_SYNC_AFTER_LOCAL_CHANGES, preferencesState.syncAfterLocalChanges)
+            .putBoolean(KEY_SCANNER_AUTO_ZOOM_ENABLED, preferencesState.scannerAutoZoomEnabled)
+            .apply()
+
+        return OperationResult(
+            isSuccess = true,
+            message = text(R.string.sync_settings_saved_local),
+        )
+    }
+
+    fun rememberLastImportLocation(location: String) {
+        ensureDefaultSettings()
+        preferences.edit()
+            .putString(KEY_LAST_IMPORT_LOCATION, location.trim())
+            .apply()
     }
 
     suspend fun saveComponent(draft: ComponentDraft): OperationResult = withContext(Dispatchers.IO) {
@@ -494,12 +535,51 @@ class InventoryRepository(
     }
 
     private fun ensureDefaultSettings() {
+        val editor = preferences.edit()
+        var changed = false
+
         if (!preferences.contains(KEY_DEVICE_ID)) {
-            preferences.edit()
-                .putString(KEY_DEVICE_ID, defaultDeviceId())
-                .putString(KEY_LAST_SYNCED_AT, text(R.string.sync_never))
-                .putString(KEY_LAST_SYNC_MESSAGE, text(R.string.sync_no_sync_yet))
-                .apply()
+            editor.putString(KEY_DEVICE_ID, defaultDeviceId())
+            changed = true
+        }
+        if (!preferences.contains(KEY_LAST_SYNCED_AT)) {
+            editor.putString(KEY_LAST_SYNCED_AT, text(R.string.sync_never))
+            changed = true
+        }
+        if (!preferences.contains(KEY_LAST_SYNC_MESSAGE)) {
+            editor.putString(KEY_LAST_SYNC_MESSAGE, text(R.string.sync_no_sync_yet))
+            changed = true
+        }
+        if (!preferences.contains(KEY_DEFAULT_IMPORT_LOCATION)) {
+            editor.putString(KEY_DEFAULT_IMPORT_LOCATION, "")
+            changed = true
+        }
+        if (!preferences.contains(KEY_LAST_IMPORT_LOCATION)) {
+            editor.putString(KEY_LAST_IMPORT_LOCATION, "")
+            changed = true
+        }
+        if (!preferences.contains(KEY_DEFAULT_IMPORT_MIN_STOCK)) {
+            editor.putInt(KEY_DEFAULT_IMPORT_MIN_STOCK, 0)
+            changed = true
+        }
+        if (!preferences.contains(KEY_REMEMBER_LAST_IMPORT_LOCATION)) {
+            editor.putBoolean(KEY_REMEMBER_LAST_IMPORT_LOCATION, true)
+            changed = true
+        }
+        if (!preferences.contains(KEY_SYNC_AFTER_LOCAL_CHANGES)) {
+            editor.putBoolean(
+                KEY_SYNC_AFTER_LOCAL_CHANGES,
+                preferences.getBoolean(KEY_AUTO_SYNC_ENABLED, false),
+            )
+            changed = true
+        }
+        if (!preferences.contains(KEY_SCANNER_AUTO_ZOOM_ENABLED)) {
+            editor.putBoolean(KEY_SCANNER_AUTO_ZOOM_ENABLED, true)
+            changed = true
+        }
+
+        if (changed) {
+            editor.apply()
         }
     }
 
@@ -1000,6 +1080,12 @@ class InventoryRepository(
         const val KEY_AUTO_SYNC_ENABLED = "auto_sync_enabled"
         const val KEY_LAST_SYNCED_AT = "last_synced_at"
         const val KEY_LAST_SYNC_MESSAGE = "last_sync_message"
+        const val KEY_DEFAULT_IMPORT_LOCATION = "default_import_location"
+        const val KEY_LAST_IMPORT_LOCATION = "last_import_location"
+        const val KEY_DEFAULT_IMPORT_MIN_STOCK = "default_import_min_stock"
+        const val KEY_REMEMBER_LAST_IMPORT_LOCATION = "remember_last_import_location"
+        const val KEY_SYNC_AFTER_LOCAL_CHANGES = "sync_after_local_changes"
+        const val KEY_SCANNER_AUTO_ZOOM_ENABLED = "scanner_auto_zoom_enabled"
 
         val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter
             .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")

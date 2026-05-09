@@ -5,6 +5,8 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.3.0] - 2026-05-09
+
 - Removed the repository-pinned Android JDK path from `android-client/gradle.properties`
   so GitHub Actions and other non-Windows environments can use their own
   configured Java runtime.
@@ -20,6 +22,17 @@ bump: patch
 - Stabilized Android Compose Preview by moving preview rendering onto static
   string bundles and content-level preview composables instead of direct
   preview-time `R.string` resolution.
+- Reworked the Android inventory flow around scroll-safe `Scaffold` inset
+  handling, pinned JLC import actions, and quantity-first import confirmation
+  so phone previews and runtime scrolling behave like a native list-first
+  inventory app instead of a clipped card stack.
+- Added Android JLC/LCSC-style text import and package QR import through
+  Google Code Scanner, mapping JLC item numbers into local `sku`, pre-filling
+  most fields, and storing extra import metadata in the existing
+  `description` field without changing sync APIs or the SQLite schema.
+- Expanded Android settings with separate sync-on-launch vs sync-after-write
+  controls, import defaults, scanner preferences, and an in-app About section
+  for `0.3.0`.
 - Rebuilt the Windows WinUI shell around an inventory-first desktop workflow
   with `Inventory`, `Movements`, `Overview`, and `Settings`, plus denser
   list/detail pages, grouped sync settings, and refreshed XAML designer sample

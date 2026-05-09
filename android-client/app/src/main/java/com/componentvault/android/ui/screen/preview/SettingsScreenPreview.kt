@@ -1,6 +1,7 @@
 package com.componentvault.android.ui.screen.preview
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.PaddingValues
 import com.componentvault.android.ui.screen.InventoryLayoutMode
 import com.componentvault.android.ui.screen.InventoryWidthClass
 import com.componentvault.android.ui.screen.SettingsContent
@@ -11,8 +12,9 @@ private fun SettingsPhonePreview() {
     PreviewHost {
         val uiState = InventoryPreviewData.settingsState()
         SettingsContent(
-            modifier = androidx.compose.ui.Modifier,
+            contentPadding = PaddingValues(),
             syncConfiguration = uiState.syncConfiguration,
+            appPreferences = uiState.appPreferences,
             isBusy = uiState.isBusy,
             statusMessage = uiState.statusMessage,
             layoutMode = InventoryLayoutMode(
@@ -21,7 +23,8 @@ private fun SettingsPhonePreview() {
                 showsListDetail = false,
                 prefersDialogForms = false,
             ),
-            onSaveSettings = { _, _, _ -> },
+            onSaveSyncSettings = { _, _, _ -> },
+            onSaveAppPreferences = {},
             onTestConnection = {},
             onSyncNow = {},
         )
@@ -34,8 +37,9 @@ private fun SettingsBusyPreview() {
     PreviewHost {
         val uiState = InventoryPreviewData.busySettingsState()
         SettingsContent(
-            modifier = androidx.compose.ui.Modifier,
+            contentPadding = PaddingValues(),
             syncConfiguration = uiState.syncConfiguration,
+            appPreferences = uiState.appPreferences,
             isBusy = uiState.isBusy,
             statusMessage = uiState.statusMessage,
             layoutMode = InventoryLayoutMode(
@@ -44,7 +48,8 @@ private fun SettingsBusyPreview() {
                 showsListDetail = false,
                 prefersDialogForms = false,
             ),
-            onSaveSettings = { _, _, _ -> },
+            onSaveSyncSettings = { _, _, _ -> },
+            onSaveAppPreferences = {},
             onTestConnection = {},
             onSyncNow = {},
         )

@@ -66,13 +66,14 @@ connects to it over HTTP.
   and unpackaged portable `dotnet publish` was verified successfully on
   `2026-05-08`.
 - Android native client: local SQLite, component editing, movement recording,
-  sync settings, server sync wiring, and Chinese-first Compose interface
-  resources are implemented; the Android UI now follows an inventory-first
-  adaptive Compose shell with `Inventory`, `Movements`, `Overview`, and
-  `Settings` destinations, compact phone detail drill-down, and tablet
-  list-detail layouts; `help`, `assembleDebug`, and `assembleRelease` were
-  verified successfully on `2026-05-08` on this host with the configured
-  Android SDK and JDK paths.
+  JLC text and QR import, expanded settings, server sync wiring, and
+  Chinese-first Compose interface resources are implemented; the Android UI now
+  follows an inventory-first adaptive Compose shell with `Inventory`,
+  `Movements`, `Overview`, and `Settings` destinations, compact phone detail
+  drill-down, tablet list-detail layouts, quantity-first JLC import
+  confirmation, and scroll-safe `Scaffold` inset handling; `help`,
+  `assembleDebug`, and `assembleRelease` were verified successfully on
+  `2026-05-09` on this host with the configured Android SDK and JDK paths.
 - Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
   separate `admin-web/` React application; backend `pytest` and `admin-web`
   production build were both verified successfully on `2026-05-08`.
@@ -157,7 +158,12 @@ preferences and supports:
 
 - component create/edit/soft delete
 - inventory movement entry
+- JLC copied-text import with automatic field mapping
+- JLC package QR import through Google Code Scanner without adding direct
+  camera permission handling to the app
 - sync settings save/test/sync-now
+- separate sync-on-launch and sync-after-write behavior controls
+- import defaults, scanner preferences, and an in-app About section
 - push/pull against the FastAPI sync service
 - Chinese-first UI resources for the primary screens, with a matching
   Simplified Chinese (`zh-CN`) resource set

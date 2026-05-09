@@ -26,17 +26,23 @@
   `Inventory`, `Movements`, `Overview`, and `Settings`.
 - `Inventory` is the default high-frequency workflow and uses dense search,
   filter, and list-first layouts on phones, plus persistent list-detail panes
-  on larger widths.
+  on larger widths. It now also includes quantity-first JLC import flows for
+  copied mobile product text and package QR payloads.
 - `Movements` uses the same adaptive approach: compact history-first layouts on
   phones and split history/detail arrangements on larger widths.
 - `Overview` is now a summary surface that routes users back into inventory or
   movement flows rather than acting as the primary editing page.
 - `Settings` is organized as grouped sync forms and status blocks instead of
-  large summary-card stacks.
+  large summary-card stacks, with local-only import defaults, scanner
+  preferences, and an About section.
 - The app writes locally first, queues changed entities, and optionally syncs
   to the FastAPI service.
+- JLC import metadata is mapped into existing component fields and appended to
+  `description` so this workflow does not require sync API or schema changes.
 - Android build verification completed successfully on `2026-05-08` on the
-  current host machine after local SDK and JDK configuration. Preview-focused
+  current host machine after local SDK and JDK configuration. The latest
+  Android `help`, `assembleDebug`, and `assembleRelease` verification completed
+  successfully on `2026-05-09`. Preview-focused
   `Phone`, `Tablet`, `Locale`, `Theme`, `Accessibility`, `Shell`, and `Dialogs`
   surfaces are now isolated under `ui/screen/preview/`.
 
@@ -196,3 +202,12 @@ The native clients persist these sync settings locally:
 - `auto_sync_enabled`
 - `last_synced_at`
 - `last_sync_message`
+
+The Android client also persists local-only app behavior settings:
+
+- `default_import_location`
+- `last_import_location`
+- `default_import_min_stock`
+- `remember_last_import_location`
+- `sync_after_local_changes`
+- `scanner_auto_zoom_enabled`

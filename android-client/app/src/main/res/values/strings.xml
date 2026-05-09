@@ -169,4 +169,47 @@
     <string name="sync_movement_quantity_positive">变动数量必须大于 0。</string>
     <string name="sync_duplicate_active_sku">已存在相同 SKU 的有效元器件。</string>
     <string name="sync_unsupported_movement_type">不支持的变动类型。</string>
+    <string name="action_import_jlc">Import JLC</string>
+
+    <string name="settings_connection_title">Server connection</string>
+    <string name="settings_connection_subtitle">Configure the sync endpoint used by this device.</string>
+    <string name="settings_auth_title">Authentication</string>
+    <string name="settings_auth_subtitle">Store the shared API token locally for sync and health checks.</string>
+    <string name="settings_sync_behavior_title">Sync behavior</string>
+    <string name="settings_sync_behavior_subtitle">Control launch sync and post-write sync independently.</string>
+    <string name="settings_import_preferences_title">Import and scan</string>
+    <string name="settings_import_preferences_subtitle">Default values used by JLC text and QR imports.</string>
+    <string name="settings_about_title">About</string>
+    <string name="settings_about_subtitle">Build information and local storage notes.</string>
+    <string name="settings_sync_on_launch_description">Try syncing automatically when the app launches.</string>
+    <string name="settings_sync_after_writes">Sync after local writes</string>
+    <string name="settings_sync_after_writes_description">Push changes automatically after create, edit, delete, and movement writes.</string>
+    <string name="settings_remember_last_import_location">Remember last import location</string>
+    <string name="settings_remember_last_import_location_description">Reuse the most recent import location as the next default.</string>
+    <string name="settings_scanner_auto_zoom">Scanner auto zoom</string>
+    <string name="settings_scanner_auto_zoom_description">Enable Google Code Scanner auto zoom for small QR labels.</string>
+    <string name="settings_app_version">App version</string>
+    <string name="settings_local_storage">Local storage</string>
+    <string name="settings_local_storage_value">SQLite + SharedPreferences</string>
+    <string name="settings_about_body">Inventory data is stored in SQLite first, then synced to the server on demand.</string>
+
+    <string name="importer_title">Import from JLC</string>
+    <string name="importer_subtitle">Paste JLC item text or scan the package QR code.</string>
+    <string name="importer_supported_format_hint">Supported: mobile copied text and JLC package QR payloads.</string>
+    <string name="importer_raw_input_label">Raw import payload</string>
+    <string name="importer_raw_input_placeholder">Paste the JLC product text or QR payload here.</string>
+    <string name="importer_action_parse_text">Parse import text</string>
+    <string name="importer_action_scan_qr">Scan package QR</string>
+    <string name="importer_action_open_full_editor">Open full editor</string>
+    <string name="importer_recognized_title">Recognized fields</string>
+    <string name="importer_recognized_subtitle">SKU uses the JLC item number so active inventory stays unique.</string>
+    <string name="importer_source_label">Import source</string>
+    <string name="importer_model_label">Model</string>
+    <string name="importer_brand_label">Brand</string>
+    <string name="importer_import_detail_title">Quantity-first confirmation</string>
+    <string name="importer_quantity_hint">Most fields are already mapped. Usually only quantity needs attention.</string>
+    <string name="importer_import_preview_title">Description preview</string>
+    <string name="importer_parse_first_error">Parse a JLC payload before saving.</string>
+    <string name="importer_scan_cancelled">Scan cancelled.</string>
+    <string name="importer_scan_failed_pattern">Scan failed: %1$s</string>
 </resources>

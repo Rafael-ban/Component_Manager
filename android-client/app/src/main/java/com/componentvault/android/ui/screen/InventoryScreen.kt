@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,7 +52,7 @@ import com.componentvault.android.ui.theme.VaultWarningContainer
 
 @Composable
 internal fun InventoryScreen(
-    modifier: Modifier,
+    contentPadding: PaddingValues,
     uiState: InventoryScreenUiState,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
@@ -62,12 +63,13 @@ internal fun InventoryScreen(
     onSortChange: (InventorySortOption) -> Unit,
     onSelectComponent: (String) -> Unit,
     onOpenComponentDetail: (String) -> Unit,
+    onImportComponent: () -> Unit,
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
 ) {
     InventoryContent(
-        modifier = modifier,
+        contentPadding = contentPadding,
         uiState = uiState,
         statusMessage = statusMessage,
         layoutMode = layoutMode,
@@ -78,6 +80,7 @@ internal fun InventoryScreen(
         onSortChange = onSortChange,
         onSelectComponent = onSelectComponent,
         onOpenComponentDetail = onOpenComponentDetail,
+        onImportComponent = onImportComponent,
         onEditComponent = onEditComponent,
         onRequestDeleteComponent = onRequestDeleteComponent,
         onRecordMovement = onRecordMovement,
@@ -86,7 +89,7 @@ internal fun InventoryScreen(
 
 @Composable
 internal fun InventoryContent(
-    modifier: Modifier,
+    contentPadding: PaddingValues,
     uiState: InventoryScreenUiState,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
@@ -97,6 +100,7 @@ internal fun InventoryContent(
     onSortChange: (InventorySortOption) -> Unit,
     onSelectComponent: (String) -> Unit,
     onOpenComponentDetail: (String) -> Unit,
+    onImportComponent: () -> Unit,
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
@@ -105,9 +109,10 @@ internal fun InventoryContent(
 
     if (layoutMode.showsListDetail) {
         Row(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp),
+                .consumeWindowInsets(contentPadding)
+                .padding(rememberContentPadding(contentPadding, horizontal = 20.dp, vertical = 20.dp)),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             InventoryListPane(
@@ -121,6 +126,7 @@ internal fun InventoryContent(
                 onCategoryChange = onCategoryChange,
                 onLocationChange = onLocationChange,
                 onSortChange = onSortChange,
+                onImportComponent = onImportComponent,
                 onSelectComponent = onSelectComponent,
                 onOpenComponentDetail = onSelectComponent,
             )
@@ -135,52 +141,50 @@ internal fun InventoryContent(
             )
         }
     } else {
-        Column(
-            modifier = modifier
+        LazyColumn(
+            modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .consumeWindowInsets(contentPadding),
+            contentPadding = rememberContentPadding(contentPadding, horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            InventoryFilterBar(
-                uiState = uiState,
-                statusMessage = statusMessage,
-                onQueryChange = onQueryChange,
-                onStockFilterChange = onStockFilterChange,
-                onCategoryChange = onCategoryChange,
-                onLocationChange = onLocationChange,
-                onSortChange = onSortChange,
-            )
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
+            item {
+                InventoryFilterBar(
+                    uiState = uiState,
+                    statusMessage = statusMessage,
+                    onQueryChange = onQueryChange,
+                    onStockFilterChange = onStockFilterChange,
+                    onCategoryChange = onCategoryChange,
+                    onLocationChange = onLocationChange,
+                    onSortChange = onSortChange,
+                    onImportComponent = onImportComponent,
+                )
+            }
+            item {
+                Text(
+                    text = strings.inventory.resultsSummary(
+                        uiState.list.items.size,
+                        uiState.availableCategories.size,
+                        uiState.availableLocations.size,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (uiState.list.items.isEmpty()) {
                 item {
-                    Text(
-                        text = strings.inventory.resultsSummary(
-                            uiState.list.items.size,
-                            uiState.availableCategories.size,
-                            uiState.availableLocations.size,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    EmptyPane(strings.common.emptyNoComponentsMatchFilter)
                 }
-                if (uiState.list.items.isEmpty()) {
-                    item {
-                        EmptyPane(strings.common.emptyNoComponentsMatchFilter)
-                    }
-                } else {
-                    items(uiState.list.items, key = { it.id }) { item ->
-                        InventoryListRow(
-                            item = item,
-                            selected = item.id == uiState.list.selectedComponentId,
-                            onClick = {
-                                onSelectComponent(item.id)
-                                onOpenComponentDetail(item.id)
-                            },
-                        )
-                    }
+            } else {
+                items(uiState.list.items, key = { it.id }) { item ->
+                    InventoryListRow(
+                        item = item,
+                        selected = item.id == uiState.list.selectedComponentId,
+                        onClick = {
+                            onSelectComponent(item.id)
+                            onOpenComponentDetail(item.id)
+                        },
+                    )
                 }
             }
         }
@@ -228,8 +232,8 @@ internal fun InventoryDetailRoute(
             ),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+                .consumeWindowInsets(padding),
+            contentPadding = rememberContentPadding(padding, horizontal = 16.dp, vertical = 16.dp),
             onEditComponent = onEditComponent,
             onRequestDeleteComponent = onRequestDeleteComponent,
             onRecordMovement = onRecordMovement,
@@ -247,6 +251,7 @@ private fun InventoryListPane(
     onCategoryChange: (String?) -> Unit,
     onLocationChange: (String?) -> Unit,
     onSortChange: (InventorySortOption) -> Unit,
+    onImportComponent: () -> Unit,
     onSelectComponent: (String) -> Unit,
     onOpenComponentDetail: (String) -> Unit,
 ) {
@@ -264,6 +269,7 @@ private fun InventoryListPane(
             onCategoryChange = onCategoryChange,
             onLocationChange = onLocationChange,
             onSortChange = onSortChange,
+            onImportComponent = onImportComponent,
         )
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -311,6 +317,7 @@ private fun InventoryFilterBar(
     onCategoryChange: (String?) -> Unit,
     onLocationChange: (String?) -> Unit,
     onSortChange: (InventorySortOption) -> Unit,
+    onImportComponent: () -> Unit,
 ) {
     val strings = vaultStrings()
     var categoryMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -322,6 +329,12 @@ private fun InventoryFilterBar(
         supporting = strings.inventory.filtersSubtitle,
     ) {
         StatusBanner(message = statusMessage)
+        FilledTonalButton(
+            onClick = onImportComponent,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.common.actionImport)
+        }
         OutlinedTextField(
             value = uiState.filters.query,
             onValueChange = onQueryChange,
@@ -457,6 +470,7 @@ private fun FilterMenuButton(
 internal fun InventoryDetailPane(
     detail: InventoryDetailUiState,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(bottom = 12.dp),
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
@@ -465,7 +479,7 @@ internal fun InventoryDetailPane(
 
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(bottom = 12.dp),
+        contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val component = detail.component

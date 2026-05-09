@@ -2,15 +2,15 @@ package com.componentvault.android.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -29,26 +29,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.componentvault.android.BuildConfig
+import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.SyncConfiguration
 
 @Composable
 internal fun SettingsScreen(
-    modifier: Modifier,
+    contentPadding: PaddingValues,
     syncConfiguration: SyncConfiguration,
+    appPreferences: AppPreferences,
     isBusy: Boolean,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
-    onSaveSettings: (String, String, Boolean) -> Unit,
+    onSaveSyncSettings: (String, String, Boolean) -> Unit,
+    onSaveAppPreferences: (AppPreferences) -> Unit,
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
 ) {
     SettingsContent(
-        modifier = modifier,
+        contentPadding = contentPadding,
         syncConfiguration = syncConfiguration,
+        appPreferences = appPreferences,
         isBusy = isBusy,
         statusMessage = statusMessage,
         layoutMode = layoutMode,
-        onSaveSettings = onSaveSettings,
+        onSaveSyncSettings = onSaveSyncSettings,
+        onSaveAppPreferences = onSaveAppPreferences,
         onTestConnection = onTestConnection,
         onSyncNow = onSyncNow,
     )
@@ -56,15 +62,18 @@ internal fun SettingsScreen(
 
 @Composable
 internal fun SettingsContent(
-    modifier: Modifier,
+    contentPadding: PaddingValues,
     syncConfiguration: SyncConfiguration,
+    appPreferences: AppPreferences,
     isBusy: Boolean,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
-    onSaveSettings: (String, String, Boolean) -> Unit,
+    onSaveSyncSettings: (String, String, Boolean) -> Unit,
+    onSaveAppPreferences: (AppPreferences) -> Unit,
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
 ) {
+    val strings = vaultStrings()
     var serverUrl by remember(syncConfiguration.serverBaseUrl) {
         mutableStateOf(syncConfiguration.serverBaseUrl)
     }
@@ -74,83 +83,165 @@ internal fun SettingsContent(
     var autoSyncEnabled by remember(syncConfiguration.autoSyncEnabled) {
         mutableStateOf(syncConfiguration.autoSyncEnabled)
     }
+    var defaultImportLocation by remember(appPreferences.defaultImportLocation) {
+        mutableStateOf(appPreferences.defaultImportLocation)
+    }
+    var defaultImportMinStockText by remember(appPreferences.defaultImportMinStock) {
+        mutableStateOf(appPreferences.defaultImportMinStock.toString())
+    }
+    var rememberLastImportLocation by remember(appPreferences.rememberLastImportLocation) {
+        mutableStateOf(appPreferences.rememberLastImportLocation)
+    }
+    var syncAfterLocalChanges by remember(appPreferences.syncAfterLocalChanges) {
+        mutableStateOf(appPreferences.syncAfterLocalChanges)
+    }
+    var scannerAutoZoomEnabled by remember(appPreferences.scannerAutoZoomEnabled) {
+        mutableStateOf(appPreferences.scannerAutoZoomEnabled)
+    }
     var showToken by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val saveDraft = {
-        onSaveSettings(serverUrl, apiToken, autoSyncEnabled)
+    val saveDraft: () -> Boolean = {
+        val minStock = defaultImportMinStockText.toIntOrNull()
+        if (minStock == null || minStock < 0) {
+            errorMessage = strings.forms.componentNonNegative
+            false
+        } else {
+            errorMessage = null
+            onSaveSyncSettings(serverUrl, apiToken, autoSyncEnabled)
+            onSaveAppPreferences(
+                AppPreferences(
+                    defaultImportLocation = defaultImportLocation.trim(),
+                    lastImportLocation = appPreferences.lastImportLocation,
+                    defaultImportMinStock = minStock,
+                    rememberLastImportLocation = rememberLastImportLocation,
+                    syncAfterLocalChanges = syncAfterLocalChanges,
+                    scannerAutoZoomEnabled = scannerAutoZoomEnabled,
+                ),
+            )
+            true
+        }
     }
 
     if (layoutMode.showsListDetail) {
         Row(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp),
+                .consumeWindowInsets(contentPadding)
+                .padding(rememberContentPadding(contentPadding, horizontal = 20.dp, vertical = 20.dp)),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            SettingsSummaryPane(
-                syncConfiguration = syncConfiguration,
-                statusMessage = statusMessage,
+            LazyColumn(
                 modifier = Modifier
-                    .weight(0.9f)
+                    .weight(0.92f)
                     .fillMaxHeight(),
-            )
-            SettingsFormPane(
-                serverUrl = serverUrl,
-                onServerUrlChange = { serverUrl = it },
-                apiToken = apiToken,
-                onApiTokenChange = { apiToken = it },
-                autoSyncEnabled = autoSyncEnabled,
-                onAutoSyncChange = { autoSyncEnabled = it },
-                showToken = showToken,
-                onToggleToken = { showToken = !showToken },
-                isBusy = isBusy,
-                onSave = saveDraft,
-                onTestConnection = {
-                    saveDraft()
-                    onTestConnection()
-                },
-                onSyncNow = {
-                    saveDraft()
-                    onSyncNow()
-                },
-                modifier = Modifier
-                    .weight(1.1f)
-                    .fillMaxHeight(),
-            )
-        }
-    } else {
-        LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item {
-                SettingsSummaryPane(
-                    syncConfiguration = syncConfiguration,
-                    statusMessage = statusMessage,
-                )
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item {
+                    SettingsSummaryPane(
+                        syncConfiguration = syncConfiguration,
+                        appPreferences = appPreferences,
+                        statusMessage = statusMessage,
+                    )
+                }
+                item {
+                    SettingsAboutPane()
+                }
             }
-            item {
-                SettingsFormPane(
+
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1.08f)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                settingsFormItems(
                     serverUrl = serverUrl,
                     onServerUrlChange = { serverUrl = it },
                     apiToken = apiToken,
                     onApiTokenChange = { apiToken = it },
                     autoSyncEnabled = autoSyncEnabled,
                     onAutoSyncChange = { autoSyncEnabled = it },
+                    defaultImportLocation = defaultImportLocation,
+                    onDefaultImportLocationChange = { defaultImportLocation = it },
+                    defaultImportMinStockText = defaultImportMinStockText,
+                    onDefaultImportMinStockChange = { defaultImportMinStockText = it },
+                    rememberLastImportLocation = rememberLastImportLocation,
+                    onRememberLastImportLocationChange = { rememberLastImportLocation = it },
+                    syncAfterLocalChanges = syncAfterLocalChanges,
+                    onSyncAfterLocalChangesChange = { syncAfterLocalChanges = it },
+                    scannerAutoZoomEnabled = scannerAutoZoomEnabled,
+                    onScannerAutoZoomEnabledChange = { scannerAutoZoomEnabled = it },
+                    strings = strings,
                     showToken = showToken,
                     onToggleToken = { showToken = !showToken },
                     isBusy = isBusy,
+                    errorMessage = errorMessage,
                     onSave = saveDraft,
                     onTestConnection = {
-                        saveDraft()
-                        onTestConnection()
+                        if (saveDraft()) {
+                            onTestConnection()
+                        }
                     },
                     onSyncNow = {
-                        saveDraft()
-                        onSyncNow()
+                        if (saveDraft()) {
+                            onSyncNow()
+                        }
                     },
                 )
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .consumeWindowInsets(contentPadding),
+            contentPadding = rememberContentPadding(contentPadding, horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                SettingsSummaryPane(
+                    syncConfiguration = syncConfiguration,
+                    appPreferences = appPreferences,
+                    statusMessage = statusMessage,
+                )
+            }
+            settingsFormItems(
+                serverUrl = serverUrl,
+                onServerUrlChange = { serverUrl = it },
+                apiToken = apiToken,
+                onApiTokenChange = { apiToken = it },
+                autoSyncEnabled = autoSyncEnabled,
+                onAutoSyncChange = { autoSyncEnabled = it },
+                defaultImportLocation = defaultImportLocation,
+                onDefaultImportLocationChange = { defaultImportLocation = it },
+                defaultImportMinStockText = defaultImportMinStockText,
+                onDefaultImportMinStockChange = { defaultImportMinStockText = it },
+                rememberLastImportLocation = rememberLastImportLocation,
+                onRememberLastImportLocationChange = { rememberLastImportLocation = it },
+                syncAfterLocalChanges = syncAfterLocalChanges,
+                onSyncAfterLocalChangesChange = { syncAfterLocalChanges = it },
+                scannerAutoZoomEnabled = scannerAutoZoomEnabled,
+                onScannerAutoZoomEnabledChange = { scannerAutoZoomEnabled = it },
+                strings = strings,
+                showToken = showToken,
+                onToggleToken = { showToken = !showToken },
+                isBusy = isBusy,
+                errorMessage = errorMessage,
+                onSave = saveDraft,
+                onTestConnection = {
+                    if (saveDraft()) {
+                        onTestConnection()
+                    }
+                },
+                onSyncNow = {
+                    if (saveDraft()) {
+                        onSyncNow()
+                    }
+                },
+            )
+            item {
+                SettingsAboutPane()
             }
         }
     }
@@ -159,15 +250,14 @@ internal fun SettingsContent(
 @Composable
 private fun SettingsSummaryPane(
     syncConfiguration: SyncConfiguration,
+    appPreferences: AppPreferences,
     statusMessage: String,
-    modifier: Modifier = Modifier,
 ) {
     val strings = vaultStrings()
 
     SectionPane(
         title = strings.settings.summaryTitle,
         supporting = strings.settings.summarySubtitle,
-        modifier = modifier,
     ) {
         StatusBanner(message = statusMessage)
         ValueBlock(
@@ -186,106 +276,229 @@ private fun SettingsSummaryPane(
             label = strings.settings.lastResult,
             value = syncConfiguration.lastSyncMessage,
         )
+        ValueBlock(
+            label = strings.common.fieldLocation,
+            value = appPreferences.suggestedImportLocation.ifBlank { strings.common.labelNotConfigured },
+        )
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SettingsFormPane(
+private fun SettingsAboutPane() {
+    val strings = vaultStrings()
+
+    SectionPane(
+        title = strings.settings.aboutTitle,
+        supporting = strings.settings.aboutSubtitle,
+    ) {
+        ValueBlock(
+            label = strings.settings.appVersion,
+            value = BuildConfig.VERSION_NAME,
+        )
+        ValueBlock(
+            label = strings.settings.localStorage,
+            value = strings.settings.localStorageValue,
+        )
+        Text(
+            text = strings.settings.aboutBody,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun LazyListScope.settingsFormItems(
     serverUrl: String,
     onServerUrlChange: (String) -> Unit,
     apiToken: String,
     onApiTokenChange: (String) -> Unit,
     autoSyncEnabled: Boolean,
     onAutoSyncChange: (Boolean) -> Unit,
+    defaultImportLocation: String,
+    onDefaultImportLocationChange: (String) -> Unit,
+    defaultImportMinStockText: String,
+    onDefaultImportMinStockChange: (String) -> Unit,
+    rememberLastImportLocation: Boolean,
+    onRememberLastImportLocationChange: (Boolean) -> Unit,
+    syncAfterLocalChanges: Boolean,
+    onSyncAfterLocalChangesChange: (Boolean) -> Unit,
+    scannerAutoZoomEnabled: Boolean,
+    onScannerAutoZoomEnabledChange: (Boolean) -> Unit,
+    strings: ComponentVaultStrings,
     showToken: Boolean,
     onToggleToken: () -> Unit,
     isBusy: Boolean,
-    onSave: () -> Unit,
+    errorMessage: String?,
+    onSave: () -> Boolean,
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    val strings = vaultStrings()
-
-    SectionPane(
-        title = strings.settings.formTitle,
-        supporting = strings.settings.formSubtitle,
-        modifier = modifier,
-    ) {
-        OutlinedTextField(
-            value = serverUrl,
-            onValueChange = onServerUrlChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(strings.common.fieldServerUrl) },
-            placeholder = { Text(strings.settings.serverUrlPlaceholder) },
-            singleLine = true,
-        )
-        OutlinedTextField(
-            value = apiToken,
-            onValueChange = onApiTokenChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(strings.common.fieldApiToken) },
-            singleLine = true,
-            visualTransformation = if (showToken) {
-                VisualTransformation.None
-            } else {
-                PasswordVisualTransformation()
-            },
-        )
-        TextButton(onClick = onToggleToken) {
-            Text(
-                if (showToken) {
-                    strings.common.actionHideToken
-                } else {
-                    strings.common.actionShowToken
-                },
+    item {
+        SectionPane(
+            title = strings.settings.connectionTitle,
+            supporting = strings.settings.connectionSubtitle,
+        ) {
+            OutlinedTextField(
+                value = serverUrl,
+                onValueChange = onServerUrlChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(strings.common.fieldServerUrl) },
+                placeholder = { Text(strings.settings.serverUrlPlaceholder) },
+                singleLine = true,
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    }
+    item {
+        SectionPane(
+            title = strings.settings.authTitle,
+            supporting = strings.settings.authSubtitle,
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
+            OutlinedTextField(
+                value = apiToken,
+                onValueChange = onApiTokenChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(strings.common.fieldApiToken) },
+                singleLine = true,
+                visualTransformation = if (showToken) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+            )
+            TextButton(onClick = onToggleToken) {
                 Text(
-                    text = strings.settings.autoSync,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    text = strings.settings.autoSyncDescription,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    if (showToken) {
+                        strings.common.actionHideToken
+                    } else {
+                        strings.common.actionShowToken
+                    },
                 )
             }
-            Switch(
+        }
+    }
+    item {
+        SectionPane(
+            title = strings.settings.syncBehaviorTitle,
+            supporting = strings.settings.syncBehaviorSubtitle,
+        ) {
+            SettingsToggleRow(
+                title = strings.settings.syncOnLaunch,
+                subtitle = strings.settings.syncOnLaunchDescription,
                 checked = autoSyncEnabled,
                 onCheckedChange = onAutoSyncChange,
             )
+            SettingsToggleRow(
+                title = strings.settings.syncAfterWrites,
+                subtitle = strings.settings.syncAfterWritesDescription,
+                checked = syncAfterLocalChanges,
+                onCheckedChange = onSyncAfterLocalChangesChange,
+            )
         }
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+    }
+    item {
+        SectionPane(
+            title = strings.settings.importPreferencesTitle,
+            supporting = strings.settings.importPreferencesSubtitle,
         ) {
-            Button(onClick = onSave) {
-                Text(strings.common.actionSaveSettings)
+            OutlinedTextField(
+                value = defaultImportLocation,
+                onValueChange = onDefaultImportLocationChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(strings.common.fieldLocation) },
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = defaultImportMinStockText,
+                onValueChange = onDefaultImportMinStockChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(strings.common.fieldMinimumStock) },
+                singleLine = true,
+            )
+            SettingsToggleRow(
+                title = strings.settings.rememberLastImportLocation,
+                subtitle = strings.settings.rememberLastImportLocationDescription,
+                checked = rememberLastImportLocation,
+                onCheckedChange = onRememberLastImportLocationChange,
+            )
+            SettingsToggleRow(
+                title = strings.settings.scannerAutoZoom,
+                subtitle = strings.settings.scannerAutoZoomDescription,
+                checked = scannerAutoZoomEnabled,
+                onCheckedChange = onScannerAutoZoomEnabledChange,
+            )
+        }
+    }
+    item {
+        SectionPane(
+            title = strings.settings.summaryTitle,
+            supporting = strings.settings.summarySubtitle,
+        ) {
+            if (!errorMessage.isNullOrBlank()) {
+                Text(
+                    text = errorMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
-            OutlinedButton(
-                onClick = onTestConnection,
-                enabled = !isBusy,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(strings.common.actionTestConnection)
+                Button(
+                    onClick = { onSave() },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(strings.common.actionSaveSettings)
+                }
+                OutlinedButton(
+                    onClick = onTestConnection,
+                    enabled = !isBusy,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(strings.common.actionTestConnection)
+                }
             }
             OutlinedButton(
                 onClick = onSyncNow,
                 enabled = !isBusy,
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(strings.common.actionSyncNow)
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+        )
     }
 }

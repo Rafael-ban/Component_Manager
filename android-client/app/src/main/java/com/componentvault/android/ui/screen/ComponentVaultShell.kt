@@ -2,6 +2,7 @@ package com.componentvault.android.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -45,10 +46,12 @@ internal fun ComponentVaultAppShell(
     onSelectComponent: (String) -> Unit,
     onOpenComponentDetail: (String) -> Unit,
     onAddComponent: () -> Unit,
+    onImportComponent: () -> Unit,
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String?) -> Unit,
-    onSaveSettings: (String, String, Boolean) -> Unit,
+    onSaveSyncSettings: (String, String, Boolean) -> Unit,
+    onSaveAppPreferences: (com.componentvault.android.model.AppPreferences) -> Unit,
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
     onOpenLowStockInventory: () -> Unit,
@@ -70,10 +73,12 @@ internal fun ComponentVaultAppShell(
         onSelectComponent = onSelectComponent,
         onOpenComponentDetail = onOpenComponentDetail,
         onAddComponent = onAddComponent,
+        onImportComponent = onImportComponent,
         onEditComponent = onEditComponent,
         onRequestDeleteComponent = onRequestDeleteComponent,
         onRecordMovement = onRecordMovement,
-        onSaveSettings = onSaveSettings,
+        onSaveSyncSettings = onSaveSyncSettings,
+        onSaveAppPreferences = onSaveAppPreferences,
         onTestConnection = onTestConnection,
         onSyncNow = onSyncNow,
         onOpenLowStockInventory = onOpenLowStockInventory,
@@ -99,10 +104,12 @@ internal fun ComponentVaultAppShellContent(
     onSelectComponent: (String) -> Unit,
     onOpenComponentDetail: (String) -> Unit,
     onAddComponent: () -> Unit,
+    onImportComponent: () -> Unit,
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String?) -> Unit,
-    onSaveSettings: (String, String, Boolean) -> Unit,
+    onSaveSyncSettings: (String, String, Boolean) -> Unit,
+    onSaveAppPreferences: (com.componentvault.android.model.AppPreferences) -> Unit,
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
     onOpenLowStockInventory: () -> Unit,
@@ -219,7 +226,7 @@ internal fun ComponentVaultAppShellContent(
                 containerColor = MaterialTheme.colorScheme.background,
             ) { padding ->
                 ShellContent(
-                    modifier = Modifier.padding(padding),
+                    contentPadding = padding,
                     uiState = uiState,
                     destination = destination,
                     layoutMode = layoutMode,
@@ -231,10 +238,12 @@ internal fun ComponentVaultAppShellContent(
                     onSortChange = onSortChange,
                     onSelectComponent = onSelectComponent,
                     onOpenComponentDetail = onOpenComponentDetail,
+                    onImportComponent = onImportComponent,
                     onEditComponent = onEditComponent,
                     onRequestDeleteComponent = onRequestDeleteComponent,
                     onRecordMovement = onRecordMovement,
-                    onSaveSettings = onSaveSettings,
+                    onSaveSyncSettings = onSaveSyncSettings,
+                    onSaveAppPreferences = onSaveAppPreferences,
                     onTestConnection = onTestConnection,
                     onSyncNow = onSyncNow,
                     onOpenLowStockInventory = onOpenLowStockInventory,
@@ -265,7 +274,7 @@ internal fun ComponentVaultAppShellContent(
             containerColor = MaterialTheme.colorScheme.background,
         ) { padding ->
             ShellContent(
-                modifier = Modifier.padding(padding),
+                contentPadding = padding,
                 uiState = uiState,
                 destination = destination,
                 layoutMode = layoutMode,
@@ -277,10 +286,12 @@ internal fun ComponentVaultAppShellContent(
                 onSortChange = onSortChange,
                 onSelectComponent = onSelectComponent,
                 onOpenComponentDetail = onOpenComponentDetail,
+                onImportComponent = onImportComponent,
                 onEditComponent = onEditComponent,
                 onRequestDeleteComponent = onRequestDeleteComponent,
                 onRecordMovement = onRecordMovement,
-                onSaveSettings = onSaveSettings,
+                onSaveSyncSettings = onSaveSyncSettings,
+                onSaveAppPreferences = onSaveAppPreferences,
                 onTestConnection = onTestConnection,
                 onSyncNow = onSyncNow,
                 onOpenLowStockInventory = onOpenLowStockInventory,
@@ -295,7 +306,7 @@ internal fun ComponentVaultAppShellContent(
 
 @Composable
 private fun ShellContent(
-    modifier: Modifier,
+    contentPadding: PaddingValues,
     uiState: InventoryUiState,
     destination: InventoryDestination,
     layoutMode: InventoryLayoutMode,
@@ -307,10 +318,12 @@ private fun ShellContent(
     onSortChange: (InventorySortOption) -> Unit,
     onSelectComponent: (String) -> Unit,
     onOpenComponentDetail: (String) -> Unit,
+    onImportComponent: () -> Unit,
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String?) -> Unit,
-    onSaveSettings: (String, String, Boolean) -> Unit,
+    onSaveSyncSettings: (String, String, Boolean) -> Unit,
+    onSaveAppPreferences: (com.componentvault.android.model.AppPreferences) -> Unit,
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
     onOpenLowStockInventory: () -> Unit,
@@ -321,7 +334,7 @@ private fun ShellContent(
 ) {
     when (destination) {
         InventoryDestination.Inventory -> InventoryContent(
-            modifier = modifier,
+            contentPadding = contentPadding,
             uiState = uiState.inventory,
             statusMessage = uiState.statusMessage,
             layoutMode = layoutMode,
@@ -332,13 +345,14 @@ private fun ShellContent(
             onSortChange = onSortChange,
             onSelectComponent = onSelectComponent,
             onOpenComponentDetail = onOpenComponentDetail,
+            onImportComponent = onImportComponent,
             onEditComponent = onEditComponent,
             onRequestDeleteComponent = onRequestDeleteComponent,
             onRecordMovement = { componentId -> onRecordMovement(componentId) },
         )
 
         InventoryDestination.Movements -> MovementsContent(
-            modifier = modifier,
+            contentPadding = contentPadding,
             uiState = uiState.movements,
             statusMessage = uiState.statusMessage,
             layoutMode = layoutMode,
@@ -348,7 +362,7 @@ private fun ShellContent(
         )
 
         InventoryDestination.Overview -> OverviewContent(
-            modifier = modifier,
+            contentPadding = contentPadding,
             uiState = uiState.overview,
             syncConfiguration = uiState.syncConfiguration,
             statusMessage = uiState.statusMessage,
@@ -360,12 +374,14 @@ private fun ShellContent(
         )
 
         InventoryDestination.Settings -> SettingsContent(
-            modifier = modifier,
+            contentPadding = contentPadding,
             syncConfiguration = uiState.syncConfiguration,
+            appPreferences = uiState.appPreferences,
             isBusy = uiState.isBusy,
             statusMessage = uiState.statusMessage,
             layoutMode = layoutMode,
-            onSaveSettings = onSaveSettings,
+            onSaveSyncSettings = onSaveSyncSettings,
+            onSaveAppPreferences = onSaveAppPreferences,
             onTestConnection = onTestConnection,
             onSyncNow = onSyncNow,
         )

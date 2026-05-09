@@ -169,4 +169,47 @@
     <string name="sync_movement_quantity_positive">变动数量必须大于 0。</string>
     <string name="sync_duplicate_active_sku">已存在相同 SKU 的有效元器件。</string>
     <string name="sync_unsupported_movement_type">不支持的变动类型。</string>
+    <string name="action_import_jlc">&#x5BFC;&#x5165;&#x5609;&#x7ACB;&#x521B;</string>
+
+    <string name="settings_connection_title">&#x670D;&#x52A1;&#x5668;&#x8FDE;&#x63A5;</string>
+    <string name="settings_connection_subtitle">&#x914D;&#x7F6E;&#x5F53;&#x524D;&#x8BBE;&#x5907;&#x4F7F;&#x7528;&#x7684;&#x540C;&#x6B65;&#x670D;&#x52A1;&#x7AEF;&#x5730;&#x5740;&#x3002;</string>
+    <string name="settings_auth_title">&#x8BA4;&#x8BC1;&#x4FE1;&#x606F;</string>
+    <string name="settings_auth_subtitle">&#x5728;&#x672C;&#x673A;&#x4FDD;&#x5B58;&#x5171;&#x4EAB; API &#x4EE4;&#x724C;&#xFF0C;&#x7528;&#x4E8E;&#x540C;&#x6B65;&#x548C;&#x8FDE;&#x63A5;&#x68C0;&#x6D4B;&#x3002;</string>
+    <string name="settings_sync_behavior_title">&#x540C;&#x6B65;&#x884C;&#x4E3A;</string>
+    <string name="settings_sync_behavior_subtitle">&#x5206;&#x522B;&#x63A7;&#x5236;&#x542F;&#x52A8;&#x540C;&#x6B65;&#x4E0E;&#x672C;&#x5730;&#x5199;&#x5165;&#x540E;&#x7684;&#x81EA;&#x52A8;&#x540C;&#x6B65;&#x3002;</string>
+    <string name="settings_import_preferences_title">&#x5BFC;&#x5165;&#x4E0E;&#x626B;&#x63CF;</string>
+    <string name="settings_import_preferences_subtitle">&#x8BBE;&#x7F6E;&#x5609;&#x7ACB;&#x521B;&#x6587;&#x672C;&#x5BFC;&#x5165;&#x548C;&#x4E8C;&#x7EF4;&#x7801;&#x5BFC;&#x5165;&#x7684;&#x9ED8;&#x8BA4;&#x503C;&#x3002;</string>
+    <string name="settings_about_title">&#x5173;&#x4E8E;</string>
+    <string name="settings_about_subtitle">&#x6784;&#x5EFA;&#x4FE1;&#x606F;&#x4E0E;&#x672C;&#x5730;&#x5B58;&#x50A8;&#x8BF4;&#x660E;&#x3002;</string>
+    <string name="settings_sync_on_launch_description">&#x5E94;&#x7528;&#x542F;&#x52A8;&#x65F6;&#x81EA;&#x52A8;&#x5C1D;&#x8BD5;&#x540C;&#x6B65;&#x3002;</string>
+    <string name="settings_sync_after_writes">&#x672C;&#x5730;&#x5199;&#x5165;&#x540E;&#x81EA;&#x52A8;&#x540C;&#x6B65;</string>
+    <string name="settings_sync_after_writes_description">&#x521B;&#x5EFA;&#x3001;&#x7F16;&#x8F91;&#x3001;&#x5220;&#x9664;&#x548C;&#x5E93;&#x5B58;&#x53D8;&#x52A8;&#x540E;&#x81EA;&#x52A8;&#x63A8;&#x9001;&#x53D8;&#x66F4;&#x3002;</string>
+    <string name="settings_remember_last_import_location">&#x8BB0;&#x4F4F;&#x4E0A;&#x6B21;&#x5BFC;&#x5165;&#x4ED3;&#x4F4D;</string>
+    <string name="settings_remember_last_import_location_description">&#x5C06;&#x6700;&#x8FD1;&#x4E00;&#x6B21;&#x5BFC;&#x5165;&#x4ED3;&#x4F4D;&#x4F5C;&#x4E3A;&#x4E0B;&#x6B21;&#x9ED8;&#x8BA4;&#x503C;&#x3002;</string>
+    <string name="settings_scanner_auto_zoom">&#x626B;&#x63CF;&#x5668;&#x81EA;&#x52A8;&#x53D8;&#x7126;</string>
+    <string name="settings_scanner_auto_zoom_description">&#x4E3A;&#x8F83;&#x5C0F;&#x7684;&#x4E8C;&#x7EF4;&#x7801;&#x6807;&#x7B7E;&#x542F;&#x7528; Google Code Scanner &#x81EA;&#x52A8;&#x53D8;&#x7126;&#x3002;</string>
+    <string name="settings_app_version">&#x5E94;&#x7528;&#x7248;&#x672C;</string>
+    <string name="settings_local_storage">&#x672C;&#x5730;&#x5B58;&#x50A8;</string>
+    <string name="settings_local_storage_value">SQLite + SharedPreferences</string>
+    <string name="settings_about_body">&#x5E93;&#x5B58;&#x6570;&#x636E;&#x4F1A;&#x5148;&#x5199;&#x5165;&#x672C;&#x5730; SQLite&#xFF0C;&#x518D;&#x6309;&#x9700;&#x540C;&#x6B65;&#x5230;&#x670D;&#x52A1;&#x5668;&#x3002;</string>
+
+    <string name="importer_title">&#x4ECE;&#x5609;&#x7ACB;&#x521B;&#x5BFC;&#x5165;</string>
+    <string name="importer_subtitle">&#x7C98;&#x8D34;&#x5609;&#x7ACB;&#x521B;&#x7269;&#x6599;&#x6587;&#x672C;&#xFF0C;&#x6216;&#x626B;&#x63CF;&#x5305;&#x88C5;&#x4E8C;&#x7EF4;&#x7801;&#x3002;</string>
+    <string name="importer_supported_format_hint">&#x652F;&#x6301;&#xFF1A;&#x624B;&#x673A;&#x7248;&#x590D;&#x5236;&#x6587;&#x672C;&#xFF0C;&#x4EE5;&#x53CA;&#x5609;&#x7ACB;&#x521B;&#x5305;&#x88C5;&#x4E8C;&#x7EF4;&#x7801;&#x8F7D;&#x8377;&#x3002;</string>
+    <string name="importer_raw_input_label">&#x539F;&#x59CB;&#x5BFC;&#x5165;&#x5185;&#x5BB9;</string>
+    <string name="importer_raw_input_placeholder">&#x5728;&#x8FD9;&#x91CC;&#x7C98;&#x8D34;&#x5609;&#x7ACB;&#x521B;&#x5546;&#x54C1;&#x6587;&#x672C;&#x6216;&#x4E8C;&#x7EF4;&#x7801;&#x8F7D;&#x8377;&#x3002;</string>
+    <string name="importer_action_parse_text">&#x89E3;&#x6790;&#x5BFC;&#x5165;&#x6587;&#x672C;</string>
+    <string name="importer_action_scan_qr">&#x626B;&#x63CF;&#x5305;&#x88C5;&#x4E8C;&#x7EF4;&#x7801;</string>
+    <string name="importer_action_open_full_editor">&#x6253;&#x5F00;&#x5B8C;&#x6574;&#x7F16;&#x8F91;&#x5668;</string>
+    <string name="importer_recognized_title">&#x8BC6;&#x522B;&#x7ED3;&#x679C;</string>
+    <string name="importer_recognized_subtitle">SKU &#x4F7F;&#x7528;&#x5609;&#x7ACB;&#x521B;&#x7F16;&#x53F7;&#xFF0C;&#x786E;&#x4FDD;&#x6709;&#x6548;&#x5E93;&#x5B58;&#x4E2D;&#x7684;&#x7269;&#x6599;&#x4FDD;&#x6301;&#x552F;&#x4E00;&#x3002;</string>
+    <string name="importer_source_label">&#x5BFC;&#x5165;&#x6765;&#x6E90;</string>
+    <string name="importer_model_label">&#x578B;&#x53F7;</string>
+    <string name="importer_brand_label">&#x54C1;&#x724C;</string>
+    <string name="importer_import_detail_title">&#x6570;&#x91CF;&#x4F18;&#x5148;&#x786E;&#x8BA4;</string>
+    <string name="importer_quantity_hint">&#x5927;&#x90E8;&#x5206;&#x5B57;&#x6BB5;&#x5DF2;&#x81EA;&#x52A8;&#x6620;&#x5C04;&#xFF0C;&#x901A;&#x5E38;&#x53EA;&#x9700;&#x786E;&#x8BA4;&#x6570;&#x91CF;&#x3002;</string>
+    <string name="importer_import_preview_title">&#x63CF;&#x8FF0;&#x9884;&#x89C8;</string>
+    <string name="importer_parse_first_error">&#x8BF7;&#x5148;&#x89E3;&#x6790;&#x5609;&#x7ACB;&#x521B;&#x5BFC;&#x5165;&#x5185;&#x5BB9;&#xFF0C;&#x518D;&#x4FDD;&#x5B58;&#x3002;</string>
+    <string name="importer_scan_cancelled">&#x5DF2;&#x53D6;&#x6D88;&#x626B;&#x63CF;&#x3002;</string>
+    <string name="importer_scan_failed_pattern">&#x626B;&#x63CF;&#x5931;&#x8D25;&#xFF1A;%1$s</string>
 </resources>

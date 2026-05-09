@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.componentvault.android.R
 import com.componentvault.android.data.InventoryRepository
+import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.DashboardSnapshot
@@ -124,7 +125,21 @@ class InventoryViewModel(
             uiState = uiState.copy(isBusy = true)
             val result = repository.saveComponent(draft)
             reloadState(result.message)
-            if (result.isSuccess && uiState.syncConfiguration.autoSyncEnabled) {
+            if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
+                runSyncInternal()
+            }
+        }
+    }
+
+    fun saveImportedComponent(draft: ComponentDraft) {
+        viewModelScope.launch {
+            uiState = uiState.copy(isBusy = true)
+            val result = repository.saveComponent(draft)
+            if (result.isSuccess && uiState.appPreferences.rememberLastImportLocation) {
+                repository.rememberLastImportLocation(draft.location)
+            }
+            reloadState(result.message)
+            if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
                 runSyncInternal()
             }
         }
@@ -141,7 +156,7 @@ class InventoryViewModel(
             uiState = uiState.copy(isBusy = true)
             val result = repository.softDeleteComponent(componentId)
             reloadState(result.message)
-            if (result.isSuccess && uiState.syncConfiguration.autoSyncEnabled) {
+            if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
                 runSyncInternal()
             }
         }
@@ -152,7 +167,7 @@ class InventoryViewModel(
             uiState = uiState.copy(isBusy = true)
             val result = repository.recordMovement(draft)
             reloadState(result.message)
-            if (result.isSuccess && uiState.syncConfiguration.autoSyncEnabled) {
+            if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
                 runSyncInternal()
             }
         }
@@ -170,6 +185,14 @@ class InventoryViewModel(
         )
         uiState = uiState.copy(
             syncConfiguration = repository.loadSyncConfiguration(),
+            statusMessage = result.message,
+        )
+    }
+
+    fun saveAppPreferences(preferences: AppPreferences) {
+        val result = repository.saveAppPreferences(preferences)
+        uiState = uiState.copy(
+            appPreferences = repository.loadAppPreferences(),
             statusMessage = result.message,
         )
     }
@@ -196,6 +219,7 @@ class InventoryViewModel(
     private suspend fun runSyncInternal() {
         val result = repository.runSync()
         val syncConfiguration = repository.loadSyncConfiguration()
+        val appPreferences = repository.loadAppPreferences()
         allComponentsCache = repository.loadComponents()
         allMovementsCache = repository.loadMovements()
         val dashboardSnapshot = repository.loadDashboardSnapshot()
@@ -204,6 +228,7 @@ class InventoryViewModel(
             availableComponents = allComponentsCache,
             inventory = buildInventoryScreenUiState(),
             movements = buildMovementsUiState(),
+            appPreferences = appPreferences,
             syncConfiguration = syncConfiguration,
             statusMessage = if (result.isSuccess) {
                 syncConfiguration.lastSyncMessage
@@ -217,6 +242,7 @@ class InventoryViewModel(
     private suspend fun reloadState(statusMessage: String? = null) {
         allComponentsCache = repository.loadComponents()
         allMovementsCache = repository.loadMovements()
+        val appPreferences = repository.loadAppPreferences()
         val syncConfiguration = repository.loadSyncConfiguration()
         val dashboardSnapshot = repository.loadDashboardSnapshot()
         uiState = uiState.copy(
@@ -224,6 +250,7 @@ class InventoryViewModel(
             availableComponents = allComponentsCache,
             inventory = buildInventoryScreenUiState(),
             movements = buildMovementsUiState(),
+            appPreferences = appPreferences,
             syncConfiguration = syncConfiguration,
             statusMessage = statusMessage ?: syncConfiguration.lastSyncMessage,
             isBusy = false,

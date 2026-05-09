@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,7 +24,7 @@ import com.componentvault.android.model.StockMovementRecord
 
 @Composable
 internal fun MovementsScreen(
-    modifier: Modifier,
+    contentPadding: PaddingValues,
     uiState: MovementsUiState,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
@@ -32,7 +33,7 @@ internal fun MovementsScreen(
     onRecordMovement: () -> Unit,
 ) {
     MovementsContent(
-        modifier = modifier,
+        contentPadding = contentPadding,
         uiState = uiState,
         statusMessage = statusMessage,
         layoutMode = layoutMode,
@@ -44,7 +45,7 @@ internal fun MovementsScreen(
 
 @Composable
 internal fun MovementsContent(
-    modifier: Modifier,
+    contentPadding: PaddingValues,
     uiState: MovementsUiState,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
@@ -59,9 +60,10 @@ internal fun MovementsContent(
 
     if (layoutMode.showsListDetail) {
         Row(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp),
+                .consumeWindowInsets(contentPadding)
+                .padding(rememberContentPadding(contentPadding, horizontal = 20.dp, vertical = 20.dp)),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(
@@ -121,8 +123,10 @@ internal fun MovementsContent(
         }
     } else {
         LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .consumeWindowInsets(contentPadding),
+            contentPadding = rememberContentPadding(contentPadding, horizontal = 16.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
@@ -169,12 +173,13 @@ internal fun MovementsContent(
 private fun MovementDetailPane(
     movement: StockMovementRecord?,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(bottom = 12.dp),
 ) {
     val strings = vaultStrings()
 
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(bottom = 12.dp),
+        contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (movement == null) {

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.componentvault.android.ui.screen.ComponentEditorSurface
 import com.componentvault.android.ui.screen.InventoryLayoutMode
 import com.componentvault.android.ui.screen.InventoryWidthClass
+import com.componentvault.android.ui.screen.JlcImportSurface
 import com.componentvault.android.ui.screen.MovementEditorSurface
 
 @InventoryDialogPreview
@@ -57,6 +58,25 @@ private fun MovementFormPreview() {
             ),
             onDismiss = {},
             onSave = {},
+        )
+    }
+}
+
+@InventoryDialogPreview
+@Composable
+private fun JlcImportPreview() {
+    PreviewHost {
+        JlcImportSurface(
+            layoutMode = InventoryLayoutMode(
+                widthClass = InventoryWidthClass.Compact,
+                usesNavigationRail = false,
+                showsListDetail = false,
+                prefersDialogForms = false,
+            ),
+            appPreferences = InventoryPreviewData.settingsState().appPreferences,
+            onDismiss = {},
+            onSaveImportedComponent = {},
+            onOpenFullEditor = {},
         )
     }
 }

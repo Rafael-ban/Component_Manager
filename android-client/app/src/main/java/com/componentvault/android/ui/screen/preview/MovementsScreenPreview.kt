@@ -1,6 +1,7 @@
 package com.componentvault.android.ui.screen.preview
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.PaddingValues
 import com.componentvault.android.ui.screen.InventoryLayoutMode
 import com.componentvault.android.ui.screen.InventoryWidthClass
 import com.componentvault.android.ui.screen.MovementsContent
@@ -11,7 +12,7 @@ private fun MovementsPhonePreview() {
     PreviewHost {
         val uiState = InventoryPreviewData.movementsState()
         MovementsContent(
-            modifier = androidx.compose.ui.Modifier,
+            contentPadding = PaddingValues(),
             uiState = uiState.movements,
             statusMessage = uiState.statusMessage,
             layoutMode = InventoryLayoutMode(
@@ -33,7 +34,7 @@ private fun MovementsTabletPreview() {
     PreviewHost {
         val uiState = InventoryPreviewData.movementsState()
         MovementsContent(
-            modifier = androidx.compose.ui.Modifier,
+            contentPadding = PaddingValues(),
             uiState = uiState.movements,
             statusMessage = uiState.statusMessage,
             layoutMode = InventoryLayoutMode(

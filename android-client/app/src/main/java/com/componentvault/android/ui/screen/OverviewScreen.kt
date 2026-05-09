@@ -3,6 +3,7 @@ package com.componentvault.android.ui.screen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,7 +20,7 @@ import com.componentvault.android.model.SyncConfiguration
 
 @Composable
 internal fun OverviewScreen(
-    modifier: Modifier,
+    contentPadding: PaddingValues,
     uiState: OverviewUiState,
     syncConfiguration: SyncConfiguration,
     statusMessage: String,
@@ -30,7 +31,7 @@ internal fun OverviewScreen(
     onOpenSettings: () -> Unit,
 ) {
     OverviewContent(
-        modifier = modifier,
+        contentPadding = contentPadding,
         uiState = uiState,
         syncConfiguration = syncConfiguration,
         statusMessage = statusMessage,
@@ -44,7 +45,7 @@ internal fun OverviewScreen(
 
 @Composable
 internal fun OverviewContent(
-    modifier: Modifier,
+    contentPadding: PaddingValues,
     uiState: OverviewUiState,
     syncConfiguration: SyncConfiguration,
     statusMessage: String,
@@ -57,8 +58,10 @@ internal fun OverviewContent(
     val strings = vaultStrings()
 
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .consumeWindowInsets(contentPadding),
+        contentPadding = rememberContentPadding(contentPadding, horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {

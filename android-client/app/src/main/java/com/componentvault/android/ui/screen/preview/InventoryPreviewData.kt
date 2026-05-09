@@ -1,6 +1,7 @@
 package com.componentvault.android.ui.screen.preview
 
 import com.componentvault.android.model.ComponentRecord
+import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.InventoryDetailUiState
 import com.componentvault.android.model.InventoryFiltersUiState
 import com.componentvault.android.model.InventoryListItemUiState
@@ -278,9 +279,19 @@ internal object InventoryPreviewData {
             items = previewMovements,
             componentCount = previewComponents.size,
         ),
+        appPreferences = previewAppPreferences(),
         syncConfiguration = syncConfiguration,
         isBusy = isBusy,
         statusMessage = statusMessage,
+    )
+
+    private fun previewAppPreferences(): AppPreferences = AppPreferences(
+        defaultImportLocation = "A-01-03",
+        lastImportLocation = "B-04-02",
+        defaultImportMinStock = 12,
+        rememberLastImportLocation = true,
+        syncAfterLocalChanges = true,
+        scannerAutoZoomEnabled = true,
     )
 
     fun overviewState(): InventoryUiState {

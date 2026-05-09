@@ -4,8 +4,11 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.componentvault.android.model.ComponentDraft
+import com.componentvault.android.model.InventoryStockFilter
 
 @Composable
 fun ComponentVaultApp(
@@ -22,7 +25,9 @@ fun ComponentVaultApp(
     var componentEditorTargetId by rememberSaveable { mutableStateOf<String?>(null) }
     var movementEditorVisible by rememberSaveable { mutableStateOf(false) }
     var movementEditorTargetId by rememberSaveable { mutableStateOf<String?>(null) }
+    var importSurfaceVisible by rememberSaveable { mutableStateOf(false) }
     var showDeleteConfirmation by rememberSaveable { mutableStateOf(false) }
+    var componentEditorInitialDraft by remember { mutableStateOf<ComponentDraft?>(null) }
 
     val editingComponent = uiState.availableComponents.firstOrNull { it.id == componentEditorTargetId }
     val compactDetailComponent = uiState.inventory.detail.component
@@ -37,17 +42,25 @@ fun ComponentVaultApp(
     BackHandler(enabled = componentEditorVisible && !layoutMode.prefersDialogForms) {
         componentEditorVisible = false
         componentEditorTargetId = null
+        componentEditorInitialDraft = null
     }
     BackHandler(enabled = movementEditorVisible && !layoutMode.prefersDialogForms) {
         movementEditorVisible = false
         movementEditorTargetId = null
     }
+    BackHandler(enabled = importSurfaceVisible && !layoutMode.prefersDialogForms) {
+        importSurfaceVisible = false
+    }
     BackHandler(enabled = compactDetailComponentId != null && !layoutMode.showsListDetail) {
         compactDetailComponentId = null
     }
 
-    fun openComponentEditor(componentId: String?) {
+    fun openComponentEditor(
+        componentId: String?,
+        initialDraft: ComponentDraft? = null,
+    ) {
         componentEditorTargetId = componentId
+        componentEditorInitialDraft = initialDraft
         componentEditorVisible = true
     }
 
@@ -61,15 +74,22 @@ fun ComponentVaultApp(
             componentEditorVisible && !layoutMode.prefersDialogForms -> {
                 ComponentEditorSurface(
                     existing = editingComponent,
+                    initialDraft = componentEditorInitialDraft,
                     layoutMode = layoutMode,
                     onDismiss = {
                         componentEditorVisible = false
                         componentEditorTargetId = null
+                        componentEditorInitialDraft = null
                     },
                     onSave = { draft ->
-                        viewModel.saveComponent(draft)
+                        if (editingComponent == null && componentEditorInitialDraft != null) {
+                            viewModel.saveImportedComponent(draft)
+                        } else {
+                            viewModel.saveComponent(draft)
+                        }
                         componentEditorVisible = false
                         componentEditorTargetId = null
+                        componentEditorInitialDraft = null
                     },
                 )
             }
@@ -91,21 +111,33 @@ fun ComponentVaultApp(
                 )
             }
 
+            importSurfaceVisible && !layoutMode.prefersDialogForms -> {
+                JlcImportSurface(
+                    layoutMode = layoutMode,
+                    appPreferences = uiState.appPreferences,
+                    onDismiss = { importSurfaceVisible = false },
+                    onSaveImportedComponent = { draft ->
+                        viewModel.saveImportedComponent(draft)
+                        importSurfaceVisible = false
+                    },
+                    onOpenFullEditor = { draft ->
+                        importSurfaceVisible = false
+                        openComponentEditor(componentId = null, initialDraft = draft)
+                    },
+                )
+            }
+
             compactDetailComponentId != null && !layoutMode.showsListDetail -> {
                 InventoryDetailRoute(
                     component = compactDetailComponent,
                     recentMovements = compactDetailMovements,
                     onDismiss = { compactDetailComponentId = null },
-                    onEditComponent = { componentId ->
-                        openComponentEditor(componentId)
-                    },
+                    onEditComponent = { componentId -> openComponentEditor(componentId) },
                     onRequestDeleteComponent = { componentId ->
                         viewModel.selectComponent(componentId)
                         showDeleteConfirmation = true
                     },
-                    onRecordMovement = { componentId ->
-                        openMovementEditor(componentId)
-                    },
+                    onRecordMovement = { componentId -> openMovementEditor(componentId) },
                 )
             }
 
@@ -121,7 +153,7 @@ fun ComponentVaultApp(
                     },
                     onQueryChange = viewModel::updateComponentQuery,
                     onStockFilterChange = { stockFilter ->
-                        viewModel.setLowStockOnly(stockFilter == com.componentvault.android.model.InventoryStockFilter.LowStock)
+                        viewModel.setLowStockOnly(stockFilter == InventoryStockFilter.LowStock)
                     },
                     onCategoryChange = viewModel::updateCategoryFilter,
                     onLocationChange = viewModel::updateLocationFilter,
@@ -134,6 +166,7 @@ fun ComponentVaultApp(
                         }
                     },
                     onAddComponent = { openComponentEditor(null) },
+                    onImportComponent = { importSurfaceVisible = true },
                     onEditComponent = { componentId ->
                         viewModel.selectComponent(componentId)
                         openComponentEditor(componentId)
@@ -146,7 +179,8 @@ fun ComponentVaultApp(
                         componentId?.let(viewModel::selectComponent)
                         openMovementEditor(componentId)
                     },
-                    onSaveSettings = viewModel::saveSyncConfiguration,
+                    onSaveSyncSettings = viewModel::saveSyncConfiguration,
+                    onSaveAppPreferences = viewModel::saveAppPreferences,
                     onTestConnection = viewModel::testConnection,
                     onSyncNow = viewModel::runSync,
                     onOpenLowStockInventory = {
@@ -176,15 +210,22 @@ fun ComponentVaultApp(
             if (componentEditorVisible) {
                 ComponentEditorSurface(
                     existing = editingComponent,
+                    initialDraft = componentEditorInitialDraft,
                     layoutMode = layoutMode,
                     onDismiss = {
                         componentEditorVisible = false
                         componentEditorTargetId = null
+                        componentEditorInitialDraft = null
                     },
                     onSave = { draft ->
-                        viewModel.saveComponent(draft)
+                        if (editingComponent == null && componentEditorInitialDraft != null) {
+                            viewModel.saveImportedComponent(draft)
+                        } else {
+                            viewModel.saveComponent(draft)
+                        }
                         componentEditorVisible = false
                         componentEditorTargetId = null
+                        componentEditorInitialDraft = null
                     },
                 )
             }
@@ -202,6 +243,22 @@ fun ComponentVaultApp(
                         viewModel.recordMovement(draft)
                         movementEditorVisible = false
                         movementEditorTargetId = null
+                    },
+                )
+            }
+
+            if (importSurfaceVisible) {
+                JlcImportSurface(
+                    layoutMode = layoutMode,
+                    appPreferences = uiState.appPreferences,
+                    onDismiss = { importSurfaceVisible = false },
+                    onSaveImportedComponent = { draft ->
+                        viewModel.saveImportedComponent(draft)
+                        importSurfaceVisible = false
+                    },
+                    onOpenFullEditor = { draft ->
+                        importSurfaceVisible = false
+                        openComponentEditor(componentId = null, initialDraft = draft)
                     },
                 )
             }

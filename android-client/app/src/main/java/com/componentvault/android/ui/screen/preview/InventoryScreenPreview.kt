@@ -1,6 +1,7 @@
 package com.componentvault.android.ui.screen.preview
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.PaddingValues
 import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.ui.screen.InventoryContent
 import com.componentvault.android.ui.screen.InventoryLayoutMode
@@ -12,7 +13,7 @@ private fun InventoryPhoneListPreview() {
     PreviewHost {
         val uiState = InventoryPreviewData.inventoryState()
         InventoryContent(
-            modifier = androidx.compose.ui.Modifier,
+            contentPadding = PaddingValues(),
             uiState = uiState.inventory,
             statusMessage = uiState.statusMessage,
             layoutMode = InventoryLayoutMode(
@@ -28,6 +29,7 @@ private fun InventoryPhoneListPreview() {
             onSortChange = {},
             onSelectComponent = {},
             onOpenComponentDetail = {},
+            onImportComponent = {},
             onEditComponent = {},
             onRequestDeleteComponent = {},
             onRecordMovement = {},
@@ -41,7 +43,7 @@ private fun InventoryPhoneLowStockPreview() {
     PreviewHost(strings = PreviewComponentVaultStrings.ZhCn) {
         val uiState = InventoryPreviewData.inventoryLowStockState()
         InventoryContent(
-            modifier = androidx.compose.ui.Modifier,
+            contentPadding = PaddingValues(),
             uiState = uiState.inventory,
             statusMessage = uiState.statusMessage,
             layoutMode = InventoryLayoutMode(
@@ -57,6 +59,7 @@ private fun InventoryPhoneLowStockPreview() {
             onSortChange = {},
             onSelectComponent = {},
             onOpenComponentDetail = {},
+            onImportComponent = {},
             onEditComponent = {},
             onRequestDeleteComponent = {},
             onRecordMovement = {},
@@ -70,7 +73,7 @@ private fun InventoryPhoneEmptyPreview() {
     PreviewHost {
         val uiState = InventoryPreviewData.inventoryEmptyState()
         InventoryContent(
-            modifier = androidx.compose.ui.Modifier,
+            contentPadding = PaddingValues(),
             uiState = uiState.inventory,
             statusMessage = uiState.statusMessage,
             layoutMode = InventoryLayoutMode(
@@ -86,6 +89,7 @@ private fun InventoryPhoneEmptyPreview() {
             onSortChange = {},
             onSelectComponent = {},
             onOpenComponentDetail = {},
+            onImportComponent = {},
             onEditComponent = {},
             onRequestDeleteComponent = {},
             onRecordMovement = {},
@@ -99,7 +103,7 @@ private fun InventoryTabletListDetailPreview() {
     PreviewHost {
         val uiState = InventoryPreviewData.inventoryState()
         InventoryContent(
-            modifier = androidx.compose.ui.Modifier,
+            contentPadding = PaddingValues(),
             uiState = uiState.inventory,
             statusMessage = uiState.statusMessage,
             layoutMode = InventoryLayoutMode(
@@ -115,6 +119,7 @@ private fun InventoryTabletListDetailPreview() {
             onSortChange = {},
             onSelectComponent = {},
             onOpenComponentDetail = {},
+            onImportComponent = {},
             onEditComponent = {},
             onRequestDeleteComponent = {},
             onRecordMovement = {},

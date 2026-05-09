@@ -42,19 +42,29 @@ import com.componentvault.android.model.MovementEntryDraft
 @Composable
 internal fun ComponentEditorSurface(
     existing: ComponentRecord?,
+    initialDraft: ComponentDraft? = null,
     layoutMode: InventoryLayoutMode,
     onDismiss: () -> Unit,
     onSave: (ComponentDraft) -> Unit,
 ) {
     val strings = vaultStrings()
-    var sku by remember(existing?.id) { mutableStateOf(existing?.sku ?: "") }
-    var name by remember(existing?.id) { mutableStateOf(existing?.name ?: "") }
-    var category by remember(existing?.id) { mutableStateOf(existing?.category ?: "") }
-    var packageName by remember(existing?.id) { mutableStateOf(existing?.packageName ?: "") }
-    var location by remember(existing?.id) { mutableStateOf(existing?.location ?: "") }
-    var description by remember(existing?.id) { mutableStateOf(existing?.description ?: "") }
-    var quantityText by remember(existing?.id) { mutableStateOf((existing?.quantity ?: 0).toString()) }
-    var minStockText by remember(existing?.id) { mutableStateOf((existing?.minStock ?: 0).toString()) }
+    val stateKey = existing?.id ?: initialDraft?.sku.orEmpty()
+    var sku by remember(stateKey) { mutableStateOf(existing?.sku ?: initialDraft?.sku.orEmpty()) }
+    var name by remember(stateKey) { mutableStateOf(existing?.name ?: initialDraft?.name.orEmpty()) }
+    var category by remember(stateKey) { mutableStateOf(existing?.category ?: initialDraft?.category.orEmpty()) }
+    var packageName by remember(stateKey) {
+        mutableStateOf(existing?.packageName ?: initialDraft?.packageName.orEmpty())
+    }
+    var location by remember(stateKey) { mutableStateOf(existing?.location ?: initialDraft?.location.orEmpty()) }
+    var description by remember(stateKey) {
+        mutableStateOf(existing?.description ?: initialDraft?.description.orEmpty())
+    }
+    var quantityText by remember(stateKey) {
+        mutableStateOf((existing?.quantity ?: initialDraft?.quantity ?: 0).toString())
+    }
+    var minStockText by remember(stateKey) {
+        mutableStateOf((existing?.minStock ?: initialDraft?.minStock ?: 0).toString())
+    }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val title = if (existing == null) {
@@ -341,7 +351,7 @@ internal fun DeleteComponentConfirmationDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AdaptiveFormSurface(
+internal fun AdaptiveFormSurface(
     title: String,
     layoutMode: InventoryLayoutMode,
     onDismiss: () -> Unit,

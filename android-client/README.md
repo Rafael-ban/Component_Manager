@@ -11,6 +11,10 @@ and Material 3.
 - Local SQLite persistence and sync settings persistence implemented
 - Component create/edit/soft delete workflow implemented
 - Movement entry workflow implemented
+- JLC copied-text import and package QR import implemented
+- Quantity-first JLC import confirmation implemented with optional full editor handoff
+- Expanded local-only settings implemented for sync behavior, import defaults,
+  scanner preferences, and About
 - Push/pull sync wiring implemented against the FastAPI service
 - Chinese-first Material 3 UI implemented for the primary screens, with a
   matching Simplified Chinese (`zh-CN`) resource set
@@ -21,8 +25,8 @@ and Material 3.
   bundles plus content-level preview composables so Android Studio does not
   have to resolve the runtime `R.string` graph for preview-only rendering
 - `gradle -p android-client help` verified successfully on `2026-05-08`
-- `assembleDebug` verified successfully on `2026-05-08` on this host
-- `assembleRelease` verified successfully on `2026-05-08` on this host
+- `assembleDebug` verified successfully on `2026-05-09` on this host
+- `assembleRelease` verified successfully on `2026-05-09` on this host
 - On this host, non-blocking Android metrics warnings and Kotlin daemon
   fallback messages can appear during verification
 
@@ -133,11 +137,13 @@ the `ViewModel` entrypoint:
 - `ui/screen/OverviewScreen.kt`
   Summary-first overview surface
 - `ui/screen/InventoryScreen.kt`
-  Search/filter-driven inventory list and detail flows
+  Search/filter-driven inventory list, detail flows, and JLC import entrypoint
 - `ui/screen/MovementsScreen.kt`
   Movement history and detail flows
 - `ui/screen/SettingsScreen.kt`
-  Grouped sync form layout
+  Grouped sync, import, scanner, and About layout
+- `ui/screen/JlcImportScreen.kt`
+  Quantity-first JLC text and QR import surface
 - `ui/screen/InventoryForms.kt`
   Adaptive full-screen and dialog-based editing forms
 - `ui/screen/InventoryUiParts.kt`
