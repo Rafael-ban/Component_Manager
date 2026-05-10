@@ -1,6 +1,7 @@
 package com.componentvault.android.ui.screen.preview
 
 import com.componentvault.android.model.ComponentRecord
+import com.componentvault.android.model.AppLanguage
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ImportLearningSummary
 import com.componentvault.android.model.InventoryDetailUiState
@@ -12,6 +13,7 @@ import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.model.InventoryUiState
 import com.componentvault.android.model.MovementsUiState
+import com.componentvault.android.model.OcrEngineMode
 import com.componentvault.android.model.OverviewUiState
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.SyncConfiguration
@@ -295,6 +297,8 @@ internal object InventoryPreviewData {
         syncAfterLocalChanges = true,
         enableLocalImportLearning = true,
         enableServerJlcLookup = false,
+        ocrEngineMode = OcrEngineMode.Auto,
+        appLanguage = AppLanguage.ZhCn,
     )
 
     fun overviewState(): InventoryUiState {

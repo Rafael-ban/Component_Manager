@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Component Vault</string>
-    <string name="top_bar_title">Component Vault</string>
+    <string name="app_name">元件仓库</string>
+    <string name="top_bar_title">元件仓库</string>
 
     <string name="destination_inventory">Inventory</string>
     <string name="destination_movements">Movements</string>
@@ -178,6 +178,11 @@
     <string name="settings_sync_behavior_subtitle">Control launch sync and post-write sync independently.</string>
     <string name="settings_import_preferences_title">Import and labels</string>
     <string name="settings_import_preferences_subtitle">Defaults used by JLC import, OCR import, and generated labels.</string>
+    <string name="settings_language_title">App language</string>
+    <string name="settings_language_subtitle">Default to Simplified Chinese on first launch and switch here later.</string>
+    <string name="settings_language_label">Language</string>
+    <string name="settings_language_chinese">中文</string>
+    <string name="settings_language_english">English</string>
     <string name="settings_about_title">About</string>
     <string name="settings_about_subtitle">Build information and local storage notes.</string>
     <string name="settings_sync_on_launch_description">Try syncing automatically when the app launches.</string>
@@ -195,6 +200,13 @@
     <string name="settings_local_import_learning_description">Reuse corrected JLC category, package, model, and brand data on future imports.</string>
     <string name="settings_server_jlc_lookup">Server recognition assist</string>
     <string name="settings_server_jlc_lookup_description">Optionally fill missing part fields through the server. Requires server configuration.</string>
+    <string name="settings_ocr_engine_label">Packaging OCR engine</string>
+    <string name="settings_ocr_engine_auto">Auto</string>
+    <string name="settings_ocr_engine_auto_description">Recommended. Uses the bundled ML Kit engine in this build and keeps the future Paddle path open.</string>
+    <string name="settings_ocr_engine_mlkit">ML Kit offline</string>
+    <string name="settings_ocr_engine_mlkit_description">Stable offline OCR using the bundled Chinese text recognizer.</string>
+    <string name="settings_ocr_engine_paddle">Paddle experimental</string>
+    <string name="settings_ocr_engine_paddle_description">Reserved for a future native model bundle. Selecting it now reports that the engine is unavailable.</string>
     <string name="settings_learned_mappings_count">Learned mappings</string>
     <string name="settings_no_learned_mappings">No learned mappings yet.</string>
     <string name="settings_clear_learned_mappings_action">Clear learned mappings</string>
@@ -216,6 +228,7 @@
     <string name="importer_action_parse_supplier_text">Parse supplier text</string>
     <string name="importer_action_scan_qr">Scan package QR</string>
     <string name="importer_action_scan_supplier_text">Scan package text</string>
+    <string name="importer_action_capture_text">Capture text</string>
     <string name="importer_action_open_full_editor">Open full editor</string>
     <string name="importer_recognized_title">Recognized fields</string>
     <string name="importer_recognized_subtitle">Review and adjust recognized fields before saving inventory or generating labels.</string>
@@ -242,8 +255,13 @@
     <string name="importer_scanner_failed_description">The in-app camera scanner could not start.</string>
     <string name="importer_supplier_scanner_starting">Starting text scanner...</string>
     <string name="importer_supplier_scanner_hint">Align supplier package text inside the frame.</string>
+    <string name="importer_supplier_scanner_capture_hint">Hold steady, then capture one frame for OCR and field extraction.</string>
+    <string name="importer_supplier_scanner_recognizing">Recognizing captured text...</string>
     <string name="importer_supplier_scanner_failed_title">Text scanner unavailable</string>
     <string name="importer_supplier_scan_failed_description">The in-app text scanner could not start.</string>
+    <string name="importer_supplier_scan_no_text_description">No readable packaging text was found in the captured frame. Move closer and retry.</string>
+    <string name="importer_supplier_scanner_frame_unavailable">Camera preview frame is not ready yet. Wait a moment and retry.</string>
+    <string name="importer_supplier_scanner_engine_pattern">Engine: %1$s</string>
     <string name="importer_action_grant_camera_access">Grant camera access</string>
     <string name="importer_action_retry_scan">Retry scan</string>
     <string name="importer_action_return_to_import">Return to import</string>

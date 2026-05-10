@@ -13,7 +13,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
@@ -127,41 +126,22 @@ internal fun ComponentVaultAppShellContent(
     val title = strings.shell.destinationLabel(destination)
 
     val topBar: @Composable () -> Unit = {
-        if (destination == InventoryDestination.Inventory) {
-            MediumTopAppBar(
-                title = { Text(title) },
-                colors = TopAppBarDefaults.mediumTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-                actions = {
-                    if (uiState.isBusy) {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .padding(end = 16.dp)
-                                .size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    }
-                },
-            )
-        } else {
-            TopAppBar(
-                title = { Text(title) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-                actions = {
-                    if (uiState.isBusy) {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .padding(end = 16.dp)
-                                .size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    }
-                },
-            )
-        }
+        TopAppBar(
+            title = { Text(title) },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.background,
+            ),
+            actions = {
+                if (uiState.isBusy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .padding(end = 16.dp)
+                            .size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+            },
+        )
     }
 
     val floatingActionButton: @Composable () -> Unit = {

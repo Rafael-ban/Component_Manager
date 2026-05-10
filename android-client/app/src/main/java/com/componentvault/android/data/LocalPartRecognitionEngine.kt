@@ -20,9 +20,10 @@ internal class LocalPartRecognitionEngine(
     ): ComponentRecognitionMetadata? {
         val values = candidate.recognitionValues()
         val normalizedPackage = detectPackage(values)
-        val modelRule = rules.modelPatterns
+        val modelMatch = rules.modelPatterns
             .sortedByDescending { it.priority }
-            .firstOrNull { it.matches(values) }
+            .firstNotNullOfOrNull { it.match(values) }
+        val modelRule = modelMatch?.rule
         val keywordRule = rules.keywordRules
             .sortedByDescending { it.priority }
             .firstOrNull { rule ->
@@ -43,7 +44,7 @@ internal class LocalPartRecognitionEngine(
             } else {
                 null
             }
-        val recognizedPackage = modelRule?.packageName ?: normalizedPackage
+        val recognizedPackage = modelMatch?.resolvedPackageName ?: normalizedPackage
         val recognizedVendor = candidate.vendor?.takeIf { it.isNotBlank() }
             ?: candidate.brand?.takeIf { it.isNotBlank() }
             ?: modelRule?.vendor
@@ -157,18 +158,50 @@ internal class LocalPartRecognitionEngine(
         val vendor: String?,
         val modelFamily: String?,
         val packageName: String?,
+        val packageTemplate: String?,
         val category: String?,
         val confidence: String?,
         val priority: Int,
         val compiled: Regex?,
     ) {
-        fun matches(values: RecognitionValues): Boolean = when (matchType) {
-            "contains" -> values.combinedLowercase.contains(pattern.lowercase(Locale.US))
-            "prefix" -> values.combinedLowercase.contains(" ${pattern.lowercase(Locale.US)}")
-                || values.combinedLowercase.startsWith(pattern.lowercase(Locale.US))
-            else -> compiled?.containsMatchIn(values.combined) == true
+        fun match(values: RecognitionValues): ModelPatternMatch? = when (matchType) {
+            "contains" -> if (values.combinedLowercase.contains(pattern.lowercase(Locale.US))) {
+                ModelPatternMatch(this, packageName)
+            } else {
+                null
+            }
+
+            "prefix" -> if (
+                values.combinedLowercase.contains(" ${pattern.lowercase(Locale.US)}") ||
+                values.combinedLowercase.startsWith(pattern.lowercase(Locale.US))
+            ) {
+                ModelPatternMatch(this, packageName)
+            } else {
+                null
+            }
+
+            else -> compiled?.find(values.combined)?.let { match ->
+                val resolvedPackageName = if (packageTemplate.isNullOrBlank()) {
+                    packageName
+                } else {
+                    var templateValue = packageTemplate
+                    match.groupValues.forEachIndexed { index, value ->
+                        templateValue = requireNotNull(templateValue).replace("\$$index", value)
+                    }
+                    templateValue?.takeIf { it.isNotBlank() } ?: packageName
+                }
+                ModelPatternMatch(
+                    rule = this,
+                    resolvedPackageName = resolvedPackageName,
+                )
+            }
         }
     }
+
+    private data class ModelPatternMatch(
+        val rule: ModelPattern,
+        val resolvedPackageName: String?,
+    )
 
     private data class KeywordRule(
         val id: String,
@@ -222,6 +255,7 @@ internal class LocalPartRecognitionEngine(
                         vendor = item.optString("vendor").blankToNull(),
                         modelFamily = item.optString("model_family").blankToNull(),
                         packageName = item.optString("package_name").blankToNull(),
+                        packageTemplate = item.optString("package_template").blankToNull(),
                         category = item.optString("category").blankToNull(),
                         confidence = item.optString("confidence").blankToNull(),
                         priority = item.optInt("priority", 0),

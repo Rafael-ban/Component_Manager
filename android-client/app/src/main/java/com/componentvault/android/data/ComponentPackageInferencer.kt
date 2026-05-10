@@ -5,6 +5,7 @@ import java.util.Locale
 internal object ComponentPackageInferencer {
     private val packagePatterns = listOf(
         Regex("\\b(?:0201|0402|0603|0805|1206|1210|1812|2010|2512)\\b", RegexOption.IGNORE_CASE),
+        Regex("(?<!\\d)(0201|0402|0603|0805|1206|1210|1812|2010|2512)(?!\\d)", RegexOption.IGNORE_CASE),
         Regex(
             "\\b(?:SOT-?23(?:-\\d+)?|SOT-?223|SOP-?\\d+|SOIC-?\\d+|SSOP-?\\d+|TSSOP-?\\d+|MSOP-?\\d+|QFN-?\\d+|DFN-?\\d+|QFP-?\\d+|LQFP-?\\d+|BGA-?\\d+|DIP-?\\d+|TO-?92|TO-?220|SMA|SMB|SMC)\\b",
             RegexOption.IGNORE_CASE,
@@ -20,7 +21,9 @@ internal object ComponentPackageInferencer {
         }
 
         return packagePatterns.firstNotNullOfOrNull { pattern ->
-            pattern.find(haystack)?.value?.uppercase(Locale.US)
+            val match = pattern.find(haystack) ?: return@firstNotNullOfOrNull null
+            match.groupValues.getOrNull(1)?.ifBlank { match.value }?.uppercase(Locale.US)
+                ?: match.value.uppercase(Locale.US)
         }
     }
 }

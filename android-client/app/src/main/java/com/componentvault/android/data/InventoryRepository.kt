@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.annotation.StringRes
 import com.componentvault.android.R
 import com.componentvault.android.model.AppPreferences
+import com.componentvault.android.model.AppLanguage
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentImportCandidate
 import com.componentvault.android.model.ComponentImportLearningMapping
@@ -23,6 +24,7 @@ import com.componentvault.android.model.DashboardSnapshot
 import com.componentvault.android.model.ImportLearningSummary
 import com.componentvault.android.model.MovementEntryDraft
 import com.componentvault.android.model.OperationResult
+import com.componentvault.android.model.OcrEngineMode
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.SyncConfiguration
 import com.componentvault.android.model.isJlcSource
@@ -211,6 +213,12 @@ class InventoryRepository(
             } else {
                 preferences.getBoolean(KEY_AUTO_ENRICH_JLC_IMPORTS, false)
             },
+            ocrEngineMode = OcrEngineMode.fromStorageValue(
+                preferences.getString(KEY_OCR_ENGINE_MODE, OcrEngineMode.Auto.storageValue),
+            ),
+            appLanguage = AppLanguage.fromStorageValue(
+                preferences.getString(KEY_APP_LANGUAGE, AppLanguage.ZhCn.storageValue),
+            ),
         )
     }
 
@@ -249,6 +257,8 @@ class InventoryRepository(
             .putBoolean(KEY_ENABLE_LOCAL_IMPORT_LEARNING, preferencesState.enableLocalImportLearning)
             .putBoolean(KEY_ENABLE_SERVER_JLC_LOOKUP, preferencesState.enableServerJlcLookup)
             .putBoolean(KEY_AUTO_ENRICH_JLC_IMPORTS, preferencesState.enableServerJlcLookup)
+            .putString(KEY_OCR_ENGINE_MODE, preferencesState.ocrEngineMode.storageValue)
+            .putString(KEY_APP_LANGUAGE, preferencesState.appLanguage.storageValue)
             .apply()
 
         return OperationResult(
@@ -886,6 +896,14 @@ class InventoryRepository(
         }
         if (!preferences.contains(KEY_AUTO_ENRICH_JLC_IMPORTS)) {
             editor.putBoolean(KEY_AUTO_ENRICH_JLC_IMPORTS, false)
+            changed = true
+        }
+        if (!preferences.contains(KEY_OCR_ENGINE_MODE)) {
+            editor.putString(KEY_OCR_ENGINE_MODE, OcrEngineMode.Auto.storageValue)
+            changed = true
+        }
+        if (!preferences.contains(KEY_APP_LANGUAGE)) {
+            editor.putString(KEY_APP_LANGUAGE, AppLanguage.ZhCn.storageValue)
             changed = true
         }
         if (changed) {
@@ -1716,6 +1734,8 @@ class InventoryRepository(
         const val KEY_ENABLE_LOCAL_IMPORT_LEARNING = "enable_local_import_learning"
         const val KEY_ENABLE_SERVER_JLC_LOOKUP = "enable_server_jlc_lookup"
         const val KEY_AUTO_ENRICH_JLC_IMPORTS = "auto_enrich_jlc_imports"
+        const val KEY_OCR_ENGINE_MODE = "ocr_engine_mode"
+        const val KEY_APP_LANGUAGE = "app_language"
         const val LOOKUP_CACHE_PREFIX = "lcsc_lookup_cache:"
         const val LOOKUP_CACHE_MAX_AGE_MS = 7L * 24L * 60L * 60L * 1000L
 

@@ -17,11 +17,11 @@
 - Current implementation is a stable-mode local-first client backed by
   on-device SQLite and shared preferences.
 - User-facing copy is now routed through Android string resources, with a
-  Chinese-first default UI and matching Simplified Chinese (`zh-CN`) resource
-  coverage for the primary screens. Compose Preview uses injected
-  `ComponentVaultStrings` sample bundles plus content-level preview composables
-  so Preview rendering does not depend on Android Studio resolving the runtime
-  `R.string` graph.
+  Chinese-first default UI, persisted app-language switching (`zh-CN` and
+  `en`), and matching Simplified Chinese (`zh-CN`) resource coverage for the
+  primary screens. Compose Preview uses injected `ComponentVaultStrings`
+  sample bundles plus content-level preview composables so Preview rendering
+  does not depend on Android Studio resolving the runtime `R.string` graph.
 - Navigation now centers on four adaptive destinations:
   `Inventory`, `Movements`, `Overview`, and `Settings`.
 - `Inventory` is the default high-frequency workflow and uses dense search,
@@ -33,8 +33,15 @@
   bundled ML Kit Barcode Scanning API, so first use does not depend on Google
   Play services downloading an external scanner module.
 - Supplier text recognition runs through an in-app CameraX surface backed by
-  bundled ML Kit Chinese text recognition so OCR import is available on first
-  launch without an extra module download.
+  bundled ML Kit Chinese text recognition. The current Android flow now asks
+  the user to align packaging text, capture one preview frame, build a
+  structured OCR result with ordered text lines, and only then parse packaging
+  fields into the quantity-first import confirmation form.
+- Android OCR now goes through a dedicated engine abstraction with local
+  preference storage. `Auto` currently resolves to the bundled ML Kit engine,
+  `ML Kit` forces the same offline recognizer explicitly, and
+  `Paddle experimental` remains an honest compile-safe placeholder for a
+  future native model bundle rather than pretending to be active today.
 - Label generation is client-owned and stays schema-compatible: JLC-sourced
   items generate JLC-compatible QR payloads with app extension fields, while
   non-JLC items generate an app-specific warehouse QR payload. Both paths can
@@ -56,8 +63,10 @@
   fallback reuse.
 - JLC text and QR imports are seeded by parser output, then enriched by
   bundled offline recognition rules, device-only learned mappings, and finally
-  optional server-side `GET /admin-api/part-lookup` metadata. User edits in
-  the import confirmation form remain authoritative.
+  optional server-side `GET /admin-api/part-lookup` metadata. The local rule
+  pack now also recognizes more vendor numbering schemes so package and
+  category inference can come from model families instead of only raw
+  keywords. User edits in the import confirmation form remain authoritative.
 - Android still keeps a local cache for repeated server-assisted lookups, while
   `/admin-api/lcsc/lookup` now sits behind the newer hybrid recognition flow as
   a direct compatibility endpoint when official LCSC credentials are available.
@@ -246,3 +255,5 @@ The Android client also persists local-only app behavior settings:
 - `prefer_aggressive_auto_recognition`
 - `enable_local_import_learning`
 - `enable_server_jlc_lookup`
+- `ocr_engine_mode`
+- `app_language`

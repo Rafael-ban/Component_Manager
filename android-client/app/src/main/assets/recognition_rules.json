@@ -1,6 +1,6 @@
 {
-  "version": "2026.05.10.2",
-  "updated_at": "2026-05-10T12:00:00Z",
+  "version": "2026.05.11.1",
+  "updated_at": "2026-05-11T12:00:00Z",
   "package_patterns": [
     { "id": "pkg_0201", "pattern": "\\b0201\\b", "normalized": "0201" },
     { "id": "pkg_0402", "pattern": "\\b0402\\b", "normalized": "0402" },
@@ -12,7 +12,10 @@
     { "id": "pkg_2010", "pattern": "\\b2010\\b", "normalized": "2010" },
     { "id": "pkg_2512", "pattern": "\\b2512\\b", "normalized": "2512" },
     { "id": "pkg_sot23", "pattern": "\\bSOT-?23(?:-\\d+)?\\b", "normalized": "SOT-23" },
+    { "id": "pkg_sot89", "pattern": "\\bSOT-?89\\b", "normalized": "SOT-89" },
     { "id": "pkg_sot223", "pattern": "\\bSOT-?223\\b", "normalized": "SOT-223" },
+    { "id": "pkg_sod123", "pattern": "\\bSOD-?123\\b", "normalized": "SOD-123" },
+    { "id": "pkg_sod323", "pattern": "\\bSOD-?323\\b", "normalized": "SOD-323" },
     { "id": "pkg_soic", "pattern": "\\bSOIC-?\\d+\\b", "normalized": "SOIC" },
     { "id": "pkg_sop", "pattern": "\\bSOP-?\\d+\\b", "normalized": "SOP" },
     { "id": "pkg_tssop", "pattern": "\\bTSSOP-?\\d+\\b", "normalized": "TSSOP" },
@@ -29,22 +32,90 @@
     {
       "id": "yageo_rc_resistor",
       "match_type": "regex",
-      "pattern": "\\bRC(?:0201|0402|0603|0805|1206|1210|1218|2010|2512)[A-Z0-9-]*\\b",
+      "pattern": "\\bRC(0201|0402|0603|0805|1206|1210|2010|2512)[A-Z0-9-]*\\b",
       "vendor": "Yageo",
       "model_family": "RC",
+      "package_template": "$1",
+      "category": "Resistor / Chip Resistor",
+      "confidence": "high",
+      "priority": 104
+    },
+    {
+      "id": "uniroyal_waf_resistor",
+      "match_type": "regex",
+      "pattern": "\\b(0201|0402|0603|0805|1206|1210|1218|2010|2512)WAF[A-Z0-9-]*\\b",
+      "vendor": "Uniroyal",
+      "model_family": "WAF",
+      "package_template": "$1",
+      "category": "Resistor / Chip Resistor",
+      "confidence": "high",
+      "priority": 102
+    },
+    {
+      "id": "uniroyal_wgf_resistor",
+      "match_type": "regex",
+      "pattern": "\\b(0201|0402|0603|0805|1206|1210|1218|2010|2512)WGF[A-Z0-9-]*\\b",
+      "vendor": "Uniroyal",
+      "model_family": "WGF",
+      "package_template": "$1",
       "category": "Resistor / Chip Resistor",
       "confidence": "high",
       "priority": 100
     },
     {
-      "id": "uniroyal_waf_resistor",
+      "id": "vishay_crcw_resistor",
       "match_type": "regex",
-      "pattern": "\\b(?:0201|0402|0603|0805|1206|1210|1218|2010|2512)WAF[A-Z0-9-]*\\b",
-      "vendor": "Uniroyal",
-      "model_family": "WAF",
+      "pattern": "\\bCRCW(0201|0402|0603|0805|1206|1210|2010|2512)[A-Z0-9-]*\\b",
+      "vendor": "Vishay",
+      "model_family": "CRCW",
+      "package_template": "$1",
       "category": "Resistor / Chip Resistor",
       "confidence": "high",
-      "priority": 96
+      "priority": 100
+    },
+    {
+      "id": "panasonic_erj_0402",
+      "match_type": "regex",
+      "pattern": "\\bERJ-?2R[A-Z0-9-]*\\b",
+      "vendor": "Panasonic",
+      "model_family": "ERJ",
+      "package_name": "0402",
+      "category": "Resistor / Chip Resistor",
+      "confidence": "high",
+      "priority": 98
+    },
+    {
+      "id": "panasonic_erj_0603",
+      "match_type": "regex",
+      "pattern": "\\bERJ-?3R[A-Z0-9-]*\\b",
+      "vendor": "Panasonic",
+      "model_family": "ERJ",
+      "package_name": "0603",
+      "category": "Resistor / Chip Resistor",
+      "confidence": "high",
+      "priority": 98
+    },
+    {
+      "id": "panasonic_erj_0805",
+      "match_type": "regex",
+      "pattern": "\\bERJ-?6R[A-Z0-9-]*\\b",
+      "vendor": "Panasonic",
+      "model_family": "ERJ",
+      "package_name": "0805",
+      "category": "Resistor / Chip Resistor",
+      "confidence": "high",
+      "priority": 98
+    },
+    {
+      "id": "panasonic_erj_1206",
+      "match_type": "regex",
+      "pattern": "\\bERJ-?8E[A-Z0-9-]*\\b",
+      "vendor": "Panasonic",
+      "model_family": "ERJ",
+      "package_name": "1206",
+      "category": "Resistor / Chip Resistor",
+      "confidence": "high",
+      "priority": 98
     },
     {
       "id": "samsung_cl03_mlcc",
@@ -102,6 +173,94 @@
       "priority": 100
     },
     {
+      "id": "yageo_cc_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bCC(0201|0402|0603|0805|1206|1210|1812)[A-Z0-9-]*\\b",
+      "vendor": "Yageo",
+      "model_family": "CC",
+      "package_template": "$1",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 98
+    },
+    {
+      "id": "tdk_c1005_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bC1005[A-Z0-9-]*\\b",
+      "vendor": "TDK",
+      "model_family": "C1005",
+      "package_name": "0402",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 98
+    },
+    {
+      "id": "tdk_c1608_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bC1608[A-Z0-9-]*\\b",
+      "vendor": "TDK",
+      "model_family": "C1608",
+      "package_name": "0603",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 98
+    },
+    {
+      "id": "tdk_c2012_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bC2012[A-Z0-9-]*\\b",
+      "vendor": "TDK",
+      "model_family": "C2012",
+      "package_name": "0805",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 98
+    },
+    {
+      "id": "tdk_c3216_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bC3216[A-Z0-9-]*\\b",
+      "vendor": "TDK",
+      "model_family": "C3216",
+      "package_name": "1206",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 98
+    },
+    {
+      "id": "tdk_c3225_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bC3225[A-Z0-9-]*\\b",
+      "vendor": "TDK",
+      "model_family": "C3225",
+      "package_name": "1210",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 98
+    },
+    {
+      "id": "murata_grm033_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bGRM033[A-Z0-9-]*\\b",
+      "vendor": "Murata",
+      "model_family": "GRM033",
+      "package_name": "0201",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "murata_grm155_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bGRM155[A-Z0-9-]*\\b",
+      "vendor": "Murata",
+      "model_family": "GRM155",
+      "package_name": "0402",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
       "id": "murata_grm188_mlcc",
       "match_type": "regex",
       "pattern": "\\bGRM188[A-Z0-9-]*\\b",
@@ -111,6 +270,39 @@
       "category": "Capacitor / MLCC",
       "confidence": "high",
       "priority": 100
+    },
+    {
+      "id": "murata_grm216_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bGRM216[A-Z0-9-]*\\b",
+      "vendor": "Murata",
+      "model_family": "GRM216",
+      "package_name": "0805",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "murata_grm31_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bGRM31[A-Z0-9-]*\\b",
+      "vendor": "Murata",
+      "model_family": "GRM31",
+      "package_name": "1206",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "murata_gcm155_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bGCM155[A-Z0-9-]*\\b",
+      "vendor": "Murata",
+      "model_family": "GCM155",
+      "package_name": "0402",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 98
     },
     {
       "id": "murata_gcm188_mlcc",
@@ -126,12 +318,33 @@
     {
       "id": "jlc_generic_mlcc",
       "match_type": "regex",
-      "pattern": "\\b(?:0201|0402|0603|0805|1206|1210|1812)[A-Z]{1,4}\\d{3}[A-Z0-9-]*\\b",
+      "pattern": "\\b(0201|0402|0603|0805|1206|1210|1812)[A-Z]{1,4}\\d{3}[A-Z0-9-]*\\b",
       "vendor": "Generic",
       "model_family": "MLCC",
+      "package_template": "$1",
       "category": "Capacitor / MLCC",
       "confidence": "medium",
-      "priority": 82
+      "priority": 84
+    },
+    {
+      "id": "murata_lqh_inductor",
+      "match_type": "regex",
+      "pattern": "\\bLQH[A-Z0-9-]*\\b",
+      "vendor": "Murata",
+      "model_family": "LQH",
+      "category": "Inductor / Chip Inductor",
+      "confidence": "medium",
+      "priority": 80
+    },
+    {
+      "id": "sunlord_cdl_inductor",
+      "match_type": "regex",
+      "pattern": "\\b(?:CD(?:RH|LG)|SWPA|MWSA)[A-Z0-9-]*\\b",
+      "vendor": "Sunlord",
+      "model_family": "Power Inductor",
+      "category": "Inductor / Chip Inductor",
+      "confidence": "medium",
+      "priority": 78
     },
     {
       "id": "picoblade_family",
@@ -172,12 +385,32 @@
       "category": "Connector / Wire-to-board",
       "confidence": "medium",
       "priority": 84
+    },
+    {
+      "id": "jst_gh_family",
+      "match_type": "regex",
+      "pattern": "\\b(?:B|S)?\\d+P?-?GH\\b",
+      "vendor": "JST",
+      "model_family": "GH",
+      "category": "Connector / Wire-to-board",
+      "confidence": "medium",
+      "priority": 82
+    },
+    {
+      "id": "jst_sh_family",
+      "match_type": "regex",
+      "pattern": "\\b(?:B|S)?\\d+P?-?SH\\b",
+      "vendor": "JST",
+      "model_family": "SH",
+      "category": "Connector / Wire-to-board",
+      "confidence": "medium",
+      "priority": 82
     }
   ],
   "keyword_rules": [
     {
       "id": "keyword_wire_connector",
-      "keywords": ["connector", "header", "socket", "wire-to-board", "picoblade", "terminal"],
+      "keywords": ["connector", "header", "socket", "wire-to-board", "picoblade", "terminal", "连接器", "排针", "插座"],
       "category": "Connector / Wire-to-board",
       "confidence": "medium",
       "priority": 70
@@ -191,35 +424,35 @@
     },
     {
       "id": "keyword_mlcc",
-      "keywords": ["mlcc", "ceramic capacitor", "chip capacitor"],
+      "keywords": ["mlcc", "ceramic capacitor", "chip capacitor", "电容", "贴片电容"],
       "category": "Capacitor / MLCC",
       "confidence": "medium",
       "priority": 64
     },
     {
       "id": "keyword_electrolytic",
-      "keywords": ["electrolytic capacitor", "electrolytic"],
+      "keywords": ["electrolytic capacitor", "electrolytic", "电解电容"],
       "category": "Capacitor / Electrolytic",
       "confidence": "medium",
       "priority": 63
     },
     {
       "id": "keyword_chip_resistor",
-      "keywords": ["chip resistor", "thick film resistor", "metal film resistor", "resistor"],
+      "keywords": ["chip resistor", "thick film resistor", "metal film resistor", "resistor", "电阻", "贴片电阻"],
       "category": "Resistor / Chip Resistor",
       "confidence": "medium",
       "priority": 64
     },
     {
       "id": "keyword_chip_inductor",
-      "keywords": ["chip inductor", "power inductor", "inductor"],
+      "keywords": ["chip inductor", "power inductor", "inductor", "电感", "功率电感"],
       "category": "Inductor / Chip Inductor",
       "confidence": "medium",
       "priority": 62
     },
     {
       "id": "keyword_schottky",
-      "keywords": ["schottky"],
+      "keywords": ["schottky", "肖特基"],
       "category": "Diode / Schottky",
       "confidence": "medium",
       "priority": 60
@@ -247,7 +480,7 @@
     },
     {
       "id": "keyword_mcu",
-      "keywords": ["stm32", "atmega", "microcontroller", "mcu"],
+      "keywords": ["stm32", "atmega", "microcontroller", "mcu", "单片机"],
       "category": "IC / Microcontroller",
       "confidence": "medium",
       "priority": 58

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.AlertDialog
@@ -16,6 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,13 +28,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.componentvault.android.AppLocaleManager
 import com.componentvault.android.BuildConfig
+import com.componentvault.android.model.AppLanguage
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ImportLearningSummary
+import com.componentvault.android.model.OcrEngineMode
 import com.componentvault.android.model.SyncConfiguration
 
 @Composable
@@ -115,11 +121,17 @@ internal fun SettingsContent(
     var enableServerJlcLookup by remember(appPreferences.enableServerJlcLookup) {
         mutableStateOf(appPreferences.enableServerJlcLookup)
     }
+    var ocrEngineMode by remember(appPreferences.ocrEngineMode) {
+        mutableStateOf(appPreferences.ocrEngineMode)
+    }
+    var appLanguage by remember(appPreferences.appLanguage) {
+        mutableStateOf(appPreferences.appLanguage)
+    }
     var showToken by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showClearLearningConfirmation by remember { mutableStateOf(false) }
 
-    val saveDraft: () -> Boolean = {
+    val saveDraft: (Boolean) -> Boolean = { applyLocale ->
         val minStock = defaultImportMinStockText.toIntOrNull()
         if (minStock == null || minStock < 0) {
             errorMessage = strings.forms.componentNonNegative
@@ -138,8 +150,13 @@ internal fun SettingsContent(
                     preferAggressiveAutoRecognition = preferAggressiveAutoRecognition,
                     enableLocalImportLearning = enableLocalImportLearning,
                     enableServerJlcLookup = enableServerJlcLookup,
+                    ocrEngineMode = ocrEngineMode,
+                    appLanguage = appLanguage,
                 ),
             )
+            if (applyLocale) {
+                AppLocaleManager.apply(appLanguage)
+            }
             true
         }
     }
@@ -200,20 +217,24 @@ internal fun SettingsContent(
                     onEnableLocalImportLearningChange = { enableLocalImportLearning = it },
                     enableServerJlcLookup = enableServerJlcLookup,
                     onEnableServerJlcLookupChange = { enableServerJlcLookup = it },
+                    ocrEngineMode = ocrEngineMode,
+                    onOcrEngineModeChange = { ocrEngineMode = it },
+                    appLanguage = appLanguage,
+                    onAppLanguageChange = { appLanguage = it },
                     importLearningSummary = importLearningSummary,
                     strings = strings,
                     showToken = showToken,
                     onToggleToken = { showToken = !showToken },
                     isBusy = isBusy,
                     errorMessage = errorMessage,
-                    onSave = saveDraft,
+                    onSave = { saveDraft(true) },
                     onTestConnection = {
-                        if (saveDraft()) {
+                        if (saveDraft(false)) {
                             onTestConnection()
                         }
                     },
                     onSyncNow = {
-                        if (saveDraft()) {
+                        if (saveDraft(false)) {
                             onSyncNow()
                         }
                     },
@@ -260,20 +281,24 @@ internal fun SettingsContent(
                 onEnableLocalImportLearningChange = { enableLocalImportLearning = it },
                 enableServerJlcLookup = enableServerJlcLookup,
                 onEnableServerJlcLookupChange = { enableServerJlcLookup = it },
+                ocrEngineMode = ocrEngineMode,
+                onOcrEngineModeChange = { ocrEngineMode = it },
+                appLanguage = appLanguage,
+                onAppLanguageChange = { appLanguage = it },
                 importLearningSummary = importLearningSummary,
                 strings = strings,
                 showToken = showToken,
                 onToggleToken = { showToken = !showToken },
                 isBusy = isBusy,
                 errorMessage = errorMessage,
-                onSave = saveDraft,
+                onSave = { saveDraft(true) },
                 onTestConnection = {
-                    if (saveDraft()) {
+                    if (saveDraft(false)) {
                         onTestConnection()
                     }
                 },
                 onSyncNow = {
-                    if (saveDraft()) {
+                    if (saveDraft(false)) {
                         onSyncNow()
                     }
                 },
@@ -344,6 +369,14 @@ private fun SettingsSummaryPane(
             value = appPreferences.suggestedImportLocation.ifBlank { strings.common.labelNotConfigured },
         )
         ValueBlock(
+            label = strings.settings.ocrEngineLabel,
+            value = strings.settings.ocrEngineLabel(appPreferences.ocrEngineMode),
+        )
+        ValueBlock(
+            label = strings.settings.languageLabel,
+            value = strings.settings.appLanguageLabel(appPreferences.appLanguage),
+        )
+        ValueBlock(
             label = strings.settings.learnedMappingsCount,
             value = if (importLearningSummary.mappingCount > 0) {
                 importLearningSummary.mappingCount.toString()
@@ -401,6 +434,10 @@ private fun LazyListScope.settingsFormItems(
     onEnableLocalImportLearningChange: (Boolean) -> Unit,
     enableServerJlcLookup: Boolean,
     onEnableServerJlcLookupChange: (Boolean) -> Unit,
+    ocrEngineMode: OcrEngineMode,
+    onOcrEngineModeChange: (OcrEngineMode) -> Unit,
+    appLanguage: AppLanguage,
+    onAppLanguageChange: (AppLanguage) -> Unit,
     importLearningSummary: ImportLearningSummary,
     strings: ComponentVaultStrings,
     showToken: Boolean,
@@ -523,6 +560,29 @@ private fun LazyListScope.settingsFormItems(
                 checked = enableServerJlcLookup,
                 onCheckedChange = onEnableServerJlcLookupChange,
             )
+            Text(
+                text = strings.settings.ocrEngineLabel,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+            )
+            SettingsChoiceRow(
+                title = strings.settings.ocrEngineAuto,
+                subtitle = strings.settings.ocrEngineAutoDescription,
+                selected = ocrEngineMode == OcrEngineMode.Auto,
+                onClick = { onOcrEngineModeChange(OcrEngineMode.Auto) },
+            )
+            SettingsChoiceRow(
+                title = strings.settings.ocrEngineMlKit,
+                subtitle = strings.settings.ocrEngineMlKitDescription,
+                selected = ocrEngineMode == OcrEngineMode.MlKit,
+                onClick = { onOcrEngineModeChange(OcrEngineMode.MlKit) },
+            )
+            SettingsChoiceRow(
+                title = strings.settings.ocrEnginePaddle,
+                subtitle = strings.settings.ocrEnginePaddleDescription,
+                selected = ocrEngineMode == OcrEngineMode.PaddleExperimental,
+                onClick = { onOcrEngineModeChange(OcrEngineMode.PaddleExperimental) },
+            )
             ValueBlock(
                 label = strings.settings.learnedMappingsCount,
                 value = if (importLearningSummary.mappingCount > 0) {
@@ -538,6 +598,25 @@ private fun LazyListScope.settingsFormItems(
             ) {
                 Text(strings.settings.clearLearnedMappingsAction)
             }
+        }
+    }
+    item {
+        SectionPane(
+            title = strings.settings.languageTitle,
+            supporting = strings.settings.languageSubtitle,
+        ) {
+            SettingsChoiceRow(
+                title = strings.settings.languageChinese,
+                subtitle = strings.settings.languageSubtitle,
+                selected = appLanguage == AppLanguage.ZhCn,
+                onClick = { onAppLanguageChange(AppLanguage.ZhCn) },
+            )
+            SettingsChoiceRow(
+                title = strings.settings.languageEnglish,
+                subtitle = strings.settings.languageSubtitle,
+                selected = appLanguage == AppLanguage.English,
+                onClick = { onAppLanguageChange(AppLanguage.English) },
+            )
         }
     }
     item {
@@ -611,6 +690,46 @@ private fun SettingsToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+        )
+    }
+}
+
+@Composable
+private fun SettingsChoiceRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = onClick,
+            ),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        RadioButton(
+            selected = selected,
+            onClick = null,
         )
     }
 }

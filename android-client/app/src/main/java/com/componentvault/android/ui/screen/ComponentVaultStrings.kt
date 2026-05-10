@@ -7,8 +7,10 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.res.stringResource
 import com.componentvault.android.R
+import com.componentvault.android.model.AppLanguage
 import com.componentvault.android.model.ComponentImportFieldOrigin
 import com.componentvault.android.model.InventorySortOption
+import com.componentvault.android.model.OcrEngineMode
 import java.util.Locale
 
 @Immutable
@@ -200,6 +202,11 @@ internal data class SettingsStrings(
     val syncBehaviorSubtitle: String,
     val importPreferencesTitle: String,
     val importPreferencesSubtitle: String,
+    val languageTitle: String,
+    val languageSubtitle: String,
+    val languageLabel: String,
+    val languageChinese: String,
+    val languageEnglish: String,
     val aboutTitle: String,
     val aboutSubtitle: String,
     val serverUrlPlaceholder: String,
@@ -216,6 +223,13 @@ internal data class SettingsStrings(
     val localImportLearningDescription: String,
     val serverJlcLookup: String,
     val serverJlcLookupDescription: String,
+    val ocrEngineLabel: String,
+    val ocrEngineAuto: String,
+    val ocrEngineAutoDescription: String,
+    val ocrEngineMlKit: String,
+    val ocrEngineMlKitDescription: String,
+    val ocrEnginePaddle: String,
+    val ocrEnginePaddleDescription: String,
     val learnedMappingsCount: String,
     val noLearnedMappings: String,
     val clearLearnedMappingsAction: String,
@@ -225,7 +239,18 @@ internal data class SettingsStrings(
     val localStorage: String,
     val localStorageValue: String,
     val aboutBody: String,
-)
+) {
+    fun appLanguageLabel(language: AppLanguage): String = when (language) {
+        AppLanguage.ZhCn -> languageChinese
+        AppLanguage.English -> languageEnglish
+    }
+
+    fun ocrEngineLabel(mode: OcrEngineMode): String = when (mode) {
+        OcrEngineMode.Auto -> ocrEngineAuto
+        OcrEngineMode.MlKit -> ocrEngineMlKit
+        OcrEngineMode.PaddleExperimental -> ocrEnginePaddle
+    }
+}
 
 @Immutable
 internal data class ImportStrings(
@@ -240,6 +265,7 @@ internal data class ImportStrings(
     val actionParseSupplierText: String,
     val actionScanQr: String,
     val actionScanSupplierText: String,
+    val actionCaptureText: String,
     val actionOpenFullEditor: String,
     val recognizedTitle: String,
     val recognizedSubtitle: String,
@@ -265,8 +291,13 @@ internal data class ImportStrings(
     val scannerFailedDescription: String,
     val supplierScannerStarting: String,
     val supplierScannerHint: String,
+    val supplierScannerCaptureHint: String,
+    val supplierScannerRecognizing: String,
     val supplierScannerFailedTitle: String,
     val supplierScanFailedDescription: String,
+    val supplierScanNoTextDescription: String,
+    val supplierScannerFrameUnavailable: String,
+    val supplierScannerEnginePattern: String,
     val actionGrantCameraAccess: String,
     val actionRetryScan: String,
     val actionReturnToImport: String,
@@ -302,6 +333,7 @@ internal data class ImportStrings(
     val exportFailedPattern: String,
 ) {
     fun scanFailed(detail: String): String = formatPattern(scanFailedPattern, detail)
+    fun supplierScannerEngine(engineLabel: String): String = formatPattern(supplierScannerEnginePattern, engineLabel)
     fun lookupFailed(detail: String): String = formatPattern(lookupFailedPattern, detail)
     fun exportFailed(detail: String): String = formatPattern(exportFailedPattern, detail)
     fun fieldOrigin(origin: ComponentImportFieldOrigin): String = formatPattern(
@@ -487,6 +519,11 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             syncBehaviorSubtitle = stringResource(R.string.settings_sync_behavior_subtitle),
             importPreferencesTitle = stringResource(R.string.settings_import_preferences_title),
             importPreferencesSubtitle = stringResource(R.string.settings_import_preferences_subtitle),
+            languageTitle = stringResource(R.string.settings_language_title),
+            languageSubtitle = stringResource(R.string.settings_language_subtitle),
+            languageLabel = stringResource(R.string.settings_language_label),
+            languageChinese = stringResource(R.string.settings_language_chinese),
+            languageEnglish = stringResource(R.string.settings_language_english),
             aboutTitle = stringResource(R.string.settings_about_title),
             aboutSubtitle = stringResource(R.string.settings_about_subtitle),
             serverUrlPlaceholder = stringResource(R.string.server_url_placeholder),
@@ -503,6 +540,13 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             localImportLearningDescription = stringResource(R.string.settings_local_import_learning_description),
             serverJlcLookup = stringResource(R.string.settings_server_jlc_lookup),
             serverJlcLookupDescription = stringResource(R.string.settings_server_jlc_lookup_description),
+            ocrEngineLabel = stringResource(R.string.settings_ocr_engine_label),
+            ocrEngineAuto = stringResource(R.string.settings_ocr_engine_auto),
+            ocrEngineAutoDescription = stringResource(R.string.settings_ocr_engine_auto_description),
+            ocrEngineMlKit = stringResource(R.string.settings_ocr_engine_mlkit),
+            ocrEngineMlKitDescription = stringResource(R.string.settings_ocr_engine_mlkit_description),
+            ocrEnginePaddle = stringResource(R.string.settings_ocr_engine_paddle),
+            ocrEnginePaddleDescription = stringResource(R.string.settings_ocr_engine_paddle_description),
             learnedMappingsCount = stringResource(R.string.settings_learned_mappings_count),
             noLearnedMappings = stringResource(R.string.settings_no_learned_mappings),
             clearLearnedMappingsAction = stringResource(R.string.settings_clear_learned_mappings_action),
@@ -525,6 +569,7 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             actionParseSupplierText = stringResource(R.string.importer_action_parse_supplier_text),
             actionScanQr = stringResource(R.string.importer_action_scan_qr),
             actionScanSupplierText = stringResource(R.string.importer_action_scan_supplier_text),
+            actionCaptureText = stringResource(R.string.importer_action_capture_text),
             actionOpenFullEditor = stringResource(R.string.importer_action_open_full_editor),
             recognizedTitle = stringResource(R.string.importer_recognized_title),
             recognizedSubtitle = stringResource(R.string.importer_recognized_subtitle),
@@ -550,8 +595,13 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             scannerFailedDescription = stringResource(R.string.importer_scanner_failed_description),
             supplierScannerStarting = stringResource(R.string.importer_supplier_scanner_starting),
             supplierScannerHint = stringResource(R.string.importer_supplier_scanner_hint),
+            supplierScannerCaptureHint = stringResource(R.string.importer_supplier_scanner_capture_hint),
+            supplierScannerRecognizing = stringResource(R.string.importer_supplier_scanner_recognizing),
             supplierScannerFailedTitle = stringResource(R.string.importer_supplier_scanner_failed_title),
             supplierScanFailedDescription = stringResource(R.string.importer_supplier_scan_failed_description),
+            supplierScanNoTextDescription = stringResource(R.string.importer_supplier_scan_no_text_description),
+            supplierScannerFrameUnavailable = stringResource(R.string.importer_supplier_scanner_frame_unavailable),
+            supplierScannerEnginePattern = stringResource(R.string.importer_supplier_scanner_engine_pattern),
             actionGrantCameraAccess = stringResource(R.string.importer_action_grant_camera_access),
             actionRetryScan = stringResource(R.string.importer_action_retry_scan),
             actionReturnToImport = stringResource(R.string.importer_action_return_to_import),

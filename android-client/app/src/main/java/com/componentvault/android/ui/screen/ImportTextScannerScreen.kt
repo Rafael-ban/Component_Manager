@@ -2,23 +2,27 @@ package com.componentvault.android.ui.screen
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ExperimentalGetImage
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -31,36 +35,45 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.Text
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.TextRecognizer
-import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
+import com.componentvault.android.data.ocr.OcrEngineFactory
+import com.componentvault.android.data.ocr.OcrResult
+import com.componentvault.android.data.ocr.normalizedText
+import com.componentvault.android.model.OcrEngineMode
+import kotlinx.coroutines.launch
 
 internal enum class ImportTextScannerUiState {
     RequestingPermission,
     PermissionDenied,
     StartingCamera,
-    Scanning,
+    Aligning,
+    Recognizing,
     Failed,
 }
 
 @Composable
 internal fun ImportTextScannerSurface(
     onDismiss: () -> Unit,
-    onTextScanned: (String) -> Unit,
+    preferredOcrEngineMode: OcrEngineMode,
+    onOcrScanned: (OcrResult) -> Unit,
 ) {
     val context = LocalContext.current
+    val strings = vaultStrings()
+    val scope = rememberCoroutineScope()
+    val ocrEngine = remember(preferredOcrEngineMode) {
+        OcrEngineFactory.create(preferredOcrEngineMode)
+    }
     val cameraPermissionGranted = remember(context) {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
@@ -70,15 +83,56 @@ internal fun ImportTextScannerSurface(
     var scannerState by rememberSaveable { mutableStateOf(ImportTextScannerUiState.RequestingPermission) }
     var scannerError by rememberSaveable { mutableStateOf<String?>(null) }
     var sessionId by rememberSaveable { mutableIntStateOf(0) }
+    var frozenFrame by remember { mutableStateOf<Bitmap?>(null) }
+    var captureFrame by remember { mutableStateOf<(() -> Bitmap?)?>(null) }
+
+    fun restartScanner() {
+        scannerError = null
+        frozenFrame = null
+        captureFrame = null
+        if (cameraPermissionGranted.value) {
+            scannerState = ImportTextScannerUiState.StartingCamera
+            sessionId += 1
+        } else {
+            scannerState = ImportTextScannerUiState.RequestingPermission
+        }
+    }
+
+    fun startRecognition() {
+        val bitmap = captureFrame?.invoke()
+        if (bitmap == null) {
+            scannerError = strings.importer.supplierScannerFrameUnavailable
+            scannerState = ImportTextScannerUiState.Failed
+            return
+        }
+
+        frozenFrame = bitmap
+        scannerError = null
+        scannerState = ImportTextScannerUiState.Recognizing
+
+        scope.launch {
+            runCatching { ocrEngine.recognize(bitmap) }
+                .onSuccess { result ->
+                    if (result.normalizedText().isBlank()) {
+                        scannerError = strings.importer.supplierScanNoTextDescription
+                        scannerState = ImportTextScannerUiState.Failed
+                    } else {
+                        onOcrScanned(result)
+                    }
+                }
+                .onFailure { throwable ->
+                    scannerError = throwable.message ?: strings.importer.supplierScanFailedDescription
+                    scannerState = ImportTextScannerUiState.Failed
+                }
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
         cameraPermissionGranted.value = granted
         if (granted) {
-            scannerState = ImportTextScannerUiState.StartingCamera
-            scannerError = null
-            sessionId += 1
+            restartScanner()
         } else {
             scannerState = ImportTextScannerUiState.PermissionDenied
         }
@@ -86,8 +140,7 @@ internal fun ImportTextScannerSurface(
 
     LaunchedEffect(Unit) {
         if (cameraPermissionGranted.value) {
-            scannerState = ImportTextScannerUiState.StartingCamera
-            sessionId += 1
+            restartScanner()
         } else {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
@@ -98,7 +151,7 @@ internal fun ImportTextScannerSurface(
     Scaffold(
         topBar = {
             ImportScannerTopBar(
-                title = vaultStrings().importer.actionScanSupplierText,
+                title = strings.importer.actionScanSupplierText,
                 onBack = onDismiss,
             )
         },
@@ -117,60 +170,80 @@ internal fun ImportTextScannerSurface(
             ) {
                 key(sessionId) {
                     ImportTextCameraPreview(
-                        onScannerReady = { scannerState = ImportTextScannerUiState.Scanning },
+                        onScannerReady = {
+                            if (scannerState == ImportTextScannerUiState.StartingCamera) {
+                                scannerState = ImportTextScannerUiState.Aligning
+                            }
+                        },
                         onScannerError = { throwable ->
                             scannerError = throwable.message
                             scannerState = ImportTextScannerUiState.Failed
                         },
-                        onTextScanned = onTextScanned,
+                        onCaptureFrameReady = { capture -> captureFrame = capture },
                     )
                 }
             }
 
+            frozenFrame?.takeIf { scannerState == ImportTextScannerUiState.Recognizing }?.let { bitmap ->
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
             when (scannerState) {
                 ImportTextScannerUiState.RequestingPermission -> ScannerMessagePane(
-                    title = vaultStrings().importer.scannerPermissionTitle,
-                    message = vaultStrings().importer.scannerPermissionDescription,
-                    primaryAction = vaultStrings().importer.actionGrantCameraAccess to {
+                    title = strings.importer.scannerPermissionTitle,
+                    message = strings.importer.scannerPermissionDescription,
+                    primaryAction = strings.importer.actionGrantCameraAccess to {
                         permissionLauncher.launch(Manifest.permission.CAMERA)
                     },
-                    secondaryAction = vaultStrings().importer.actionReturnToImport to onDismiss,
+                    secondaryAction = strings.importer.actionReturnToImport to onDismiss,
                 )
 
                 ImportTextScannerUiState.PermissionDenied -> ScannerMessagePane(
-                    title = vaultStrings().importer.scannerPermissionDeniedTitle,
-                    message = vaultStrings().importer.scannerPermissionDeniedDescription,
-                    primaryAction = vaultStrings().importer.actionGrantCameraAccess to {
+                    title = strings.importer.scannerPermissionDeniedTitle,
+                    message = strings.importer.scannerPermissionDeniedDescription,
+                    primaryAction = strings.importer.actionGrantCameraAccess to {
                         permissionLauncher.launch(Manifest.permission.CAMERA)
                     },
-                    secondaryAction = vaultStrings().importer.actionReturnToImport to onDismiss,
+                    secondaryAction = strings.importer.actionReturnToImport to onDismiss,
                 )
 
-                ImportTextScannerUiState.StartingCamera -> ScannerPreviewOverlay(
-                    headline = vaultStrings().importer.supplierScannerStarting,
-                    supporting = vaultStrings().importer.supplierScannerHint,
+                ImportTextScannerUiState.StartingCamera -> SupplierTextScannerOverlay(
+                    headline = strings.importer.supplierScannerStarting,
+                    supporting = strings.importer.supplierScannerHint,
+                    engineLabel = strings.importer.supplierScannerEngine(ocrEngine.engineLabel),
                     showProgress = true,
                 )
 
-                ImportTextScannerUiState.Scanning -> ScannerPreviewOverlay(
-                    headline = vaultStrings().importer.supplierScannerHint,
-                    supporting = null,
+                ImportTextScannerUiState.Aligning -> SupplierTextScannerOverlay(
+                    headline = strings.importer.supplierScannerHint,
+                    supporting = strings.importer.supplierScannerCaptureHint,
+                    engineLabel = strings.importer.supplierScannerEngine(ocrEngine.engineLabel),
                     showProgress = false,
+                    primaryAction = strings.importer.actionCaptureText to ::startRecognition,
+                )
+
+                ImportTextScannerUiState.Recognizing -> SupplierTextScannerOverlay(
+                    headline = strings.importer.supplierScannerRecognizing,
+                    supporting = strings.importer.supplierScannerCaptureHint,
+                    engineLabel = strings.importer.supplierScannerEngine(ocrEngine.engineLabel),
+                    showProgress = true,
                 )
 
                 ImportTextScannerUiState.Failed -> ScannerMessagePane(
-                    title = vaultStrings().importer.supplierScannerFailedTitle,
-                    message = scannerError ?: vaultStrings().importer.supplierScanFailedDescription,
-                    primaryAction = vaultStrings().importer.actionRetryScan to {
-                        scannerError = null
+                    title = strings.importer.supplierScannerFailedTitle,
+                    message = scannerError ?: strings.importer.supplierScanFailedDescription,
+                    primaryAction = strings.importer.actionRetryScan to {
                         if (cameraPermissionGranted.value) {
-                            scannerState = ImportTextScannerUiState.StartingCamera
-                            sessionId += 1
+                            restartScanner()
                         } else {
                             permissionLauncher.launch(Manifest.permission.CAMERA)
                         }
                     },
-                    secondaryAction = vaultStrings().importer.actionReturnToImport to onDismiss,
+                    secondaryAction = strings.importer.actionReturnToImport to onDismiss,
                 )
             }
         }
@@ -200,10 +273,64 @@ private fun ImportScannerTopBar(
 }
 
 @Composable
+private fun SupplierTextScannerOverlay(
+    headline: String,
+    supporting: String?,
+    engineLabel: String,
+    showProgress: Boolean,
+    primaryAction: Pair<String, () -> Unit>? = null,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        ScannerPreviewOverlay(
+            headline = headline,
+            supporting = supporting,
+            showProgress = showProgress,
+        )
+
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = Color.Black.copy(alpha = 0.6f),
+        ) {
+            Text(
+                text = engineLabel,
+                color = Color.White,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            )
+        }
+
+        if (primaryAction != null) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 20.dp, vertical = 120.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = Color.Black.copy(alpha = 0.72f),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Button(
+                        onClick = primaryAction.second,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(primaryAction.first)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ImportTextCameraPreview(
     onScannerReady: () -> Unit,
     onScannerError: (Throwable) -> Unit,
-    onTextScanned: (String) -> Unit,
+    onCaptureFrameReady: ((() -> Bitmap?) -> Unit),
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -214,15 +341,9 @@ private fun ImportTextCameraPreview(
         }
     }
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
-    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
 
     DisposableEffect(context, lifecycleOwner, previewView) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-        val textRecognizer = TextRecognition.getClient(
-            ChineseTextRecognizerOptions.Builder().build(),
-        )
-        val isProcessingFrame = AtomicBoolean(false)
-        val hasCompleted = AtomicBoolean(false)
 
         val listener = Runnable {
             try {
@@ -230,29 +351,20 @@ private fun ImportTextCameraPreview(
                 val preview = Preview.Builder()
                     .build()
                     .also { it.surfaceProvider = previewView.surfaceProvider }
-                val analysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
-                    .also { imageAnalysis ->
-                        imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
-                            analyzeTextFrame(
-                                imageProxy = imageProxy,
-                                textRecognizer = textRecognizer,
-                                mainExecutor = mainExecutor,
-                                isProcessingFrame = isProcessingFrame,
-                                hasCompleted = hasCompleted,
-                                onTextScanned = onTextScanned,
-                            )
-                        }
-                    }
 
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     preview,
-                    analysis,
                 )
+                onCaptureFrameReady {
+                    val previewBitmap = previewView.bitmap ?: return@onCaptureFrameReady null
+                    previewBitmap.copy(
+                        previewBitmap.config ?: Bitmap.Config.ARGB_8888,
+                        false,
+                    )
+                }
                 onScannerReady()
             } catch (throwable: Throwable) {
                 onScannerError(throwable)
@@ -265,8 +377,6 @@ private fun ImportTextCameraPreview(
             if (cameraProviderFuture.isDone) {
                 runCatching { cameraProviderFuture.get().unbindAll() }
             }
-            textRecognizer.close()
-            analysisExecutor.shutdown()
         }
     }
 
@@ -274,66 +384,4 @@ private fun ImportTextCameraPreview(
         factory = { previewView },
         modifier = Modifier.fillMaxSize(),
     )
-}
-
-@ExperimentalGetImage
-private fun analyzeTextFrame(
-    imageProxy: ImageProxy,
-    textRecognizer: TextRecognizer,
-    mainExecutor: java.util.concurrent.Executor,
-    isProcessingFrame: AtomicBoolean,
-    hasCompleted: AtomicBoolean,
-    onTextScanned: (String) -> Unit,
-) {
-    if (hasCompleted.get() || !isProcessingFrame.compareAndSet(false, true)) {
-        imageProxy.close()
-        return
-    }
-
-    val mediaImage = imageProxy.image
-    if (mediaImage == null) {
-        isProcessingFrame.set(false)
-        imageProxy.close()
-        return
-    }
-
-    val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-    textRecognizer.process(image)
-        .addOnSuccessListener(mainExecutor) { result ->
-            val rawText = result.toNormalizedText()
-            if (rawText.isNotBlank() && looksLikeImportableText(rawText) && hasCompleted.compareAndSet(false, true)) {
-                onTextScanned(rawText)
-            }
-        }
-        .addOnCompleteListener(mainExecutor) {
-            isProcessingFrame.set(false)
-            imageProxy.close()
-        }
-}
-
-private fun Text.toNormalizedText(): String {
-    return textBlocks
-        .mapNotNull { block ->
-            block.lines
-                .map { it.text.trim() }
-                .filter(String::isNotBlank)
-                .takeIf(List<String>::isNotEmpty)
-                ?.joinToString(separator = "\n")
-        }
-        .joinToString(separator = "\n")
-        .trim()
-}
-
-private fun looksLikeImportableText(rawText: String): Boolean {
-    val hasFieldMarker = listOf(
-        "\u540D\u79F0",
-        "\u578B\u53F7",
-        "\u54C1\u724C",
-        "\u5C01\u88C5",
-        "QTY",
-        "Qty",
-        "Model",
-        "Package",
-    ).any { rawText.contains(it, ignoreCase = true) }
-    return hasFieldMarker || rawText.length >= 18 || rawText.count { it == '\n' } >= 1
 }

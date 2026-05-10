@@ -1,9 +1,12 @@
 # Changelog
 
 ## [Unreleased]
-bump: minor
+bump: patch
 
 <!-- Add unreleased notes below this line. -->
+
+## [0.3.5] - 2026-05-11
+
 - Switched Android JLC package QR scanning from Google Code Scanner to an
   in-app CameraX scanner backed by bundled ML Kit barcode scanning, removing
   the runtime dependency on downloading the Barcode UI module before first use.
@@ -31,6 +34,26 @@ bump: minor
   Studio's embedded JBR so local `assembleRelease` remains stable when the
   system default Java runtime is newer than the Android lint toolchain
   supports.
+- Refactored Android supplier packaging OCR into a capture-first flow with a
+  unified OCR contract, structured line extraction, packaging-field parsing,
+  and richer import notes instead of flattening every live frame directly into
+  raw text.
+- Added Android OCR engine preference storage and settings UI with `Auto`,
+  `ML Kit offline`, and `Paddle experimental` modes, while keeping the
+  current build honest by treating Paddle as an unavailable future native
+  integration instead of a fake fallback.
+- Renamed the Android app surface to `元件仓库`, tightened the inventory home
+  top bar from the previous medium/two-row app bar to a single-row layout,
+  and repaired the broken `values-zh-rCN` resource file so Preview and runtime
+  Chinese resources resolve again.
+- Added persisted Android in-app language switching with first-launch default
+  `zh-CN`, backed by `AppCompatDelegate.setApplicationLocales`, a settings
+  selector for `中文` / `English`, and manifest locale metadata for Android
+  per-app language support.
+- Improved Android JLC QR parsing and local recognition so vendor numbering
+  schemes can infer package, model-family, and category more reliably, while
+  avoiding the old fallback that incorrectly copied raw model codes into the
+  package field when no package was actually recognized.
 
 ## [0.3.0] - 2026-05-09
 

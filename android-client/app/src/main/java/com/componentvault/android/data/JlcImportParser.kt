@@ -6,6 +6,9 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
 internal object JlcImportParser {
+    private val qrKeyValuePattern = Regex("""([A-Za-z0-9_]+):(.*?)(?=,[A-Za-z0-9_]+:|$)""")
+    private val modelTokenPattern = Regex("""\b[A-Z0-9][A-Z0-9._/\-]{4,}\b""", RegexOption.IGNORE_CASE)
+
     fun parseText(rawInput: String): ComponentImportCandidate {
         val normalizedInput = rawInput.trim()
         require(normalizedInput.isNotBlank()) { "Paste JLC text before parsing." }
@@ -50,43 +53,35 @@ internal object JlcImportParser {
         val normalizedInput = rawInput.trim()
         require(normalizedInput.isNotBlank()) { "Scan a JLC code before importing." }
 
-        val values = normalizedInput
-            .removePrefix("{")
-            .removeSuffix("}")
-            .split(',')
-            .map(String::trim)
-            .filter(String::isNotBlank)
-            .mapNotNull { token ->
-                val separatorIndex = token.indexOf(':')
-                if (separatorIndex <= 0 || separatorIndex == token.lastIndex) {
-                    null
-                } else {
-                    token.substring(0, separatorIndex).trim() to
-                        decodeQrValue(token.substring(separatorIndex + 1).trim())
-                }
-            }
-            .associate { it.first to it.second }
+        val values = parseQrKeyValues(normalizedInput)
 
         val sku = values["pc"].orEmpty()
-        val model = values["pm"].cleanNullable()
         val manufacturerCode = values["mc"].cleanNullable()
         val explicitName = values["nm"].cleanNullable()
-        val packageName = values["pkg"].cleanNullable()
-            ?: ComponentPackageInferencer.infer(
-                model,
-                explicitName,
+        val brand = values["br"].cleanNullable()
+        val model = values["pm"].cleanNullable()
+            ?: inferModelCandidate(
                 manufacturerCode,
+                explicitName,
+                brand,
                 sku,
             )
-            ?: model
-            ?: sku
-        val brand = values["br"].cleanNullable()
+        val packageName = values["pkg"].cleanNullable()
+            ?: ComponentPackageInferencer.infer(
+                explicitName,
+                model,
+                manufacturerCode,
+                brand,
+                sku,
+                normalizedInput,
+            )
+            .orEmpty()
         val explicitCategory = values["cat"].cleanNullable()
         val explicitLocation = values["loc"].cleanNullable()
         val quantity = values["qty"]?.toIntOrNull()
         val displayName = explicitName
-            ?: manufacturerCode
             ?: model
+            ?: manufacturerCode
             ?: "JLC Component $sku"
 
         require(sku.isNotBlank()) { "Unable to recognize the JLC part code from the QR payload." }
@@ -104,6 +99,7 @@ internal object JlcImportParser {
                 model,
                 manufacturerCode,
                 brand,
+                sku,
             ),
             model = model,
             brand = brand,
@@ -113,9 +109,35 @@ internal object JlcImportParser {
                 values["pdi"]?.cleanNullable()?.let { add("Package data id: $it") }
                 values["cc"]?.cleanNullable()?.let { add("Package count: $it") }
                 values["hp"]?.cleanNullable()?.let { add("Shelf hint: $it") }
+                manufacturerCode?.let { add("Manufacturer code: $it") }
                 explicitLocation?.let { add("Warehouse location: $it") }
             },
         )
+    }
+
+    private fun parseQrKeyValues(rawInput: String): Map<String, String> {
+        val body = rawInput.removePrefix("{").removeSuffix("}")
+        return buildMap {
+            qrKeyValuePattern.findAll(body).forEach { match ->
+                val key = match.groupValues[1].trim()
+                val value = decodeQrValue(match.groupValues[2].trim())
+                if (key.isNotBlank()) {
+                    put(key, value)
+                }
+            }
+        }
+    }
+
+    private fun inferModelCandidate(vararg values: String?): String? {
+        return values.asSequence()
+            .filterNotNull()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .flatMap { value -> modelTokenPattern.findAll(value).map { it.value.trim() } }
+            .firstOrNull { token ->
+                token.any(Char::isLetter) &&
+                    !token.matches(Regex("""C\d{5,}""", RegexOption.IGNORE_CASE))
+            }
     }
 
     private fun parseKeyValueLine(line: String): Pair<String, String>? {

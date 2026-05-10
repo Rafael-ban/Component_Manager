@@ -31,6 +31,9 @@ connects to it over HTTP.
   rules, and learned mappings work offline, while optional server-side part
   lookup can fill missing fields through token-protected
   `/admin-api/part-lookup`.
+- Android supplier packaging OCR now uses a capture-first workflow that freezes
+  one preview frame, runs structured OCR locally, and then parses packaging
+  fields before the user confirms quantity and storage details.
 - Active components enforce unique `sku`.
 - Component `quantity` and `min_stock` are non-negative.
 
@@ -78,9 +81,13 @@ connects to it over HTTP.
   tablet list-detail layouts, quantity-first import confirmation, generated
   JLC-compatible or warehouse QR labels, local import learning backed by a
   device-only SQLite mapping table, optional LCSC-backed official metadata
-  lookup for filling missing JLC fields, and scroll-safe `Scaffold` inset
-  handling; `assembleDebug` and release packaging were re-verified on
-  `2026-05-10` on this host with the configured Android SDK and JDK paths.
+  lookup for filling missing JLC fields, capture-first supplier packaging OCR
+  with structured line extraction, user-selectable OCR engine preference
+  (`Auto`, `ML Kit offline`, `Paddle experimental`), persisted in-app
+  language switching with first-launch default `zh-CN`, stronger vendor-aware
+  QR package/category inference, and scroll-safe `Scaffold` inset handling;
+  `assembleDebug` and `assembleRelease` were re-verified on `2026-05-11` on
+  this host with the configured Android SDK and JDK paths.
 - Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
   separate `admin-web/` React application; backend `pytest` and `admin-web`
   production build were both verified successfully on `2026-05-08`.
@@ -178,23 +185,27 @@ preferences and supports:
 - JLC package QR import through an in-app CameraX scanner backed by bundled
   ML Kit barcode scanning, with runtime camera permission handling
 - supplier packaging OCR import through an in-app CameraX scanner backed by
-  bundled ML Kit Chinese text recognition
+  bundled ML Kit Chinese text recognition, now using a frozen-frame capture
+  step plus structured line extraction before packaging-field parsing
 - compact label preview plus PNG/PDF export, generating JLC-compatible QR
   payloads for JLC-sourced items and warehouse QR payloads for other items
 - local-first JLC import enrichment through parser heuristics plus a device-only
   learned mapping table keyed by JLC SKU and fallback MPN reuse
 - bundled offline recognition rules for package normalization, model-family
-  matching, and category inference even when no server is deployed
+  matching, vendor normalization, and category inference even when no server
+  is deployed
 - optional server-assisted part enrichment for JLC text and QR imports via
   `GET /admin-api/part-lookup`, with client-side cache reuse, missing-field-only
   merge behavior, and in-app toggles for local recognition aggressiveness vs
   server lookup
 - sync settings save/test/sync-now
 - separate sync-on-launch and sync-after-write behavior controls
-- import defaults, local-learning controls, and an in-app About section
+- import defaults, local-learning controls, OCR engine preference, and an
+  in-app language selector plus About section
 - push/pull against the FastAPI sync service
 - Chinese-first UI resources for the primary screens, with a matching
-  Simplified Chinese (`zh-CN`) resource set
+  Simplified Chinese (`zh-CN`) resource set and an in-app `中文` / `English`
+  switch backed by Android per-app locales
 - an inventory-first adaptive shell:
   `Inventory`, `Movements`, `Overview`, `Settings`
 - compact phone flows centered on search, filters, dense lists, and full-screen

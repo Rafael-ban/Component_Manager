@@ -219,12 +219,13 @@ internal fun JlcImportSurface(
             BackHandler(onBack = { scannerMode = null })
             ImportTextScannerSurface(
                 onDismiss = { scannerMode = null },
-                onTextScanned = { result ->
+                preferredOcrEngineMode = appPreferences.ocrEngineMode,
+                onOcrScanned = { result ->
                     scannerMode = null
-                    runCatching { ComponentImportParser.parseSupplierText(result) }
+                    runCatching { ComponentImportParser.parseSupplierOcr(result) }
                         .onSuccess(::setBaseCandidate)
                         .onFailure {
-                            rawInput = result
+                            rawInput = result.fullText
                             feedbackMessage = it.message ?: strings.importer.supplierScanFailedDescription
                         }
                 },

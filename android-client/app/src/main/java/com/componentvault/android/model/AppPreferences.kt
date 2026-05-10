@@ -10,6 +10,8 @@ data class AppPreferences(
     val preferAggressiveAutoRecognition: Boolean = true,
     val enableLocalImportLearning: Boolean = true,
     val enableServerJlcLookup: Boolean = false,
+    val ocrEngineMode: OcrEngineMode = OcrEngineMode.Auto,
+    val appLanguage: AppLanguage = AppLanguage.ZhCn,
 ) {
     val suggestedImportLocation: String
         get() = if (rememberLastImportLocation && lastImportLocation.isNotBlank()) {
