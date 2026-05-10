@@ -54,11 +54,13 @@
 - Android local storage now also includes an `import_learning_mappings` SQLite
   table for device-only JLC import learning keyed by source SKU with MPN
   fallback reuse.
-- JLC text and QR imports now resolve fields in this order: user edits, local
-  learned mappings, parser output, then optional server-side official lookup.
-- Official metadata enrichment still uses `/admin-api/lcsc/lookup`, but Android
-  now treats it as an optional missing-field filler rather than the primary
-  import path, and keeps a local cache for repeated imports.
+- JLC text and QR imports are seeded by parser output, then enriched by
+  bundled offline recognition rules, device-only learned mappings, and finally
+  optional server-side `GET /admin-api/part-lookup` metadata. User edits in
+  the import confirmation form remain authoritative.
+- Android still keeps a local cache for repeated server-assisted lookups, while
+  `/admin-api/lcsc/lookup` now sits behind the newer hybrid recognition flow as
+  a direct compatibility endpoint when official LCSC credentials are available.
 - Android build verification completed successfully on `2026-05-08` on the
   current host machine after local SDK and JDK configuration. The latest
   Android `assembleDebug` and `assembleRelease` verification completed
@@ -141,9 +143,16 @@
 
 - FastAPI exposes a small token-protected sync API.
 - FastAPI also exposes token-protected read-only admin APIs at `/admin-api/*`.
-- The server now exposes `GET /admin-api/lcsc/lookup` as a token-protected
-  proxy to the LCSC OpenAPI, with short in-memory response caching and
-  configurable credentials through environment variables.
+- The server now exposes `GET /admin-api/part-lookup` as a token-protected
+  hybrid recognition endpoint that applies bundled or refreshed rule packs
+  first and then optionally merges official LCSC metadata when credentials are
+  configured.
+- The server also exposes `GET /admin-api/recognition-rules/meta` and
+  `POST /admin-api/recognition-rules/refresh` so operators can inspect or
+  refresh the active rule pack without changing the sync schema.
+- `GET /admin-api/lcsc/lookup` remains available as a token-protected direct
+  compatibility proxy to the LCSC OpenAPI, with short in-memory response
+  caching and configurable credentials through environment variables.
 - SQLite is used for a single-user self-hosted deployment.
 - Incoming entities are merged with last-write-wins based on `updated_at`.
 - `GET /health` is public.
@@ -233,5 +242,7 @@ The Android client also persists local-only app behavior settings:
 - `default_import_min_stock`
 - `remember_last_import_location`
 - `sync_after_local_changes`
+- `enable_local_auto_recognition`
+- `prefer_aggressive_auto_recognition`
 - `enable_local_import_learning`
 - `enable_server_jlc_lookup`

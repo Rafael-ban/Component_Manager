@@ -146,3 +146,33 @@ class LcscLookupResponse(BaseModel):
     matched_by: Literal["sku", "mpn", "name"] | None = None
     confidence: Literal["exact", "fallback", "none"] = "none"
     cache_hit: bool = False
+
+
+class PartLookupResponse(BaseModel):
+    found: bool
+    source: str = "local_rules"
+    sku: str | None = None
+    name: str | None = None
+    mpn: str | None = None
+    package_name: str | None = None
+    category: str | None = None
+    category_path: str | None = None
+    brand: str | None = None
+    vendor: str | None = None
+    model_family: str | None = None
+    official_url: str | None = None
+    matched_by: str | None = None
+    confidence: str = "none"
+    cache_hit: bool = False
+    rule_version: str | None = None
+
+
+class RecognitionRulesMetaResponse(BaseModel):
+    version: str
+    updated_at: str | None = None
+    source: str
+    active_path: str
+    override_path: str
+    remote_url: str | None = None
+    web_fallback_enabled: bool = False
+    refreshed: bool = False

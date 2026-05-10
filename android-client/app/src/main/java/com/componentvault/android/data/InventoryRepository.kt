@@ -27,6 +27,7 @@ import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.SyncConfiguration
 import com.componentvault.android.model.isJlcSource
 import com.componentvault.android.model.parseImportDescription
+import com.componentvault.android.model.withRecognitionMetadata
 import com.componentvault.android.model.withLearningMapping
 import com.componentvault.android.model.withOfficialMetadata
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +47,7 @@ class InventoryRepository(
 ) {
     private val appContext = context.applicationContext
     private val databaseHelper = InventoryDatabaseHelper(appContext)
+    private val localPartRecognitionEngine by lazy { LocalPartRecognitionEngine(appContext) }
     private val preferences: SharedPreferences = appContext.getSharedPreferences(
         PREFS_NAME,
         Context.MODE_PRIVATE,
@@ -198,6 +200,11 @@ class InventoryRepository(
                 KEY_SYNC_AFTER_LOCAL_CHANGES,
                 preferences.getBoolean(KEY_AUTO_SYNC_ENABLED, false),
             ),
+            enableLocalAutoRecognition = preferences.getBoolean(KEY_ENABLE_LOCAL_AUTO_RECOGNITION, true),
+            preferAggressiveAutoRecognition = preferences.getBoolean(
+                KEY_PREFER_AGGRESSIVE_AUTO_RECOGNITION,
+                true,
+            ),
             enableLocalImportLearning = preferences.getBoolean(KEY_ENABLE_LOCAL_IMPORT_LEARNING, true),
             enableServerJlcLookup = if (preferences.contains(KEY_ENABLE_SERVER_JLC_LOOKUP)) {
                 preferences.getBoolean(KEY_ENABLE_SERVER_JLC_LOOKUP, false)
@@ -234,6 +241,11 @@ class InventoryRepository(
             .putInt(KEY_DEFAULT_IMPORT_MIN_STOCK, preferencesState.defaultImportMinStock.coerceAtLeast(0))
             .putBoolean(KEY_REMEMBER_LAST_IMPORT_LOCATION, preferencesState.rememberLastImportLocation)
             .putBoolean(KEY_SYNC_AFTER_LOCAL_CHANGES, preferencesState.syncAfterLocalChanges)
+            .putBoolean(KEY_ENABLE_LOCAL_AUTO_RECOGNITION, preferencesState.enableLocalAutoRecognition)
+            .putBoolean(
+                KEY_PREFER_AGGRESSIVE_AUTO_RECOGNITION,
+                preferencesState.preferAggressiveAutoRecognition,
+            )
             .putBoolean(KEY_ENABLE_LOCAL_IMPORT_LEARNING, preferencesState.enableLocalImportLearning)
             .putBoolean(KEY_ENABLE_SERVER_JLC_LOOKUP, preferencesState.enableServerJlcLookup)
             .putBoolean(KEY_AUTO_ENRICH_JLC_IMPORTS, preferencesState.enableServerJlcLookup)
@@ -257,11 +269,20 @@ class InventoryRepository(
         appPreferences: AppPreferences,
         syncConfiguration: SyncConfiguration,
     ): ComponentImportResolution = withContext(Dispatchers.IO) {
-        if (!candidate.isJlcSource) {
+        if (candidate.sourceType == com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel) {
             return@withContext ComponentImportResolution(candidate = candidate)
         }
 
         var enrichedCandidate = candidate
+        if (appPreferences.enableLocalAutoRecognition) {
+            localPartRecognitionEngine.recognize(
+                candidate = candidate,
+                aggressive = appPreferences.preferAggressiveAutoRecognition,
+            )?.let { metadata ->
+                enrichedCandidate = enrichedCandidate.withRecognitionMetadata(metadata)
+            }
+        }
+
         val learningMatch = if (appPreferences.enableLocalImportLearning) {
             databaseHelper.writableDatabase.use { db ->
                 findImportLearningMatch(
@@ -284,11 +305,14 @@ class InventoryRepository(
         }
 
         val officialLookupResult = if (appPreferences.enableServerJlcLookup) {
-            lookupLcscMetadata(
+            lookupPartMetadata(
                 syncConfiguration = syncConfiguration,
-                sku = candidate.sku,
-                mpn = candidate.model,
-                name = candidate.name,
+                sku = enrichedCandidate.sku,
+                mpn = enrichedCandidate.model,
+                name = enrichedCandidate.name,
+                brand = enrichedCandidate.vendor ?: enrichedCandidate.brand,
+                packageHint = enrichedCandidate.normalizedPackageKey ?: enrichedCandidate.packageName,
+                sourceType = enrichedCandidate.sourceType.name,
             ).also { lookupResult ->
                 if (lookupResult.outcome == ComponentOfficialLookupOutcome.Success) {
                     lookupResult.metadata?.let { metadata ->
@@ -307,16 +331,28 @@ class InventoryRepository(
         )
     }
 
-    suspend fun lookupLcscMetadata(
+    suspend fun lookupPartMetadata(
         syncConfiguration: SyncConfiguration,
         sku: String?,
         mpn: String?,
         name: String?,
+        brand: String?,
+        packageHint: String?,
+        sourceType: String?,
     ): ComponentOfficialLookupResult = withContext(Dispatchers.IO) {
         val normalizedSku = sku?.trim().orEmpty()
         val normalizedMpn = mpn?.trim().orEmpty()
         val normalizedName = name?.trim().orEmpty()
-        if (normalizedSku.isBlank() && normalizedMpn.isBlank() && normalizedName.isBlank()) {
+        val normalizedBrand = brand?.trim().orEmpty()
+        val normalizedPackageHint = packageHint?.trim().orEmpty()
+        val normalizedSourceType = sourceType?.trim().orEmpty()
+        if (
+            normalizedSku.isBlank() &&
+            normalizedMpn.isBlank() &&
+            normalizedName.isBlank() &&
+            normalizedBrand.isBlank() &&
+            normalizedPackageHint.isBlank()
+        ) {
             return@withContext ComponentOfficialLookupResult(
                 outcome = ComponentOfficialLookupOutcome.NoMatch,
             )
@@ -349,11 +385,20 @@ class InventoryRepository(
                 if (normalizedName.isNotBlank()) {
                     add("name=${java.net.URLEncoder.encode(normalizedName, Charsets.UTF_8.name())}")
                 }
+                if (normalizedBrand.isNotBlank()) {
+                    add("brand=${java.net.URLEncoder.encode(normalizedBrand, Charsets.UTF_8.name())}")
+                }
+                if (normalizedPackageHint.isNotBlank()) {
+                    add("package_hint=${java.net.URLEncoder.encode(normalizedPackageHint, Charsets.UTF_8.name())}")
+                }
+                if (normalizedSourceType.isNotBlank()) {
+                    add("source_type=${java.net.URLEncoder.encode(normalizedSourceType, Charsets.UTF_8.name())}")
+                }
             }
             val response = callJson(
                 settings = syncConfiguration,
                 method = "GET",
-                path = "/admin-api/lcsc/lookup?${queryParts.joinToString("&")}",
+                path = "/admin-api/part-lookup?${queryParts.joinToString("&")}",
                 body = null,
             )
             if (!response.optBoolean("found")) {
@@ -368,6 +413,8 @@ class InventoryRepository(
                 val rawCategory = response.optString("category").blankToNull()
                 val rawCategoryPath = response.optString("category_path").blankToNull()
                 val rawBrand = response.optString("brand").blankToNull()
+                val rawVendor = response.optString("vendor").blankToNull()
+                val rawModelFamily = response.optString("model_family").blankToNull()
                 val rawPackage = response.optString("package_name").blankToNull()
                     ?: ComponentPackageInferencer.infer(
                         rawName,
@@ -377,6 +424,7 @@ class InventoryRepository(
                         rawCategoryPath,
                     )
                 val metadata = ComponentOfficialMetadata(
+                    source = response.optString("source").blankToNull(),
                     sku = rawSku,
                     name = rawName,
                     packageName = rawPackage,
@@ -390,10 +438,13 @@ class InventoryRepository(
                     ),
                     model = rawMpn,
                     brand = rawBrand,
+                    vendor = rawVendor ?: rawBrand,
+                    modelFamily = rawModelFamily,
                     categoryPath = rawCategoryPath,
                     officialUrl = response.optString("official_url").blankToNull(),
                     matchedBy = response.optString("matched_by").blankToNull(),
                     confidence = response.optString("confidence").blankToNull(),
+                    ruleVersion = response.optString("rule_version").blankToNull(),
                 )
                 cacheLookup(metadata)
                 ComponentOfficialLookupResult(
@@ -471,7 +522,11 @@ class InventoryRepository(
                 db.beginTransaction()
                 try {
                     upsertComponent(db, draft)
-                    if (appPreferences.enableLocalImportLearning && sourceCandidate?.isJlcSource == true) {
+                    if (
+                        appPreferences.enableLocalImportLearning &&
+                        sourceCandidate != null &&
+                        sourceCandidate.sourceType != com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel
+                    ) {
                         upsertImportLearningMapping(
                             db = db,
                             sourceCandidate = sourceCandidate,
@@ -806,6 +861,14 @@ class InventoryRepository(
             )
             changed = true
         }
+        if (!preferences.contains(KEY_ENABLE_LOCAL_AUTO_RECOGNITION)) {
+            editor.putBoolean(KEY_ENABLE_LOCAL_AUTO_RECOGNITION, true)
+            changed = true
+        }
+        if (!preferences.contains(KEY_PREFER_AGGRESSIVE_AUTO_RECOGNITION)) {
+            editor.putBoolean(KEY_PREFER_AGGRESSIVE_AUTO_RECOGNITION, true)
+            changed = true
+        }
         if (!preferences.contains(KEY_ENABLE_LOCAL_IMPORT_LEARNING)) {
             editor.putBoolean(KEY_ENABLE_LOCAL_IMPORT_LEARNING, true)
             changed = true
@@ -853,16 +916,20 @@ class InventoryRepository(
                 return@forEach
             }
             return ComponentOfficialMetadata(
+                source = payload.optString("source").blankToNull(),
                 sku = payload.optString("sku").blankToNull(),
                 name = payload.optString("name").blankToNull(),
                 packageName = payload.optString("package_name").blankToNull(),
                 category = payload.optString("category").blankToNull(),
                 model = payload.optString("model").blankToNull(),
                 brand = payload.optString("brand").blankToNull(),
+                vendor = payload.optString("vendor").blankToNull(),
+                modelFamily = payload.optString("model_family").blankToNull(),
                 categoryPath = payload.optString("category_path").blankToNull(),
                 officialUrl = payload.optString("official_url").blankToNull(),
                 matchedBy = payload.optString("matched_by").blankToNull(),
                 confidence = payload.optString("confidence").blankToNull(),
+                ruleVersion = payload.optString("rule_version").blankToNull(),
             )
         }
 
@@ -871,16 +938,20 @@ class InventoryRepository(
 
     private fun cacheLookup(metadata: ComponentOfficialMetadata) {
         val payload = JSONObject().apply {
+            put("source", metadata.source)
             put("sku", metadata.sku)
             put("name", metadata.name)
             put("package_name", metadata.packageName)
             put("category", metadata.category)
             put("model", metadata.model)
             put("brand", metadata.brand)
+            put("vendor", metadata.vendor)
+            put("model_family", metadata.modelFamily)
             put("category_path", metadata.categoryPath)
             put("official_url", metadata.officialUrl)
             put("matched_by", metadata.matchedBy)
             put("confidence", metadata.confidence)
+            put("rule_version", metadata.ruleVersion)
             put("fetched_at", System.currentTimeMillis())
         }.toString()
 
@@ -1640,6 +1711,8 @@ class InventoryRepository(
         const val KEY_DEFAULT_IMPORT_MIN_STOCK = "default_import_min_stock"
         const val KEY_REMEMBER_LAST_IMPORT_LOCATION = "remember_last_import_location"
         const val KEY_SYNC_AFTER_LOCAL_CHANGES = "sync_after_local_changes"
+        const val KEY_ENABLE_LOCAL_AUTO_RECOGNITION = "enable_local_auto_recognition"
+        const val KEY_PREFER_AGGRESSIVE_AUTO_RECOGNITION = "prefer_aggressive_auto_recognition"
         const val KEY_ENABLE_LOCAL_IMPORT_LEARNING = "enable_local_import_learning"
         const val KEY_ENABLE_SERVER_JLC_LOOKUP = "enable_server_jlc_lookup"
         const val KEY_AUTO_ENRICH_JLC_IMPORTS = "auto_enrich_jlc_imports"

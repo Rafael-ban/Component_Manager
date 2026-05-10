@@ -103,6 +103,12 @@ internal fun SettingsContent(
     var syncAfterLocalChanges by remember(appPreferences.syncAfterLocalChanges) {
         mutableStateOf(appPreferences.syncAfterLocalChanges)
     }
+    var enableLocalAutoRecognition by remember(appPreferences.enableLocalAutoRecognition) {
+        mutableStateOf(appPreferences.enableLocalAutoRecognition)
+    }
+    var preferAggressiveAutoRecognition by remember(appPreferences.preferAggressiveAutoRecognition) {
+        mutableStateOf(appPreferences.preferAggressiveAutoRecognition)
+    }
     var enableLocalImportLearning by remember(appPreferences.enableLocalImportLearning) {
         mutableStateOf(appPreferences.enableLocalImportLearning)
     }
@@ -128,6 +134,8 @@ internal fun SettingsContent(
                     defaultImportMinStock = minStock,
                     rememberLastImportLocation = rememberLastImportLocation,
                     syncAfterLocalChanges = syncAfterLocalChanges,
+                    enableLocalAutoRecognition = enableLocalAutoRecognition,
+                    preferAggressiveAutoRecognition = preferAggressiveAutoRecognition,
                     enableLocalImportLearning = enableLocalImportLearning,
                     enableServerJlcLookup = enableServerJlcLookup,
                 ),
@@ -184,6 +192,10 @@ internal fun SettingsContent(
                     onRememberLastImportLocationChange = { rememberLastImportLocation = it },
                     syncAfterLocalChanges = syncAfterLocalChanges,
                     onSyncAfterLocalChangesChange = { syncAfterLocalChanges = it },
+                    enableLocalAutoRecognition = enableLocalAutoRecognition,
+                    onEnableLocalAutoRecognitionChange = { enableLocalAutoRecognition = it },
+                    preferAggressiveAutoRecognition = preferAggressiveAutoRecognition,
+                    onPreferAggressiveAutoRecognitionChange = { preferAggressiveAutoRecognition = it },
                     enableLocalImportLearning = enableLocalImportLearning,
                     onEnableLocalImportLearningChange = { enableLocalImportLearning = it },
                     enableServerJlcLookup = enableServerJlcLookup,
@@ -240,6 +252,10 @@ internal fun SettingsContent(
                 onRememberLastImportLocationChange = { rememberLastImportLocation = it },
                 syncAfterLocalChanges = syncAfterLocalChanges,
                 onSyncAfterLocalChangesChange = { syncAfterLocalChanges = it },
+                enableLocalAutoRecognition = enableLocalAutoRecognition,
+                onEnableLocalAutoRecognitionChange = { enableLocalAutoRecognition = it },
+                preferAggressiveAutoRecognition = preferAggressiveAutoRecognition,
+                onPreferAggressiveAutoRecognitionChange = { preferAggressiveAutoRecognition = it },
                 enableLocalImportLearning = enableLocalImportLearning,
                 onEnableLocalImportLearningChange = { enableLocalImportLearning = it },
                 enableServerJlcLookup = enableServerJlcLookup,
@@ -377,6 +393,10 @@ private fun LazyListScope.settingsFormItems(
     onRememberLastImportLocationChange: (Boolean) -> Unit,
     syncAfterLocalChanges: Boolean,
     onSyncAfterLocalChangesChange: (Boolean) -> Unit,
+    enableLocalAutoRecognition: Boolean,
+    onEnableLocalAutoRecognitionChange: (Boolean) -> Unit,
+    preferAggressiveAutoRecognition: Boolean,
+    onPreferAggressiveAutoRecognitionChange: (Boolean) -> Unit,
     enableLocalImportLearning: Boolean,
     onEnableLocalImportLearningChange: (Boolean) -> Unit,
     enableServerJlcLookup: Boolean,
@@ -478,6 +498,18 @@ private fun LazyListScope.settingsFormItems(
                 subtitle = strings.settings.rememberLastImportLocationDescription,
                 checked = rememberLastImportLocation,
                 onCheckedChange = onRememberLastImportLocationChange,
+            )
+            SettingsToggleRow(
+                title = strings.settings.localAutoRecognition,
+                subtitle = strings.settings.localAutoRecognitionDescription,
+                checked = enableLocalAutoRecognition,
+                onCheckedChange = onEnableLocalAutoRecognitionChange,
+            )
+            SettingsToggleRow(
+                title = strings.settings.aggressiveRecognition,
+                subtitle = strings.settings.aggressiveRecognitionDescription,
+                checked = preferAggressiveAutoRecognition,
+                onCheckedChange = onPreferAggressiveAutoRecognitionChange,
             )
             SettingsToggleRow(
                 title = strings.settings.localImportLearning,

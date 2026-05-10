@@ -19,13 +19,14 @@ internal object JlcImportParser {
 
         val name = values.valueOf("\u540D\u79F0", "name")
         val sku = values.valueOf("\u7F16\u53F7", "sku")
-        val packageName = values.valueOf("\u5C01\u88C5", "package")
         val model = values.valueOf("\u578B\u53F7", "model").blankToNull()
         val brand = values.valueOf("\u54C1\u724C", "brand").blankToNull()
+        val packageName = values.valueOf("\u5C01\u88C5", "package").ifBlank {
+            ComponentPackageInferencer.infer(name, model, brand, normalizedInput).orEmpty()
+        }
 
         require(name.isNotBlank()) { "Unable to recognize the JLC component name." }
         require(sku.isNotBlank()) { "Unable to recognize the JLC component number." }
-        require(packageName.isNotBlank()) { "Unable to recognize the JLC package field." }
 
         return ComponentImportCandidate(
             sourceType = ComponentImportSourceType.JlcText,

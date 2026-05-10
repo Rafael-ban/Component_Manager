@@ -13,16 +13,24 @@ bump: minor
 - Added Android inventory label preview plus PNG/PDF export, generating
   JLC-compatible QR payloads for JLC-sourced parts and warehouse QR payloads
   for non-JLC parts so labels can round-trip back into import flows.
-- Added server-side `GET /admin-api/lcsc/lookup` plus Android-side optional
-  LCSC official metadata enrichment for JLC text and QR imports, with local
-  cache reuse and a settings toggle.
+- Added server-side hybrid recognition endpoints:
+  `GET /admin-api/part-lookup`,
+  `GET /admin-api/recognition-rules/meta`, and
+  `POST /admin-api/recognition-rules/refresh`, while keeping
+  `GET /admin-api/lcsc/lookup` as a compatibility proxy for direct official
+  supplier metadata requests.
 - Reworked Android JLC import enrichment into a local-first flow with
-  device-only learned mappings stored in SQLite, SKU-first and MPN-fallback
-  reuse, field-origin review in the import form, and separate settings for
-  local learning vs optional server lookup.
+  bundled offline recognition rules, device-only learned mappings stored in
+  SQLite, SKU-first and MPN-fallback reuse, field-origin review in the import
+  form, and separate settings for local recognition, learning, and optional
+  server lookup.
 - Rebuilt Android runtime string resources and preview string bundles after the
   import-enrichment changes, and re-verified `assembleDebug` and
   `assembleRelease` on `2026-05-10`.
+- Added a Windows-side Android Gradle helper script that prefers Android
+  Studio's embedded JBR so local `assembleRelease` remains stable when the
+  system default Java runtime is newer than the Android lint toolchain
+  supports.
 
 ## [0.3.0] - 2026-05-09
 

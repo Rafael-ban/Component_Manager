@@ -17,9 +17,13 @@ cd server
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Verified on `2026-05-08`:
+`.\scripts\bootstrap.ps1` now repairs a broken or missing Windows
+`py -3.12` launcher registration by falling back to a repo-local
+`uv`-managed Python 3.12 under `.uv-python/` when `uv` is installed.
 
-- `.\.venv\Scripts\python.exe -m pytest` -> `9 passed`
+Verification snapshot on a healthy local toolchain (`2026-05-08`):
+
+- `.\.venv\Scripts\python.exe -m pytest` -> backend suite passed
 - `/admin-api/dashboard` smoke request with token -> `200 OK`
 
 ## Local Admin Web Development
@@ -70,6 +74,12 @@ Admin web is available at:
   `https://ips.lcsc.com`
 - `LCSC_LOOKUP_CACHE_TTL_SECONDS`: server-side in-memory cache TTL for official
   lookup responses, default `43200`
+- `IMPORT_RULES_REMOTE_URL`: optional JSON URL used to refresh the server-side
+  recognition rule pack consumed by `/admin-api/part-lookup`
+- `IMPORT_RULES_REFRESH_HOURS`: refresh age threshold for the cached rule pack,
+  default `24`
+- `ENABLE_WEB_FALLBACK_RESOLVERS`: reserved toggle for future public-web
+  fallback resolvers, default `false`
 
 ## Versioning Workflow
 
@@ -205,8 +215,9 @@ Implemented client behaviors:
 - component create/edit/soft delete
 - movement entry and quantity recalculation
 - manual sync, connection test, and optional auto sync
-- JLC text/QR import with optional official LCSC metadata enrichment through
-  the server-side lookup proxy
+- JLC text/QR import with bundled offline recognition rules, device-only import
+  learning, and optional server-assisted enrichment through
+  `GET /admin-api/part-lookup`
 - supplier packaging OCR import plus generated JLC-compatible or warehouse QR
   labels
 
@@ -348,7 +359,9 @@ curl -X POST http://localhost:8787/auth/ping `
 ### `py` exists but Python is broken
 
 - Symptom: `py -3.12` cannot launch the registered interpreter.
-- Fix: repair or reinstall Python 3.12, then re-run `.\scripts\bootstrap.ps1`.
+- Fix: re-run `.\scripts\bootstrap.ps1`; it will recreate `server/.venv` and
+  fall back to a repo-local `uv`-managed Python 3.12 when `uv` is available.
+  If `uv` is not installed, repair or reinstall Python 3.12 first.
 
 ### Flutter not found
 

@@ -5,14 +5,22 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from ..auth import require_token
 from ..config import Settings, get_settings
 from ..lcsc import LookupConfigurationError, LookupRequestError, lookup_lcsc_product
+from ..part_lookup import (
+    RecognitionRulesRefreshError,
+    get_recognition_rules_meta,
+    lookup_part_metadata,
+    refresh_recognition_rules,
+)
 from ..schemas import (
     AdminDashboardResponse,
     AdminInventoryResponse,
     AdminKeyValueItem,
-    LcscLookupResponse,
     AdminMetricSnapshot,
     AdminSettingsResponse,
     AdminSyncResponse,
+    LcscLookupResponse,
+    PartLookupResponse,
+    RecognitionRulesMetaResponse,
 )
 from .data import AdminSnapshot, load_admin_snapshot
 
@@ -116,6 +124,14 @@ def get_settings_overview(
                     else "Not configured"
                 ),
             ),
+            AdminKeyValueItem(
+                label="Recognition rules remote URL",
+                value=settings.import_rules_remote_url or "Not configured",
+            ),
+            AdminKeyValueItem(
+                label="Web fallback resolvers",
+                value="Enabled" if settings.enable_web_fallback_resolvers else "Disabled",
+            ),
         ],
         access_posture=[
             AdminKeyValueItem(
@@ -151,6 +167,62 @@ def get_settings_overview(
     )
 
 
+@router.get("/part-lookup", response_model=PartLookupResponse)
+def get_part_lookup(
+    sku: str | None = Query(default=None, max_length=120),
+    mpn: str | None = Query(default=None, max_length=200),
+    name: str | None = Query(default=None, max_length=300),
+    brand: str | None = Query(default=None, max_length=200),
+    package_hint: str | None = Query(default=None, max_length=120),
+    source_type: str | None = Query(default=None, max_length=80),
+    settings: Settings = Depends(get_settings),
+) -> PartLookupResponse:
+    if not any(
+        value and value.strip()
+        for value in (sku, mpn, name, brand, package_hint)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="At least one lookup field is required.",
+        )
+
+    return lookup_part_metadata(
+        settings=settings,
+        sku=sku,
+        mpn=mpn,
+        name=name,
+        brand=brand,
+        package_hint=package_hint,
+        source_type=source_type,
+    )
+
+
+@router.get(
+    "/recognition-rules/meta",
+    response_model=RecognitionRulesMetaResponse,
+)
+def get_rules_meta(
+    settings: Settings = Depends(get_settings),
+) -> RecognitionRulesMetaResponse:
+    return get_recognition_rules_meta(settings)
+
+
+@router.post(
+    "/recognition-rules/refresh",
+    response_model=RecognitionRulesMetaResponse,
+)
+def post_rules_refresh(
+    settings: Settings = Depends(get_settings),
+) -> RecognitionRulesMetaResponse:
+    try:
+        return refresh_recognition_rules(settings)
+    except RecognitionRulesRefreshError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
+
+
 @router.get("/lcsc/lookup", response_model=LcscLookupResponse)
 def get_lcsc_lookup(
     sku: str | None = Query(default=None, max_length=120),
@@ -160,7 +232,7 @@ def get_lcsc_lookup(
 ) -> LcscLookupResponse:
     if not any(value and value.strip() for value in (sku, mpn, name)):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="At least one of sku, mpn, or name is required.",
         )
 

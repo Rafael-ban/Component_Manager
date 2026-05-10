@@ -6,6 +6,8 @@ data class AppPreferences(
     val defaultImportMinStock: Int = 0,
     val rememberLastImportLocation: Boolean = true,
     val syncAfterLocalChanges: Boolean = false,
+    val enableLocalAutoRecognition: Boolean = true,
+    val preferAggressiveAutoRecognition: Boolean = true,
     val enableLocalImportLearning: Boolean = true,
     val enableServerJlcLookup: Boolean = false,
 ) {

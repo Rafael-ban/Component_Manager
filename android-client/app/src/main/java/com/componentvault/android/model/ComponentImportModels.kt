@@ -9,6 +9,7 @@ enum class ComponentImportSourceType {
 
 enum class ComponentImportFieldOrigin {
     Parsed,
+    Rule,
     Learned,
     Server,
     User,
@@ -62,6 +63,11 @@ data class ComponentImportCandidate(
     val category: String = "",
     val model: String? = null,
     val brand: String? = null,
+    val vendor: String? = null,
+    val modelFamily: String? = null,
+    val recognitionConfidence: String? = null,
+    val matchedBy: String? = null,
+    val normalizedPackageKey: String? = null,
     val suggestedQuantity: Int? = null,
     val notes: List<String> = emptyList(),
     val fieldOrigins: ComponentImportFieldOrigins = ComponentImportFieldOrigins(),
@@ -110,16 +116,31 @@ enum class ComponentOfficialLookupOutcome {
 }
 
 data class ComponentOfficialMetadata(
+    val source: String? = null,
     val sku: String? = null,
     val name: String? = null,
     val packageName: String? = null,
     val category: String? = null,
     val model: String? = null,
     val brand: String? = null,
+    val vendor: String? = null,
+    val modelFamily: String? = null,
     val categoryPath: String? = null,
     val officialUrl: String? = null,
     val matchedBy: String? = null,
     val confidence: String? = null,
+    val ruleVersion: String? = null,
+)
+
+data class ComponentRecognitionMetadata(
+    val source: String = "local_rules",
+    val packageName: String? = null,
+    val category: String? = null,
+    val vendor: String? = null,
+    val modelFamily: String? = null,
+    val matchedBy: String? = null,
+    val confidence: String? = null,
+    val ruleVersion: String? = null,
 )
 
 data class ComponentOfficialLookupResult(
@@ -188,23 +209,104 @@ fun ComponentImportCandidate.withLearningMapping(
     )
 }
 
+fun ComponentImportCandidate.withRecognitionMetadata(
+    metadata: ComponentRecognitionMetadata,
+): ComponentImportCandidate {
+    val resolvedPackageName = when {
+        !metadata.packageName.isNullOrBlank() && packageName.isBlank() -> metadata.packageName
+        !metadata.packageName.isNullOrBlank() && packageName.equals(sku, ignoreCase = true) -> metadata.packageName
+        !metadata.packageName.isNullOrBlank() && !model.isNullOrBlank() &&
+            packageName.equals(model, ignoreCase = true) -> metadata.packageName
+        else -> packageName
+    }.orEmpty()
+
+    val resolvedCategory = when {
+        !metadata.category.isNullOrBlank() && category.isBlank() -> metadata.category
+        !metadata.category.isNullOrBlank() && category.equals("General", ignoreCase = true) -> metadata.category
+        !metadata.category.isNullOrBlank() && category.count { it == '/' } < metadata.category.count { it == '/' } ->
+            metadata.category
+        else -> category
+    }.orEmpty()
+
+    val mergedNotes = buildList {
+        addAll(notes)
+        metadata.vendor?.let { addIfMissing("Recognition vendor: $it") }
+        metadata.modelFamily?.let { addIfMissing("Recognition model family: $it") }
+        metadata.matchedBy?.let { addIfMissing("Recognition matched by: $it") }
+        metadata.confidence?.let { addIfMissing("Recognition confidence: $it") }
+        metadata.ruleVersion?.let { addIfMissing("Recognition rules version: $it") }
+    }
+
+    return copy(
+        packageName = resolvedPackageName,
+        category = resolvedCategory,
+        vendor = vendor?.takeIf { it.isNotBlank() } ?: metadata.vendor?.takeIf { it.isNotBlank() },
+        modelFamily = modelFamily?.takeIf { it.isNotBlank() } ?: metadata.modelFamily?.takeIf { it.isNotBlank() },
+        recognitionConfidence = metadata.confidence?.takeIf { it.isNotBlank() } ?: recognitionConfidence,
+        matchedBy = metadata.matchedBy?.takeIf { it.isNotBlank() } ?: matchedBy,
+        normalizedPackageKey = metadata.packageName?.takeIf { it.isNotBlank() } ?: normalizedPackageKey,
+        notes = mergedNotes,
+        fieldOrigins = fieldOrigins.copy(
+            category = if (resolvedCategory != category) {
+                ComponentImportFieldOrigin.Rule
+            } else {
+                fieldOrigins.category
+            },
+            packageName = if (resolvedPackageName != packageName) {
+                ComponentImportFieldOrigin.Rule
+            } else {
+                fieldOrigins.packageName
+            },
+        ),
+    )
+}
+
 fun ComponentImportCandidate.withOfficialMetadata(
     metadata: ComponentOfficialMetadata,
 ): ComponentImportCandidate {
+    val resolvedPackageName = when {
+        packageName.isBlank() && !metadata.packageName.isNullOrBlank() -> metadata.packageName
+        !metadata.packageName.isNullOrBlank() && packageName.equals(sku, ignoreCase = true) -> metadata.packageName
+        !metadata.packageName.isNullOrBlank() && !model.isNullOrBlank() &&
+            packageName.equals(model, ignoreCase = true) -> metadata.packageName
+        !metadata.packageName.isNullOrBlank() && recognitionConfidence.equals("fallback", ignoreCase = true) ->
+            metadata.packageName
+        else -> packageName
+    }.orEmpty()
+
+    val resolvedCategory = when {
+        category.isBlank() && !metadata.category.isNullOrBlank() -> metadata.category
+        category.equals("General", ignoreCase = true) && !metadata.category.isNullOrBlank() -> metadata.category
+        !metadata.category.isNullOrBlank() && category.count { it == '/' } < metadata.category.count { it == '/' } ->
+            metadata.category
+        !metadata.category.isNullOrBlank() && recognitionConfidence.equals("fallback", ignoreCase = true) ->
+            metadata.category
+        else -> category
+    }.orEmpty()
+
     val mergedNotes = buildList {
         addAll(notes)
+        metadata.source?.let { addIfMissing("Recognition source: $it") }
+        metadata.vendor?.let { addIfMissing("Recognition vendor: $it") }
+        metadata.modelFamily?.let { addIfMissing("Recognition model family: $it") }
         metadata.matchedBy?.let { addIfMissing("Official lookup: matched by ${it.uppercase()}") }
         metadata.categoryPath?.let { addIfMissing("Official category path: $it") }
         metadata.officialUrl?.let { addIfMissing("Official URL: $it") }
+        metadata.ruleVersion?.let { addIfMissing("Recognition rules version: $it") }
     }
 
     return copy(
         sku = sku.ifBlank { metadata.sku?.takeIf { it.isNotBlank() }.orEmpty() },
         name = name.ifBlank { metadata.name?.takeIf { it.isNotBlank() }.orEmpty() },
-        packageName = packageName.ifBlank { metadata.packageName?.takeIf { it.isNotBlank() }.orEmpty() },
-        category = category.ifBlank { metadata.category?.takeIf { it.isNotBlank() }.orEmpty() },
+        packageName = resolvedPackageName,
+        category = resolvedCategory,
         model = model?.takeIf { it.isNotBlank() } ?: metadata.model?.takeIf { it.isNotBlank() },
         brand = brand?.takeIf { it.isNotBlank() } ?: metadata.brand?.takeIf { it.isNotBlank() },
+        vendor = vendor?.takeIf { it.isNotBlank() } ?: metadata.vendor?.takeIf { it.isNotBlank() },
+        modelFamily = modelFamily?.takeIf { it.isNotBlank() } ?: metadata.modelFamily?.takeIf { it.isNotBlank() },
+        recognitionConfidence = metadata.confidence?.takeIf { it.isNotBlank() } ?: recognitionConfidence,
+        matchedBy = metadata.matchedBy?.takeIf { it.isNotBlank() } ?: matchedBy,
+        normalizedPackageKey = metadata.packageName?.takeIf { it.isNotBlank() } ?: normalizedPackageKey,
         notes = mergedNotes,
         fieldOrigins = fieldOrigins.copy(
             sku = if (sku.isBlank() && !metadata.sku.isNullOrBlank()) {
@@ -217,12 +319,12 @@ fun ComponentImportCandidate.withOfficialMetadata(
             } else {
                 fieldOrigins.name
             },
-            category = if (category.isBlank() && !metadata.category.isNullOrBlank()) {
+            category = if (resolvedCategory != category && !metadata.category.isNullOrBlank()) {
                 ComponentImportFieldOrigin.Server
             } else {
                 fieldOrigins.category
             },
-            packageName = if (packageName.isBlank() && !metadata.packageName.isNullOrBlank()) {
+            packageName = if (resolvedPackageName != packageName && !metadata.packageName.isNullOrBlank()) {
                 ComponentImportFieldOrigin.Server
             } else {
                 fieldOrigins.packageName

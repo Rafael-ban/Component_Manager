@@ -1,0 +1,256 @@
+{
+  "version": "2026.05.10.2",
+  "updated_at": "2026-05-10T12:00:00Z",
+  "package_patterns": [
+    { "id": "pkg_0201", "pattern": "\\b0201\\b", "normalized": "0201" },
+    { "id": "pkg_0402", "pattern": "\\b0402\\b", "normalized": "0402" },
+    { "id": "pkg_0603", "pattern": "\\b0603\\b", "normalized": "0603" },
+    { "id": "pkg_0805", "pattern": "\\b0805\\b", "normalized": "0805" },
+    { "id": "pkg_1206", "pattern": "\\b1206\\b", "normalized": "1206" },
+    { "id": "pkg_1210", "pattern": "\\b1210\\b", "normalized": "1210" },
+    { "id": "pkg_1812", "pattern": "\\b1812\\b", "normalized": "1812" },
+    { "id": "pkg_2010", "pattern": "\\b2010\\b", "normalized": "2010" },
+    { "id": "pkg_2512", "pattern": "\\b2512\\b", "normalized": "2512" },
+    { "id": "pkg_sot23", "pattern": "\\bSOT-?23(?:-\\d+)?\\b", "normalized": "SOT-23" },
+    { "id": "pkg_sot223", "pattern": "\\bSOT-?223\\b", "normalized": "SOT-223" },
+    { "id": "pkg_soic", "pattern": "\\bSOIC-?\\d+\\b", "normalized": "SOIC" },
+    { "id": "pkg_sop", "pattern": "\\bSOP-?\\d+\\b", "normalized": "SOP" },
+    { "id": "pkg_tssop", "pattern": "\\bTSSOP-?\\d+\\b", "normalized": "TSSOP" },
+    { "id": "pkg_qfn", "pattern": "\\bQFN-?\\d+\\b", "normalized": "QFN" },
+    { "id": "pkg_dfn", "pattern": "\\bDFN-?\\d+\\b", "normalized": "DFN" },
+    { "id": "pkg_qfp", "pattern": "\\bL?QFP-?\\d+\\b", "normalized": "QFP" },
+    { "id": "pkg_to92", "pattern": "\\bTO-?92\\b", "normalized": "TO-92" },
+    { "id": "pkg_to220", "pattern": "\\bTO-?220\\b", "normalized": "TO-220" },
+    { "id": "pkg_sma", "pattern": "\\bSMA\\b", "normalized": "SMA" },
+    { "id": "pkg_smb", "pattern": "\\bSMB\\b", "normalized": "SMB" },
+    { "id": "pkg_smc", "pattern": "\\bSMC\\b", "normalized": "SMC" }
+  ],
+  "model_patterns": [
+    {
+      "id": "yageo_rc_resistor",
+      "match_type": "regex",
+      "pattern": "\\bRC(?:0201|0402|0603|0805|1206|1210|1218|2010|2512)[A-Z0-9-]*\\b",
+      "vendor": "Yageo",
+      "model_family": "RC",
+      "category": "Resistor / Chip Resistor",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "uniroyal_waf_resistor",
+      "match_type": "regex",
+      "pattern": "\\b(?:0201|0402|0603|0805|1206|1210|1218|2010|2512)WAF[A-Z0-9-]*\\b",
+      "vendor": "Uniroyal",
+      "model_family": "WAF",
+      "category": "Resistor / Chip Resistor",
+      "confidence": "high",
+      "priority": 96
+    },
+    {
+      "id": "samsung_cl03_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bCL03[A-Z0-9-]*\\b",
+      "vendor": "Samsung",
+      "model_family": "CL03",
+      "package_name": "0201",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "samsung_cl05_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bCL05[A-Z0-9-]*\\b",
+      "vendor": "Samsung",
+      "model_family": "CL05",
+      "package_name": "0402",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "samsung_cl10_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bCL10[A-Z0-9-]*\\b",
+      "vendor": "Samsung",
+      "model_family": "CL10",
+      "package_name": "0603",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "samsung_cl21_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bCL21[A-Z0-9-]*\\b",
+      "vendor": "Samsung",
+      "model_family": "CL21",
+      "package_name": "0805",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "samsung_cl31_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bCL31[A-Z0-9-]*\\b",
+      "vendor": "Samsung",
+      "model_family": "CL31",
+      "package_name": "1206",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "murata_grm188_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bGRM188[A-Z0-9-]*\\b",
+      "vendor": "Murata",
+      "model_family": "GRM188",
+      "package_name": "0603",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "murata_gcm188_mlcc",
+      "match_type": "regex",
+      "pattern": "\\bGCM188[A-Z0-9-]*\\b",
+      "vendor": "Murata",
+      "model_family": "GCM188",
+      "package_name": "0603",
+      "category": "Capacitor / MLCC",
+      "confidence": "high",
+      "priority": 98
+    },
+    {
+      "id": "jlc_generic_mlcc",
+      "match_type": "regex",
+      "pattern": "\\b(?:0201|0402|0603|0805|1206|1210|1812)[A-Z]{1,4}\\d{3}[A-Z0-9-]*\\b",
+      "vendor": "Generic",
+      "model_family": "MLCC",
+      "category": "Capacitor / MLCC",
+      "confidence": "medium",
+      "priority": 82
+    },
+    {
+      "id": "picoblade_family",
+      "match_type": "contains",
+      "pattern": "picoblade",
+      "vendor": "Molex",
+      "model_family": "PicoBlade",
+      "category": "Connector / Wire-to-board",
+      "confidence": "high",
+      "priority": 100
+    },
+    {
+      "id": "molex_mx125_family",
+      "match_type": "contains",
+      "pattern": "mx 1.25",
+      "vendor": "Molex",
+      "model_family": "MX 1.25",
+      "category": "Connector / Wire-to-board",
+      "confidence": "high",
+      "priority": 94
+    },
+    {
+      "id": "jst_ph_family",
+      "match_type": "regex",
+      "pattern": "\\b(?:B|S)?\\d+P?-?PH\\b",
+      "vendor": "JST",
+      "model_family": "PH",
+      "category": "Connector / Wire-to-board",
+      "confidence": "medium",
+      "priority": 84
+    },
+    {
+      "id": "jst_xh_family",
+      "match_type": "regex",
+      "pattern": "\\b(?:B|S)?\\d+P?-?XH\\b",
+      "vendor": "JST",
+      "model_family": "XH",
+      "category": "Connector / Wire-to-board",
+      "confidence": "medium",
+      "priority": 84
+    }
+  ],
+  "keyword_rules": [
+    {
+      "id": "keyword_wire_connector",
+      "keywords": ["connector", "header", "socket", "wire-to-board", "picoblade", "terminal"],
+      "category": "Connector / Wire-to-board",
+      "confidence": "medium",
+      "priority": 70
+    },
+    {
+      "id": "keyword_board_connector",
+      "keywords": ["board-to-board", "btb", "board to board"],
+      "category": "Connector / Board-to-board",
+      "confidence": "medium",
+      "priority": 68
+    },
+    {
+      "id": "keyword_mlcc",
+      "keywords": ["mlcc", "ceramic capacitor", "chip capacitor"],
+      "category": "Capacitor / MLCC",
+      "confidence": "medium",
+      "priority": 64
+    },
+    {
+      "id": "keyword_electrolytic",
+      "keywords": ["electrolytic capacitor", "electrolytic"],
+      "category": "Capacitor / Electrolytic",
+      "confidence": "medium",
+      "priority": 63
+    },
+    {
+      "id": "keyword_chip_resistor",
+      "keywords": ["chip resistor", "thick film resistor", "metal film resistor", "resistor"],
+      "category": "Resistor / Chip Resistor",
+      "confidence": "medium",
+      "priority": 64
+    },
+    {
+      "id": "keyword_chip_inductor",
+      "keywords": ["chip inductor", "power inductor", "inductor"],
+      "category": "Inductor / Chip Inductor",
+      "confidence": "medium",
+      "priority": 62
+    },
+    {
+      "id": "keyword_schottky",
+      "keywords": ["schottky"],
+      "category": "Diode / Schottky",
+      "confidence": "medium",
+      "priority": 60
+    },
+    {
+      "id": "keyword_tvs",
+      "keywords": ["tvs"],
+      "category": "Diode / TVS",
+      "confidence": "medium",
+      "priority": 60
+    },
+    {
+      "id": "keyword_mosfet",
+      "keywords": ["mosfet"],
+      "category": "Transistor / MOSFET",
+      "confidence": "medium",
+      "priority": 60
+    },
+    {
+      "id": "keyword_regulator",
+      "keywords": ["ldo", "buck", "boost regulator", "regulator"],
+      "category": "IC / Regulator",
+      "confidence": "medium",
+      "priority": 58
+    },
+    {
+      "id": "keyword_mcu",
+      "keywords": ["stm32", "atmega", "microcontroller", "mcu"],
+      "category": "IC / Microcontroller",
+      "confidence": "medium",
+      "priority": 58
+    }
+  ]
+}

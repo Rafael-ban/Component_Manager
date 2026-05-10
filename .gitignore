@@ -22,6 +22,11 @@ windows-client/**/obj/
 .dotnet-appdata/
 .dotnet-localappdata/
 .gradle-user-home/
+.uv-cache/
+.uv-python/
+.pytest-tmp/
+.pytest-cache-local/
+.tmp-pytest/
 .local-secrets/
 .npm-cache/
 env/

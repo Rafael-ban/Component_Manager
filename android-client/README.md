@@ -81,9 +81,25 @@ $env:ANDROID_USER_HOME='D:\Project_Folder\Component_warehouse\.android-user'
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
 ```
 
+For this Windows host, you can also use the repository helper script:
+
+```powershell
+.\scripts\android-gradle.ps1 assembleDebug
+.\scripts\android-gradle.ps1 assembleRelease
+```
+
+That helper prefers Android Studio's embedded JBR when the current machine
+default `java` is newer than the Android lint toolchain supports.
+
 If this host logs Kotlin daemon access warnings under
 `C:\Users\gdblz\AppData\Local\kotlin\daemon\...`, Gradle may fall back to
 non-daemon compilation and still finish successfully.
+
+If local `assembleRelease` fails in `lintVitalAnalyzeRelease` with
+`IllegalArgumentException: 25.0.1` or a follow-up `org.jetbrains.uast.UastFacade`
+initialization error, the machine is likely using an unsupported Java 25
+runtime. Use `.\scripts\android-gradle.ps1 assembleRelease` or set
+`JAVA_HOME=D:\android_studio\jbr` before invoking Gradle.
 
 ## Visual Editing
 

@@ -192,6 +192,117 @@ def test_lcsc_lookup_returns_configuration_error(tmp_path: Path, monkeypatch) ->
     assert response.status_code == 503
 
 
+def test_part_lookup_requires_query(tmp_path: Path, monkeypatch) -> None:
+    _configure_env(tmp_path, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/admin-api/part-lookup",
+            headers={"Authorization": "Bearer test-token"},
+        )
+
+    assert response.status_code == 422
+
+
+def test_part_lookup_returns_local_rule_result_without_lcsc_credentials(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _configure_env(tmp_path, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/admin-api/part-lookup",
+            headers={"Authorization": "Bearer test-token"},
+            params={"sku": "C30926", "mpn": "0603B104K500NT"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["found"] is True
+    assert body["source"] == "local_rules"
+    assert body["package_name"] == "0603"
+    assert body["category"] == "Capacitor / MLCC"
+    assert body["model_family"] == "MLCC"
+    assert body["rule_version"] == "2026.05.10.2"
+
+
+def test_part_lookup_merges_lcsc_with_local_rules(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _configure_env(tmp_path, monkeypatch)
+
+    def fake_lookup_lcsc_product(**_: object) -> LcscLookupResponse:
+        return LcscLookupResponse(
+            found=True,
+            sku="C30926",
+            name="100nF Ceramic Capacitor",
+            mpn="0603B104K500NT",
+            category="Capacitor",
+            category_path="Capacitors / Ceramic Capacitors",
+            brand="FH",
+            matched_by="sku",
+            confidence="exact",
+            cache_hit=True,
+        )
+
+    monkeypatch.setattr(
+        "app.part_lookup.lookup_lcsc_product",
+        fake_lookup_lcsc_product,
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/admin-api/part-lookup",
+            headers={"Authorization": "Bearer test-token"},
+            params={"sku": "C30926", "mpn": "0603B104K500NT"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["found"] is True
+    assert body["source"] == "lcsc_openapi+local_rules"
+    assert body["package_name"] == "0603"
+    assert body["model_family"] == "MLCC"
+    assert body["confidence"] == "exact"
+    assert body["cache_hit"] is True
+
+
+def test_recognition_rules_meta_endpoint(tmp_path: Path, monkeypatch) -> None:
+    _configure_env(tmp_path, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/admin-api/recognition-rules/meta",
+            headers={"Authorization": "Bearer test-token"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "2026.05.10.2"
+    assert body["source"] == "bundled"
+    assert body["refreshed"] is False
+
+
+def test_recognition_rules_refresh_without_remote_url(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _configure_env(tmp_path, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/admin-api/recognition-rules/refresh",
+            headers={"Authorization": "Bearer test-token"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "2026.05.10.2"
+    assert body["refreshed"] is False
+
+
 def test_older_component_push_is_ignored(tmp_path: Path, monkeypatch) -> None:
     _configure_env(tmp_path, monkeypatch)
 
@@ -291,6 +402,9 @@ def _configure_env(tmp_path: Path, monkeypatch) -> None:
     )
     monkeypatch.setenv("LCSC_OPENAPI_KEY", "")
     monkeypatch.setenv("LCSC_OPENAPI_SECRET", "")
+    monkeypatch.setenv("IMPORT_RULES_REMOTE_URL", "")
+    monkeypatch.setenv("IMPORT_RULES_REFRESH_HOURS", "24")
+    monkeypatch.setenv("ENABLE_WEB_FALLBACK_RESOLVERS", "false")
     get_settings.cache_clear()
 
 

@@ -208,6 +208,10 @@ internal data class SettingsStrings(
     val syncAfterWritesDescription: String,
     val rememberLastImportLocation: String,
     val rememberLastImportLocationDescription: String,
+    val localAutoRecognition: String,
+    val localAutoRecognitionDescription: String,
+    val aggressiveRecognition: String,
+    val aggressiveRecognitionDescription: String,
     val localImportLearning: String,
     val localImportLearningDescription: String,
     val serverJlcLookup: String,
@@ -242,6 +246,10 @@ internal data class ImportStrings(
     val sourceLabel: String,
     val modelLabel: String,
     val brandLabel: String,
+    val vendorLabel: String,
+    val modelFamilyLabel: String,
+    val recognitionConfidenceLabel: String,
+    val matchedByLabel: String,
     val importDetailTitle: String,
     val quantityHint: String,
     val importPreviewTitle: String,
@@ -276,6 +284,7 @@ internal data class ImportStrings(
     val lookupFailedPattern: String,
     val fieldOriginPattern: String,
     val fieldOriginParsed: String,
+    val fieldOriginRule: String,
     val fieldOriginLearned: String,
     val fieldOriginServer: String,
     val fieldOriginUser: String,
@@ -299,6 +308,7 @@ internal data class ImportStrings(
         fieldOriginPattern,
         when (origin) {
             ComponentImportFieldOrigin.Parsed -> fieldOriginParsed
+            ComponentImportFieldOrigin.Rule -> fieldOriginRule
             ComponentImportFieldOrigin.Learned -> fieldOriginLearned
             ComponentImportFieldOrigin.Server -> fieldOriginServer
             ComponentImportFieldOrigin.User -> fieldOriginUser
@@ -485,6 +495,10 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             syncAfterWritesDescription = stringResource(R.string.settings_sync_after_writes_description),
             rememberLastImportLocation = stringResource(R.string.settings_remember_last_import_location),
             rememberLastImportLocationDescription = stringResource(R.string.settings_remember_last_import_location_description),
+            localAutoRecognition = stringResource(R.string.settings_local_auto_recognition),
+            localAutoRecognitionDescription = stringResource(R.string.settings_local_auto_recognition_description),
+            aggressiveRecognition = stringResource(R.string.settings_aggressive_recognition),
+            aggressiveRecognitionDescription = stringResource(R.string.settings_aggressive_recognition_description),
             localImportLearning = stringResource(R.string.settings_local_import_learning),
             localImportLearningDescription = stringResource(R.string.settings_local_import_learning_description),
             serverJlcLookup = stringResource(R.string.settings_server_jlc_lookup),
@@ -517,6 +531,10 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             sourceLabel = stringResource(R.string.importer_source_label),
             modelLabel = stringResource(R.string.importer_model_label),
             brandLabel = stringResource(R.string.importer_brand_label),
+            vendorLabel = stringResource(R.string.importer_vendor_label),
+            modelFamilyLabel = stringResource(R.string.importer_model_family_label),
+            recognitionConfidenceLabel = stringResource(R.string.importer_recognition_confidence_label),
+            matchedByLabel = stringResource(R.string.importer_matched_by_label),
             importDetailTitle = stringResource(R.string.importer_import_detail_title),
             quantityHint = stringResource(R.string.importer_quantity_hint),
             importPreviewTitle = stringResource(R.string.importer_import_preview_title),
@@ -551,6 +569,7 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             lookupFailedPattern = stringResource(R.string.importer_lookup_failed_pattern),
             fieldOriginPattern = stringResource(R.string.importer_field_origin_pattern),
             fieldOriginParsed = stringResource(R.string.importer_field_origin_parsed),
+            fieldOriginRule = stringResource(R.string.importer_field_origin_rule),
             fieldOriginLearned = stringResource(R.string.importer_field_origin_learned),
             fieldOriginServer = stringResource(R.string.importer_field_origin_server),
             fieldOriginUser = stringResource(R.string.importer_field_origin_user),

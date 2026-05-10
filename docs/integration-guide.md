@@ -14,7 +14,8 @@ Examples in this document assume `http://localhost:8787`.
 - The separated `admin-web/` console authenticates through `POST /auth/ping`
   and then calls `/admin-api/*`.
 - Android JLC import enrichment also uses bearer auth against
-  `GET /admin-api/lcsc/lookup`.
+  `GET /admin-api/part-lookup`, while `GET /admin-api/lcsc/lookup` remains a
+  direct compatibility route.
 
 ## Endpoints
 
@@ -133,11 +134,95 @@ console.
 Returns runtime configuration and operational endpoint details used by the
 admin console.
 
+### `GET /admin-api/part-lookup`
+
+Looks up hybrid recognition metadata for JLC/LCSC imports and other supplier
+payloads. The server first applies bundled or refreshed rule-pack matches using
+`sku`, `mpn`, `name`, `brand`, `package_hint`, and `source_type`. If LCSC
+credentials are configured and the request includes `sku`, `mpn`, or `name`,
+the server may then merge official supplier metadata on top of the local-rule
+match.
+
+Query parameters:
+
+- `sku`: LCSC/JLC part number such as `C30926`
+- `mpn`: manufacturer part number such as `0603B104K500NT`
+- `name`: optional product title or OCR text fragment
+- `brand`: optional vendor or brand hint
+- `package_hint`: optional package text such as `0603` or `SOT-23`
+- `source_type`: optional source marker such as `JlcQr`, `JlcText`, or `SupplierOcr`
+
+At least one of `sku`, `mpn`, `name`, `brand`, or `package_hint` is required.
+
+```powershell
+curl "http://localhost:8787/admin-api/part-lookup?sku=C30926&mpn=0603B104K500NT&source_type=JlcQr" `
+  -H "Authorization: Bearer change-me"
+```
+
+Typical success response from bundled rules only:
+
+```json
+{
+  "found": true,
+  "source": "local_rules",
+  "sku": "C30926",
+  "mpn": "0603B104K500NT",
+  "package_name": "0603",
+  "category": "Capacitor / MLCC",
+  "vendor": "Generic",
+  "model_family": "MLCC",
+  "official_url": "https://www.lcsc.com/product-detail/C30926.html",
+  "matched_by": "jlc_generic_mlcc",
+  "confidence": "medium",
+  "cache_hit": false,
+  "rule_version": "2026.05.10.2"
+}
+```
+
+If official supplier credentials are configured, the `source` field may become
+`lcsc_openapi+local_rules` and the response can fill `name`, `brand`, or
+`category_path` from LCSC while keeping local package or family inference.
+
+### `GET /admin-api/recognition-rules/meta`
+
+Returns information about the active server-side recognition rule pack.
+
+```powershell
+curl http://localhost:8787/admin-api/recognition-rules/meta `
+  -H "Authorization: Bearer change-me"
+```
+
+Typical response:
+
+```json
+{
+  "version": "2026.05.10.2",
+  "updated_at": "2026-05-10T12:00:00Z",
+  "source": "bundled",
+  "active_path": ".../server/app/recognition_rules.json",
+  "override_path": ".../data/recognition_rules_cache.json",
+  "remote_url": null,
+  "web_fallback_enabled": false,
+  "refreshed": false
+}
+```
+
+### `POST /admin-api/recognition-rules/refresh`
+
+Refreshes the cached server-side rule pack from `IMPORT_RULES_REMOTE_URL` when
+that environment variable is configured. If no remote URL is configured, the
+endpoint returns the active metadata without changing the bundled rule pack.
+
+```powershell
+curl -X POST http://localhost:8787/admin-api/recognition-rules/refresh `
+  -H "Authorization: Bearer change-me"
+```
+
 ### `GET /admin-api/lcsc/lookup`
 
-Looks up official supplier metadata for JLC/LCSC parts. The Android client uses
-this during JLC copied-text and package-QR import flows after local parsing has
-already filled the basic fields.
+Looks up official supplier metadata for JLC/LCSC parts directly. This endpoint
+is retained as a compatibility proxy when callers need the raw LCSC-focused
+result without the server's hybrid local-rule merge behavior.
 
 Query parameters:
 
@@ -197,3 +282,6 @@ Failure behavior:
 - `401 Unauthorized`: bearer token missing or invalid.
 - `409 Conflict`: active `sku` uniqueness violation during push.
 - `422 Unprocessable Entity`: request body shape or field validation failed.
+- `502 Bad Gateway`: upstream supplier lookup or rule-refresh fetch failed.
+- `503 Service Unavailable`: LCSC credentials are not configured for the
+  compatibility lookup path.

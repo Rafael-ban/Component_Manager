@@ -237,13 +237,16 @@ internal fun JlcImportSurface(
 
     LaunchedEffect(
         baseCandidate?.rawPayload,
+        appPreferences.enableLocalAutoRecognition,
+        appPreferences.preferAggressiveAutoRecognition,
         appPreferences.enableLocalImportLearning,
         appPreferences.enableServerJlcLookup,
         syncConfiguration.serverBaseUrl,
         syncConfiguration.apiToken,
     ) {
         val candidate = baseCandidate ?: return@LaunchedEffect
-        lookupInProgress = candidate.isJlcSource && appPreferences.enableServerJlcLookup
+        lookupInProgress = candidate.sourceType != com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel &&
+            appPreferences.enableServerJlcLookup
         val resolution = repository.enrichImportCandidate(
             candidate = candidate,
             appPreferences = appPreferences,
@@ -357,6 +360,18 @@ internal fun JlcImportSurface(
                     supporting = strings.importer.enrichmentSubtitle,
                 ) {
                     ValueBlock(label = strings.importer.sourceLabel, value = candidate.sourceLabel)
+                    candidate.vendor?.takeIf { it.isNotBlank() }?.let {
+                        ValueBlock(label = strings.importer.vendorLabel, value = it)
+                    }
+                    candidate.modelFamily?.takeIf { it.isNotBlank() }?.let {
+                        ValueBlock(label = strings.importer.modelFamilyLabel, value = it)
+                    }
+                    candidate.recognitionConfidence?.takeIf { it.isNotBlank() }?.let {
+                        ValueBlock(label = strings.importer.recognitionConfidenceLabel, value = it)
+                    }
+                    candidate.matchedBy?.takeIf { it.isNotBlank() }?.let {
+                        ValueBlock(label = strings.importer.matchedByLabel, value = it)
+                    }
                     Text(
                         text = when (learningMatchType) {
                             ComponentImportLearningMatchType.Sku -> strings.importer.learningMatchSku
@@ -366,7 +381,7 @@ internal fun JlcImportSurface(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (candidate.isJlcSource) {
+                    if (candidate.sourceType != com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel) {
                         val serverMessage = when {
                             lookupInProgress -> strings.importer.lookupLoading
                             appPreferences.enableServerJlcLookup -> lookupMessage ?: strings.importer.lookupOnlyFillsMissing

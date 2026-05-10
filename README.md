@@ -27,9 +27,10 @@ connects to it over HTTP.
 - Inventory history recorded as stock movements.
 - Self-hosted API secured by a shared API token.
 - Separated admin web console backed by token-protected `/admin-api/*`.
-- Android JLC imports are local-first: on-device parsing and learned mappings
-  work offline, while optional LCSC metadata lookup can fill missing fields
-  through a token-protected server-side lookup proxy.
+- Android JLC imports are local-first: on-device parsing, bundled recognition
+  rules, and learned mappings work offline, while optional server-side part
+  lookup can fill missing fields through token-protected
+  `/admin-api/part-lookup`.
 - Active components enforce unique `sku`.
 - Component `quantity` and `min_stock` are non-negative.
 
@@ -182,9 +183,12 @@ preferences and supports:
   payloads for JLC-sourced items and warehouse QR payloads for other items
 - local-first JLC import enrichment through parser heuristics plus a device-only
   learned mapping table keyed by JLC SKU and fallback MPN reuse
-- optional official LCSC metadata enrichment for JLC text and QR imports via
-  `GET /admin-api/lcsc/lookup`, with client-side cache reuse, missing-field-only
-  merge behavior, and an in-app server-lookup toggle
+- bundled offline recognition rules for package normalization, model-family
+  matching, and category inference even when no server is deployed
+- optional server-assisted part enrichment for JLC text and QR imports via
+  `GET /admin-api/part-lookup`, with client-side cache reuse, missing-field-only
+  merge behavior, and in-app toggles for local recognition aggressiveness vs
+  server lookup
 - sync settings save/test/sync-now
 - separate sync-on-launch and sync-after-write behavior controls
 - import defaults, local-learning controls, and an in-app About section
@@ -233,8 +237,9 @@ The login screen validates the shared API token through `POST /auth/ping`,
 stores the configured API base URL and token in browser local storage, and then
 uses `/admin-api/dashboard`, `/admin-api/inventory`, `/admin-api/sync`, and
 `/admin-api/settings` for read-only monitoring. The Android client also uses
-`/admin-api/lcsc/lookup` for optional supplier metadata enrichment during JLC
-import flows.
+`/admin-api/part-lookup` for optional supplier metadata enrichment during JLC
+import flows, while `/admin-api/lcsc/lookup` remains available for direct
+compatibility use.
 
 Platform-specific notes live in:
 
@@ -320,6 +325,10 @@ cd server
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8787
 ```
 
+`.\scripts\bootstrap.ps1` now self-heals a broken Windows `py -3.12`
+registration by falling back to a repo-local `uv`-managed Python 3.12 under
+`.uv-python/` when `uv` is available.
+
 Run tests with:
 
 ```powershell
@@ -327,10 +336,10 @@ cd server
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Current local verification:
+Latest healthy-host verification snapshot:
 
-- `.\.venv\Scripts\python.exe -m pytest` -> `9 passed`
-- `GET /admin-api/dashboard` -> `200 OK` with bearer token
+- `.\.venv\Scripts\python.exe -m pytest` -> backend suite passed on `2026-05-08`
+- `GET /admin-api/dashboard` -> `200 OK` with bearer token on `2026-05-08`
 
 ## Docker Deployment
 
@@ -359,6 +368,12 @@ The separated admin web container is available at:
   `https://ips.lcsc.com`
 - `LCSC_LOOKUP_CACHE_TTL_SECONDS`: server-side in-memory cache TTL for LCSC
   lookup responses, default `43200`
+- `IMPORT_RULES_REMOTE_URL`: optional JSON URL used to refresh bundled part
+  recognition rules on the server
+- `IMPORT_RULES_REFRESH_HOURS`: refresh age threshold for the cached server
+  recognition rules file, default `24`
+- `ENABLE_WEB_FALLBACK_RESOLVERS`: reserved toggle for optional future
+  public-web fallback resolvers, default `false`
 
 ## Sync Contract
 
@@ -368,8 +383,14 @@ The separated admin web container is available at:
 - `GET /sync/pull?since=<iso8601>`: download all remote changes after the
   provided timestamp.
 - `GET /admin-api/*`: read-only admin snapshots for the separated web console.
-- `GET /admin-api/lcsc/lookup?sku=<part>&mpn=<mpn>&name=<name>`: token-protected
-  official supplier metadata lookup used by the Android JLC import flow.
+- `GET /admin-api/part-lookup?...`: token-protected hybrid recognition endpoint
+  that applies bundled server rules first and then optional LCSC lookup.
+- `GET /admin-api/recognition-rules/meta`: inspect the active bundled or
+  refreshed server rule pack.
+- `POST /admin-api/recognition-rules/refresh`: refresh the server rule pack from
+  `IMPORT_RULES_REMOTE_URL` when configured.
+- `GET /admin-api/lcsc/lookup?sku=<part>&mpn=<mpn>&name=<name>`: direct
+  compatibility endpoint for the LCSC proxy lookup.
 
 All synchronized entities use:
 
