@@ -141,6 +141,7 @@
     <string name="sync_never">从未同步</string>
     <string name="sync_no_sync_yet">尚未同步。</string>
     <string name="sync_settings_saved_local">设置已保存到本地。</string>
+    <string name="sync_component_deleted_local">元件已在当前设备上标记为删除。</string>
     <string name="sync_component_required_fields">请填写 SKU、名称、分类、封装和仓位。</string>
     <string name="sync_component_non_negative">数量和最低库存不能为负数。</string>
     <string name="sync_choose_component_type_reason">请选择元件、变动类型并填写原因。</string>
@@ -209,6 +210,7 @@
     <string name="importer_recognized_title">识别结果</string>
     <string name="importer_recognized_subtitle">在保存库存或生成标签前，请先检查并修正识别结果。</string>
     <string name="importer_source_label">导入来源</string>
+    <string name="importer_reference_name_label">参考名称</string>
     <string name="importer_model_label">型号</string>
     <string name="importer_brand_label">品牌</string>
     <string name="importer_vendor_label">厂商</string>
@@ -241,7 +243,9 @@
     <string name="importer_action_grant_camera_access">授予相机权限</string>
     <string name="importer_action_retry_scan">重试扫码</string>
     <string name="importer_action_return_to_import">返回导入</string>
+    <string name="importer_action_use_reference_name">用作名称</string>
     <string name="importer_local_rules_only">当前使用本地解析规则。</string>
+    <string name="importer_name_confirmation_hint">快速保存仍需要确认后的元件名称。如果还需手工补全字段，请打开完整编辑器。</string>
     <string name="importer_learning_match_sku">已按 SKU 命中本地学习映射。</string>
     <string name="importer_learning_match_mpn">已按型号命中本地学习映射。</string>
     <string name="importer_server_lookup_disabled">服务端补全已关闭，仍会继续使用本地解析和学习映射。</string>
@@ -270,4 +274,11 @@
     <string name="importer_export_pdf_success">PDF 导出完成。</string>
     <string name="importer_export_generic_error">无法导出标签。</string>
     <string name="importer_export_failed_pattern">导出失败：%1$s</string>
+    <string name="importer_label_size_title">标签尺寸</string>
+    <string name="importer_label_size_subtitle">先选择标签尺寸，二维码尺寸会随模板自动联动。</string>
+    <string name="importer_label_size_compact">紧凑</string>
+    <string name="importer_label_size_standard">标准</string>
+    <string name="importer_label_size_large">大号</string>
+    <string name="importer_label_size_summary_pattern">%1$s | 标签 %2$d x %3$d | 二维码 %4$d x %4$d</string>
+    <string name="importer_label_footer_text">扫码后可快速导入或更新库存。</string>
 </resources>

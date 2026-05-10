@@ -2,6 +2,7 @@ package com.componentvault.android.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class JlcImportParserTest {
     @Test
@@ -11,7 +12,7 @@ class JlcImportParserTest {
         )
 
         assertEquals("C30926", candidate.sku)
-        assertEquals("0603B104K500NT", candidate.name)
+        assertEquals("", candidate.name)
         assertEquals("0603B104K500NT", candidate.model)
         assertEquals("0603", candidate.packageName)
         assertEquals("Capacitor", candidate.category)
@@ -35,6 +36,41 @@ class JlcImportParserTest {
         assertEquals("ZX-MX1.25-2PWT", candidate.model)
         assertEquals("SMD,P=1.25mm,卧贴", candidate.packageName)
         assertEquals("Connector", candidate.category)
+    }
+
+    @Test
+    fun parseTextAllowsMissingComponentNameWhenSkuExists() {
+        val candidate = JlcImportParser.parseText(
+            """
+            型号：0603B104K500NT
+            品牌：FH
+            封装：0603
+            编号：C30926
+            """.trimIndent(),
+        )
+
+        assertEquals("C30926", candidate.sku)
+        assertEquals("", candidate.name)
+        assertEquals("0603B104K500NT", candidate.model)
+        assertEquals("0603", candidate.packageName)
+    }
+
+    @Test
+    fun parseSupplierTextKeepsCanonicalNameBlankWithoutHumanReadableTitle() {
+        val candidate = ComponentImportParser.parseSupplierText(
+            """
+            SKU: C30926
+            MPN: 0603B104K500NT
+            Package: 0603
+            Qty: 300
+            """.trimIndent(),
+        )
+
+        assertEquals("C30926", candidate.sku)
+        assertEquals("", candidate.name)
+        assertEquals("0603B104K500NT", candidate.model)
+        assertEquals("0603", candidate.packageName)
+        assertTrue(candidate.category.isNotBlank())
     }
 
     @Test

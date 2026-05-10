@@ -1,6 +1,8 @@
 package com.componentvault.android.ui.screen.preview
 
 import com.componentvault.android.model.ComponentRecord
+import com.componentvault.android.model.ComponentLabelSeed
+import com.componentvault.android.model.toLabelSeed
 import com.componentvault.android.model.AppLanguage
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ImportLearningSummary
@@ -172,6 +174,24 @@ internal object InventoryPreviewData {
 
     val selectedComponent: ComponentRecord
         get() = previewComponents.first { it.id == SelectedComponentId }
+
+    val selectedLabelSeed: ComponentLabelSeed
+        get() = selectedComponent.toLabelSeed()
+
+    val longLabelSeed: ComponentLabelSeed
+        get() = ComponentLabelSeed(
+            sku = "C7430468",
+            name = "1x2P 间距:1.25mm 卧贴 系列:PicoBlade(MX 1.25)",
+            category = "Connector / Wire-to-board",
+            packageName = "SMD,P=1.25mm,卧贴",
+            location = "Drawer-CN-12-A",
+            quantity = 300,
+            minStock = 60,
+            model = "ZX-MX1.25-2PWT",
+            brand = "Megastar(兆星)",
+            sourceLabel = "JLC package QR",
+            rawPayload = "{on:SO25020715054,pc:C30926,pm:0603B104K500NT,qty:300}",
+        )
 
     val selectedComponentId: String
         get() = SelectedComponentId

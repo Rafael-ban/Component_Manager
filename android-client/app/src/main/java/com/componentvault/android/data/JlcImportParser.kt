@@ -28,7 +28,6 @@ internal object JlcImportParser {
             ComponentPackageInferencer.infer(name, model, brand, normalizedInput).orEmpty()
         }
 
-        require(name.isNotBlank()) { "Unable to recognize the JLC component name." }
         require(sku.isNotBlank()) { "Unable to recognize the JLC component number." }
 
         return ComponentImportCandidate(
@@ -79,10 +78,10 @@ internal object JlcImportParser {
         val explicitCategory = values["cat"].cleanNullable()
         val explicitLocation = values["loc"].cleanNullable()
         val quantity = values["qty"]?.toIntOrNull()
-        val displayName = explicitName
+        val categoryHint = explicitName
             ?: model
             ?: manufacturerCode
-            ?: "JLC Component $sku"
+            ?: sku
 
         require(sku.isNotBlank()) { "Unable to recognize the JLC part code from the QR payload." }
 
@@ -91,10 +90,10 @@ internal object JlcImportParser {
             rawPayload = normalizedInput,
             sourceLabel = "JLC package QR",
             sku = sku,
-            name = displayName,
+            name = explicitName.orEmpty(),
             packageName = packageName,
             category = explicitCategory ?: ComponentCategoryInferencer.infer(
-                displayName,
+                categoryHint,
                 packageName,
                 model,
                 manufacturerCode,

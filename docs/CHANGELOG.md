@@ -4,6 +4,20 @@
 bump: patch
 
 <!-- Add unreleased notes below this line. -->
+- Reworked Android inventory labels into collision-safe two-zone templates
+  with user-selectable `Compact`, `Standard`, and `Large` sizes, linked QR
+  dimensions, template-aware PNG/PDF export, and refreshed Compose preview
+  states for long-text and Chinese label cases.
+- Fixed Android import semantics so unresolved supplier parts no longer save
+  raw `model` or `sku` values into the canonical component `name`; the import
+  form now shows them as reference labels and allows manual adoption or full
+  editor refinement.
+- Enabled real server-side public LCSC web fallback for
+  `GET /admin-api/part-lookup` behind `ENABLE_WEB_FALLBACK_RESOLVERS`, so
+  self-hosted deployments without OpenAPI credentials can still enrich JLC QR
+  imports by SKU.
+- Reworded the Android local deletion status copy to clarify that a component
+  was marked deleted on the current device.
 
 ## [0.3.5] - 2026-05-11
 

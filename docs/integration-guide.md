@@ -141,7 +141,12 @@ payloads. The server first applies bundled or refreshed rule-pack matches using
 `sku`, `mpn`, `name`, `brand`, `package_hint`, and `source_type`. If LCSC
 credentials are configured and the request includes `sku`, `mpn`, or `name`,
 the server may then merge official supplier metadata on top of the local-rule
-match.
+match. When `ENABLE_WEB_FALLBACK_RESOLVERS=true`, the same endpoint can also
+fall back to public LCSC product pages if OpenAPI credentials are unavailable.
+
+Canonical `name` should be treated as unresolved when blank. Clients should not
+silently replace it with `mpn` or `sku`; those remain reference fields until
+the user or the server confirms a real part name.
 
 Query parameters:
 
@@ -180,8 +185,10 @@ Typical success response from bundled rules only:
 ```
 
 If official supplier credentials are configured, the `source` field may become
-`lcsc_openapi+local_rules` and the response can fill `name`, `brand`, or
-`category_path` from LCSC while keeping local package or family inference.
+`lcsc_openapi+local_rules`. If public-web fallback is enabled instead, the
+`source` field may become `lcsc_public_web+local_rules`. In both cases the
+response can fill `name`, `brand`, or `category_path` while keeping local
+package or family inference.
 
 ### `GET /admin-api/recognition-rules/meta`
 

@@ -7,6 +7,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.res.stringResource
 import com.componentvault.android.R
+import com.componentvault.android.data.ComponentLabelTemplate
 import com.componentvault.android.model.AppLanguage
 import com.componentvault.android.model.ComponentImportFieldOrigin
 import com.componentvault.android.model.InventorySortOption
@@ -270,6 +271,7 @@ internal data class ImportStrings(
     val recognizedTitle: String,
     val recognizedSubtitle: String,
     val sourceLabel: String,
+    val referenceNameLabel: String,
     val modelLabel: String,
     val brandLabel: String,
     val vendorLabel: String,
@@ -301,7 +303,9 @@ internal data class ImportStrings(
     val actionGrantCameraAccess: String,
     val actionRetryScan: String,
     val actionReturnToImport: String,
+    val actionUseReferenceName: String,
     val parseSupplierTextError: String,
+    val nameConfirmationHint: String,
     val localRulesOnly: String,
     val learningMatchSku: String,
     val learningMatchMpn: String,
@@ -323,6 +327,13 @@ internal data class ImportStrings(
     val labelPreviewSubtitle: String,
     val labelPayloadTitle: String,
     val labelPayloadSubtitle: String,
+    val labelSizeTitle: String,
+    val labelSizeSubtitle: String,
+    val labelSizeCompact: String,
+    val labelSizeStandard: String,
+    val labelSizeLarge: String,
+    val labelSizeSummaryPattern: String,
+    val labelFooterText: String,
     val exportSectionTitle: String,
     val labelCopiesLabel: String,
     val actionExportPng: String,
@@ -336,6 +347,20 @@ internal data class ImportStrings(
     fun supplierScannerEngine(engineLabel: String): String = formatPattern(supplierScannerEnginePattern, engineLabel)
     fun lookupFailed(detail: String): String = formatPattern(lookupFailedPattern, detail)
     fun exportFailed(detail: String): String = formatPattern(exportFailedPattern, detail)
+    fun labelTemplateLabel(template: ComponentLabelTemplate): String = when (template) {
+        ComponentLabelTemplate.Compact -> labelSizeCompact
+        ComponentLabelTemplate.Standard -> labelSizeStandard
+        ComponentLabelTemplate.Large -> labelSizeLarge
+    }
+
+    fun labelSizeSummary(template: ComponentLabelTemplate): String = formatPattern(
+        labelSizeSummaryPattern,
+        labelTemplateLabel(template),
+        template.width,
+        template.height,
+        template.qrSize,
+    )
+
     fun fieldOrigin(origin: ComponentImportFieldOrigin): String = formatPattern(
         fieldOriginPattern,
         when (origin) {
@@ -574,6 +599,7 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             recognizedTitle = stringResource(R.string.importer_recognized_title),
             recognizedSubtitle = stringResource(R.string.importer_recognized_subtitle),
             sourceLabel = stringResource(R.string.importer_source_label),
+            referenceNameLabel = stringResource(R.string.importer_reference_name_label),
             modelLabel = stringResource(R.string.importer_model_label),
             brandLabel = stringResource(R.string.importer_brand_label),
             vendorLabel = stringResource(R.string.importer_vendor_label),
@@ -605,7 +631,9 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             actionGrantCameraAccess = stringResource(R.string.importer_action_grant_camera_access),
             actionRetryScan = stringResource(R.string.importer_action_retry_scan),
             actionReturnToImport = stringResource(R.string.importer_action_return_to_import),
+            actionUseReferenceName = stringResource(R.string.importer_action_use_reference_name),
             parseSupplierTextError = stringResource(R.string.importer_parse_supplier_text_error),
+            nameConfirmationHint = stringResource(R.string.importer_name_confirmation_hint),
             localRulesOnly = stringResource(R.string.importer_local_rules_only),
             learningMatchSku = stringResource(R.string.importer_learning_match_sku),
             learningMatchMpn = stringResource(R.string.importer_learning_match_mpn),
@@ -627,6 +655,13 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             labelPreviewSubtitle = stringResource(R.string.importer_label_preview_subtitle),
             labelPayloadTitle = stringResource(R.string.importer_label_payload_title),
             labelPayloadSubtitle = stringResource(R.string.importer_label_payload_subtitle),
+            labelSizeTitle = stringResource(R.string.importer_label_size_title),
+            labelSizeSubtitle = stringResource(R.string.importer_label_size_subtitle),
+            labelSizeCompact = stringResource(R.string.importer_label_size_compact),
+            labelSizeStandard = stringResource(R.string.importer_label_size_standard),
+            labelSizeLarge = stringResource(R.string.importer_label_size_large),
+            labelSizeSummaryPattern = stringResource(R.string.importer_label_size_summary_pattern),
+            labelFooterText = stringResource(R.string.importer_label_footer_text),
             exportSectionTitle = stringResource(R.string.importer_export_section_title),
             labelCopiesLabel = stringResource(R.string.importer_label_copies_label),
             actionExportPng = stringResource(R.string.importer_action_export_png),

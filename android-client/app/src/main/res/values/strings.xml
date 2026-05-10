@@ -146,7 +146,7 @@
     <string name="sync_component_save_failed">Unable to save the component.</string>
     <string name="sync_select_component_first">Select a component first.</string>
     <string name="sync_component_not_found">The selected component could not be found.</string>
-    <string name="sync_component_deleted_local">Component was deleted locally.</string>
+    <string name="sync_component_deleted_local">Component was marked as deleted on this device.</string>
     <string name="sync_choose_active_component_first">Select an active component first.</string>
     <string name="sync_negative_stock_error">This movement would make stock negative.</string>
     <string name="sync_movement_recorded_local">Movement was recorded locally.</string>
@@ -233,6 +233,7 @@
     <string name="importer_recognized_title">Recognized fields</string>
     <string name="importer_recognized_subtitle">Review and adjust recognized fields before saving inventory or generating labels.</string>
     <string name="importer_source_label">Import source</string>
+    <string name="importer_reference_name_label">Reference label</string>
     <string name="importer_model_label">Model</string>
     <string name="importer_brand_label">Brand</string>
     <string name="importer_vendor_label">Vendor</string>
@@ -265,7 +266,9 @@
     <string name="importer_action_grant_camera_access">Grant camera access</string>
     <string name="importer_action_retry_scan">Retry scan</string>
     <string name="importer_action_return_to_import">Return to import</string>
+    <string name="importer_action_use_reference_name">Use as name</string>
     <string name="importer_local_rules_only">Using local parser rules only.</string>
+    <string name="importer_name_confirmation_hint">Quick save still requires a confirmed component name. Open the full editor if more fields need manual completion.</string>
     <string name="importer_learning_match_sku">Local learning matched by SKU.</string>
     <string name="importer_learning_match_mpn">Local learning matched by model.</string>
     <string name="importer_server_lookup_disabled">Server lookup is off. Local parsing and learned mappings stay active.</string>
@@ -286,6 +289,13 @@
     <string name="importer_label_preview_subtitle">Export a compact inventory label for bags, bins, or drawers.</string>
     <string name="importer_label_payload_title">QR payload</string>
     <string name="importer_label_payload_subtitle">JLC-compatible codes stay compatible. Other labels use the warehouse format.</string>
+    <string name="importer_label_size_title">Label size</string>
+    <string name="importer_label_size_subtitle">Choose the label footprint first. QR size follows the selected template automatically.</string>
+    <string name="importer_label_size_compact">Compact</string>
+    <string name="importer_label_size_standard">Standard</string>
+    <string name="importer_label_size_large">Large</string>
+    <string name="importer_label_size_summary_pattern">%1$s | %2$d x %3$d label | %4$d x %4$d QR</string>
+    <string name="importer_label_footer_text">Scan to import or update inventory.</string>
     <string name="importer_export_section_title">Export</string>
     <string name="importer_label_copies_label">PDF copies</string>
     <string name="importer_action_export_png">Export PNG</string>

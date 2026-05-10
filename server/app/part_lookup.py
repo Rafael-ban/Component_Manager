@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import unescape
 import json
 from pathlib import Path
 import re
+from threading import Lock
 import time
 from typing import Any
-from urllib.request import urlopen
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 from .config import Settings
 from .lcsc import LookupConfigurationError, LookupRequestError, lookup_lcsc_product
@@ -15,6 +18,69 @@ from .schemas import LcscLookupResponse, PartLookupResponse, RecognitionRulesMet
 
 class RecognitionRulesRefreshError(RuntimeError):
     pass
+
+
+_PUBLIC_WEB_CACHE: dict[str, tuple[float, LcscLookupResponse]] = {}
+_PUBLIC_WEB_CACHE_LOCK = Lock()
+_SCRIPT_BLOCK_PATTERN = re.compile(
+    r"<script[^>]*>(?P<body>.*?)</script>",
+    re.IGNORECASE | re.DOTALL,
+)
+_DETAIL_LINK_PATTERN = re.compile(
+    r"/product-detail/(?P<sku>C\d+)\.html",
+    re.IGNORECASE,
+)
+_META_TAG_PATTERN = re.compile(
+    r"""<meta[^>]+(?:property|name)=["'](?P<key>[^"']+)["'][^>]+content=["'](?P<value>.*?)["'][^>]*>""",
+    re.IGNORECASE | re.DOTALL,
+)
+_TITLE_PATTERN = re.compile(
+    r"<title>(?P<value>.*?)</title>",
+    re.IGNORECASE | re.DOTALL,
+)
+_SKU_KEYS = (
+    "product_number",
+    "productNumber",
+    "lcscPartNumber",
+    "sku",
+    "productID",
+)
+_MPN_KEYS = (
+    "product_model",
+    "productModel",
+    "mfrPartNumber",
+    "mpn",
+    "partNumber",
+    "model",
+)
+_NAME_KEYS = (
+    "productIntroEn",
+    "productIntro",
+    "productDescEn",
+    "productDesc",
+    "productName",
+    "name",
+    "title",
+)
+_PACKAGE_KEYS = (
+    "encapStandard",
+    "encap_standard",
+    "packageName",
+    "package",
+    "pkg",
+)
+_CATEGORY_KEYS = (
+    "catalogName",
+    "catalog_name",
+    "categoryName",
+    "category",
+)
+_BRAND_KEYS = (
+    "brandName",
+    "brand_name",
+    "manufacturerName",
+    "brand",
+)
 
 
 @dataclass(frozen=True)
@@ -123,6 +189,20 @@ def lookup_part_metadata(
             lcsc_result=lcsc_result,
             local_result=local_result,
         )
+
+    if settings.enable_web_fallback_resolvers and any((values.sku, values.mpn, values.name)):
+        web_result = _lookup_public_web_product(
+            settings=settings,
+            sku=values.sku,
+            mpn=values.mpn,
+            name=values.name,
+        )
+        if web_result is not None and web_result.found:
+            return _merge_lcsc_and_local(
+                values=values,
+                lcsc_result=web_result,
+                local_result=local_result,
+            )
 
     if local_result is not None:
         return local_result
@@ -385,6 +465,343 @@ def _merge_lcsc_and_local(
         cache_hit=lcsc_result.cache_hit,
         rule_version=local_result.rule_version if local_result else None,
     )
+
+
+def _lookup_public_web_product(
+    settings: Settings,
+    sku: str | None,
+    mpn: str | None,
+    name: str | None,
+) -> LcscLookupResponse | None:
+    normalized_queries = (
+        ("sku", _normalize_text(sku)),
+        ("mpn", _normalize_text(mpn)),
+        ("name", _normalize_text(name)),
+    )
+    for matched_by, query in normalized_queries:
+        if not query:
+            continue
+        cache_key = f"{matched_by}:{query.casefold()}"
+        cached = _read_public_web_cache(settings, cache_key)
+        if cached is not None:
+            return cached
+
+        try:
+            if matched_by == "sku" and _build_lcsc_product_url(query):
+                response = _lookup_public_web_detail(query, matched_by)
+            else:
+                response = _lookup_public_web_search(query, matched_by)
+        except Exception:
+            response = None
+
+        if response is None or not response.found:
+            continue
+
+        _write_public_web_cache(settings, cache_key, response)
+        if response.sku:
+            _write_public_web_cache(settings, f"sku:{response.sku.casefold()}", response)
+        if response.mpn:
+            _write_public_web_cache(settings, f"mpn:{response.mpn.casefold()}", response)
+        return response
+
+    return None
+
+
+def _lookup_public_web_detail(
+    sku: str,
+    matched_by: str,
+) -> LcscLookupResponse | None:
+    url = _build_lcsc_product_url(sku)
+    if url is None:
+        return None
+    html = _fetch_public_web_text(url)
+    return _parse_public_web_lookup(
+        html=html,
+        source_url=url,
+        matched_by=matched_by,
+        query=sku,
+        fallback_sku=sku,
+    )
+
+
+def _lookup_public_web_search(
+    query: str,
+    matched_by: str,
+) -> LcscLookupResponse | None:
+    search_url = f"https://www.lcsc.com/search?q={quote(query)}"
+    html = _fetch_public_web_text(search_url)
+    resolved_sku = _extract_first_search_sku(html)
+    if resolved_sku:
+        return _lookup_public_web_detail(resolved_sku, matched_by)
+    return _parse_public_web_lookup(
+        html=html,
+        source_url=search_url,
+        matched_by=matched_by,
+        query=query,
+        fallback_sku=None,
+    )
+
+
+def _fetch_public_web_text(url: str) -> str:
+    request = Request(
+        url,
+        headers={
+            "User-Agent": "ComponentVault/0.3.5 (+https://github.com/)",
+            "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
+        },
+    )
+    with urlopen(request, timeout=12) as response:
+        return response.read().decode("utf-8", errors="ignore")
+
+
+def _parse_public_web_lookup(
+    html: str,
+    source_url: str,
+    matched_by: str,
+    query: str,
+    fallback_sku: str | None,
+) -> LcscLookupResponse | None:
+    payloads = _extract_json_payloads(html)
+    records = [
+        record
+        for payload in payloads
+        for record in _iter_json_objects(payload)
+        if _looks_like_public_product_record(record)
+    ]
+    record = _select_public_product_record(records, matched_by, query)
+    category_path = _extract_breadcrumb_path(payloads)
+
+    sku = _lookup_record_text(record, _SKU_KEYS) or fallback_sku
+    mpn = _lookup_record_text(record, _MPN_KEYS)
+    name = _lookup_record_text(record, _NAME_KEYS)
+    package_name = _lookup_record_text(record, _PACKAGE_KEYS)
+    category = _lookup_record_text(record, _CATEGORY_KEYS)
+    brand = _lookup_record_text(record, _BRAND_KEYS)
+
+    if name is None:
+        name = _clean_title_text(
+            _extract_meta_value(html, "og:title")
+            or _extract_meta_value(html, "twitter:title")
+            or _extract_title_text(html),
+        )
+    if category_path and not category:
+        category = category_path.split("/")[-1].strip()
+
+    if not any((sku, mpn, name, package_name, category, brand, category_path)):
+        return None
+
+    confidence = "fallback"
+    if matched_by == "sku" and sku and sku.casefold() == query.casefold():
+        confidence = "exact"
+    elif matched_by == "mpn" and mpn and mpn.casefold() == query.casefold():
+        confidence = "exact"
+
+    return LcscLookupResponse(
+        found=True,
+        source="lcsc_public_web",
+        sku=sku,
+        name=name,
+        mpn=mpn,
+        package_name=package_name,
+        category=category,
+        category_path=category_path,
+        brand=brand,
+        official_url=_build_lcsc_product_url(sku) or source_url,
+        matched_by=matched_by,
+        confidence=confidence,
+        cache_hit=False,
+    )
+
+
+def _read_public_web_cache(
+    settings: Settings,
+    cache_key: str,
+) -> LcscLookupResponse | None:
+    ttl = max(settings.lcsc_lookup_cache_ttl_seconds, 0)
+    if ttl <= 0:
+        return None
+    now = time.time()
+    with _PUBLIC_WEB_CACHE_LOCK:
+        cached = _PUBLIC_WEB_CACHE.get(cache_key)
+        if cached is None:
+            return None
+        expires_at, response = cached
+        if expires_at <= now:
+            _PUBLIC_WEB_CACHE.pop(cache_key, None)
+            return None
+        return response.model_copy(update={"cache_hit": True})
+
+
+def _write_public_web_cache(
+    settings: Settings,
+    cache_key: str,
+    response: LcscLookupResponse,
+) -> None:
+    ttl = max(settings.lcsc_lookup_cache_ttl_seconds, 0)
+    if ttl <= 0 or not response.found:
+        return
+    with _PUBLIC_WEB_CACHE_LOCK:
+        _PUBLIC_WEB_CACHE[cache_key] = (
+            time.time() + ttl,
+            response.model_copy(update={"cache_hit": False}),
+        )
+
+
+def _extract_json_payloads(html: str) -> list[Any]:
+    payloads: list[Any] = []
+    for match in _SCRIPT_BLOCK_PATTERN.finditer(html):
+        raw_body = unescape(match.group("body").strip())
+        if not raw_body:
+            continue
+        candidate = _extract_json_candidate(raw_body)
+        if candidate is None:
+            continue
+        try:
+            payloads.append(json.loads(candidate))
+        except json.JSONDecodeError:
+            continue
+    return payloads
+
+
+def _extract_json_candidate(script_body: str) -> str | None:
+    if script_body.startswith("{") or script_body.startswith("["):
+        return script_body
+    first_brace = script_body.find("{")
+    last_brace = script_body.rfind("}")
+    if first_brace >= 0 and last_brace > first_brace:
+        return script_body[first_brace : last_brace + 1]
+    first_bracket = script_body.find("[")
+    last_bracket = script_body.rfind("]")
+    if first_bracket >= 0 and last_bracket > first_bracket:
+        return script_body[first_bracket : last_bracket + 1]
+    return None
+
+
+def _iter_json_objects(value: Any):
+    if isinstance(value, dict):
+        yield value
+        for nested in value.values():
+            yield from _iter_json_objects(nested)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _iter_json_objects(item)
+
+
+def _looks_like_public_product_record(record: dict[str, Any]) -> bool:
+    record_type = _coerce_lookup_text(record.get("@type"))
+    if record_type and record_type.casefold() == "product":
+        return True
+    return any(key in record for key in _SKU_KEYS + _MPN_KEYS + _PACKAGE_KEYS)
+
+
+def _select_public_product_record(
+    records: list[dict[str, Any]],
+    matched_by: str,
+    query: str,
+) -> dict[str, Any] | None:
+    normalized_query = query.casefold()
+    fuzzy_match: dict[str, Any] | None = None
+    for record in records:
+        sku = _lookup_record_text(record, _SKU_KEYS)
+        mpn = _lookup_record_text(record, _MPN_KEYS)
+        name = _lookup_record_text(record, _NAME_KEYS)
+        if matched_by == "sku" and sku and sku.casefold() == normalized_query:
+            return record
+        if matched_by == "mpn" and mpn and mpn.casefold() == normalized_query:
+            return record
+        if matched_by == "name" and name and normalized_query in name.casefold():
+            return record
+        fuzzy_match = fuzzy_match or record
+    return fuzzy_match
+
+
+def _lookup_record_text(
+    record: dict[str, Any] | None,
+    keys: tuple[str, ...],
+) -> str | None:
+    if record is None:
+        return None
+    lowered_keys = {key.casefold() for key in keys}
+    for key, value in record.items():
+        if key.casefold() not in lowered_keys:
+            continue
+        text_value = _coerce_lookup_text(value)
+        if text_value:
+            return text_value
+    return None
+
+
+def _coerce_lookup_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        for nested_key in ("name", "value", "text", "label"):
+            nested_value = _coerce_lookup_text(value.get(nested_key))
+            if nested_value:
+                return nested_value
+        return None
+    if isinstance(value, list):
+        for item in value:
+            nested_value = _coerce_lookup_text(item)
+            if nested_value:
+                return nested_value
+        return None
+    return _normalize_text(_coerce_text(value))
+
+
+def _extract_breadcrumb_path(payloads: list[Any]) -> str | None:
+    for record in (item for payload in payloads for item in _iter_json_objects(payload)):
+        record_type = _coerce_lookup_text(record.get("@type"))
+        if not record_type or record_type.casefold() != "breadcrumblist":
+            continue
+        segments: list[str] = []
+        for item in record.get("itemListElement", []):
+            if not isinstance(item, dict):
+                continue
+            label = _coerce_lookup_text(item.get("name"))
+            if label is None and isinstance(item.get("item"), dict):
+                label = _coerce_lookup_text(item["item"].get("name"))
+            if label and label not in segments:
+                segments.append(label)
+        if segments:
+            return " / ".join(segments)
+    return None
+
+
+def _extract_meta_value(
+    html: str,
+    key: str,
+) -> str | None:
+    normalized_key = key.casefold()
+    for match in _META_TAG_PATTERN.finditer(html):
+        if match.group("key").casefold() != normalized_key:
+            continue
+        return _clean_title_text(unescape(match.group("value")))
+    return None
+
+
+def _extract_title_text(html: str) -> str | None:
+    match = _TITLE_PATTERN.search(html)
+    if match is None:
+        return None
+    return _clean_title_text(unescape(match.group("value")))
+
+
+def _clean_title_text(value: str | None) -> str | None:
+    normalized = _normalize_text(value)
+    if normalized is None:
+        return None
+    normalized = re.sub(r"\s+", " ", normalized)
+    normalized = re.sub(r"\s*[-|]\s*LCSC.*$", "", normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\s*[-|]\s*JLC.*$", "", normalized, flags=re.IGNORECASE)
+    return normalized.strip() or None
+
+
+def _extract_first_search_sku(html: str) -> str | None:
+    match = _DETAIL_LINK_PATTERN.search(html)
+    if match is None:
+        return None
+    return match.group("sku").upper()
 
 
 def _load_rules(

@@ -31,6 +31,7 @@ import com.componentvault.android.model.ComponentImportLearningMatchType
 import com.componentvault.android.model.ComponentOfficialLookupOutcome
 import com.componentvault.android.model.SyncConfiguration
 import com.componentvault.android.model.isJlcSource
+import com.componentvault.android.model.referenceDisplayName
 
 private enum class ImportScannerMode {
     Qr,
@@ -144,7 +145,7 @@ internal fun JlcImportSurface(
         applyDisplayedCandidate(candidate, preserveUserEdits = false)
     }
 
-    fun buildDraftOrNull(): ComponentDraft? {
+    fun buildQuickSaveDraftOrNull(): ComponentDraft? {
         val candidate = displayedCandidate
         if (candidate == null) {
             feedbackMessage = strings.importer.parseFirstError
@@ -180,6 +181,29 @@ internal fun JlcImportSurface(
         )
     }
 
+    fun buildEditorDraftOrNull(): ComponentDraft? {
+        val candidate = displayedCandidate
+        if (candidate == null) {
+            feedbackMessage = strings.importer.parseFirstError
+            return null
+        }
+
+        feedbackMessage = null
+        return candidate.toComponentDraft(
+            quantity = quantityText.toIntOrNull()?.takeIf { it > 0 }
+                ?: (candidate.suggestedQuantity ?: 1).coerceAtLeast(1),
+            location = location.ifBlank { appPreferences.suggestedImportLocation },
+            minStock = minStockText.toIntOrNull()?.takeIf { it >= 0 }
+                ?: appPreferences.defaultImportMinStock.coerceAtLeast(0),
+            skuOverride = sku,
+            nameOverride = name,
+            categoryOverride = category,
+            packageNameOverride = packageName,
+            modelOverride = model.blankToNull(),
+            brandOverride = brand.blankToNull(),
+        )
+    }
+
     fun buildPreviewDraft(): ComponentDraft? {
         val candidate = displayedCandidate ?: return null
         val quantity = quantityText.toIntOrNull()?.coerceAtLeast(1) ?: 1
@@ -189,7 +213,7 @@ internal fun JlcImportSurface(
             location = location.ifBlank { appPreferences.suggestedImportLocation },
             minStock = minStock,
             skuOverride = sku.ifBlank { candidate.sku },
-            nameOverride = name.ifBlank { candidate.name },
+            nameOverride = name.ifBlank { candidate.name.ifBlank { candidate.referenceDisplayName().orEmpty() } },
             categoryOverride = category.ifBlank { candidate.category },
             packageNameOverride = packageName.ifBlank { candidate.packageName },
             modelOverride = model.blankToNull() ?: candidate.model,
@@ -300,7 +324,7 @@ internal fun JlcImportSurface(
         onDismiss = onDismiss,
         onSave = {
             baseCandidate?.let { sourceCandidate ->
-                buildDraftOrNull()?.let { draft ->
+                buildQuickSaveDraftOrNull()?.let { draft ->
                     onSaveImportedComponent(draft, sourceCandidate)
                 }
             }
@@ -355,6 +379,9 @@ internal fun JlcImportSurface(
         }
 
         displayedCandidate?.let { candidate ->
+            val referenceName = candidate.referenceDisplayName()?.takeIf { reference ->
+                !reference.equals(name.trim(), ignoreCase = true)
+            }
             item {
                 SectionPane(
                     title = strings.importer.enrichmentTitle,
@@ -427,6 +454,30 @@ internal fun JlcImportSurface(
                         origin = nameOrigin,
                         strings = strings,
                     )
+                    if (referenceName != null) {
+                        ValueBlock(
+                            label = strings.importer.referenceNameLabel,
+                            value = referenceName,
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                name = referenceName
+                                nameEdited = true
+                                nameOrigin = ComponentImportFieldOrigin.User
+                                feedbackMessage = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(strings.importer.actionUseReferenceName)
+                        }
+                    }
+                    if (name.isBlank()) {
+                        Text(
+                            text = strings.importer.nameConfirmationHint,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     ImportOriginField(
                         value = category,
                         onValueChange = {
@@ -504,7 +555,7 @@ internal fun JlcImportSurface(
                     Button(
                         onClick = {
                             baseCandidate?.let { sourceCandidate ->
-                                buildDraftOrNull()?.let { draft ->
+                                buildEditorDraftOrNull()?.let { draft ->
                                     onOpenFullEditor(draft, sourceCandidate)
                                 }
                             }

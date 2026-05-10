@@ -269,6 +269,70 @@ def test_part_lookup_merges_lcsc_with_local_rules(
     assert body["cache_hit"] is True
 
 
+def test_part_lookup_uses_public_web_fallback_when_enabled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _configure_env(
+        tmp_path,
+        monkeypatch,
+        enable_web_fallback_resolvers="true",
+    )
+
+    html = """
+    <html>
+      <head>
+        <title>100nF Ceramic Capacitor - LCSC Electronics</title>
+        <script type="application/ld+json">
+          {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "sku": "C30926",
+            "mpn": "0603B104K500NT",
+            "name": "100nF Ceramic Capacitor",
+            "packageName": "0603",
+            "brand": {
+              "@type": "Brand",
+              "name": "FH"
+            }
+          }
+        </script>
+        <script type="application/ld+json">
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"position": 1, "name": "Capacitors"},
+              {"position": 2, "name": "Ceramic Capacitors"}
+            ]
+          }
+        </script>
+      </head>
+    </html>
+    """.strip()
+
+    monkeypatch.setattr(
+        "app.part_lookup.urlopen",
+        lambda request, timeout=12: _HtmlResponse(html),
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/admin-api/part-lookup",
+            headers={"Authorization": "Bearer test-token"},
+            params={"sku": "C30926", "mpn": "0603B104K500NT"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["found"] is True
+    assert body["source"] == "lcsc_public_web+local_rules"
+    assert body["name"] == "100nF Ceramic Capacitor"
+    assert body["brand"] == "FH"
+    assert body["package_name"] == "0603"
+    assert body["category_path"] == "Capacitors / Ceramic Capacitors"
+
+
 def test_recognition_rules_meta_endpoint(tmp_path: Path, monkeypatch) -> None:
     _configure_env(tmp_path, monkeypatch)
 
@@ -393,7 +457,12 @@ def test_soft_deleted_component_is_returned_in_pull(tmp_path: Path, monkeypatch)
     assert body["components"][0]["deleted"] is True
 
 
-def _configure_env(tmp_path: Path, monkeypatch) -> None:
+def _configure_env(
+    tmp_path: Path,
+    monkeypatch,
+    *,
+    enable_web_fallback_resolvers: str = "false",
+) -> None:
     monkeypatch.setenv("API_TOKEN", "test-token")
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "sync.db"))
     monkeypatch.setenv(
@@ -404,8 +473,26 @@ def _configure_env(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("LCSC_OPENAPI_SECRET", "")
     monkeypatch.setenv("IMPORT_RULES_REMOTE_URL", "")
     monkeypatch.setenv("IMPORT_RULES_REFRESH_HOURS", "24")
-    monkeypatch.setenv("ENABLE_WEB_FALLBACK_RESOLVERS", "false")
+    monkeypatch.setenv(
+        "ENABLE_WEB_FALLBACK_RESOLVERS",
+        enable_web_fallback_resolvers,
+    )
     get_settings.cache_clear()
+
+
+class _HtmlResponse:
+    def __init__(self, body: str) -> None:
+        self.body = body.encode("utf-8")
+        self.status = 200
+
+    def read(self) -> bytes:
+        return self.body
+
+    def __enter__(self) -> "_HtmlResponse":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
 
 
 def _component_payload(**overrides: object) -> dict[str, object]:

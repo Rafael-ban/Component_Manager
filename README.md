@@ -30,7 +30,9 @@ connects to it over HTTP.
 - Android JLC imports are local-first: on-device parsing, bundled recognition
   rules, and learned mappings work offline, while optional server-side part
   lookup can fill missing fields through token-protected
-  `/admin-api/part-lookup`.
+  `/admin-api/part-lookup`. Canonical component `name` stays blank until the
+  import source provides a real name, the user confirms one, or server
+  metadata resolves it.
 - Android supplier packaging OCR now uses a capture-first workflow that freezes
   one preview frame, runs structured OCR locally, and then parses packaging
   fields before the user confirms quantity and storage details.
@@ -79,15 +81,17 @@ connects to it over HTTP.
   inventory-first adaptive Compose shell with `Inventory`, `Movements`,
   `Overview`, and `Settings` destinations, compact phone detail drill-down,
   tablet list-detail layouts, quantity-first import confirmation, generated
-  JLC-compatible or warehouse QR labels, local import learning backed by a
-  device-only SQLite mapping table, optional LCSC-backed official metadata
-  lookup for filling missing JLC fields, capture-first supplier packaging OCR
-  with structured line extraction, user-selectable OCR engine preference
-  (`Auto`, `ML Kit offline`, `Paddle experimental`), persisted in-app
-  language switching with first-launch default `zh-CN`, stronger vendor-aware
-  QR package/category inference, and scroll-safe `Scaffold` inset handling;
-  `assembleDebug` and `assembleRelease` were re-verified on `2026-05-11` on
-  this host with the configured Android SDK and JDK paths.
+  JLC-compatible or warehouse QR labels, three user-selectable label size
+  templates with QR-size coupling and collision-safe text layout, local import
+  learning backed by a device-only SQLite mapping table, optional LCSC-backed
+  official metadata lookup for filling missing JLC fields, capture-first
+  supplier packaging OCR with structured line extraction, user-selectable OCR
+  engine preference (`Auto`, `ML Kit offline`, `Paddle experimental`),
+  persisted in-app language switching with first-launch default `zh-CN`,
+  stronger vendor-aware QR package/category inference, and scroll-safe
+  `Scaffold` inset handling; `assembleDebug` and `assembleRelease` were
+  re-verified on `2026-05-11` on this host with the configured Android SDK
+  and JDK paths.
 - Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
   separate `admin-web/` React application; backend `pytest` and `admin-web`
   production build were both verified successfully on `2026-05-08`.
@@ -189,6 +193,8 @@ preferences and supports:
   step plus structured line extraction before packaging-field parsing
 - compact label preview plus PNG/PDF export, generating JLC-compatible QR
   payloads for JLC-sourced items and warehouse QR payloads for other items
+- three user-selectable label size templates with linked QR dimensions and a
+  two-zone layout that keeps dynamic text out of the QR safe area
 - local-first JLC import enrichment through parser heuristics plus a device-only
   learned mapping table keyed by JLC SKU and fallback MPN reuse
 - bundled offline recognition rules for package normalization, model-family
@@ -196,8 +202,9 @@ preferences and supports:
   is deployed
 - optional server-assisted part enrichment for JLC text and QR imports via
   `GET /admin-api/part-lookup`, with client-side cache reuse, missing-field-only
-  merge behavior, and in-app toggles for local recognition aggressiveness vs
-  server lookup
+  merge behavior, in-app toggles for local recognition aggressiveness vs
+  server lookup, and canonical-name handling that no longer copies raw
+  `model` or `sku` values into the saved component `name`
 - sync settings save/test/sync-now
 - separate sync-on-launch and sync-after-write behavior controls
 - import defaults, local-learning controls, OCR engine preference, and an
@@ -383,8 +390,9 @@ The separated admin web container is available at:
   recognition rules on the server
 - `IMPORT_RULES_REFRESH_HOURS`: refresh age threshold for the cached server
   recognition rules file, default `24`
-- `ENABLE_WEB_FALLBACK_RESOLVERS`: reserved toggle for optional future
-  public-web fallback resolvers, default `false`
+- `ENABLE_WEB_FALLBACK_RESOLVERS`: enables public LCSC web-page fallback for
+  `/admin-api/part-lookup` when OpenAPI credentials are unavailable, default
+  `false`
 
 ## Sync Contract
 
@@ -395,7 +403,8 @@ The separated admin web container is available at:
   provided timestamp.
 - `GET /admin-api/*`: read-only admin snapshots for the separated web console.
 - `GET /admin-api/part-lookup?...`: token-protected hybrid recognition endpoint
-  that applies bundled server rules first and then optional LCSC lookup.
+  that applies bundled server rules first and then optional LCSC OpenAPI or
+  public-web lookup.
 - `GET /admin-api/recognition-rules/meta`: inspect the active bundled or
   refreshed server rule pack.
 - `POST /admin-api/recognition-rules/refresh`: refresh the server rule pack from

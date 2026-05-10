@@ -156,6 +156,21 @@ data class ComponentImportResolution(
     val officialLookupResult: ComponentOfficialLookupResult? = null,
 )
 
+fun ComponentImportCandidate.referenceDisplayName(): String? {
+    val referenceBrand = (vendor ?: brand).orEmpty().trim()
+    val referenceModel = model.orEmpty().trim()
+    val referenceSku = sku.trim()
+
+    return when {
+        referenceModel.isNotBlank() && referenceBrand.isNotBlank() &&
+            !referenceModel.contains(referenceBrand, ignoreCase = true) ->
+            "$referenceBrand $referenceModel"
+        referenceModel.isNotBlank() -> referenceModel
+        referenceSku.isNotBlank() -> referenceSku
+        else -> null
+    }
+}
+
 fun ComponentImportCandidate.withLearningMapping(
     learningMatch: ComponentImportLearningMatch,
 ): ComponentImportCandidate {
@@ -264,6 +279,14 @@ fun ComponentImportCandidate.withRecognitionMetadata(
 fun ComponentImportCandidate.withOfficialMetadata(
     metadata: ComponentOfficialMetadata,
 ): ComponentImportCandidate {
+    val resolvedName = when {
+        metadata.name.isNullOrBlank() -> name
+        name.isBlank() -> metadata.name
+        !model.isNullOrBlank() && name.equals(model, ignoreCase = true) -> metadata.name
+        name.equals(sku, ignoreCase = true) -> metadata.name
+        else -> name
+    }.orEmpty()
+
     val resolvedPackageName = when {
         packageName.isBlank() && !metadata.packageName.isNullOrBlank() -> metadata.packageName
         !metadata.packageName.isNullOrBlank() && packageName.equals(sku, ignoreCase = true) -> metadata.packageName
@@ -297,7 +320,7 @@ fun ComponentImportCandidate.withOfficialMetadata(
 
     return copy(
         sku = sku.ifBlank { metadata.sku?.takeIf { it.isNotBlank() }.orEmpty() },
-        name = name.ifBlank { metadata.name?.takeIf { it.isNotBlank() }.orEmpty() },
+        name = resolvedName,
         packageName = resolvedPackageName,
         category = resolvedCategory,
         model = model?.takeIf { it.isNotBlank() } ?: metadata.model?.takeIf { it.isNotBlank() },
@@ -314,7 +337,7 @@ fun ComponentImportCandidate.withOfficialMetadata(
             } else {
                 fieldOrigins.sku
             },
-            name = if (name.isBlank() && !metadata.name.isNullOrBlank()) {
+            name = if (resolvedName != name && !metadata.name.isNullOrBlank()) {
                 ComponentImportFieldOrigin.Server
             } else {
                 fieldOrigins.name

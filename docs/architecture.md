@@ -41,11 +41,16 @@
   preference storage. `Auto` currently resolves to the bundled ML Kit engine,
   `ML Kit` forces the same offline recognizer explicitly, and
   `Paddle experimental` remains an honest compile-safe placeholder for a
-  future native model bundle rather than pretending to be active today.
+  future native model bundle rather than pretending to be active in the
+  current codebase.
 - Label generation is client-owned and stays schema-compatible: JLC-sourced
   items generate JLC-compatible QR payloads with app extension fields, while
   non-JLC items generate an app-specific warehouse QR payload. Both paths can
-  be exported as PNG or PDF for physical bag, bin, or drawer labels.
+  be exported as PNG or PDF for physical bag, bin, or drawer labels. The
+  current Android implementation uses three client-side label templates
+  (`Compact`, `Standard`, `Large`) with QR size derived from the selected
+  template, plus a bounded two-zone renderer so dynamic field text cannot
+  overlap the QR safe area.
 - `Movements` uses the same adaptive approach: compact history-first layouts on
   phones and split history/detail arrangements on larger widths.
 - `Overview` is now a summary surface that routes users back into inventory or
@@ -66,14 +71,17 @@
   optional server-side `GET /admin-api/part-lookup` metadata. The local rule
   pack now also recognizes more vendor numbering schemes so package and
   category inference can come from model families instead of only raw
-  keywords. User edits in the import confirmation form remain authoritative.
+  keywords. Canonical component names now stay blank until explicit source
+  text, learned mappings, or server metadata confirms them, so raw model codes
+  are no longer written into the saved `name` field by fallback. User edits in
+  the import confirmation form remain authoritative.
 - Android still keeps a local cache for repeated server-assisted lookups, while
   `/admin-api/lcsc/lookup` now sits behind the newer hybrid recognition flow as
   a direct compatibility endpoint when official LCSC credentials are available.
 - Android build verification completed successfully on `2026-05-08` on the
   current host machine after local SDK and JDK configuration. The latest
   Android `assembleDebug` and `assembleRelease` verification completed
-  successfully on `2026-05-10`. Preview-focused
+  successfully on `2026-05-11`. Preview-focused
   `Phone`, `Tablet`, `Locale`, `Theme`, `Accessibility`, `Shell`, and `Dialogs`
   surfaces are now isolated under `ui/screen/preview/`.
 
@@ -155,7 +163,8 @@
 - The server now exposes `GET /admin-api/part-lookup` as a token-protected
   hybrid recognition endpoint that applies bundled or refreshed rule packs
   first and then optionally merges official LCSC metadata when credentials are
-  configured.
+  configured or public LCSC product-page metadata when
+  `ENABLE_WEB_FALLBACK_RESOLVERS=true`.
 - The server also exposes `GET /admin-api/recognition-rules/meta` and
   `POST /admin-api/recognition-rules/refresh` so operators can inspect or
   refresh the active rule pack without changing the sync schema.

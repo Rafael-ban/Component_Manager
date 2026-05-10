@@ -78,8 +78,9 @@ Admin web is available at:
   recognition rule pack consumed by `/admin-api/part-lookup`
 - `IMPORT_RULES_REFRESH_HOURS`: refresh age threshold for the cached rule pack,
   default `24`
-- `ENABLE_WEB_FALLBACK_RESOLVERS`: reserved toggle for future public-web
-  fallback resolvers, default `false`
+- `ENABLE_WEB_FALLBACK_RESOLVERS`: enables public LCSC product-page fallback
+  for `/admin-api/part-lookup` when OpenAPI credentials are unavailable,
+  default `false`
 
 ## Versioning Workflow
 
@@ -217,7 +218,8 @@ Implemented client behaviors:
 - manual sync, connection test, and optional auto sync
 - JLC text/QR import with bundled offline recognition rules, device-only import
   learning, and optional server-assisted enrichment through
-  `GET /admin-api/part-lookup`
+  `GET /admin-api/part-lookup`, while keeping unresolved canonical names blank
+  until the user or server confirms them
 - supplier packaging OCR import plus generated JLC-compatible or warehouse QR
   labels
 

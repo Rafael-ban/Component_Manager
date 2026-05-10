@@ -131,11 +131,11 @@ internal object ComponentImportParser {
         ).extractFirstInt()
             ?: findQuantity(lines)
 
-        val displayName = name.ifBlank {
+        val classificationHint = name.ifBlank {
             model ?: sku
         }.orEmpty()
         val inferredCategory = ComponentCategoryInferencer.infer(
-            displayName,
+            classificationHint,
             packageName,
             model,
             brand,
@@ -162,7 +162,7 @@ internal object ComponentImportParser {
             rawPayload = rawPayload,
             sourceLabel = sourceLabel,
             sku = sku,
-            name = displayName,
+            name = name,
             packageName = packageName,
             category = inferredCategory,
             model = model,
