@@ -297,15 +297,9 @@
     <string name="importer_label_size_30x40_qr">30 x 40 mm QR</string>
     <string name="importer_label_size_text_only">Pure text strip</string>
     <string name="importer_label_format_qr_summary_pattern">%1$s | nominal %2$.1f x %3$.1f mm | %4$.1f x %4$.1f mm QR</string>
-    <string name="importer_label_format_text_summary_pattern">%1$s | auto width | %2$.1f mm text height</string>
+    <string name="importer_label_format_text_summary_pattern">%1$s | single-line auto fit</string>
     <string name="importer_label_size_qr_summary_pattern">%1$s | %2$.1f x %3$.1f mm label | %4$.1f x %4$.1f mm QR</string>
     <string name="importer_label_size_text_summary_pattern">%1$s | auto width | %2$.1f mm text height</string>
-    <string name="importer_print_canvas_title">Print canvas</string>
-    <string name="importer_print_canvas_subtitle">Choose whether to export the raw label block or a full Miaomiaoji 57 x 79 mm page.</string>
-    <string name="importer_print_canvas_raw_label">Raw label bounds</string>
-    <string name="importer_print_canvas_miaomiaoji_57x79">Miaomiaoji 57 x 79 mm</string>
-    <string name="importer_print_canvas_summary_raw">Raw label bounds | page follows the label content</string>
-    <string name="importer_print_canvas_summary_pattern">%1$s | %2$.1f x %3$.1f mm page</string>
     <string name="importer_label_payload_mode_title">Payload mode</string>
     <string name="importer_label_payload_mode_none">No QR payload</string>
     <string name="importer_label_payload_mode_compact">Compact offline warehouse payload</string>

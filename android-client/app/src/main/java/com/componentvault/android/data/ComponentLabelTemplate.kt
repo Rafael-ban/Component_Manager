@@ -24,38 +24,8 @@ internal enum class ComponentLabelOrientation {
 
 internal enum class ComponentLabelLayoutMode {
     LandscapeRightQr,
-    TopLeftQrDetails,
+    LeftQrRightDetails,
     TextOnly,
-}
-
-internal enum class ComponentLabelPrintCanvasTemplate(
-    val id: String,
-    val widthMm: Float?,
-    val heightMm: Float?,
-    val fileSuffix: String,
-) {
-    Miaomiaoji57x79(
-        id = "miaomiaoji-57x79",
-        widthMm = 57f,
-        heightMm = 79f,
-        fileSuffix = "miaomiaoji-57x79",
-    ),
-    RawLabel(
-        id = "raw-label",
-        widthMm = null,
-        heightMm = null,
-        fileSuffix = "raw",
-    );
-
-    val usesTemplateBounds: Boolean
-        get() = widthMm == null || heightMm == null
-
-    companion object {
-        val default: ComponentLabelPrintCanvasTemplate = Miaomiaoji57x79
-
-        fun fromId(id: String?): ComponentLabelPrintCanvasTemplate =
-            ComponentLabelPrintCanvasTemplate.entries.firstOrNull { it.id == id } ?: default
-    }
 }
 
 internal enum class ComponentTextLabelTemplate(
@@ -133,7 +103,7 @@ internal data class ComponentLabelTemplate(
             qrSizeMm = 16f,
             quietZoneMm = 1.2f,
             payloadMode = ComponentLabelPayloadMode.StandardWarehouse,
-            layoutMode = ComponentLabelLayoutMode.TopLeftQrDetails,
+            layoutMode = ComponentLabelLayoutMode.LeftQrRightDetails,
             fileSuffix = "30x40-qr",
         )
 

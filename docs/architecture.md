@@ -50,9 +50,10 @@
   current Android implementation uses three client-side label templates:
   `10x40mm QR`, `30x40mm QR`, and a pure text strip. The narrow label renders
   horizontally with the QR code on the right, the `30x40mm` label keeps the QR
-  in the upper-left with wrapped details beside it, and both QR templates can
-  also be exported on a `57x79mm` Miaomiaoji print canvas. A bounded two-zone
-  renderer keeps dynamic field text out of the QR safe area.
+  on the left with a top-aligned details column on the right, and the pure text
+  strip uses single-line fit-to-fill typography. Exports now use the resolved
+  label dimensions directly. A bounded two-zone renderer keeps dynamic field
+  text out of the QR safe area.
 - `Movements` uses the same adaptive approach: compact history-first layouts on
   phones and split history/detail arrangements on larger widths.
 - `Overview` is now a summary surface that routes users back into inventory or

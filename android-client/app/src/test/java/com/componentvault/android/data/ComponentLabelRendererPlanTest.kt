@@ -3,6 +3,7 @@ package com.componentvault.android.data
 import com.componentvault.android.model.ComponentLabelSeed
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class ComponentLabelRendererPlanTest {
@@ -19,32 +20,31 @@ class ComponentLabelRendererPlanTest {
     )
 
     @Test
-    fun miaomiaojiCanvasWrapsResolved10x40Label() {
+    fun qrLabelsExportAtTheirOwnResolvedSize() {
         val pages = ComponentLabelRenderer.resolvePageSpecs(
             seed = seed,
             template = ComponentLabelTemplate.Qr10x40,
             includeCompanionTextLabel = false,
             textTemplate = ComponentTextLabelTemplate.NameSku,
-            canvasTemplate = ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79,
         )
 
         val page = pages.single()
-        assertEquals(57f, page.canvasWidthMm)
-        assertEquals(79f, page.canvasHeightMm)
+        assertEquals(ComponentLabelTemplate.Qr10x40, page.template)
+        assertEquals(40f, page.canvasWidthMm)
+        assertEquals(10f, page.canvasHeightMm)
         assertEquals(40f, page.contentWidthMm)
         assertEquals(10f, page.contentHeightMm)
-        assertTrue(page.contentLeftMm > 0f)
-        assertTrue(page.contentTopMm > 0f)
+        assertEquals(0f, page.contentLeftMm)
+        assertEquals(0f, page.contentTopMm)
     }
 
     @Test
-    fun rawCanvasUsesTemplateBoundsFor30x40() {
+    fun qr30x40UsesLeftQrRightDetailsLayoutAndOwnPageBounds() {
         val pages = ComponentLabelRenderer.resolvePageSpecs(
             seed = seed,
             template = ComponentLabelTemplate.Qr30x40,
             includeCompanionTextLabel = false,
             textTemplate = ComponentTextLabelTemplate.NameSku,
-            canvasTemplate = ComponentLabelPrintCanvasTemplate.RawLabel,
         )
 
         val page = pages.single()
@@ -52,23 +52,47 @@ class ComponentLabelRendererPlanTest {
         assertEquals(40f, page.canvasHeightMm)
         assertEquals(0f, page.contentLeftMm)
         assertEquals(0f, page.contentTopMm)
+        assertEquals(ComponentLabelLayoutMode.LeftQrRightDetails, page.template.layoutMode)
     }
 
     @Test
-    fun companionTextPageRespectsSelectedCanvas() {
+    fun companionTextPageUsesIndependentAutoWidthWithoutCanvasWrapper() {
         val pages = ComponentLabelRenderer.resolvePageSpecs(
             seed = seed,
             template = ComponentLabelTemplate.Qr30x40,
             includeCompanionTextLabel = true,
             textTemplate = ComponentTextLabelTemplate.NamePackageSku,
-            canvasTemplate = ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79,
         )
 
         assertEquals(2, pages.size)
         assertEquals(ComponentLabelTemplate.Qr30x40, pages.first().template)
         assertEquals(ComponentLabelTemplate.TextOnly, pages.last().template)
-        assertEquals(57f, pages.last().canvasWidthMm)
-        assertEquals(79f, pages.last().canvasHeightMm)
+        assertEquals(ComponentLabelTemplate.TextOnly.heightMm, pages.last().canvasHeightMm)
+        assertEquals(0f, pages.last().contentLeftMm)
+        assertEquals(0f, pages.last().contentTopMm)
         assertTrue(pages.last().contentWidthMm > 0f)
+        assertNotNull(pages.last().textOnlyFontSizeMm)
+    }
+
+    @Test
+    fun textOnlyLabelPrefersLargerFontsAndShrinksLongContent() {
+        val shortPage = ComponentLabelRenderer.resolvePageSpecs(
+            seed = seed.copy(name = "10uF"),
+            template = ComponentLabelTemplate.TextOnly,
+            includeCompanionTextLabel = false,
+            textTemplate = ComponentTextLabelTemplate.NameSku,
+        ).single()
+        val longPage = ComponentLabelRenderer.resolvePageSpecs(
+            seed = seed.copy(name = "Very Long Ceramic Capacitor Label For Dense Drawer Bins"),
+            template = ComponentLabelTemplate.TextOnly,
+            includeCompanionTextLabel = false,
+            textTemplate = ComponentTextLabelTemplate.NameSku,
+        ).single()
+
+        val shortFont = requireNotNull(shortPage.textOnlyFontSizeMm)
+        val longFont = requireNotNull(longPage.textOnlyFontSizeMm)
+        assertTrue(shortFont >= longFont)
+        assertTrue(shortFont > 1.5f)
+        assertTrue(longPage.canvasWidthMm <= 120f)
     }
 }

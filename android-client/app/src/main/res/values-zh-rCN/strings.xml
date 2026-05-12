@@ -279,15 +279,9 @@
     <string name="importer_label_size_30x40_qr">30 x 40 mm 二维码</string>
     <string name="importer_label_size_text_only">纯文字长条标签</string>
     <string name="importer_label_format_qr_summary_pattern">%1$s | 标称 %2$.1f x %3$.1f mm | 二维码 %4$.1f x %4$.1f mm</string>
-    <string name="importer_label_format_text_summary_pattern">%1$s | 宽度自适应 | 字高 %2$.1f mm</string>
+    <string name="importer_label_format_text_summary_pattern">%1$s | 单行自适应填充</string>
     <string name="importer_label_size_qr_summary_pattern">%1$s | 标签 %2$.1f x %3$.1f mm | 二维码 %4$.1f x %4$.1f mm</string>
     <string name="importer_label_size_text_summary_pattern">%1$s | 宽度自适应 | 字高 %2$.1f mm</string>
-    <string name="importer_print_canvas_title">打印画布</string>
-    <string name="importer_print_canvas_subtitle">选择直接导出标签内容，或导出完整的喵喵机 57 x 79 mm 页面。</string>
-    <string name="importer_print_canvas_raw_label">仅标签内容</string>
-    <string name="importer_print_canvas_miaomiaoji_57x79">喵喵机 57 x 79 mm</string>
-    <string name="importer_print_canvas_summary_raw">仅标签内容 | 页面跟随标签内容边界</string>
-    <string name="importer_print_canvas_summary_pattern">%1$s | 页面 %2$.1f x %3$.1f mm</string>
     <string name="importer_label_payload_mode_title">载荷模式</string>
     <string name="importer_label_payload_mode_none">无二维码载荷</string>
     <string name="importer_label_payload_mode_compact">紧凑离线仓库载荷</string>

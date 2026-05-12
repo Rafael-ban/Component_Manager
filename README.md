@@ -83,11 +83,12 @@ connects to it over HTTP.
   `Overview`, and `Settings` destinations, compact phone detail drill-down,
   tablet list-detail layouts, quantity-first import confirmation, generated
   JLC-compatible or warehouse QR labels, user-selectable `10x40mm QR`,
-  `30x40mm QR`, and pure text strip templates, a `57x79mm` Miaomiaoji print
-  canvas option, collision-safe text layout, local import learning backed by a
-  device-only SQLite mapping table, optional server-assisted metadata lookup
-  for filling missing JLC fields, capture-first supplier packaging OCR with
-  structured line extraction, user-selectable OCR engine preference (`Auto`,
+  `30x40mm QR`, and pure text strip templates, direct label-sized PNG/PDF
+  export, larger on-label typography, collision-safe text layout, local import
+  learning backed by a device-only SQLite mapping table, optional
+  server-assisted metadata lookup for filling missing JLC fields,
+  capture-first supplier packaging OCR with structured line extraction,
+  user-selectable OCR engine preference (`Auto`,
   `ML Kit offline`, `Paddle experimental`), persisted in-app language
   switching with first-launch default `zh-CN`, stronger vendor-aware QR
   package/category inference, and scroll-safe `Scaffold` inset handling;
@@ -196,8 +197,8 @@ preferences and supports:
 - physical label preview plus PNG/PDF export, generating JLC-compatible QR
   payloads for JLC-sourced items and warehouse QR payloads for other items
 - user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
-  templates, with linked QR dimensions, label-specific text flow, and an
-  optional `57x79mm` Miaomiaoji print canvas
+  templates, with linked QR dimensions, larger text treatment, direct
+  label-sized export, and fixed per-size layouts
 - local-first JLC import enrichment through parser heuristics plus a device-only
   learned mapping table keyed by JLC SKU and fallback MPN reuse
 - bundled offline recognition rules for package normalization, model-family

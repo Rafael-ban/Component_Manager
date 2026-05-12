@@ -22,6 +22,7 @@ class ComponentLabelTemplateTest {
         assertEquals(40f, ComponentLabelTemplate.Qr30x40.nominalHeightMm)
         assertEquals(ComponentLabelOrientation.Portrait, ComponentLabelTemplate.Qr30x40.orientation)
         assertEquals(16f, ComponentLabelTemplate.Qr30x40.qrSizeMm)
+        assertEquals(ComponentLabelLayoutMode.LeftQrRightDetails, ComponentLabelTemplate.Qr30x40.layoutMode)
     }
 
     @Test
@@ -38,13 +39,5 @@ class ComponentLabelTemplateTest {
         assertEquals(0.5f, ComponentLabelTemplate.TextOnly.textHeightMm)
         assertFalse(ComponentLabelTemplate.TextOnly.supportsCompanionTextLabel)
         assertTrue(ComponentLabelTemplate.Qr10x40.supportsCompanionTextLabel)
-    }
-
-    @Test
-    fun printCanvasDefaultsToMiaomiaojiStock() {
-        assertEquals(ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79, ComponentLabelPrintCanvasTemplate.default)
-        assertEquals(57f, ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79.widthMm)
-        assertEquals(79f, ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79.heightMm)
-        assertTrue(ComponentLabelPrintCanvasTemplate.RawLabel.usesTemplateBounds)
     }
 }

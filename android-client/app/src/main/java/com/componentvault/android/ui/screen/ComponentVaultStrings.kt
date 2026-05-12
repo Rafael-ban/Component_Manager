@@ -8,7 +8,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.res.stringResource
 import com.componentvault.android.R
 import com.componentvault.android.data.ComponentLabelPayloadMode
-import com.componentvault.android.data.ComponentLabelPrintCanvasTemplate
 import com.componentvault.android.data.ComponentLabelTemplate
 import com.componentvault.android.data.ComponentTextLabelTemplate
 import com.componentvault.android.model.AppLanguage
@@ -337,12 +336,6 @@ internal data class ImportStrings(
     val labelSizeTextOnly: String,
     val labelFormatQrSummaryPattern: String,
     val labelFormatTextSummaryPattern: String,
-    val printCanvasTitle: String,
-    val printCanvasSubtitle: String,
-    val printCanvasRawLabel: String,
-    val printCanvasMiaomiaoji57x79: String,
-    val printCanvasSummaryRaw: String,
-    val printCanvasSummaryPattern: String,
     val labelPayloadModeTitle: String,
     val labelPayloadModeNone: String,
     val labelPayloadModeCompact: String,
@@ -389,26 +382,8 @@ internal data class ImportStrings(
         formatPattern(
             labelFormatTextSummaryPattern,
             labelTemplateLabel(template),
-            template.textHeightMm ?: 0f,
         )
     }
-
-    fun printCanvasLabel(canvasTemplate: ComponentLabelPrintCanvasTemplate): String = when (canvasTemplate) {
-        ComponentLabelPrintCanvasTemplate.RawLabel -> printCanvasRawLabel
-        ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79 -> printCanvasMiaomiaoji57x79
-    }
-
-    fun printCanvasSummary(canvasTemplate: ComponentLabelPrintCanvasTemplate): String =
-        if (canvasTemplate.usesTemplateBounds) {
-            printCanvasSummaryRaw
-        } else {
-            formatPattern(
-                printCanvasSummaryPattern,
-                printCanvasLabel(canvasTemplate),
-                canvasTemplate.widthMm ?: 0f,
-                canvasTemplate.heightMm ?: 0f,
-            )
-        }
 
     fun payloadModeLabel(mode: ComponentLabelPayloadMode): String = when (mode) {
         ComponentLabelPayloadMode.None -> labelPayloadModeNone
@@ -724,12 +699,6 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             labelSizeTextOnly = stringResource(R.string.importer_label_size_text_only),
             labelFormatQrSummaryPattern = stringResource(R.string.importer_label_format_qr_summary_pattern),
             labelFormatTextSummaryPattern = stringResource(R.string.importer_label_format_text_summary_pattern),
-            printCanvasTitle = stringResource(R.string.importer_print_canvas_title),
-            printCanvasSubtitle = stringResource(R.string.importer_print_canvas_subtitle),
-            printCanvasRawLabel = stringResource(R.string.importer_print_canvas_raw_label),
-            printCanvasMiaomiaoji57x79 = stringResource(R.string.importer_print_canvas_miaomiaoji_57x79),
-            printCanvasSummaryRaw = stringResource(R.string.importer_print_canvas_summary_raw),
-            printCanvasSummaryPattern = stringResource(R.string.importer_print_canvas_summary_pattern),
             labelPayloadModeTitle = stringResource(R.string.importer_label_payload_mode_title),
             labelPayloadModeNone = stringResource(R.string.importer_label_payload_mode_none),
             labelPayloadModeCompact = stringResource(R.string.importer_label_payload_mode_compact),
