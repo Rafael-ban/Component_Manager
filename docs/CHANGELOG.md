@@ -4,6 +4,10 @@
 bump: patch
 
 <!-- Add unreleased notes below this line. -->
+
+## [0.3.6] - 2026-05-12
+
+<!-- Add unreleased notes below this line. -->
 - Reworked Android inventory labels into collision-safe physical templates
   with user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip modes,
   compact offline warehouse QR payloads for the narrow label, optional
@@ -23,6 +27,7 @@ bump: patch
   chain that uses the default `GITHUB_TOKEN`, pushes the matching release tag,
   and then directly calls the reusable release workflow instead of relying on a
   second workflow being triggered by tag pushes.
+
 
 ## [0.3.5] - 2026-05-11
 
