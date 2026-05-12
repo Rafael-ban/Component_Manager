@@ -4,10 +4,11 @@
 bump: patch
 
 <!-- Add unreleased notes below this line. -->
-- Reworked Android inventory labels into collision-safe two-zone templates
-  with user-selectable `Compact`, `Standard`, and `Large` sizes, linked QR
-  dimensions, template-aware PNG/PDF export, and refreshed Compose preview
-  states for long-text and Chinese label cases.
+- Reworked Android inventory labels into collision-safe physical templates
+  with user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip modes,
+  compact offline warehouse QR payloads for the narrow label, optional
+  companion text-label export, and refreshed Compose preview states for
+  long-text and Chinese label cases.
 - Fixed Android import semantics so unresolved supplier parts no longer save
   raw `model` or `sku` values into the canonical component `name`; the import
   form now shows them as reference labels and allows manual adoption or full
@@ -18,6 +19,10 @@ bump: patch
   imports by SKU.
 - Reworded the Android local deletion status copy to clarify that a component
   was marked deleted on the current device.
+- Reworked changelog-driven GitHub release automation into a single orchestration
+  chain that uses the default `GITHUB_TOKEN`, pushes the matching release tag,
+  and then directly calls the reusable release workflow instead of relying on a
+  second workflow being triggered by tag pushes.
 
 ## [0.3.5] - 2026-05-11
 

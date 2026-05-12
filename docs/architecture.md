@@ -91,14 +91,15 @@
 - A local pre-commit hook consumes the `Unreleased` changelog section and
   synchronizes semantic versions to Android, admin-web, and Windows targets.
 - The default-branch GitHub workflow `release-from-changelog.yml` also uses the
-  changelog as input. It applies the same sync server-side when needed and
-  pushes the matching `vX.Y.Z` tag for the release artifact workflow.
+  changelog as input. It applies the same sync server-side when needed, pushes
+  the matching `vX.Y.Z` tag, and then directly invokes the reusable release
+  workflow in the same orchestration chain.
 - Android uses semver for `versionName` plus a monotonically increasing
   `versionCode`.
 - Windows package and assembly metadata use the same semver mapped to four-part
   versions as `major.minor.patch.0`.
 - The release path is:
-  `docs/CHANGELOG.md -> tools/versioning/sync_version.py -> release commit if needed -> vX.Y.Z tag -> .github/workflows/release.yml`
+  `docs/CHANGELOG.md -> tools/versioning/sync_version.py -> release commit if needed -> vX.Y.Z tag -> reusable .github/workflows/release.yml build and GitHub Release publish`
 
 ## Windows Client
 

@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.componentvault.android.data.ComponentLabelTemplate
+import com.componentvault.android.data.ComponentTextLabelTemplate
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentImportCandidate
 import com.componentvault.android.model.InventoryStockFilter
@@ -32,6 +34,11 @@ fun ComponentVaultApp(
     var componentEditorInitialDraft by remember { mutableStateOf<ComponentDraft?>(null) }
     var componentEditorImportCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
     var labelPreviewSeed by remember { mutableStateOf<com.componentvault.android.model.ComponentLabelSeed?>(null) }
+    var selectedLabelTemplateId by rememberSaveable { mutableStateOf(ComponentLabelTemplate.default.id) }
+    var includeCompanionTextLabel by rememberSaveable { mutableStateOf(false) }
+    var selectedTextLabelTemplateId by rememberSaveable {
+        mutableStateOf(ComponentTextLabelTemplate.default.id)
+    }
 
     val editingComponent = uiState.availableComponents.firstOrNull { it.id == componentEditorTargetId }
     val compactDetailComponent = uiState.inventory.detail.component
@@ -162,6 +169,12 @@ fun ComponentVaultApp(
                     seed = requireNotNull(labelPreviewSeed),
                     layoutMode = layoutMode,
                     onDismiss = { labelPreviewSeed = null },
+                    selectedTemplate = ComponentLabelTemplate.fromId(selectedLabelTemplateId),
+                    includeCompanionTextLabel = includeCompanionTextLabel,
+                    selectedTextTemplate = ComponentTextLabelTemplate.fromId(selectedTextLabelTemplateId),
+                    onTemplateChange = { selectedLabelTemplateId = it.id },
+                    onIncludeCompanionTextLabelChange = { includeCompanionTextLabel = it },
+                    onTextTemplateChange = { selectedTextLabelTemplateId = it.id },
                 )
             }
 
@@ -335,6 +348,12 @@ fun ComponentVaultApp(
                     seed = requireNotNull(labelPreviewSeed),
                     layoutMode = layoutMode,
                     onDismiss = { labelPreviewSeed = null },
+                    selectedTemplate = ComponentLabelTemplate.fromId(selectedLabelTemplateId),
+                    includeCompanionTextLabel = includeCompanionTextLabel,
+                    selectedTextTemplate = ComponentTextLabelTemplate.fromId(selectedTextLabelTemplateId),
+                    onTemplateChange = { selectedLabelTemplateId = it.id },
+                    onIncludeCompanionTextLabelChange = { includeCompanionTextLabel = it },
+                    onTextTemplateChange = { selectedTextLabelTemplateId = it.id },
                 )
             }
         }

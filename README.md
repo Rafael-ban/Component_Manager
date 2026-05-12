@@ -58,10 +58,11 @@ connects to it over HTTP.
   - applies the version sync if unreleased notes were pushed without the local hook
   - creates and pushes the matching `vX.Y.Z` tag when the latest changelog
     release is not tagged yet
-- Configure the GitHub repository secret `RELEASE_AUTOMATION_TOKEN` with
-  `contents:write` permission for that workflow. A separate token is required
-  because tag and commit pushes performed with the default `GITHUB_TOKEN` do
-  not reliably trigger downstream workflows.
+  - directly calls `.github/workflows/release.yml` in the same workflow run to
+    build release artifacts and create or update the GitHub Release
+- The default `GITHUB_TOKEN` is sufficient for this path as long as the
+  workflow has `contents:write` permission. No separate
+  `RELEASE_AUTOMATION_TOKEN` secret is required.
 
 ## Platform Status
 
@@ -270,8 +271,10 @@ The repository now includes three workflows under `.github/workflows/`:
 - `ci.yml`: runs backend tests, separated admin-web build validation, Android
   debug build, Windows build, and changelog/version validation on push/pull request
 - `release-from-changelog.yml`: watches `docs/CHANGELOG.md` on the default
-  branch, syncs version files if needed, and creates the matching `v*` tag
-- `release.yml`: builds release artifacts on `workflow_dispatch` and `v*` tags
+  branch, syncs version files if needed, creates the matching `v*` tag, and
+  then invokes the reusable release workflow in the same orchestration chain
+- `release.yml`: builds release artifacts on `workflow_dispatch`, `workflow_call`,
+  and `v*` tags
 
 Release artifacts produced by GitHub Actions:
 
@@ -290,9 +293,9 @@ Required GitHub Secrets for Android release signing:
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Required GitHub Secret for changelog-triggered release automation:
-
-- `RELEASE_AUTOMATION_TOKEN`
+No additional `RELEASE_AUTOMATION_TOKEN` secret is required. The changelog
+release workflow now uses the default `GITHUB_TOKEN` with
+`permissions: contents: write`.
 
 Windows release packaging uses a runner-generated self-signed certificate for
 test distribution. The release workflow publishes both a portable zip and an
@@ -301,11 +304,6 @@ MSIX package. The portable zip can be extracted and launched directly with
 certificate plus an install script that must be run from an elevated
 PowerShell window. The script imports the certificate into
 `Cert:\LocalMachine\TrustedPeople` before calling `Add-AppxPackage`.
-
-`release-from-changelog.yml` should use a personal access token or fine-grained
-token with `contents:write` permission. That token allows the workflow to push
-the synchronized release commit and `vX.Y.Z` tag so `release.yml` can run from
-the tag event.
 
 GitHub Actions already pins Android builds to Java 21. The local
 `.\scripts\android-gradle.ps1` helper exists only to avoid Windows machines

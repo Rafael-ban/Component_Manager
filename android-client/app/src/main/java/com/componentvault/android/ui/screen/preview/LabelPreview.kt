@@ -2,6 +2,7 @@ package com.componentvault.android.ui.screen.preview
 
 import androidx.compose.runtime.Composable
 import com.componentvault.android.data.ComponentLabelTemplate
+import com.componentvault.android.data.ComponentTextLabelTemplate
 import com.componentvault.android.ui.screen.ComponentLabelPreviewSurface
 import com.componentvault.android.ui.screen.InventoryLayoutMode
 import com.componentvault.android.ui.screen.InventoryWidthClass
@@ -19,14 +20,14 @@ private fun ComponentLabelPreviewStandard() {
                 prefersDialogForms = false,
             ),
             onDismiss = {},
-            initialTemplate = ComponentLabelTemplate.Standard,
+            selectedTemplate = ComponentLabelTemplate.Qr30x40,
         )
     }
 }
 
 @InventoryDialogPreview
 @Composable
-private fun ComponentLabelPreviewCompact() {
+private fun ComponentLabelPreviewCompactWithCompanion() {
     PreviewHost {
         ComponentLabelPreviewSurface(
             seed = InventoryPreviewData.selectedLabelSeed,
@@ -37,7 +38,9 @@ private fun ComponentLabelPreviewCompact() {
                 prefersDialogForms = false,
             ),
             onDismiss = {},
-            initialTemplate = ComponentLabelTemplate.Compact,
+            selectedTemplate = ComponentLabelTemplate.Qr10x40,
+            includeCompanionTextLabel = true,
+            selectedTextTemplate = ComponentTextLabelTemplate.NamePackageSku,
         )
     }
 }
@@ -55,7 +58,8 @@ private fun ComponentLabelPreviewZhCnLongText() {
                 prefersDialogForms = false,
             ),
             onDismiss = {},
-            initialTemplate = ComponentLabelTemplate.Large,
+            selectedTemplate = ComponentLabelTemplate.TextOnly,
+            selectedTextTemplate = ComponentTextLabelTemplate.NamePackageSku,
         )
     }
 }

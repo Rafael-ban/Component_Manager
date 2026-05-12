@@ -1,13 +1,15 @@
 package com.componentvault.android.ui.screen
 
-import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -15,13 +17,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -30,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.ComponentLabelCodec
 import com.componentvault.android.data.ComponentLabelRenderer
 import com.componentvault.android.data.ComponentLabelTemplate
+import com.componentvault.android.data.ComponentTextLabelTemplate
 import com.componentvault.android.model.ComponentLabelSeed
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -41,23 +45,34 @@ internal fun ComponentLabelPreviewSurface(
     seed: ComponentLabelSeed,
     layoutMode: InventoryLayoutMode,
     onDismiss: () -> Unit,
-    initialTemplate: ComponentLabelTemplate = ComponentLabelTemplate.Standard,
+    selectedTemplate: ComponentLabelTemplate = ComponentLabelTemplate.default,
+    includeCompanionTextLabel: Boolean = false,
+    selectedTextTemplate: ComponentTextLabelTemplate = ComponentTextLabelTemplate.default,
+    onTemplateChange: (ComponentLabelTemplate) -> Unit = {},
+    onIncludeCompanionTextLabelChange: (Boolean) -> Unit = {},
+    onTextTemplateChange: (ComponentTextLabelTemplate) -> Unit = {},
 ) {
     val context = LocalContext.current
     val strings = vaultStrings()
-    val qrPayload = remember(seed) { ComponentLabelCodec.buildQrPayload(seed) }
-    var selectedTemplateName by rememberSaveable(seed.sku, initialTemplate.name) {
-        mutableStateOf(initialTemplate.name)
+    val qrPayload = remember(seed, selectedTemplate.id) {
+        ComponentLabelCodec.buildQrPayload(seed, selectedTemplate)
     }
-    val selectedTemplate = remember(selectedTemplateName) {
-        ComponentLabelTemplate.valueOf(selectedTemplateName)
+    val textLabelContent = remember(seed, selectedTextTemplate) {
+        ComponentLabelRenderer.buildTextLabelContent(seed, selectedTextTemplate)
     }
-    val bitmap = remember(seed, qrPayload, selectedTemplate, strings.importer.labelFooterText) {
-        ComponentLabelRenderer.renderBitmap(
+    val pageBitmaps = remember(
+        seed,
+        selectedTemplate.id,
+        includeCompanionTextLabel,
+        selectedTextTemplate.id,
+        strings.importer.labelFooterText,
+    ) {
+        ComponentLabelRenderer.renderBitmaps(
             seed = seed,
-            qrPayload = qrPayload,
             template = selectedTemplate,
             footerText = strings.importer.labelFooterText,
+            includeCompanionTextLabel = includeCompanionTextLabel,
+            textTemplate = selectedTextTemplate,
         )
     }
     var copiesText by remember { mutableStateOf("1") }
@@ -72,7 +87,14 @@ internal fun ComponentLabelPreviewSurface(
         feedbackMessage = runCatching {
             context.contentResolver.openOutputStream(uri).use { stream ->
                 requireNotNull(stream) { "Unable to open the selected file." }
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                ComponentLabelRenderer.writePng(
+                    outputStream = stream,
+                    seed = seed,
+                    template = selectedTemplate,
+                    footerText = strings.importer.labelFooterText,
+                    includeCompanionTextLabel = includeCompanionTextLabel,
+                    textTemplate = selectedTextTemplate,
+                )
             }
             strings.importer.exportPngSuccess
         }.getOrElse { throwable ->
@@ -93,10 +115,11 @@ internal fun ComponentLabelPreviewSurface(
                 ComponentLabelRenderer.writePdf(
                     outputStream = stream,
                     seed = seed,
-                    qrPayload = qrPayload,
                     copies = copies,
                     template = selectedTemplate,
                     footerText = strings.importer.labelFooterText,
+                    includeCompanionTextLabel = includeCompanionTextLabel,
+                    textTemplate = selectedTextTemplate,
                 )
             }
             strings.importer.exportPdfSuccess
@@ -110,7 +133,13 @@ internal fun ComponentLabelPreviewSurface(
         layoutMode = layoutMode,
         onDismiss = onDismiss,
         onSave = {
-            val filename = suggestedFileName(seed.sku, selectedTemplate, "png")
+            val filename = suggestedFileName(
+                sku = seed.sku,
+                template = selectedTemplate,
+                includeCompanionTextLabel = includeCompanionTextLabel,
+                textTemplate = selectedTextTemplate,
+                extension = "png",
+            )
             pngExporter.launch(filename)
         },
     ) {
@@ -134,25 +163,83 @@ internal fun ComponentLabelPreviewSurface(
                 ) {
                     ComponentLabelTemplate.entries.forEach { template ->
                         FilterChip(
-                            selected = selectedTemplate == template,
+                            selected = selectedTemplate.id == template.id,
                             onClick = {
-                                selectedTemplateName = template.name
+                                onTemplateChange(template)
                                 feedbackMessage = null
                             },
                             label = { Text(strings.importer.labelTemplateLabel(template)) },
                         )
                     }
                 }
+                if (selectedTemplate.supportsCompanionTextLabel) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = strings.importer.labelCompanionToggle,
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Switch(
+                            checked = includeCompanionTextLabel,
+                            onCheckedChange = {
+                                onIncludeCompanionTextLabelChange(it)
+                                feedbackMessage = null
+                            },
+                        )
+                    }
+                    Text(
+                        text = strings.importer.labelCompanionHint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (!selectedTemplate.isQrLabel || includeCompanionTextLabel) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = strings.importer.textLabelTemplateTitle,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        text = strings.importer.textLabelTemplateSubtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ComponentTextLabelTemplate.entries.forEach { template ->
+                            FilterChip(
+                                selected = selectedTextTemplate == template,
+                                onClick = {
+                                    onTextTemplateChange(template)
+                                    feedbackMessage = null
+                                },
+                                label = { Text(strings.importer.textLabelTemplateLabel(template)) },
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = strings.importer.labelSizeSummary(selectedTemplate),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = strings.importer.labelPreviewTitle,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                pageBitmaps.forEachIndexed { index, bitmap ->
+                    if (index > 0) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = strings.importer.labelPreviewTitle,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
         item {
@@ -164,11 +251,33 @@ internal fun ComponentLabelPreviewSurface(
                 ValueBlock(label = strings.common.fieldQuantity, value = seed.quantity.toString())
                 ValueBlock(label = strings.common.fieldLocation, value = seed.location)
                 ValueBlock(label = strings.importer.labelSizeTitle, value = strings.importer.labelSizeSummary(selectedTemplate))
-                Text(
-                    text = qrPayload,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                ValueBlock(
+                    label = strings.importer.labelPayloadModeTitle,
+                    value = strings.importer.payloadModeLabel(qrPayload?.mode ?: selectedTemplate.payloadMode),
                 )
+                qrPayload?.rawValue?.let { payload ->
+                    Text(
+                        text = payload,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (!selectedTemplate.isQrLabel || includeCompanionTextLabel) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ValueBlock(
+                        label = strings.importer.textLabelTemplateTitle,
+                        value = strings.importer.textLabelTemplateLabel(selectedTextTemplate),
+                    )
+                    Text(
+                        text = strings.importer.labelTextContentTitle,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        text = textLabelContent,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
         item {
@@ -182,13 +291,33 @@ internal fun ComponentLabelPreviewSurface(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
                 Button(
-                    onClick = { pngExporter.launch(suggestedFileName(seed.sku, selectedTemplate, "png")) },
+                    onClick = {
+                        pngExporter.launch(
+                            suggestedFileName(
+                                sku = seed.sku,
+                                template = selectedTemplate,
+                                includeCompanionTextLabel = includeCompanionTextLabel,
+                                textTemplate = selectedTextTemplate,
+                                extension = "png",
+                            ),
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(strings.importer.actionExportPng)
                 }
                 OutlinedButton(
-                    onClick = { pdfExporter.launch(suggestedFileName(seed.sku, selectedTemplate, "pdf")) },
+                    onClick = {
+                        pdfExporter.launch(
+                            suggestedFileName(
+                                sku = seed.sku,
+                                template = selectedTemplate,
+                                includeCompanionTextLabel = includeCompanionTextLabel,
+                                textTemplate = selectedTextTemplate,
+                                extension = "pdf",
+                            ),
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(strings.importer.actionExportPdf)
@@ -211,10 +340,22 @@ internal fun ComponentLabelPreviewSurface(
 private fun suggestedFileName(
     sku: String,
     template: ComponentLabelTemplate,
+    includeCompanionTextLabel: Boolean,
+    textTemplate: ComponentTextLabelTemplate,
     extension: String,
 ): String {
     val safeSku = sku.ifBlank { "component-label" }
         .replace(Regex("[^A-Za-z0-9._-]"), "-")
+    val suffix = buildString {
+        append(template.fileSuffix)
+        if (includeCompanionTextLabel && template.isQrLabel) {
+            append("-with-")
+            append(textTemplate.fileSuffix)
+        } else if (!template.isQrLabel) {
+            append("-")
+            append(textTemplate.fileSuffix)
+        }
+    }
     val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-    return "$safeSku-${template.fileSuffix}-$timestamp.$extension"
+    return "$safeSku-$suffix-$timestamp.$extension"
 }

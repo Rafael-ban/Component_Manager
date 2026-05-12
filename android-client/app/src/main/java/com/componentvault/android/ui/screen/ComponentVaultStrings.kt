@@ -7,7 +7,9 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.res.stringResource
 import com.componentvault.android.R
+import com.componentvault.android.data.ComponentLabelPayloadMode
 import com.componentvault.android.data.ComponentLabelTemplate
+import com.componentvault.android.data.ComponentTextLabelTemplate
 import com.componentvault.android.model.AppLanguage
 import com.componentvault.android.model.ComponentImportFieldOrigin
 import com.componentvault.android.model.InventorySortOption
@@ -329,10 +331,24 @@ internal data class ImportStrings(
     val labelPayloadSubtitle: String,
     val labelSizeTitle: String,
     val labelSizeSubtitle: String,
-    val labelSizeCompact: String,
-    val labelSizeStandard: String,
-    val labelSizeLarge: String,
-    val labelSizeSummaryPattern: String,
+    val labelSize10x40Qr: String,
+    val labelSize30x40Qr: String,
+    val labelSizeTextOnly: String,
+    val labelSizeQrSummaryPattern: String,
+    val labelSizeTextSummaryPattern: String,
+    val labelPayloadModeTitle: String,
+    val labelPayloadModeNone: String,
+    val labelPayloadModeCompact: String,
+    val labelPayloadModeStandard: String,
+    val labelPayloadModeJlc: String,
+    val labelCompanionToggle: String,
+    val labelCompanionHint: String,
+    val textLabelTemplateTitle: String,
+    val textLabelTemplateSubtitle: String,
+    val textLabelTemplateNameSku: String,
+    val textLabelTemplateNamePackageSku: String,
+    val textLabelTemplateNameModel: String,
+    val labelTextContentTitle: String,
     val labelFooterText: String,
     val exportSectionTitle: String,
     val labelCopiesLabel: String,
@@ -347,19 +363,41 @@ internal data class ImportStrings(
     fun supplierScannerEngine(engineLabel: String): String = formatPattern(supplierScannerEnginePattern, engineLabel)
     fun lookupFailed(detail: String): String = formatPattern(lookupFailedPattern, detail)
     fun exportFailed(detail: String): String = formatPattern(exportFailedPattern, detail)
-    fun labelTemplateLabel(template: ComponentLabelTemplate): String = when (template) {
-        ComponentLabelTemplate.Compact -> labelSizeCompact
-        ComponentLabelTemplate.Standard -> labelSizeStandard
-        ComponentLabelTemplate.Large -> labelSizeLarge
+    fun labelTemplateLabel(template: ComponentLabelTemplate): String = when (template.id) {
+        ComponentLabelTemplate.Qr10x40.id -> labelSize10x40Qr
+        ComponentLabelTemplate.Qr30x40.id -> labelSize30x40Qr
+        ComponentLabelTemplate.TextOnly.id -> labelSizeTextOnly
+        else -> labelSize30x40Qr
     }
 
-    fun labelSizeSummary(template: ComponentLabelTemplate): String = formatPattern(
-        labelSizeSummaryPattern,
-        labelTemplateLabel(template),
-        template.width,
-        template.height,
-        template.qrSize,
-    )
+    fun labelSizeSummary(template: ComponentLabelTemplate): String = if (template.isQrLabel) {
+        formatPattern(
+            labelSizeQrSummaryPattern,
+            labelTemplateLabel(template),
+            requireNotNull(template.widthMm),
+            template.heightMm,
+            requireNotNull(template.qrSizeMm),
+        )
+    } else {
+        formatPattern(
+            labelSizeTextSummaryPattern,
+            labelTemplateLabel(template),
+            template.textHeightMm ?: 0f,
+        )
+    }
+
+    fun payloadModeLabel(mode: ComponentLabelPayloadMode): String = when (mode) {
+        ComponentLabelPayloadMode.None -> labelPayloadModeNone
+        ComponentLabelPayloadMode.CompactOffline -> labelPayloadModeCompact
+        ComponentLabelPayloadMode.StandardWarehouse -> labelPayloadModeStandard
+        ComponentLabelPayloadMode.JlcCompatible -> labelPayloadModeJlc
+    }
+
+    fun textLabelTemplateLabel(template: ComponentTextLabelTemplate): String = when (template) {
+        ComponentTextLabelTemplate.NameSku -> textLabelTemplateNameSku
+        ComponentTextLabelTemplate.NamePackageSku -> textLabelTemplateNamePackageSku
+        ComponentTextLabelTemplate.NameModel -> textLabelTemplateNameModel
+    }
 
     fun fieldOrigin(origin: ComponentImportFieldOrigin): String = formatPattern(
         fieldOriginPattern,
@@ -657,10 +695,24 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             labelPayloadSubtitle = stringResource(R.string.importer_label_payload_subtitle),
             labelSizeTitle = stringResource(R.string.importer_label_size_title),
             labelSizeSubtitle = stringResource(R.string.importer_label_size_subtitle),
-            labelSizeCompact = stringResource(R.string.importer_label_size_compact),
-            labelSizeStandard = stringResource(R.string.importer_label_size_standard),
-            labelSizeLarge = stringResource(R.string.importer_label_size_large),
-            labelSizeSummaryPattern = stringResource(R.string.importer_label_size_summary_pattern),
+            labelSize10x40Qr = stringResource(R.string.importer_label_size_10x40_qr),
+            labelSize30x40Qr = stringResource(R.string.importer_label_size_30x40_qr),
+            labelSizeTextOnly = stringResource(R.string.importer_label_size_text_only),
+            labelSizeQrSummaryPattern = stringResource(R.string.importer_label_size_qr_summary_pattern),
+            labelSizeTextSummaryPattern = stringResource(R.string.importer_label_size_text_summary_pattern),
+            labelPayloadModeTitle = stringResource(R.string.importer_label_payload_mode_title),
+            labelPayloadModeNone = stringResource(R.string.importer_label_payload_mode_none),
+            labelPayloadModeCompact = stringResource(R.string.importer_label_payload_mode_compact),
+            labelPayloadModeStandard = stringResource(R.string.importer_label_payload_mode_standard),
+            labelPayloadModeJlc = stringResource(R.string.importer_label_payload_mode_jlc),
+            labelCompanionToggle = stringResource(R.string.importer_label_companion_toggle),
+            labelCompanionHint = stringResource(R.string.importer_label_companion_hint),
+            textLabelTemplateTitle = stringResource(R.string.importer_text_label_template_title),
+            textLabelTemplateSubtitle = stringResource(R.string.importer_text_label_template_subtitle),
+            textLabelTemplateNameSku = stringResource(R.string.importer_text_label_template_name_sku),
+            textLabelTemplateNamePackageSku = stringResource(R.string.importer_text_label_template_name_package_sku),
+            textLabelTemplateNameModel = stringResource(R.string.importer_text_label_template_name_model),
+            labelTextContentTitle = stringResource(R.string.importer_label_text_content_title),
             labelFooterText = stringResource(R.string.importer_label_footer_text),
             exportSectionTitle = stringResource(R.string.importer_export_section_title),
             labelCopiesLabel = stringResource(R.string.importer_label_copies_label),

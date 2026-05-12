@@ -120,8 +120,8 @@ CI/default-branch flow:
   same sync server-side and pushes `chore(release): sync version to X.Y.Z`
 - whether the release was synced locally or by GitHub Actions, the workflow
   pushes the matching `vX.Y.Z` tag if it does not already exist
-- the tag then triggers `release.yml` to build Android, admin-web, and Windows
-  artifacts
+- the same workflow run then calls `release.yml` directly to build Android,
+  admin-web, and Windows artifacts and create or update the GitHub Release
 
 Manual checks:
 
@@ -258,10 +258,12 @@ The repository includes three GitHub Actions workflows:
   Windows build validation, and changelog/version validation.
 - `.github/workflows/release-from-changelog.yml`
   Watches `docs/CHANGELOG.md` on the default branch, applies version sync if
-  needed, and pushes the release tag.
+  needed, pushes the release tag, and then invokes the reusable release
+  workflow in the same orchestration chain.
 - `.github/workflows/release.yml`
   Runs Android release packaging, admin-web static bundle packaging, and
-  Windows dual-mode packaging on manual trigger and `v*` tag pushes.
+  Windows dual-mode packaging on manual trigger, reusable workflow calls, and
+  `v*` tag pushes.
 
 ### Android Release Secrets
 
@@ -272,15 +274,9 @@ Configure these GitHub repository secrets before running `release.yml`:
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Configure this additional GitHub repository secret for changelog-triggered
-release automation:
-
-- `RELEASE_AUTOMATION_TOKEN`
-
-`RELEASE_AUTOMATION_TOKEN` should be a personal access token or fine-grained
-token with `contents:write` permission. The workflow uses it instead of the
-default `GITHUB_TOKEN` because downstream workflows are not guaranteed to fire
-when commits or tags are created with `GITHUB_TOKEN`.
+No additional `RELEASE_AUTOMATION_TOKEN` secret is required. Changelog-driven
+release automation now runs with the default `GITHUB_TOKEN` plus
+`permissions: contents: write`.
 
 The workflow decodes the keystore into a runner-local temp file and exports:
 
@@ -298,9 +294,10 @@ The workflow decodes the keystore into a runner-local temp file and exports:
 - `Install-ComponentVault.ps1`
 - `README-Windows-Release.txt`
 
-On `v*` tags, the workflow also attaches the Windows portable zip, the MSIX
-install set, the Android APK, and the `admin-web` static bundle to the GitHub
-Release.
+On changelog-driven releases, reusable workflow calls, and `v*` tag runs that
+publish a release, the workflow also attaches the Windows portable zip, the
+MSIX install set, the Android APK, and the `admin-web` static bundle to the
+GitHub Release.
 
 ### Installing The Windows Release
 
@@ -424,21 +421,27 @@ curl -X POST http://localhost:8787/auth/ping `
   `JAVA_HOME=D:\android_studio\jbr` before invoking Gradle or by using
   `.\scripts\android-gradle.ps1 assembleRelease`.
 
-### Changelog release automation fails before tagging
-
-- Symptom: `release-from-changelog.yml` fails at the token validation step.
-- Cause: `RELEASE_AUTOMATION_TOKEN` is missing or empty in repository secrets.
-- Fix: add `RELEASE_AUTOMATION_TOKEN` with `contents:write` permission, then
-  rerun the workflow.
-
 ### Changelog release automation cannot push commit or tag
 
 - Symptom: `release-from-changelog.yml` reaches `git push` and fails with a
   permission or protection error.
-- Cause: the token does not have `contents:write`, the default branch blocks
+- Cause: the workflow token does not have `contents:write`, the repository is
+  configured with read-only workflow permissions, the default branch blocks
   workflow pushes, or tag creation is restricted.
-- Fix: grant the token repository write access for contents and allow the
-  workflow bot to push the synchronized release commit and `v*` tags.
+- Fix: grant GitHub Actions read/write repository permissions, keep
+  `permissions: contents: write` on the workflow, and allow the workflow bot
+  to push the synchronized release commit and `v*` tags.
+
+### Changelog release automation does not create a GitHub Release
+
+- Symptom: `release-from-changelog.yml` pushes or finds the tag, but the
+  release creation job is skipped or fails afterward.
+- Cause: the reusable `release.yml` workflow was not callable, a required
+  Android signing secret is missing, or artifact packaging failed in one of the
+  platform jobs.
+- Fix: verify that `.github/workflows/release.yml` supports `workflow_call`,
+  confirm all Android signing secrets are configured, and rerun the workflow
+  after inspecting the failing build job.
 
 ### Windows MSIX install is blocked by certificate trust
 
