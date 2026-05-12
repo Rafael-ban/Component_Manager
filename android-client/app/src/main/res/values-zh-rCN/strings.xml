@@ -1,12 +1,10 @@
-<resources>
+﻿<resources>
     <string name="app_name">元件仓库</string>
     <string name="top_bar_title">元件仓库</string>
-
     <string name="destination_inventory">库存</string>
     <string name="destination_movements">变动</string>
     <string name="destination_overview">概览</string>
     <string name="destination_settings">设置</string>
-
     <string name="action_add">新增</string>
     <string name="action_back">返回</string>
     <string name="action_cancel">取消</string>
@@ -25,42 +23,36 @@
     <string name="action_test_connection">测试连接</string>
     <string name="action_view_inventory">打开库存</string>
     <string name="action_view_movements">查看变动</string>
-
     <string name="overview_sync_title">同步状态</string>
     <string name="overview_sync_subtitle">本地写入优先，服务端同步按需执行。</string>
     <string name="overview_low_stock_supporting">优先处理低库存项，然后回到库存继续处理。</string>
     <string name="overview_recent_activity_supporting">最近库存变化，可直接跳回变动历史。</string>
     <string name="overview_inventory_hint">日常流程从库存开始：先搜索，再筛选，然后查看或编辑。</string>
-
     <string name="metric_components">元件数</string>
     <string name="metric_units">库存总量</string>
     <string name="metric_low_stock">低库存</string>
     <string name="metric_movements">变动记录</string>
     <string name="metric_quantity">数量</string>
     <string name="metric_min_stock">最低库存</string>
-
     <string name="section_low_stock_watchlist_title">低库存关注列表</string>
     <string name="section_recent_activity_title">最近活动</string>
-
-    <string name="empty_all_components_healthy">所有有效元件都高于最低库存。</string>
-    <string name="empty_no_component_selected">尚未选中任何元件。</string>
-    <string name="empty_no_components_match_filter">当前筛选条件下没有匹配的元件。</string>
-    <string name="empty_no_movements">还没有库存变动记录。</string>
-
+    <string name="empty_all_components_healthy">All active components are above minimum stock.</string>
+    <string name="empty_no_component_selected">No component selected yet.</string>
+    <string name="empty_no_components_match_filter">No components match the current filters.</string>
+    <string name="empty_no_movements">No stock movements recorded yet.</string>
     <string name="search_components_label">搜索元件</string>
-    <string name="search_components_placeholder">SKU、名称、分类、封装、仓位</string>
+    <string name="search_components_placeholder">SKU, name, category, package, location</string>
     <string name="filter_all">全部</string>
-    <string name="filter_low_stock">低库存</string>
+    <string name="filter_low_stock">Low stock</string>
     <string name="filter_category_label">分类</string>
     <string name="filter_category_all">全部分类</string>
     <string name="filter_location_label">仓位</string>
     <string name="filter_location_all">全部仓位</string>
     <string name="filter_sort_label">排序</string>
-    <string name="sort_updated_newest">最近更新</string>
+    <string name="sort_updated_newest">Recently updated</string>
     <string name="sort_name">名称 A-Z</string>
     <string name="sort_quantity_low_to_high">库存从低到高</string>
     <string name="sort_quantity_high_to_low">库存从高到低</string>
-
     <string name="inventory_filters_title">搜索与筛选</string>
     <string name="inventory_filters_subtitle">先搜索，再筛选，然后查看或编辑详情。</string>
     <string name="inventory_results_summary">当前显示 %1$d 项，涵盖 %2$d 个分类和 %3$d 个仓位。</string>
@@ -70,7 +62,6 @@
     <string name="inventory_detail_notes_title">描述与备注</string>
     <string name="inventory_detail_recent_movements_title">最近变动</string>
     <string name="inventory_detail_recent_movements_empty">该元件最近没有变动历史。</string>
-
     <string name="component_subtitle_format">%1$s | %2$s | %3$s</string>
     <string name="component_min_stock_format">最低 %1$d</string>
     <string name="label_no_description">暂无说明。</string>
@@ -82,9 +73,8 @@
     <string name="selected_component_empty_subtitle">从列表中选中一行后，可查看库存、仓位和最近变更。</string>
     <string name="selected_component_low_stock_status">建议补货。当前库存已低于或等于最低库存。</string>
     <string name="selected_component_healthy_status">当前库存高于最低库存阈值。</string>
-    <string name="status_low_stock">低库存</string>
+    <string name="status_low_stock">Low stock</string>
     <string name="status_healthy">库存正常</string>
-
     <string name="movements_record_title">记录与历史</string>
     <string name="movements_record_subtitle">记录下一笔库存变化，并继续处理最近历史。</string>
     <string name="movements_results_summary">共 %1$d 条记录，覆盖 %2$d 个有效元件。</string>
@@ -92,7 +82,6 @@
     <string name="movements_detail_empty_supporting">选择一条历史记录后，可查看原因、备注和时间。</string>
     <string name="movements_detail_empty">尚未选中任何变动记录。</string>
     <string name="movements_detail_happened_at">发生时间</string>
-
     <string name="field_api_token">API 令牌</string>
     <string name="field_category">分类</string>
     <string name="field_component">元件</string>
@@ -104,18 +93,16 @@
     <string name="field_package">封装</string>
     <string name="field_quantity">数量</string>
     <string name="field_reason">原因</string>
-    <string name="field_server_url">服务器地址</string>
+    <string name="field_server_url">Server URL</string>
     <string name="field_sku">SKU</string>
-
     <string name="sync_summary_title">设置摘要</string>
     <string name="sync_summary_subtitle">同步状态、默认值与本地设备信息。</string>
     <string name="setting_auto_sync">启动时同步</string>
     <string name="setting_device_id">设备 ID</string>
-    <string name="setting_endpoint">服务端地址</string>
+    <string name="setting_endpoint">Server endpoint</string>
     <string name="setting_last_result">最近结果</string>
     <string name="setting_last_synced">上次同步</string>
     <string name="server_url_placeholder">http://localhost:8787</string>
-
     <string name="dialog_add_component_title">新增元件</string>
     <string name="dialog_edit_component_title">编辑元件</string>
     <string name="dialog_invalid_quantity_min_stock">数量和最低库存必须是有效整数。</string>
@@ -129,26 +116,43 @@
     <string name="movement_form_entry_title">变动内容</string>
     <string name="delete_component_confirm_title">删除元件？</string>
     <string name="delete_component_confirm_message">该操作会将元件标记为已删除，并在下次同步时推送这个状态。</string>
-
     <string name="movement_type_inbound">入库</string>
     <string name="movement_type_outbound">出库</string>
     <string name="movement_type_adjustment">调整</string>
     <string name="movement_positive_quantity_format">+%1$d</string>
     <string name="movement_editor_instruction">入库和出库请使用正数，调整数量可以为正数或负数。</string>
-
     <string name="updated_at_format">更新于 %1$s</string>
-
     <string name="sync_never">从未同步</string>
     <string name="sync_no_sync_yet">尚未同步。</string>
     <string name="sync_settings_saved_local">设置已保存到本地。</string>
+    <string name="sync_component_created_local">Component was created locally.</string>
+    <string name="sync_component_saved_local">Component was saved locally.</string>
+    <string name="sync_component_save_failed">Unable to save the component.</string>
+    <string name="sync_select_component_first">Select a component first.</string>
+    <string name="sync_component_not_found">The selected component could not be found.</string>
     <string name="sync_component_deleted_local">元件已在当前设备上标记为删除。</string>
+    <string name="sync_choose_active_component_first">Select an active component first.</string>
+    <string name="sync_negative_stock_error">This movement would make stock negative.</string>
+    <string name="sync_movement_recorded_local">Movement was recorded locally.</string>
+    <string name="sync_movement_record_failed">Unable to record the movement.</string>
+    <string name="sync_enter_server_url_first">Enter the server URL first.</string>
+    <string name="sync_enter_api_token_first">Enter the API token first.</string>
+    <string name="sync_connection_ok">Connection successful. Server time: %1$s</string>
+    <string name="sync_connection_failed">Connection test failed.</string>
+    <string name="sync_enter_server_url_before_sync">Enter the server URL before syncing.</string>
+    <string name="sync_enter_api_token_before_sync">Enter the API token before syncing.</string>
+    <string name="sync_complete_summary">Sync completed. Pushed components: %1$d, pushed movements: %2$d, pulled components: %3$d, pulled movements: %4$d.</string>
+    <string name="sync_failed">Sync failed.</string>
+    <string name="sync_server_error">Server returned HTTP %1$d.</string>
+    <string name="sync_server_error_detail">Server returned HTTP %1$d: %2$s</string>
     <string name="sync_component_required_fields">请填写 SKU、名称、分类、封装和仓位。</string>
     <string name="sync_component_non_negative">数量和最低库存不能为负数。</string>
     <string name="sync_choose_component_type_reason">请选择元件、变动类型并填写原因。</string>
     <string name="sync_adjustment_non_zero">调整数量不能为 0。</string>
     <string name="sync_movement_quantity_positive">变动数量必须大于 0。</string>
+    <string name="sync_duplicate_active_sku">An active component with the same SKU already exists.</string>
+    <string name="sync_unsupported_movement_type">Unsupported movement type.</string>
     <string name="settings_local_learning_cleared">当前设备上的本地导入学习已清空。</string>
-
     <string name="settings_connection_title">服务器连接</string>
     <string name="settings_connection_subtitle">配置当前设备使用的同步服务端地址。</string>
     <string name="settings_auth_title">认证信息</string>
@@ -173,6 +177,8 @@
     <string name="settings_local_auto_recognition_description">即使未配置服务端，也使用内置封装和型号族规则。</string>
     <string name="settings_aggressive_recognition">偏向自动推断</string>
     <string name="settings_aggressive_recognition_description">对部分匹配的物料尽量自动推断封装和分类。</string>
+    <string name="settings_auto_enrich_jlc_imports">Auto-enrich JLC imports</string>
+    <string name="settings_auto_enrich_jlc_imports_description">After parsing JLC text or QR codes, look up official LCSC metadata through the server.</string>
     <string name="settings_local_import_learning">本地导入学习</string>
     <string name="settings_local_import_learning_description">复用你修正过的分类、封装、型号和品牌结果。</string>
     <string name="settings_server_jlc_lookup">服务端识别辅助</string>
@@ -193,7 +199,6 @@
     <string name="settings_local_storage">本地存储</string>
     <string name="settings_local_storage_value">SQLite + SharedPreferences</string>
     <string name="settings_about_body">库存数据会先写入本地 SQLite，再按需同步到服务端。</string>
-
     <string name="importer_title">导入元件</string>
     <string name="importer_subtitle">支持 JLC 文本、二维码标签、供应商包装 OCR，以及保存前的手工修正。</string>
     <string name="importer_supported_format_hint">支持：JLC 复制文本、兼容 JLC 的二维码载荷、仓库标签和供应商包装 OCR 文本。</string>
@@ -266,21 +271,23 @@
     <string name="importer_label_preview_subtitle">导出二维码标签，并可附带纯文字副标签，适用于元件袋、料盒和抽屉。</string>
     <string name="importer_label_payload_title">二维码载荷</string>
     <string name="importer_label_payload_subtitle">10x40 使用紧凑离线载荷，30x40 使用标准仓库载荷；若来源为嘉立创，仍保留兼容格式。</string>
-    <string name="importer_export_section_title">导出</string>
-    <string name="importer_label_copies_label">PDF 份数</string>
-    <string name="importer_action_export_png">导出 PNG</string>
-    <string name="importer_action_export_pdf">导出 PDF</string>
-    <string name="importer_export_png_success">PNG 导出完成。</string>
-    <string name="importer_export_pdf_success">PDF 导出完成。</string>
-    <string name="importer_export_generic_error">无法导出标签。</string>
-    <string name="importer_export_failed_pattern">导出失败：%1$s</string>
+    <string name="importer_label_format_title">标签格式</string>
+    <string name="importer_label_format_subtitle">先选择标签内容布局，再确认二维码与信息版式。</string>
     <string name="importer_label_size_title">标签尺寸</string>
     <string name="importer_label_size_subtitle">先选择物理标签尺寸，二维码尺寸和载荷模式会随规格自动联动。</string>
     <string name="importer_label_size_10x40_qr">10 x 40 mm 二维码</string>
     <string name="importer_label_size_30x40_qr">30 x 40 mm 二维码</string>
     <string name="importer_label_size_text_only">纯文字长条标签</string>
+    <string name="importer_label_format_qr_summary_pattern">%1$s | 标称 %2$.1f x %3$.1f mm | 二维码 %4$.1f x %4$.1f mm</string>
+    <string name="importer_label_format_text_summary_pattern">%1$s | 宽度自适应 | 字高 %2$.1f mm</string>
     <string name="importer_label_size_qr_summary_pattern">%1$s | 标签 %2$.1f x %3$.1f mm | 二维码 %4$.1f x %4$.1f mm</string>
     <string name="importer_label_size_text_summary_pattern">%1$s | 宽度自适应 | 字高 %2$.1f mm</string>
+    <string name="importer_print_canvas_title">打印画布</string>
+    <string name="importer_print_canvas_subtitle">选择直接导出标签内容，或导出完整的喵喵机 57 x 79 mm 页面。</string>
+    <string name="importer_print_canvas_raw_label">仅标签内容</string>
+    <string name="importer_print_canvas_miaomiaoji_57x79">喵喵机 57 x 79 mm</string>
+    <string name="importer_print_canvas_summary_raw">仅标签内容 | 页面跟随标签内容边界</string>
+    <string name="importer_print_canvas_summary_pattern">%1$s | 页面 %2$.1f x %3$.1f mm</string>
     <string name="importer_label_payload_mode_title">载荷模式</string>
     <string name="importer_label_payload_mode_none">无二维码载荷</string>
     <string name="importer_label_payload_mode_compact">紧凑离线仓库载荷</string>
@@ -295,4 +302,13 @@
     <string name="importer_text_label_template_name_model">名称 + 型号</string>
     <string name="importer_label_text_content_title">文字标签预览</string>
     <string name="importer_label_footer_text">扫码后可快速导入或更新库存。</string>
+    <string name="importer_export_section_title">导出</string>
+    <string name="importer_label_copies_label">PDF 份数</string>
+    <string name="importer_action_export_png">导出 PNG</string>
+    <string name="importer_action_export_pdf">导出 PDF</string>
+    <string name="importer_export_png_success">PNG 导出完成。</string>
+    <string name="importer_export_pdf_success">PDF 导出完成。</string>
+    <string name="importer_export_generic_error">无法导出标签。</string>
+    <string name="importer_export_failed_pattern">导出失败：%1$s</string>
 </resources>
+

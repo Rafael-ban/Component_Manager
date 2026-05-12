@@ -8,14 +8,20 @@ import kotlin.test.assertTrue
 
 class ComponentLabelTemplateTest {
     @Test
-    fun qrLabelSpecsUsePhysicalMillimeterDimensions() {
-        assertEquals(10f, ComponentLabelTemplate.Qr10x40.widthMm)
-        assertEquals(40f, ComponentLabelTemplate.Qr10x40.heightMm)
+    fun qrLabelSpecsUseResolvedContentDimensions() {
+        assertEquals(40f, ComponentLabelTemplate.Qr10x40.widthMm)
+        assertEquals(10f, ComponentLabelTemplate.Qr10x40.heightMm)
+        assertEquals(10f, ComponentLabelTemplate.Qr10x40.nominalWidthMm)
+        assertEquals(40f, ComponentLabelTemplate.Qr10x40.nominalHeightMm)
+        assertEquals(ComponentLabelOrientation.Landscape, ComponentLabelTemplate.Qr10x40.orientation)
         assertEquals(8f, ComponentLabelTemplate.Qr10x40.qrSizeMm)
 
         assertEquals(30f, ComponentLabelTemplate.Qr30x40.widthMm)
         assertEquals(40f, ComponentLabelTemplate.Qr30x40.heightMm)
-        assertEquals(18f, ComponentLabelTemplate.Qr30x40.qrSizeMm)
+        assertEquals(30f, ComponentLabelTemplate.Qr30x40.nominalWidthMm)
+        assertEquals(40f, ComponentLabelTemplate.Qr30x40.nominalHeightMm)
+        assertEquals(ComponentLabelOrientation.Portrait, ComponentLabelTemplate.Qr30x40.orientation)
+        assertEquals(16f, ComponentLabelTemplate.Qr30x40.qrSizeMm)
     }
 
     @Test
@@ -32,5 +38,13 @@ class ComponentLabelTemplateTest {
         assertEquals(0.5f, ComponentLabelTemplate.TextOnly.textHeightMm)
         assertFalse(ComponentLabelTemplate.TextOnly.supportsCompanionTextLabel)
         assertTrue(ComponentLabelTemplate.Qr10x40.supportsCompanionTextLabel)
+    }
+
+    @Test
+    fun printCanvasDefaultsToMiaomiaojiStock() {
+        assertEquals(ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79, ComponentLabelPrintCanvasTemplate.default)
+        assertEquals(57f, ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79.widthMm)
+        assertEquals(79f, ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79.heightMm)
+        assertTrue(ComponentLabelPrintCanvasTemplate.RawLabel.usesTemplateBounds)
     }
 }

@@ -47,10 +47,12 @@
   items generate JLC-compatible QR payloads with app extension fields, while
   non-JLC items generate an app-specific warehouse QR payload. Both paths can
   be exported as PNG or PDF for physical bag, bin, or drawer labels. The
-  current Android implementation uses three client-side label templates
-  (`Compact`, `Standard`, `Large`) with QR size derived from the selected
-  template, plus a bounded two-zone renderer so dynamic field text cannot
-  overlap the QR safe area.
+  current Android implementation uses three client-side label templates:
+  `10x40mm QR`, `30x40mm QR`, and a pure text strip. The narrow label renders
+  horizontally with the QR code on the right, the `30x40mm` label keeps the QR
+  in the upper-left with wrapped details beside it, and both QR templates can
+  also be exported on a `57x79mm` Miaomiaoji print canvas. A bounded two-zone
+  renderer keeps dynamic field text out of the QR safe area.
 - `Movements` uses the same adaptive approach: compact history-first layouts on
   phones and split history/detail arrangements on larger widths.
 - `Overview` is now a summary surface that routes users back into inventory or

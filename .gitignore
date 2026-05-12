@@ -6,6 +6,8 @@
 .dotnet-cli-*/
 .android-user/
 .gradle-home/
+.gradle-user-home-*/
+.gradle-codex-verify/
 
 client/.dart_tool/
 client/.flutter-plugins
@@ -13,6 +15,8 @@ client/.flutter-plugins-dependencies
 client/.packages
 client/build/
 android-client/.gradle/
+android-client/.gradle-codex-verify/
+android-client/.kotlin/
 android-client/build/
 android-client/app/build/
 android-client/local.properties

@@ -20,6 +20,19 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+internal data class ResolvedLabelPageSpec(
+    val template: ComponentLabelTemplate,
+    val canvasTemplate: ComponentLabelPrintCanvasTemplate,
+    val canvasWidthMm: Float,
+    val canvasHeightMm: Float,
+    val contentLeftMm: Float,
+    val contentTopMm: Float,
+    val contentWidthMm: Float,
+    val contentHeightMm: Float,
+    val qrPayload: ComponentQrPayload? = null,
+    val textOnlyContent: String? = null,
+)
+
 internal object ComponentLabelRenderer {
     private const val DefaultFooterText = "Scan to import or update inventory."
     private const val PreviewUnitsPerMm = 36f
@@ -67,6 +80,8 @@ internal object ComponentLabelRenderer {
         template: ComponentLabelTemplate = ComponentLabelTemplate.default,
         footerText: String = DefaultFooterText,
         textTemplate: ComponentTextLabelTemplate = ComponentTextLabelTemplate.default,
+        canvasTemplate: ComponentLabelPrintCanvasTemplate = ComponentLabelPrintCanvasTemplate.default,
+        showCanvasOutline: Boolean = false,
     ): Bitmap {
         return renderBitmaps(
             seed = seed,
@@ -74,6 +89,8 @@ internal object ComponentLabelRenderer {
             footerText = footerText,
             includeCompanionTextLabel = false,
             textTemplate = textTemplate,
+            canvasTemplate = canvasTemplate,
+            showCanvasOutline = showCanvasOutline,
         ).first()
     }
 
@@ -83,18 +100,22 @@ internal object ComponentLabelRenderer {
         footerText: String = DefaultFooterText,
         includeCompanionTextLabel: Boolean = false,
         textTemplate: ComponentTextLabelTemplate = ComponentTextLabelTemplate.default,
+        canvasTemplate: ComponentLabelPrintCanvasTemplate = ComponentLabelPrintCanvasTemplate.default,
+        showCanvasOutline: Boolean = false,
     ): List<Bitmap> {
-        return resolvePages(
+        return resolvePageSpecs(
             seed = seed,
             template = template,
             includeCompanionTextLabel = includeCompanionTextLabel,
             textTemplate = textTemplate,
+            canvasTemplate = canvasTemplate,
         ).map { page ->
             renderPageBitmap(
                 seed = seed,
                 page = page,
                 footerText = footerText,
                 unitsPerMm = PreviewUnitsPerMm,
+                showCanvasOutline = showCanvasOutline,
             )
         }
     }
@@ -105,6 +126,8 @@ internal object ComponentLabelRenderer {
         footerText: String = DefaultFooterText,
         includeCompanionTextLabel: Boolean = false,
         textTemplate: ComponentTextLabelTemplate = ComponentTextLabelTemplate.default,
+        canvasTemplate: ComponentLabelPrintCanvasTemplate = ComponentLabelPrintCanvasTemplate.default,
+        showCanvasOutline: Boolean = false,
     ): Bitmap {
         val pages = renderBitmaps(
             seed = seed,
@@ -112,6 +135,8 @@ internal object ComponentLabelRenderer {
             footerText = footerText,
             includeCompanionTextLabel = includeCompanionTextLabel,
             textTemplate = textTemplate,
+            canvasTemplate = canvasTemplate,
+            showCanvasOutline = showCanvasOutline,
         )
         if (pages.size == 1) {
             return pages.first()
@@ -143,6 +168,7 @@ internal object ComponentLabelRenderer {
         footerText: String = DefaultFooterText,
         includeCompanionTextLabel: Boolean = false,
         textTemplate: ComponentTextLabelTemplate = ComponentTextLabelTemplate.default,
+        canvasTemplate: ComponentLabelPrintCanvasTemplate = ComponentLabelPrintCanvasTemplate.default,
     ) {
         renderCombinedBitmap(
             seed = seed,
@@ -150,6 +176,7 @@ internal object ComponentLabelRenderer {
             footerText = footerText,
             includeCompanionTextLabel = includeCompanionTextLabel,
             textTemplate = textTemplate,
+            canvasTemplate = canvasTemplate,
         ).compress(Bitmap.CompressFormat.PNG, 100, outputStream)
     }
 
@@ -161,12 +188,14 @@ internal object ComponentLabelRenderer {
         footerText: String = DefaultFooterText,
         includeCompanionTextLabel: Boolean = false,
         textTemplate: ComponentTextLabelTemplate = ComponentTextLabelTemplate.default,
+        canvasTemplate: ComponentLabelPrintCanvasTemplate = ComponentLabelPrintCanvasTemplate.default,
     ) {
-        val pages = resolvePages(
+        val pages = resolvePageSpecs(
             seed = seed,
             template = template,
             includeCompanionTextLabel = includeCompanionTextLabel,
             textTemplate = textTemplate,
+            canvasTemplate = canvasTemplate,
         )
 
         val document = PdfDocument()
@@ -175,8 +204,8 @@ internal object ComponentLabelRenderer {
             repeat(copies.coerceAtLeast(1)) {
                 pages.forEach { page ->
                     val pageInfo = PdfDocument.PageInfo.Builder(
-                        mmToUnits(page.widthMm, PdfUnitsPerMm),
-                        mmToUnits(page.heightMm, PdfUnitsPerMm),
+                        mmToUnits(page.canvasWidthMm, PdfUnitsPerMm),
+                        mmToUnits(page.canvasHeightMm, PdfUnitsPerMm),
                         pageNumber++,
                     ).create()
                     val pdfPage = document.startPage(pageInfo)
@@ -186,6 +215,7 @@ internal object ComponentLabelRenderer {
                         page = page,
                         footerText = footerText,
                         unitsPerMm = PdfUnitsPerMm,
+                        showCanvasOutline = false,
                     )
                     document.finishPage(pdfPage)
                 }
@@ -196,29 +226,31 @@ internal object ComponentLabelRenderer {
         }
     }
 
-    private fun resolvePages(
+    internal fun resolvePageSpecs(
         seed: ComponentLabelSeed,
         template: ComponentLabelTemplate,
         includeCompanionTextLabel: Boolean,
         textTemplate: ComponentTextLabelTemplate,
-    ): List<LabelPageSpec> {
-        val pages = mutableListOf<LabelPageSpec>()
+        canvasTemplate: ComponentLabelPrintCanvasTemplate,
+    ): List<ResolvedLabelPageSpec> {
+        val pages = mutableListOf<ResolvedLabelPageSpec>()
         when {
             template.isQrLabel -> {
                 val qrPayload = requireNotNull(ComponentLabelCodec.buildQrPayload(seed, template))
-                pages += LabelPageSpec(
+                pages += wrapPageInCanvas(
                     template = template,
-                    widthMm = requireNotNull(template.widthMm),
-                    heightMm = template.heightMm,
+                    contentWidthMm = requireNotNull(template.widthMm),
+                    contentHeightMm = template.heightMm,
+                    canvasTemplate = canvasTemplate,
                     qrPayload = qrPayload,
                 )
                 if (includeCompanionTextLabel) {
-                    pages += createTextOnlyPage(seed, textTemplate)
+                    pages += createTextOnlyPage(seed, textTemplate, canvasTemplate)
                 }
             }
 
             else -> {
-                pages += createTextOnlyPage(seed, textTemplate)
+                pages += createTextOnlyPage(seed, textTemplate, canvasTemplate)
             }
         }
         return pages
@@ -227,24 +259,54 @@ internal object ComponentLabelRenderer {
     private fun createTextOnlyPage(
         seed: ComponentLabelSeed,
         textTemplate: ComponentTextLabelTemplate,
-    ): LabelPageSpec {
+        canvasTemplate: ComponentLabelPrintCanvasTemplate,
+    ): ResolvedLabelPageSpec {
         val content = buildTextLabelContent(seed, textTemplate)
-        return LabelPageSpec(
+        val textWidthMm = measureTextOnlyWidthMm(content)
+        return wrapPageInCanvas(
             template = ComponentLabelTemplate.TextOnly,
-            widthMm = measureTextOnlyWidthMm(content),
-            heightMm = ComponentLabelTemplate.TextOnly.heightMm,
+            contentWidthMm = textWidthMm,
+            contentHeightMm = ComponentLabelTemplate.TextOnly.heightMm,
+            canvasTemplate = canvasTemplate,
             textOnlyContent = content,
+        )
+    }
+
+    private fun wrapPageInCanvas(
+        template: ComponentLabelTemplate,
+        contentWidthMm: Float,
+        contentHeightMm: Float,
+        canvasTemplate: ComponentLabelPrintCanvasTemplate,
+        qrPayload: ComponentQrPayload? = null,
+        textOnlyContent: String? = null,
+    ): ResolvedLabelPageSpec {
+        val canvasWidthMm = canvasTemplate.widthMm ?: contentWidthMm
+        val canvasHeightMm = canvasTemplate.heightMm ?: contentHeightMm
+        val contentLeftMm = ((canvasWidthMm - contentWidthMm) / 2f).coerceAtLeast(0f)
+        val contentTopMm = ((canvasHeightMm - contentHeightMm) / 2f).coerceAtLeast(0f)
+        return ResolvedLabelPageSpec(
+            template = template,
+            canvasTemplate = canvasTemplate,
+            canvasWidthMm = canvasWidthMm,
+            canvasHeightMm = canvasHeightMm,
+            contentLeftMm = contentLeftMm,
+            contentTopMm = contentTopMm,
+            contentWidthMm = contentWidthMm,
+            contentHeightMm = contentHeightMm,
+            qrPayload = qrPayload,
+            textOnlyContent = textOnlyContent,
         )
     }
 
     private fun renderPageBitmap(
         seed: ComponentLabelSeed,
-        page: LabelPageSpec,
+        page: ResolvedLabelPageSpec,
         footerText: String,
         unitsPerMm: Float,
+        showCanvasOutline: Boolean,
     ): Bitmap {
-        val width = mmToUnits(page.widthMm, unitsPerMm)
-        val height = mmToUnits(page.heightMm, unitsPerMm)
+        val width = mmToUnits(page.canvasWidthMm, unitsPerMm)
+        val height = mmToUnits(page.canvasHeightMm, unitsPerMm)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         drawPage(
@@ -253,6 +315,7 @@ internal object ComponentLabelRenderer {
             page = page,
             footerText = footerText,
             unitsPerMm = unitsPerMm,
+            showCanvasOutline = showCanvasOutline,
         )
         return bitmap
     }
@@ -260,19 +323,26 @@ internal object ComponentLabelRenderer {
     private fun drawPage(
         canvas: Canvas,
         seed: ComponentLabelSeed,
-        page: LabelPageSpec,
+        page: ResolvedLabelPageSpec,
         footerText: String,
         unitsPerMm: Float,
+        showCanvasOutline: Boolean,
     ) {
+        drawCanvasBackground(
+            canvas = canvas,
+            page = page,
+            unitsPerMm = unitsPerMm,
+            showCanvasOutline = showCanvasOutline,
+        )
         when (page.template.layoutMode) {
-            ComponentLabelLayoutMode.CompactQr -> drawCompactQrLabel(
+            ComponentLabelLayoutMode.LandscapeRightQr -> drawLandscapeRightQrLabel(
                 canvas = canvas,
                 seed = seed,
                 page = page,
                 unitsPerMm = unitsPerMm,
             )
 
-            ComponentLabelLayoutMode.StandardQr -> drawStandardQrLabel(
+            ComponentLabelLayoutMode.TopLeftQrDetails -> drawTopLeftQrDetailsLabel(
                 canvas = canvas,
                 seed = seed,
                 page = page,
@@ -288,43 +358,69 @@ internal object ComponentLabelRenderer {
         }
     }
 
-    private fun drawCompactQrLabel(
+    private fun drawCanvasBackground(
+        canvas: Canvas,
+        page: ResolvedLabelPageSpec,
+        unitsPerMm: Float,
+        showCanvasOutline: Boolean,
+    ) {
+        val pageRect = RectF(
+            0f,
+            0f,
+            mm(page.canvasWidthMm, unitsPerMm),
+            mm(page.canvasHeightMm, unitsPerMm),
+        )
+        canvas.drawColor(Color.WHITE)
+        if (!showCanvasOutline) {
+            return
+        }
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = mm(0.22f, unitsPerMm)
+            color = Color.parseColor("#CBD5E1")
+        }
+        canvas.drawRect(pageRect, borderPaint)
+    }
+
+    private fun drawLandscapeRightQrLabel(
         canvas: Canvas,
         seed: ComponentLabelSeed,
-        page: LabelPageSpec,
+        page: ResolvedLabelPageSpec,
         unitsPerMm: Float,
     ) {
-        val width = mmToUnits(page.widthMm, unitsPerMm)
-        val height = mmToUnits(page.heightMm, unitsPerMm)
-        val cardRect = RectF(0f, 0f, width.toFloat(), height.toFloat())
-        drawCardBackground(canvas, cardRect, unitsPerMm)
+        val labelRect = page.contentRect(unitsPerMm)
+        drawCardBackground(canvas, labelRect, unitsPerMm)
 
+        val horizontalPadding = mm(0.8f, unitsPerMm)
+        val verticalPadding = mm(0.6f, unitsPerMm)
+        val gap = mm(0.8f, unitsPerMm)
         val quietZone = mm(page.template.quietZoneMm, unitsPerMm)
         val qrSize = mm(requireNotNull(page.template.qrSizeMm), unitsPerMm)
         val qrFootprint = qrSize + quietZone * 2f
-        val qrLeft = ((width - qrFootprint) / 2f) + quietZone
-        val qrTop = mm(1.4f, unitsPerMm) + quietZone
+        val qrZoneLeft = labelRect.right - horizontalPadding - qrFootprint
+        val qrLeft = qrZoneLeft + quietZone
+        val qrTop = labelRect.top + ((labelRect.height() - qrSize) / 2f)
         val qrBitmap = createQrBitmap(requireNotNull(page.qrPayload).rawValue, qrSize.roundToInt())
         canvas.drawBitmap(qrBitmap, qrLeft, qrTop, null)
 
-        val contentLeft = mm(0.8f, unitsPerMm)
-        val contentWidth = (width - contentLeft * 2f).roundToInt().coerceAtLeast(1)
-        var cursorTop = qrTop + qrSize + mm(1.0f, unitsPerMm)
+        val contentLeft = labelRect.left + horizontalPadding
+        val contentWidth = (qrZoneLeft - gap - contentLeft).roundToInt().coerceAtLeast(1)
+        var cursorTop = labelRect.top + verticalPadding
 
         val titlePaint = buildTextPaint(
             color = "#111827",
-            fontSizeMm = 1.25f,
+            fontSizeMm = 1.2f,
             unitsPerMm = unitsPerMm,
             bold = true,
         )
         val metaPaint = buildTextPaint(
             color = "#334155",
-            fontSizeMm = 0.95f,
+            fontSizeMm = 0.86f,
             unitsPerMm = unitsPerMm,
         )
         val emphasisPaint = buildTextPaint(
-            color = "#7C3AED",
-            fontSizeMm = 1.05f,
+            color = "#0F766E",
+            fontSizeMm = 0.9f,
             unitsPerMm = unitsPerMm,
             bold = true,
         )
@@ -338,7 +434,7 @@ internal object ComponentLabelRenderer {
             width = contentWidth,
             maxLines = 2,
         )
-        cursorTop += mm(0.7f, unitsPerMm)
+        cursorTop += mm(0.35f, unitsPerMm)
         cursorTop += drawSingleLine(
             canvas = canvas,
             text = "SKU ${seed.sku}",
@@ -347,16 +443,7 @@ internal object ComponentLabelRenderer {
             y = cursorTop,
             width = contentWidth,
         )
-        cursorTop += mm(0.5f, unitsPerMm)
-        cursorTop += drawSingleLine(
-            canvas = canvas,
-            text = "PKG ${seed.packageName}",
-            paint = metaPaint,
-            x = contentLeft,
-            y = cursorTop,
-            width = contentWidth,
-        )
-        cursorTop += mm(0.5f, unitsPerMm)
+        cursorTop += mm(0.2f, unitsPerMm)
         drawSingleLine(
             canvas = canvas,
             text = "QTY ${seed.quantity}",
@@ -367,76 +454,80 @@ internal object ComponentLabelRenderer {
         )
     }
 
-    private fun drawStandardQrLabel(
+    private fun drawTopLeftQrDetailsLabel(
         canvas: Canvas,
         seed: ComponentLabelSeed,
-        page: LabelPageSpec,
+        page: ResolvedLabelPageSpec,
         footerText: String,
         unitsPerMm: Float,
     ) {
-        val width = mmToUnits(page.widthMm, unitsPerMm)
-        val height = mmToUnits(page.heightMm, unitsPerMm)
-        val cardRect = RectF(0f, 0f, width.toFloat(), height.toFloat())
-        drawCardBackground(canvas, cardRect, unitsPerMm)
+        val labelRect = page.contentRect(unitsPerMm)
+        drawCardBackground(canvas, labelRect, unitsPerMm)
 
+        val outerPadding = mm(1.2f, unitsPerMm)
+        val columnGap = mm(1.1f, unitsPerMm)
         val quietZone = mm(page.template.quietZoneMm, unitsPerMm)
         val qrSize = mm(requireNotNull(page.template.qrSizeMm), unitsPerMm)
         val qrFootprint = qrSize + quietZone * 2f
-        val qrLeft = ((width - qrFootprint) / 2f) + quietZone
-        val qrTop = mm(1.8f, unitsPerMm) + quietZone
+        val qrZoneLeft = labelRect.left + outerPadding
+        val qrZoneTop = labelRect.top + outerPadding
+        val qrLeft = qrZoneLeft + quietZone
+        val qrTop = qrZoneTop + quietZone
         val qrBitmap = createQrBitmap(requireNotNull(page.qrPayload).rawValue, qrSize.roundToInt())
         canvas.drawBitmap(qrBitmap, qrLeft, qrTop, null)
 
-        val contentLeft = mm(1.4f, unitsPerMm)
-        val contentWidth = (width - contentLeft * 2f).roundToInt().coerceAtLeast(1)
-        var cursorTop = qrTop + qrSize + mm(1.4f, unitsPerMm)
+        val infoLeft = qrZoneLeft + qrFootprint + columnGap
+        val infoTop = labelRect.top + outerPadding
+        val infoWidth = (labelRect.right - outerPadding - infoLeft).roundToInt().coerceAtLeast(1)
 
         val titlePaint = buildTextPaint(
             color = "#111827",
-            fontSizeMm = 1.9f,
+            fontSizeMm = 0.95f,
             unitsPerMm = unitsPerMm,
             bold = true,
         )
         val subtitlePaint = buildTextPaint(
             color = "#475569",
-            fontSizeMm = 1.2f,
+            fontSizeMm = 0.78f,
             unitsPerMm = unitsPerMm,
         )
         val fieldPaint = buildTextPaint(
             color = "#334155",
-            fontSizeMm = 1.1f,
+            fontSizeMm = 0.96f,
             unitsPerMm = unitsPerMm,
         )
         val footerPaint = buildTextPaint(
             color = "#64748B",
-            fontSizeMm = 0.95f,
+            fontSizeMm = 0.74f,
             unitsPerMm = unitsPerMm,
         )
 
-        cursorTop += drawTextBlock(
+        var infoBottom = infoTop
+        infoBottom += drawTextBlock(
             canvas = canvas,
             text = seed.name.ifBlank { seed.sku },
             paint = titlePaint,
-            x = contentLeft,
-            y = cursorTop,
-            width = contentWidth,
-            maxLines = 2,
+            x = infoLeft,
+            y = infoBottom,
+            width = infoWidth,
+            maxLines = 5,
         )
-        cursorTop += mm(0.8f, unitsPerMm)
-
-        buildSecondaryHeadline(seed)?.let { headline ->
-            cursorTop += drawTextBlock(
+        buildTopLeftInfoHeadline(seed)?.let { headline ->
+            infoBottom += mm(0.55f, unitsPerMm)
+            infoBottom += drawTextBlock(
                 canvas = canvas,
                 text = headline,
                 paint = subtitlePaint,
-                x = contentLeft,
-                y = cursorTop,
-                width = contentWidth,
-                maxLines = 1,
+                x = infoLeft,
+                y = infoBottom,
+                width = infoWidth,
+                maxLines = 4,
             )
-            cursorTop += mm(0.8f, unitsPerMm)
         }
 
+        var cursorTop = max(infoBottom, qrZoneTop + qrFootprint) + mm(1f, unitsPerMm)
+        val contentLeft = labelRect.left + outerPadding
+        val contentWidth = (labelRect.width() - outerPadding * 2f).roundToInt().coerceAtLeast(1)
         buildStandardFieldLines(seed).forEach { line ->
             cursorTop += drawSingleLine(
                 canvas = canvas,
@@ -446,32 +537,32 @@ internal object ComponentLabelRenderer {
                 y = cursorTop,
                 width = contentWidth,
             )
-            cursorTop += mm(0.45f, unitsPerMm)
+            cursorTop += mm(0.32f, unitsPerMm)
         }
 
-        val footerTop = height - mm(2.6f, unitsPerMm)
-        drawSingleLine(
-            canvas = canvas,
-            text = footerText,
-            paint = footerPaint,
-            x = contentLeft,
-            y = footerTop,
-            width = contentWidth,
-        )
+        val footerTop = labelRect.bottom - outerPadding - footerPaint.fontSpacing
+        if (footerTop > cursorTop) {
+            drawSingleLine(
+                canvas = canvas,
+                text = footerText,
+                paint = footerPaint,
+                x = contentLeft,
+                y = footerTop,
+                width = contentWidth,
+            )
+        }
     }
 
     private fun drawTextOnlyLabel(
         canvas: Canvas,
-        page: LabelPageSpec,
+        page: ResolvedLabelPageSpec,
         unitsPerMm: Float,
     ) {
-        val width = mmToUnits(page.widthMm, unitsPerMm)
-        val height = mmToUnits(page.heightMm, unitsPerMm)
-        val cardRect = RectF(0f, 0f, width.toFloat(), height.toFloat())
-        drawCardBackground(canvas, cardRect, unitsPerMm)
+        val labelRect = page.contentRect(unitsPerMm)
+        drawCardBackground(canvas, labelRect, unitsPerMm)
 
         val padding = mm(TextOnlyHorizontalPaddingMm, unitsPerMm)
-        val contentWidth = (width - padding * 2f).coerceAtLeast(1f)
+        val contentWidth = (labelRect.width() - padding * 2f).coerceAtLeast(1f)
         val paint = buildTextPaint(
             color = "#111827",
             fontSizeMm = requireNotNull(page.template.textHeightMm) * TextOnlyFontScale,
@@ -486,8 +577,8 @@ internal object ComponentLabelRenderer {
         ).toString()
 
         val metrics = paint.fontMetrics
-        val baseline = (height / 2f) - ((metrics.ascent + metrics.descent) / 2f)
-        canvas.drawText(text, padding, baseline, paint)
+        val baseline = labelRect.centerY() - ((metrics.ascent + metrics.descent) / 2f)
+        canvas.drawText(text, labelRect.left + padding, baseline, paint)
     }
 
     private fun drawCardBackground(
@@ -495,7 +586,6 @@ internal object ComponentLabelRenderer {
         rect: RectF,
         unitsPerMm: Float,
     ) {
-        canvas.drawColor(Color.WHITE)
         val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
         }
@@ -553,27 +643,20 @@ internal object ComponentLabelRenderer {
     private fun buildStandardFieldLines(seed: ComponentLabelSeed): List<String> {
         return buildList {
             add("SKU  ${seed.sku}")
-            add("PKG  ${seed.packageName}")
+            seed.packageName.takeIf(String::isNotBlank)?.let { add("PKG  $it") }
             seed.category.takeIf(String::isNotBlank)?.let { add("CAT  $it") }
             seed.location.takeIf(String::isNotBlank)?.let { add("LOC  $it") }
             add("QTY  ${seed.quantity}")
         }
     }
 
-    private fun buildSecondaryHeadline(seed: ComponentLabelSeed): String? {
-        val primary = listOfNotNull(
-            seed.brand?.trim().takeUnless { it.isNullOrBlank() },
+    private fun buildTopLeftInfoHeadline(seed: ComponentLabelSeed): String? {
+        val preferred = listOfNotNull(
             seed.model?.trim().takeUnless { it.isNullOrBlank() },
-        )
-        if (primary.isNotEmpty()) {
-            return primary.joinToString(" / ")
-        }
-
-        val fallback = listOfNotNull(
-            seed.category.trim().takeUnless { it.isBlank() },
+            seed.brand?.trim().takeUnless { it.isNullOrBlank() },
             seed.packageName.trim().takeUnless { it.isBlank() },
         )
-        return fallback.takeIf { it.isNotEmpty() }?.joinToString(" / ")
+        return preferred.takeIf { it.isNotEmpty() }?.joinToString(" / ")
     }
 
     private fun buildTextPaint(
@@ -628,11 +711,14 @@ internal object ComponentLabelRenderer {
     private fun mmToUnits(valueMm: Float, unitsPerMm: Float): Int =
         max(1, ceil(valueMm * unitsPerMm.toDouble()).toInt())
 
-    private data class LabelPageSpec(
-        val template: ComponentLabelTemplate,
-        val widthMm: Float,
-        val heightMm: Float,
-        val qrPayload: ComponentQrPayload? = null,
-        val textOnlyContent: String? = null,
-    )
+    private fun ResolvedLabelPageSpec.contentRect(unitsPerMm: Float): RectF {
+        val left = mm(contentLeftMm, unitsPerMm)
+        val top = mm(contentTopMm, unitsPerMm)
+        return RectF(
+            left,
+            top,
+            left + mm(contentWidthMm, unitsPerMm),
+            top + mm(contentHeightMm, unitsPerMm),
+        )
+    }
 }

@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.ComponentLabelCodec
+import com.componentvault.android.data.ComponentLabelPrintCanvasTemplate
 import com.componentvault.android.data.ComponentLabelRenderer
 import com.componentvault.android.data.ComponentLabelTemplate
 import com.componentvault.android.data.ComponentTextLabelTemplate
@@ -46,9 +47,11 @@ internal fun ComponentLabelPreviewSurface(
     layoutMode: InventoryLayoutMode,
     onDismiss: () -> Unit,
     selectedTemplate: ComponentLabelTemplate = ComponentLabelTemplate.default,
+    selectedCanvasTemplate: ComponentLabelPrintCanvasTemplate = ComponentLabelPrintCanvasTemplate.default,
     includeCompanionTextLabel: Boolean = false,
     selectedTextTemplate: ComponentTextLabelTemplate = ComponentTextLabelTemplate.default,
     onTemplateChange: (ComponentLabelTemplate) -> Unit = {},
+    onCanvasTemplateChange: (ComponentLabelPrintCanvasTemplate) -> Unit = {},
     onIncludeCompanionTextLabelChange: (Boolean) -> Unit = {},
     onTextTemplateChange: (ComponentTextLabelTemplate) -> Unit = {},
 ) {
@@ -63,6 +66,7 @@ internal fun ComponentLabelPreviewSurface(
     val pageBitmaps = remember(
         seed,
         selectedTemplate.id,
+        selectedCanvasTemplate.id,
         includeCompanionTextLabel,
         selectedTextTemplate.id,
         strings.importer.labelFooterText,
@@ -73,6 +77,8 @@ internal fun ComponentLabelPreviewSurface(
             footerText = strings.importer.labelFooterText,
             includeCompanionTextLabel = includeCompanionTextLabel,
             textTemplate = selectedTextTemplate,
+            canvasTemplate = selectedCanvasTemplate,
+            showCanvasOutline = true,
         )
     }
     var copiesText by remember { mutableStateOf("1") }
@@ -94,6 +100,7 @@ internal fun ComponentLabelPreviewSurface(
                     footerText = strings.importer.labelFooterText,
                     includeCompanionTextLabel = includeCompanionTextLabel,
                     textTemplate = selectedTextTemplate,
+                    canvasTemplate = selectedCanvasTemplate,
                 )
             }
             strings.importer.exportPngSuccess
@@ -120,6 +127,7 @@ internal fun ComponentLabelPreviewSurface(
                     footerText = strings.importer.labelFooterText,
                     includeCompanionTextLabel = includeCompanionTextLabel,
                     textTemplate = selectedTextTemplate,
+                    canvasTemplate = selectedCanvasTemplate,
                 )
             }
             strings.importer.exportPdfSuccess
@@ -136,6 +144,7 @@ internal fun ComponentLabelPreviewSurface(
             val filename = suggestedFileName(
                 sku = seed.sku,
                 template = selectedTemplate,
+                canvasTemplate = selectedCanvasTemplate,
                 includeCompanionTextLabel = includeCompanionTextLabel,
                 textTemplate = selectedTextTemplate,
                 extension = "png",
@@ -149,11 +158,11 @@ internal fun ComponentLabelPreviewSurface(
                 supporting = strings.importer.labelPreviewSubtitle,
             ) {
                 Text(
-                    text = strings.importer.labelSizeTitle,
+                    text = strings.importer.labelFormatTitle,
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
-                    text = strings.importer.labelSizeSubtitle,
+                    text = strings.importer.labelFormatSubtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -169,6 +178,31 @@ internal fun ComponentLabelPreviewSurface(
                                 feedbackMessage = null
                             },
                             label = { Text(strings.importer.labelTemplateLabel(template)) },
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = strings.importer.printCanvasTitle,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = strings.importer.printCanvasSubtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ComponentLabelPrintCanvasTemplate.entries.forEach { canvasTemplate ->
+                        FilterChip(
+                            selected = selectedCanvasTemplate.id == canvasTemplate.id,
+                            onClick = {
+                                onCanvasTemplateChange(canvasTemplate)
+                                feedbackMessage = null
+                            },
+                            label = { Text(strings.importer.printCanvasLabel(canvasTemplate)) },
                         )
                     }
                 }
@@ -226,7 +260,12 @@ internal fun ComponentLabelPreviewSurface(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = strings.importer.labelSizeSummary(selectedTemplate),
+                    text = strings.importer.labelFormatSummary(selectedTemplate),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = strings.importer.printCanvasSummary(selectedCanvasTemplate),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -250,7 +289,8 @@ internal fun ComponentLabelPreviewSurface(
                 ValueBlock(label = strings.common.fieldSku, value = seed.sku)
                 ValueBlock(label = strings.common.fieldQuantity, value = seed.quantity.toString())
                 ValueBlock(label = strings.common.fieldLocation, value = seed.location)
-                ValueBlock(label = strings.importer.labelSizeTitle, value = strings.importer.labelSizeSummary(selectedTemplate))
+                ValueBlock(label = strings.importer.labelFormatTitle, value = strings.importer.labelFormatSummary(selectedTemplate))
+                ValueBlock(label = strings.importer.printCanvasTitle, value = strings.importer.printCanvasSummary(selectedCanvasTemplate))
                 ValueBlock(
                     label = strings.importer.labelPayloadModeTitle,
                     value = strings.importer.payloadModeLabel(qrPayload?.mode ?: selectedTemplate.payloadMode),
@@ -296,6 +336,7 @@ internal fun ComponentLabelPreviewSurface(
                             suggestedFileName(
                                 sku = seed.sku,
                                 template = selectedTemplate,
+                                canvasTemplate = selectedCanvasTemplate,
                                 includeCompanionTextLabel = includeCompanionTextLabel,
                                 textTemplate = selectedTextTemplate,
                                 extension = "png",
@@ -312,6 +353,7 @@ internal fun ComponentLabelPreviewSurface(
                             suggestedFileName(
                                 sku = seed.sku,
                                 template = selectedTemplate,
+                                canvasTemplate = selectedCanvasTemplate,
                                 includeCompanionTextLabel = includeCompanionTextLabel,
                                 textTemplate = selectedTextTemplate,
                                 extension = "pdf",
@@ -340,6 +382,7 @@ internal fun ComponentLabelPreviewSurface(
 private fun suggestedFileName(
     sku: String,
     template: ComponentLabelTemplate,
+    canvasTemplate: ComponentLabelPrintCanvasTemplate,
     includeCompanionTextLabel: Boolean,
     textTemplate: ComponentTextLabelTemplate,
     extension: String,
@@ -348,6 +391,8 @@ private fun suggestedFileName(
         .replace(Regex("[^A-Za-z0-9._-]"), "-")
     val suffix = buildString {
         append(template.fileSuffix)
+        append("-")
+        append(canvasTemplate.fileSuffix)
         if (includeCompanionTextLabel && template.isQrLabel) {
             append("-with-")
             append(textTemplate.fileSuffix)

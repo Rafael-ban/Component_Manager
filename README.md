@@ -76,22 +76,23 @@ connects to it over HTTP.
   and unpackaged portable `dotnet publish` was verified successfully on
   `2026-05-08`.
 - Android native client: local SQLite, component editing, movement recording,
-  JLC text and QR import, supplier packaging OCR import, compact label
+  JLC text and QR import, supplier packaging OCR import, physical label
   preview/export, expanded settings, server sync wiring, and Chinese-first
   Compose interface resources are implemented; the Android UI now follows an
   inventory-first adaptive Compose shell with `Inventory`, `Movements`,
   `Overview`, and `Settings` destinations, compact phone detail drill-down,
   tablet list-detail layouts, quantity-first import confirmation, generated
-  JLC-compatible or warehouse QR labels, three user-selectable label size
-  templates with QR-size coupling and collision-safe text layout, local import
-  learning backed by a device-only SQLite mapping table, optional LCSC-backed
-  official metadata lookup for filling missing JLC fields, capture-first
-  supplier packaging OCR with structured line extraction, user-selectable OCR
-  engine preference (`Auto`, `ML Kit offline`, `Paddle experimental`),
-  persisted in-app language switching with first-launch default `zh-CN`,
-  stronger vendor-aware QR package/category inference, and scroll-safe
-  `Scaffold` inset handling; `assembleDebug` and `assembleRelease` were
-  re-verified on `2026-05-11` on this host with the configured Android SDK
+  JLC-compatible or warehouse QR labels, user-selectable `10x40mm QR`,
+  `30x40mm QR`, and pure text strip templates, a `57x79mm` Miaomiaoji print
+  canvas option, collision-safe text layout, local import learning backed by a
+  device-only SQLite mapping table, optional server-assisted metadata lookup
+  for filling missing JLC fields, capture-first supplier packaging OCR with
+  structured line extraction, user-selectable OCR engine preference (`Auto`,
+  `ML Kit offline`, `Paddle experimental`), persisted in-app language
+  switching with first-launch default `zh-CN`, stronger vendor-aware QR
+  package/category inference, and scroll-safe `Scaffold` inset handling;
+  `assembleDebug` and `assembleRelease` were re-verified on `2026-05-11` on
+  this host with the configured Android SDK
   and JDK paths.
 - Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
   separate `admin-web/` React application; backend `pytest` and `admin-web`
@@ -192,10 +193,11 @@ preferences and supports:
 - supplier packaging OCR import through an in-app CameraX scanner backed by
   bundled ML Kit Chinese text recognition, now using a frozen-frame capture
   step plus structured line extraction before packaging-field parsing
-- compact label preview plus PNG/PDF export, generating JLC-compatible QR
+- physical label preview plus PNG/PDF export, generating JLC-compatible QR
   payloads for JLC-sourced items and warehouse QR payloads for other items
-- three user-selectable label size templates with linked QR dimensions and a
-  two-zone layout that keeps dynamic text out of the QR safe area
+- user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
+  templates, with linked QR dimensions, label-specific text flow, and an
+  optional `57x79mm` Miaomiaoji print canvas
 - local-first JLC import enrichment through parser heuristics plus a device-only
   learned mapping table keyed by JLC SKU and fallback MPN reuse
 - bundled offline recognition rules for package normalization, model-family

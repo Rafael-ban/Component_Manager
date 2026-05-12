@@ -8,6 +8,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.res.stringResource
 import com.componentvault.android.R
 import com.componentvault.android.data.ComponentLabelPayloadMode
+import com.componentvault.android.data.ComponentLabelPrintCanvasTemplate
 import com.componentvault.android.data.ComponentLabelTemplate
 import com.componentvault.android.data.ComponentTextLabelTemplate
 import com.componentvault.android.model.AppLanguage
@@ -329,13 +330,19 @@ internal data class ImportStrings(
     val labelPreviewSubtitle: String,
     val labelPayloadTitle: String,
     val labelPayloadSubtitle: String,
-    val labelSizeTitle: String,
-    val labelSizeSubtitle: String,
+    val labelFormatTitle: String,
+    val labelFormatSubtitle: String,
     val labelSize10x40Qr: String,
     val labelSize30x40Qr: String,
     val labelSizeTextOnly: String,
-    val labelSizeQrSummaryPattern: String,
-    val labelSizeTextSummaryPattern: String,
+    val labelFormatQrSummaryPattern: String,
+    val labelFormatTextSummaryPattern: String,
+    val printCanvasTitle: String,
+    val printCanvasSubtitle: String,
+    val printCanvasRawLabel: String,
+    val printCanvasMiaomiaoji57x79: String,
+    val printCanvasSummaryRaw: String,
+    val printCanvasSummaryPattern: String,
     val labelPayloadModeTitle: String,
     val labelPayloadModeNone: String,
     val labelPayloadModeCompact: String,
@@ -370,21 +377,38 @@ internal data class ImportStrings(
         else -> labelSize30x40Qr
     }
 
-    fun labelSizeSummary(template: ComponentLabelTemplate): String = if (template.isQrLabel) {
+    fun labelFormatSummary(template: ComponentLabelTemplate): String = if (template.isQrLabel) {
         formatPattern(
-            labelSizeQrSummaryPattern,
+            labelFormatQrSummaryPattern,
             labelTemplateLabel(template),
-            requireNotNull(template.widthMm),
-            template.heightMm,
+            requireNotNull(template.nominalWidthMm),
+            template.nominalHeightMm,
             requireNotNull(template.qrSizeMm),
         )
     } else {
         formatPattern(
-            labelSizeTextSummaryPattern,
+            labelFormatTextSummaryPattern,
             labelTemplateLabel(template),
             template.textHeightMm ?: 0f,
         )
     }
+
+    fun printCanvasLabel(canvasTemplate: ComponentLabelPrintCanvasTemplate): String = when (canvasTemplate) {
+        ComponentLabelPrintCanvasTemplate.RawLabel -> printCanvasRawLabel
+        ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79 -> printCanvasMiaomiaoji57x79
+    }
+
+    fun printCanvasSummary(canvasTemplate: ComponentLabelPrintCanvasTemplate): String =
+        if (canvasTemplate.usesTemplateBounds) {
+            printCanvasSummaryRaw
+        } else {
+            formatPattern(
+                printCanvasSummaryPattern,
+                printCanvasLabel(canvasTemplate),
+                canvasTemplate.widthMm ?: 0f,
+                canvasTemplate.heightMm ?: 0f,
+            )
+        }
 
     fun payloadModeLabel(mode: ComponentLabelPayloadMode): String = when (mode) {
         ComponentLabelPayloadMode.None -> labelPayloadModeNone
@@ -693,13 +717,19 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             labelPreviewSubtitle = stringResource(R.string.importer_label_preview_subtitle),
             labelPayloadTitle = stringResource(R.string.importer_label_payload_title),
             labelPayloadSubtitle = stringResource(R.string.importer_label_payload_subtitle),
-            labelSizeTitle = stringResource(R.string.importer_label_size_title),
-            labelSizeSubtitle = stringResource(R.string.importer_label_size_subtitle),
+            labelFormatTitle = stringResource(R.string.importer_label_format_title),
+            labelFormatSubtitle = stringResource(R.string.importer_label_format_subtitle),
             labelSize10x40Qr = stringResource(R.string.importer_label_size_10x40_qr),
             labelSize30x40Qr = stringResource(R.string.importer_label_size_30x40_qr),
             labelSizeTextOnly = stringResource(R.string.importer_label_size_text_only),
-            labelSizeQrSummaryPattern = stringResource(R.string.importer_label_size_qr_summary_pattern),
-            labelSizeTextSummaryPattern = stringResource(R.string.importer_label_size_text_summary_pattern),
+            labelFormatQrSummaryPattern = stringResource(R.string.importer_label_format_qr_summary_pattern),
+            labelFormatTextSummaryPattern = stringResource(R.string.importer_label_format_text_summary_pattern),
+            printCanvasTitle = stringResource(R.string.importer_print_canvas_title),
+            printCanvasSubtitle = stringResource(R.string.importer_print_canvas_subtitle),
+            printCanvasRawLabel = stringResource(R.string.importer_print_canvas_raw_label),
+            printCanvasMiaomiaoji57x79 = stringResource(R.string.importer_print_canvas_miaomiaoji_57x79),
+            printCanvasSummaryRaw = stringResource(R.string.importer_print_canvas_summary_raw),
+            printCanvasSummaryPattern = stringResource(R.string.importer_print_canvas_summary_pattern),
             labelPayloadModeTitle = stringResource(R.string.importer_label_payload_mode_title),
             labelPayloadModeNone = stringResource(R.string.importer_label_payload_mode_none),
             labelPayloadModeCompact = stringResource(R.string.importer_label_payload_mode_compact),

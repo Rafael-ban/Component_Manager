@@ -1,6 +1,7 @@
 package com.componentvault.android.ui.screen.preview
 
 import androidx.compose.runtime.Composable
+import com.componentvault.android.data.ComponentLabelPrintCanvasTemplate
 import com.componentvault.android.data.ComponentLabelTemplate
 import com.componentvault.android.data.ComponentTextLabelTemplate
 import com.componentvault.android.ui.screen.ComponentLabelPreviewSurface
@@ -21,6 +22,7 @@ private fun ComponentLabelPreviewStandard() {
             ),
             onDismiss = {},
             selectedTemplate = ComponentLabelTemplate.Qr30x40,
+            selectedCanvasTemplate = ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79,
         )
     }
 }
@@ -39,6 +41,7 @@ private fun ComponentLabelPreviewCompactWithCompanion() {
             ),
             onDismiss = {},
             selectedTemplate = ComponentLabelTemplate.Qr10x40,
+            selectedCanvasTemplate = ComponentLabelPrintCanvasTemplate.Miaomiaoji57x79,
             includeCompanionTextLabel = true,
             selectedTextTemplate = ComponentTextLabelTemplate.NamePackageSku,
         )
@@ -59,6 +62,7 @@ private fun ComponentLabelPreviewZhCnLongText() {
             ),
             onDismiss = {},
             selectedTemplate = ComponentLabelTemplate.TextOnly,
+            selectedCanvasTemplate = ComponentLabelPrintCanvasTemplate.RawLabel,
             selectedTextTemplate = ComponentTextLabelTemplate.NamePackageSku,
         )
     }

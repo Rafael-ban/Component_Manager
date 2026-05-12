@@ -17,10 +17,45 @@ internal enum class ComponentLabelPayloadMode {
     JlcCompatible,
 }
 
+internal enum class ComponentLabelOrientation {
+    Portrait,
+    Landscape,
+}
+
 internal enum class ComponentLabelLayoutMode {
-    CompactQr,
-    StandardQr,
+    LandscapeRightQr,
+    TopLeftQrDetails,
     TextOnly,
+}
+
+internal enum class ComponentLabelPrintCanvasTemplate(
+    val id: String,
+    val widthMm: Float?,
+    val heightMm: Float?,
+    val fileSuffix: String,
+) {
+    Miaomiaoji57x79(
+        id = "miaomiaoji-57x79",
+        widthMm = 57f,
+        heightMm = 79f,
+        fileSuffix = "miaomiaoji-57x79",
+    ),
+    RawLabel(
+        id = "raw-label",
+        widthMm = null,
+        heightMm = null,
+        fileSuffix = "raw",
+    );
+
+    val usesTemplateBounds: Boolean
+        get() = widthMm == null || heightMm == null
+
+    companion object {
+        val default: ComponentLabelPrintCanvasTemplate = Miaomiaoji57x79
+
+        fun fromId(id: String?): ComponentLabelPrintCanvasTemplate =
+            ComponentLabelPrintCanvasTemplate.entries.firstOrNull { it.id == id } ?: default
+    }
 }
 
 internal enum class ComponentTextLabelTemplate(
@@ -54,6 +89,9 @@ internal data class ComponentLabelTemplate(
     val role: ComponentLabelRole,
     val widthMm: Float?,
     val heightMm: Float,
+    val nominalWidthMm: Float? = widthMm,
+    val nominalHeightMm: Float = heightMm,
+    val orientation: ComponentLabelOrientation = ComponentLabelOrientation.Portrait,
     val textHeightMm: Float? = null,
     val qrSizeMm: Float? = null,
     val quietZoneMm: Float = 0f,
@@ -72,12 +110,15 @@ internal data class ComponentLabelTemplate(
             id = "qr-10x40",
             kind = ComponentLabelKind.Qr,
             role = ComponentLabelRole.Primary,
-            widthMm = 10f,
-            heightMm = 40f,
+            widthMm = 40f,
+            heightMm = 10f,
+            nominalWidthMm = 10f,
+            nominalHeightMm = 40f,
+            orientation = ComponentLabelOrientation.Landscape,
             qrSizeMm = 8f,
             quietZoneMm = 0.8f,
             payloadMode = ComponentLabelPayloadMode.CompactOffline,
-            layoutMode = ComponentLabelLayoutMode.CompactQr,
+            layoutMode = ComponentLabelLayoutMode.LandscapeRightQr,
             fileSuffix = "10x40-qr",
         )
 
@@ -87,10 +128,12 @@ internal data class ComponentLabelTemplate(
             role = ComponentLabelRole.Primary,
             widthMm = 30f,
             heightMm = 40f,
-            qrSizeMm = 18f,
+            nominalWidthMm = 30f,
+            nominalHeightMm = 40f,
+            qrSizeMm = 16f,
             quietZoneMm = 1.2f,
             payloadMode = ComponentLabelPayloadMode.StandardWarehouse,
-            layoutMode = ComponentLabelLayoutMode.StandardQr,
+            layoutMode = ComponentLabelLayoutMode.TopLeftQrDetails,
             fileSuffix = "30x40-qr",
         )
 
