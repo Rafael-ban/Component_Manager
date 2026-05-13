@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+SCRIPT_PATH="$ROOT_DIR/tools/versioning/sync_version.py"
+
+if [ ! -f "$SCRIPT_PATH" ]; then
+  echo "Version sync script not found: $SCRIPT_PATH" >&2
+  exit 1
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 "$SCRIPT_PATH" --apply
+fi
+
+if command -v python >/dev/null 2>&1; then
+  exec python "$SCRIPT_PATH" --apply
+fi
+
+if command -v py >/dev/null 2>&1; then
+  exec py -3 "$SCRIPT_PATH" --apply
+fi
+
+echo "Python 3 is required for changelog-driven version sync." >&2
+exit 1

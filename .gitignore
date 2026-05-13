@@ -2,6 +2,7 @@
 .idea/
 .vscode/
 .vs/
+.dotnet/
 .dotnet-cli/
 .dotnet-cli-*/
 .android-user/
@@ -34,8 +35,10 @@ windows-client/**/obj/
 .local-secrets/
 .npm-cache/
 env/
+AGENTS.md
 
 server/.pytest_cache/
+server/.pytest_tmp/
 .pytest_cache/
 server/.venv/
 server/__pycache__/
