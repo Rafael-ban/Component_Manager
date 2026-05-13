@@ -24,6 +24,7 @@ import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.model.InventoryUiState
 import com.componentvault.android.model.MovementEntryDraft
+import com.componentvault.android.model.MovementScanUiState
 import com.componentvault.android.model.MovementsUiState
 import com.componentvault.android.model.OverviewUiState
 import com.componentvault.android.model.StockMovementRecord
@@ -199,6 +200,57 @@ class InventoryViewModel(
         }
     }
 
+    fun openMovementScanner() {
+        uiState = uiState.copy(
+            movements = buildMovementsUiState(
+                scanState = MovementScanUiState(isScannerVisible = true),
+            ),
+        )
+    }
+
+    fun dismissMovementScanner() {
+        val currentScanState = uiState.movements.scan
+        if (!currentScanState.isScannerVisible) {
+            return
+        }
+        uiState = uiState.copy(
+            movements = buildMovementsUiState(
+                scanState = currentScanState.copy(isScannerVisible = false),
+            ),
+        )
+    }
+
+    fun clearMovementScanState() {
+        uiState = uiState.copy(
+            movements = buildMovementsUiState(
+                scanState = MovementScanUiState(),
+            ),
+        )
+    }
+
+    fun resolveMovementComponentFromLabel(rawValue: String) {
+        viewModelScope.launch {
+            uiState = uiState.copy(
+                movements = buildMovementsUiState(
+                    scanState = MovementScanUiState(
+                        isScannerVisible = false,
+                        isResolving = true,
+                    ),
+                ),
+            )
+            val resolution = repository.resolveComponentByScannedLabel(rawValue)
+            uiState = uiState.copy(
+                movements = buildMovementsUiState(
+                    scanState = MovementScanUiState(
+                        isScannerVisible = false,
+                        isResolving = false,
+                        resolution = resolution,
+                    ),
+                ),
+            )
+        }
+    }
+
     fun saveSyncConfiguration(
         serverBaseUrl: String,
         apiToken: String,
@@ -262,7 +314,7 @@ class InventoryViewModel(
             overview = buildOverviewUiState(dashboardSnapshot),
             availableComponents = allComponentsCache,
             inventory = buildInventoryScreenUiState(),
-            movements = buildMovementsUiState(),
+            movements = buildMovementsUiState(uiState.movements.scan),
             importLearningSummary = importLearningSummary,
             appPreferences = appPreferences,
             syncConfiguration = syncConfiguration,
@@ -286,7 +338,7 @@ class InventoryViewModel(
             overview = buildOverviewUiState(dashboardSnapshot),
             availableComponents = allComponentsCache,
             inventory = buildInventoryScreenUiState(),
-            movements = buildMovementsUiState(),
+            movements = buildMovementsUiState(uiState.movements.scan),
             importLearningSummary = importLearningSummary,
             appPreferences = appPreferences,
             syncConfiguration = syncConfiguration,
@@ -332,10 +384,13 @@ class InventoryViewModel(
         )
     }
 
-    private fun buildMovementsUiState(): MovementsUiState {
+    private fun buildMovementsUiState(
+        scanState: MovementScanUiState = uiState.movements.scan,
+    ): MovementsUiState {
         return MovementsUiState(
             items = allMovementsCache,
             componentCount = allComponentsCache.size,
+            scan = scanState,
         )
     }
 

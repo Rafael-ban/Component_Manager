@@ -72,6 +72,16 @@ internal enum class JlcQrScannerUiState {
 internal fun JlcQrScannerSurface(
     onDismiss: () -> Unit,
     onScanResult: (String) -> Unit,
+    title: String? = null,
+    permissionTitle: String? = null,
+    permissionDescription: String? = null,
+    permissionDeniedTitle: String? = null,
+    permissionDeniedDescription: String? = null,
+    startingMessage: String? = null,
+    scanningHint: String? = null,
+    failedTitle: String? = null,
+    failedDescription: String? = null,
+    returnActionLabel: String? = null,
 ) {
     val context = LocalContext.current
     val cameraPermissionGranted = remember(context) {
@@ -114,6 +124,16 @@ internal fun JlcQrScannerSurface(
         showCameraPreview = cameraPermissionGranted.value &&
             scannerState != JlcQrScannerUiState.PermissionDenied &&
             scannerState != JlcQrScannerUiState.Failed,
+        title = title,
+        permissionTitle = permissionTitle,
+        permissionDescription = permissionDescription,
+        permissionDeniedTitle = permissionDeniedTitle,
+        permissionDeniedDescription = permissionDeniedDescription,
+        startingMessage = startingMessage,
+        scanningHint = scanningHint,
+        failedTitle = failedTitle,
+        failedDescription = failedDescription,
+        returnActionLabel = returnActionLabel,
         onBack = onDismiss,
         onGrantCameraAccess = {
             scannerState = JlcQrScannerUiState.RequestingPermission
@@ -153,6 +173,16 @@ internal fun JlcQrScannerContent(
     state: JlcQrScannerUiState,
     errorMessage: String?,
     showCameraPreview: Boolean,
+    title: String? = null,
+    permissionTitle: String? = null,
+    permissionDescription: String? = null,
+    permissionDeniedTitle: String? = null,
+    permissionDeniedDescription: String? = null,
+    startingMessage: String? = null,
+    scanningHint: String? = null,
+    failedTitle: String? = null,
+    failedDescription: String? = null,
+    returnActionLabel: String? = null,
     onBack: () -> Unit,
     onGrantCameraAccess: () -> Unit,
     onRetry: () -> Unit,
@@ -160,11 +190,21 @@ internal fun JlcQrScannerContent(
     cameraPreview: @Composable BoxScope.() -> Unit = {},
 ) {
     val strings = vaultStrings()
+    val resolvedTitle = title ?: strings.importer.actionScanQr
+    val resolvedPermissionTitle = permissionTitle ?: strings.importer.scannerPermissionTitle
+    val resolvedPermissionDescription = permissionDescription ?: strings.importer.scannerPermissionDescription
+    val resolvedPermissionDeniedTitle = permissionDeniedTitle ?: strings.importer.scannerPermissionDeniedTitle
+    val resolvedPermissionDeniedDescription = permissionDeniedDescription ?: strings.importer.scannerPermissionDeniedDescription
+    val resolvedStartingMessage = startingMessage ?: strings.importer.scannerStarting
+    val resolvedScanningHint = scanningHint ?: strings.importer.scannerScanningHint
+    val resolvedFailedTitle = failedTitle ?: strings.importer.scannerFailedTitle
+    val resolvedFailedDescription = failedDescription ?: strings.importer.scannerFailedDescription
+    val resolvedReturnActionLabel = returnActionLabel ?: strings.common.actionBack
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(strings.importer.actionScanQr) },
+                title = { Text(resolvedTitle) },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
                         Text(strings.common.actionBack)
@@ -192,33 +232,33 @@ internal fun JlcQrScannerContent(
             when (state) {
                 JlcQrScannerUiState.RequestingPermission -> {
                     ScannerMessagePane(
-                        title = strings.importer.scannerPermissionTitle,
-                        message = strings.importer.scannerPermissionDescription,
+                        title = resolvedPermissionTitle,
+                        message = resolvedPermissionDescription,
                         primaryAction = strings.importer.actionGrantCameraAccess to onGrantCameraAccess,
-                        secondaryAction = strings.importer.actionReturnToImport to onReturnToImport,
+                        secondaryAction = resolvedReturnActionLabel to onReturnToImport,
                     )
                 }
 
                 JlcQrScannerUiState.PermissionDenied -> {
                     ScannerMessagePane(
-                        title = strings.importer.scannerPermissionDeniedTitle,
-                        message = strings.importer.scannerPermissionDeniedDescription,
+                        title = resolvedPermissionDeniedTitle,
+                        message = resolvedPermissionDeniedDescription,
                         primaryAction = strings.importer.actionGrantCameraAccess to onGrantCameraAccess,
-                        secondaryAction = strings.importer.actionReturnToImport to onReturnToImport,
+                        secondaryAction = resolvedReturnActionLabel to onReturnToImport,
                     )
                 }
 
                 JlcQrScannerUiState.StartingCamera -> {
                     ScannerPreviewOverlay(
-                        headline = strings.importer.scannerStarting,
-                        supporting = strings.importer.scannerScanningHint,
+                        headline = resolvedStartingMessage,
+                        supporting = resolvedScanningHint,
                         showProgress = true,
                     )
                 }
 
                 JlcQrScannerUiState.Scanning -> {
                     ScannerPreviewOverlay(
-                        headline = strings.importer.scannerScanningHint,
+                        headline = resolvedScanningHint,
                         supporting = null,
                         showProgress = false,
                     )
@@ -226,10 +266,10 @@ internal fun JlcQrScannerContent(
 
                 JlcQrScannerUiState.Failed -> {
                     ScannerMessagePane(
-                        title = strings.importer.scannerFailedTitle,
-                        message = errorMessage ?: strings.importer.scannerFailedDescription,
+                        title = resolvedFailedTitle,
+                        message = errorMessage ?: resolvedFailedDescription,
                         primaryAction = strings.importer.actionRetryScan to onRetry,
-                        secondaryAction = strings.importer.actionReturnToImport to onReturnToImport,
+                        secondaryAction = resolvedReturnActionLabel to onReturnToImport,
                     )
                 }
             }

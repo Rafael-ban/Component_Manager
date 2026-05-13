@@ -23,6 +23,12 @@ private fun MovementsPhonePreview() {
             ),
             selectedMovementId = InventoryPreviewData.selectedMovementId,
             onSelectMovement = {},
+            onScanMovementLabel = {},
+            onRetryMovementScan = {},
+            onDismissMovementScanResult = {},
+            onSelectQuickAction = {},
+            onSearchInventoryBySku = {},
+            onImportComponent = {},
             onRecordMovement = {},
         )
     }
@@ -45,6 +51,68 @@ private fun MovementsTabletPreview() {
             ),
             selectedMovementId = InventoryPreviewData.selectedMovementId,
             onSelectMovement = {},
+            onScanMovementLabel = {},
+            onRetryMovementScan = {},
+            onDismissMovementScanResult = {},
+            onSelectQuickAction = {},
+            onSearchInventoryBySku = {},
+            onImportComponent = {},
+            onRecordMovement = {},
+        )
+    }
+}
+
+@InventoryPhonePreview
+@Composable
+private fun MovementsMatchedPhonePreview() {
+    PreviewHost {
+        val uiState = InventoryPreviewData.movementsMatchedState()
+        MovementsContent(
+            contentPadding = PaddingValues(),
+            uiState = uiState.movements,
+            statusMessage = uiState.statusMessage,
+            layoutMode = InventoryLayoutMode(
+                widthClass = InventoryWidthClass.Compact,
+                usesNavigationRail = false,
+                showsListDetail = false,
+                prefersDialogForms = false,
+            ),
+            selectedMovementId = InventoryPreviewData.selectedMovementId,
+            onSelectMovement = {},
+            onScanMovementLabel = {},
+            onRetryMovementScan = {},
+            onDismissMovementScanResult = {},
+            onSelectQuickAction = {},
+            onSearchInventoryBySku = {},
+            onImportComponent = {},
+            onRecordMovement = {},
+        )
+    }
+}
+
+@InventoryPhonePreview
+@Composable
+private fun MovementsNotFoundPhonePreview() {
+    PreviewHost {
+        val uiState = InventoryPreviewData.movementsNotFoundState()
+        MovementsContent(
+            contentPadding = PaddingValues(),
+            uiState = uiState.movements,
+            statusMessage = uiState.statusMessage,
+            layoutMode = InventoryLayoutMode(
+                widthClass = InventoryWidthClass.Compact,
+                usesNavigationRail = false,
+                showsListDetail = false,
+                prefersDialogForms = false,
+            ),
+            selectedMovementId = InventoryPreviewData.selectedMovementId,
+            onSelectMovement = {},
+            onScanMovementLabel = {},
+            onRetryMovementScan = {},
+            onDismissMovementScanResult = {},
+            onSelectQuickAction = {},
+            onSearchInventoryBySku = {},
+            onImportComponent = {},
             onRecordMovement = {},
         )
     }

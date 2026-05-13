@@ -109,6 +109,24 @@ internal object ComponentLabelCodec {
             )
         }
 
+        decodeJlcCompatibleWarehouseLabel(rawPayload)?.let { payload ->
+            return ComponentImportCandidate(
+                sourceType = ComponentImportSourceType.WarehouseLabel,
+                rawPayload = rawPayload.trim(),
+                sourceLabel = "Warehouse JLC-compatible label QR",
+                sku = payload.sku,
+                name = payload.name,
+                packageName = payload.packageName,
+                category = payload.category,
+                model = payload.model,
+                brand = payload.brand,
+                suggestedQuantity = payload.quantity,
+                notes = buildList {
+                    add("Warehouse location: ${payload.location}")
+                },
+            )
+        }
+
         return null
     }
 
@@ -243,12 +261,73 @@ internal object ComponentLabelCodec {
         }
     }
 
+    private fun decodeJlcCompatibleWarehouseLabel(rawPayload: String): WarehouseLabelPayload? {
+        val values = parseJlcKeyValues(rawPayload.trim()) ?: return null
+        val orderNumber = values["on"].cleanNullable()
+        val isGeneratedWarehouseLabel = orderNumber?.startsWith("local-", ignoreCase = true) == true ||
+            values["loc"].cleanNullable() != null ||
+            values["nm"].cleanNullable() != null
+        if (!isGeneratedWarehouseLabel) {
+            return null
+        }
+
+        return WarehouseLabelPayload(
+            sku = values["pc"].cleanNullable().orEmpty(),
+            name = values["nm"].cleanNullable().orEmpty(),
+            category = values["cat"].cleanNullable().orEmpty(),
+            packageName = values["pkg"].cleanNullable().orEmpty(),
+            location = values["loc"].cleanNullable().orEmpty(),
+            quantity = values["qty"]?.toIntOrNull() ?: 0,
+            minStock = 0,
+            model = values["pm"].cleanNullable(),
+            brand = values["br"].cleanNullable(),
+        ).takeIf {
+            it.sku.isNotBlank() && it.name.isNotBlank() && it.packageName.isNotBlank()
+        }
+    }
+
+    private fun parseJlcKeyValues(rawPayload: String): Map<String, String>? {
+        if (!rawPayload.startsWith("{") || !rawPayload.endsWith("}")) {
+            return null
+        }
+
+        val body = rawPayload.removePrefix("{").removeSuffix("}")
+        if (body.isBlank()) {
+            return emptyMap()
+        }
+
+        return buildMap {
+            body.split(',').forEach { pair ->
+                val separatorIndex = pair.indexOf(':')
+                if (separatorIndex <= 0) {
+                    return@forEach
+                }
+                val key = pair.substring(0, separatorIndex).trim()
+                val value = pair.substring(separatorIndex + 1).trim()
+                if (key.isNotBlank()) {
+                    put(key, decodeJlcValue(value))
+                }
+            }
+        }
+    }
+
     private fun decodeCompactValue(value: String?): String {
         val normalized = value?.trim().orEmpty()
         if (normalized.isBlank() || normalized == "-") {
             return ""
         }
         return URLDecoder.decode(normalized, StandardCharsets.UTF_8.toString())
+    }
+
+    private fun decodeJlcValue(value: String): String {
+        return runCatching {
+            URLDecoder.decode(value, StandardCharsets.UTF_8.toString())
+        }.getOrDefault(value)
+    }
+
+    private fun String?.cleanNullable(): String? {
+        val normalized = this?.trim().orEmpty()
+        return normalized.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
     }
 
     private fun jsonString(value: String): String = "\"${escapeJson(value)}\""

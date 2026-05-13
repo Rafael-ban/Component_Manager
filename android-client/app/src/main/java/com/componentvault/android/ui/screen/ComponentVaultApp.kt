@@ -29,6 +29,8 @@ fun ComponentVaultApp(
     var componentEditorTargetId by rememberSaveable { mutableStateOf<String?>(null) }
     var movementEditorVisible by rememberSaveable { mutableStateOf(false) }
     var movementEditorTargetId by rememberSaveable { mutableStateOf<String?>(null) }
+    var movementEditorInitialType by rememberSaveable { mutableStateOf<String?>(null) }
+    var movementEditorAllowManualSelection by rememberSaveable { mutableStateOf(true) }
     var importSurfaceVisible by rememberSaveable { mutableStateOf(false) }
     var showDeleteConfirmation by rememberSaveable { mutableStateOf(false) }
     var componentEditorInitialDraft by remember { mutableStateOf<ComponentDraft?>(null) }
@@ -59,6 +61,8 @@ fun ComponentVaultApp(
     BackHandler(enabled = movementEditorVisible && !layoutMode.prefersDialogForms) {
         movementEditorVisible = false
         movementEditorTargetId = null
+        movementEditorInitialType = null
+        movementEditorAllowManualSelection = true
     }
     BackHandler(enabled = importSurfaceVisible && !layoutMode.prefersDialogForms) {
         importSurfaceVisible = false
@@ -81,13 +85,36 @@ fun ComponentVaultApp(
         componentEditorVisible = true
     }
 
-    fun openMovementEditor(componentId: String?) {
+    fun openMovementEditor(
+        componentId: String?,
+        initialMovementType: String? = null,
+        allowManualSelection: Boolean = true,
+    ) {
         movementEditorTargetId = componentId
+        movementEditorInitialType = initialMovementType
+        movementEditorAllowManualSelection = allowManualSelection
         movementEditorVisible = true
     }
 
     ProvideComponentVaultStrings(strings) {
         when {
+            uiState.movements.scan.isScannerVisible -> {
+                JlcQrScannerSurface(
+                    onDismiss = viewModel::dismissMovementScanner,
+                    onScanResult = viewModel::resolveMovementComponentFromLabel,
+                    title = strings.movements.quickScanAction,
+                    permissionTitle = strings.movements.scannerPermissionTitle,
+                    permissionDescription = strings.movements.scannerPermissionDescription,
+                    permissionDeniedTitle = strings.movements.scannerPermissionDeniedTitle,
+                    permissionDeniedDescription = strings.movements.scannerPermissionDeniedDescription,
+                    startingMessage = strings.movements.scannerStarting,
+                    scanningHint = strings.movements.scannerScanningHint,
+                    failedTitle = strings.movements.scannerFailedTitle,
+                    failedDescription = strings.movements.scannerFailedDescription,
+                    returnActionLabel = strings.common.actionBack,
+                )
+            }
+
             componentEditorVisible && !layoutMode.prefersDialogForms -> {
                 ComponentEditorSurface(
                     existing = editingComponent,
@@ -130,14 +157,20 @@ fun ComponentVaultApp(
                     components = uiState.availableComponents,
                     selectedComponentId = movementEditorTargetId ?: uiState.inventory.list.selectedComponentId,
                     layoutMode = layoutMode,
+                    initialMovementType = movementEditorInitialType,
+                    allowManualComponentSelection = movementEditorAllowManualSelection,
                     onDismiss = {
                         movementEditorVisible = false
                         movementEditorTargetId = null
+                        movementEditorInitialType = null
+                        movementEditorAllowManualSelection = true
                     },
                     onSave = { draft ->
                         viewModel.recordMovement(draft)
                         movementEditorVisible = false
                         movementEditorTargetId = null
+                        movementEditorInitialType = null
+                        movementEditorAllowManualSelection = true
                     },
                 )
             }
@@ -234,6 +267,29 @@ fun ComponentVaultApp(
                         viewModel.selectComponent(componentId)
                         showDeleteConfirmation = true
                     },
+                    onScanMovementLabel = {
+                        destination = InventoryDestination.Movements
+                        viewModel.openMovementScanner()
+                    },
+                    onRetryMovementScan = viewModel::openMovementScanner,
+                    onDismissMovementScanResult = viewModel::clearMovementScanState,
+                    onSelectQuickMovementAction = { action ->
+                        val componentId = uiState.movements.scan.resolution.matchedComponent?.id
+                        viewModel.clearMovementScanState()
+                        if (componentId != null) {
+                            viewModel.selectComponent(componentId)
+                            openMovementEditor(
+                                componentId = componentId,
+                                initialMovementType = action.movementType,
+                                allowManualSelection = false,
+                            )
+                        }
+                    },
+                    onSearchInventoryBySku = { sku ->
+                        destination = InventoryDestination.Inventory
+                        compactDetailComponentId = null
+                        viewModel.updateComponentQuery(sku)
+                    },
                     onRecordMovement = { componentId ->
                         componentId?.let(viewModel::selectComponent)
                         openMovementEditor(componentId)
@@ -266,7 +322,7 @@ fun ComponentVaultApp(
             }
         }
 
-        if (layoutMode.prefersDialogForms) {
+        if (!uiState.movements.scan.isScannerVisible && layoutMode.prefersDialogForms) {
             if (componentEditorVisible) {
                 ComponentEditorSurface(
                     existing = editingComponent,
@@ -309,14 +365,20 @@ fun ComponentVaultApp(
                     components = uiState.availableComponents,
                     selectedComponentId = movementEditorTargetId ?: uiState.inventory.list.selectedComponentId,
                     layoutMode = layoutMode,
+                    initialMovementType = movementEditorInitialType,
+                    allowManualComponentSelection = movementEditorAllowManualSelection,
                     onDismiss = {
                         movementEditorVisible = false
                         movementEditorTargetId = null
+                        movementEditorInitialType = null
+                        movementEditorAllowManualSelection = true
                     },
                     onSave = { draft ->
                         viewModel.recordMovement(draft)
                         movementEditorVisible = false
                         movementEditorTargetId = null
+                        movementEditorInitialType = null
+                        movementEditorAllowManualSelection = true
                     },
                 )
             }

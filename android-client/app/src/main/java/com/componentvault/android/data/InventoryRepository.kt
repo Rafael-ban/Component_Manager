@@ -25,6 +25,8 @@ import com.componentvault.android.model.ImportLearningSummary
 import com.componentvault.android.model.MovementEntryDraft
 import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.OcrEngineMode
+import com.componentvault.android.model.MovementScanMatchStatus
+import com.componentvault.android.model.MovementScanResolutionUiState
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.SyncConfiguration
 import com.componentvault.android.model.isJlcSource
@@ -157,6 +159,53 @@ class InventoryRepository(
                 """.trimIndent(),
                 arrayOf(limit.toString()),
             ).use(::readMovements)
+        }
+    }
+
+    suspend fun resolveComponentByScannedLabel(
+        rawValue: String,
+    ): MovementScanResolutionUiState = withContext(Dispatchers.IO) {
+        val candidate = ComponentLabelCodec.parseScannedPayload(rawValue)
+            ?: return@withContext MovementScanResolutionUiState(
+                matchStatus = MovementScanMatchStatus.InvalidLabel,
+                rawValue = rawValue.trim(),
+            )
+
+        databaseHelper.readableDatabase.use { db ->
+            val matches = findActiveComponentsBySku(
+                db = db,
+                sku = candidate.sku,
+            )
+
+            when {
+                matches.isEmpty() -> MovementScanResolutionUiState(
+                    matchStatus = MovementScanMatchStatus.NotFound,
+                    rawValue = rawValue.trim(),
+                    parsedSku = candidate.sku,
+                    parsedName = candidate.name,
+                    parsedPackageName = candidate.packageName,
+                    parsedLocation = extractWarehouseLocation(candidate),
+                )
+
+                matches.size == 1 -> MovementScanResolutionUiState(
+                    matchStatus = MovementScanMatchStatus.Matched,
+                    rawValue = rawValue.trim(),
+                    parsedSku = candidate.sku,
+                    parsedName = candidate.name,
+                    parsedPackageName = candidate.packageName,
+                    parsedLocation = extractWarehouseLocation(candidate),
+                    matchedComponent = matches.single(),
+                )
+
+                else -> MovementScanResolutionUiState(
+                    matchStatus = MovementScanMatchStatus.Ambiguous,
+                    rawValue = rawValue.trim(),
+                    parsedSku = candidate.sku,
+                    parsedName = candidate.name,
+                    parsedPackageName = candidate.packageName,
+                    parsedLocation = extractWarehouseLocation(candidate),
+                )
+            }
         }
     }
 
@@ -830,6 +879,39 @@ class InventoryRepository(
             )
         }
         return items
+    }
+
+    private fun findActiveComponentsBySku(
+        db: SQLiteDatabase,
+        sku: String,
+    ): List<ComponentRecord> {
+        return db.rawQuery(
+            """
+            SELECT
+                id,
+                sku,
+                name,
+                category,
+                package_name,
+                location,
+                COALESCE(description, '') AS description,
+                quantity,
+                min_stock,
+                updated_at,
+                deleted
+            FROM components
+            WHERE deleted = 0 AND sku = ?
+            ORDER BY updated_at DESC, name COLLATE NOCASE ASC
+            """.trimIndent(),
+            arrayOf(sku.trim()),
+        ).use(::readComponents)
+    }
+
+    private fun extractWarehouseLocation(candidate: ComponentImportCandidate): String {
+        return candidate.notes.firstOrNull { it.startsWith("Warehouse location: ") }
+            ?.removePrefix("Warehouse location: ")
+            ?.trim()
+            .orEmpty()
     }
 
     private fun ensureDefaultSettings() {

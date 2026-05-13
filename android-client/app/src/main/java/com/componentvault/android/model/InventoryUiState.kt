@@ -70,6 +70,7 @@ data class InventoryDetailUiState(
 data class MovementsUiState(
     val items: List<StockMovementRecord> = emptyList(),
     val componentCount: Int = 0,
+    val scan: MovementScanUiState = MovementScanUiState(),
 )
 
 enum class InventoryStockFilter {

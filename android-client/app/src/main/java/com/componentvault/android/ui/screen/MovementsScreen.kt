@@ -11,14 +11,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.componentvault.android.model.ComponentRecord
+import com.componentvault.android.model.MovementQuickAction
+import com.componentvault.android.model.MovementScanMatchStatus
+import com.componentvault.android.model.MovementScanUiState
 import com.componentvault.android.model.MovementsUiState
 import com.componentvault.android.model.StockMovementRecord
 
@@ -30,6 +38,12 @@ internal fun MovementsScreen(
     layoutMode: InventoryLayoutMode,
     selectedMovementId: String?,
     onSelectMovement: (String) -> Unit,
+    onScanMovementLabel: () -> Unit,
+    onRetryMovementScan: () -> Unit,
+    onDismissMovementScanResult: () -> Unit,
+    onSelectQuickAction: (MovementQuickAction) -> Unit,
+    onSearchInventoryBySku: (String) -> Unit,
+    onImportComponent: () -> Unit,
     onRecordMovement: () -> Unit,
 ) {
     MovementsContent(
@@ -39,10 +53,17 @@ internal fun MovementsScreen(
         layoutMode = layoutMode,
         selectedMovementId = selectedMovementId,
         onSelectMovement = onSelectMovement,
+        onScanMovementLabel = onScanMovementLabel,
+        onRetryMovementScan = onRetryMovementScan,
+        onDismissMovementScanResult = onDismissMovementScanResult,
+        onSelectQuickAction = onSelectQuickAction,
+        onSearchInventoryBySku = onSearchInventoryBySku,
+        onImportComponent = onImportComponent,
         onRecordMovement = onRecordMovement,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MovementsContent(
     contentPadding: PaddingValues,
@@ -51,6 +72,12 @@ internal fun MovementsContent(
     layoutMode: InventoryLayoutMode,
     selectedMovementId: String?,
     onSelectMovement: (String) -> Unit,
+    onScanMovementLabel: () -> Unit,
+    onRetryMovementScan: () -> Unit,
+    onDismissMovementScanResult: () -> Unit,
+    onSelectQuickAction: (MovementQuickAction) -> Unit,
+    onSearchInventoryBySku: (String) -> Unit,
+    onImportComponent: () -> Unit,
     onRecordMovement: () -> Unit,
 ) {
     val strings = vaultStrings()
@@ -72,18 +99,16 @@ internal fun MovementsContent(
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SectionPane(
-                    title = strings.movements.recordTitle,
-                    supporting = strings.movements.recordSubtitle,
-                ) {
-                    StatusBanner(message = statusMessage)
-                    FilledTonalButton(
-                        onClick = onRecordMovement,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(strings.common.actionRecordMovement)
-                    }
-                }
+                MovementQuickEntryPane(
+                    statusMessage = statusMessage,
+                    scanState = uiState.scan,
+                    onScanMovementLabel = onScanMovementLabel,
+                    onRetryMovementScan = onRetryMovementScan,
+                    onDismissMovementScanResult = onDismissMovementScanResult,
+                    onSearchInventoryBySku = onSearchInventoryBySku,
+                    onImportComponent = onImportComponent,
+                    onRecordMovement = onRecordMovement,
+                )
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -130,18 +155,16 @@ internal fun MovementsContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                SectionPane(
-                    title = strings.movements.recordTitle,
-                    supporting = strings.movements.recordSubtitle,
-                ) {
-                    StatusBanner(message = statusMessage)
-                    FilledTonalButton(
-                        onClick = onRecordMovement,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(strings.common.actionRecordMovement)
-                    }
-                }
+                MovementQuickEntryPane(
+                    statusMessage = statusMessage,
+                    scanState = uiState.scan,
+                    onScanMovementLabel = onScanMovementLabel,
+                    onRetryMovementScan = onRetryMovementScan,
+                    onDismissMovementScanResult = onDismissMovementScanResult,
+                    onSearchInventoryBySku = onSearchInventoryBySku,
+                    onImportComponent = onImportComponent,
+                    onRecordMovement = onRecordMovement,
+                )
             }
             item {
                 Text(
@@ -166,6 +189,244 @@ internal fun MovementsContent(
                 }
             }
         }
+    }
+
+    val matchedComponent = uiState.scan.resolution.matchedComponent
+    if (uiState.scan.resolution.matchStatus == MovementScanMatchStatus.Matched && matchedComponent != null) {
+        ModalBottomSheet(
+            onDismissRequest = onDismissMovementScanResult,
+        ) {
+            MovementQuickActionSheet(
+                component = matchedComponent,
+                onSelectQuickAction = onSelectQuickAction,
+                onDismiss = onDismissMovementScanResult,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MovementQuickEntryPane(
+    statusMessage: String,
+    scanState: MovementScanUiState,
+    onScanMovementLabel: () -> Unit,
+    onRetryMovementScan: () -> Unit,
+    onDismissMovementScanResult: () -> Unit,
+    onSearchInventoryBySku: (String) -> Unit,
+    onImportComponent: () -> Unit,
+    onRecordMovement: () -> Unit,
+) {
+    val strings = vaultStrings()
+
+    SectionPane(
+        title = strings.movements.recordTitle,
+        supporting = strings.movements.recordSubtitle,
+    ) {
+        StatusBanner(message = statusMessage)
+        FilledTonalButton(
+            onClick = onScanMovementLabel,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.movements.quickScanAction)
+        }
+        OutlinedButton(
+            onClick = onRecordMovement,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.movements.quickManualAction)
+        }
+
+        when {
+            scanState.isResolving -> {
+                SectionPane(
+                    title = strings.movements.scanResolvingTitle,
+                    supporting = strings.movements.scanResolvingSubtitle,
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(strokeWidth = 2.dp)
+                        Text(
+                            text = strings.movements.scanResolvingSubtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            scanState.resolution.matchStatus == MovementScanMatchStatus.InvalidLabel -> {
+                SectionPane(
+                    title = strings.movements.invalidLabelTitle,
+                    supporting = strings.movements.invalidLabelDescription,
+                ) {
+                    OutlinedButton(
+                        onClick = onRetryMovementScan,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.importer.actionRetryScan)
+                    }
+                    OutlinedButton(
+                        onClick = onImportComponent,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.common.actionImport)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            onDismissMovementScanResult()
+                            onRecordMovement()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.common.actionRecordMovement)
+                    }
+                }
+            }
+
+            scanState.resolution.matchStatus == MovementScanMatchStatus.NotFound -> {
+                SectionPane(
+                    title = strings.movements.notFoundTitle,
+                    supporting = strings.movements.notFoundDescription,
+                ) {
+                    scanState.resolution.parsedSku.takeIf { it.isNotBlank() }?.let { sku ->
+                        ValueBlock(label = strings.common.fieldSku, value = sku)
+                    }
+                    scanState.resolution.parsedName.takeIf { it.isNotBlank() }?.let { name ->
+                        ValueBlock(label = strings.common.fieldName, value = name)
+                    }
+                    scanState.resolution.parsedPackageName.takeIf { it.isNotBlank() }?.let { packageName ->
+                        ValueBlock(label = strings.common.fieldPackage, value = packageName)
+                    }
+                    scanState.resolution.parsedLocation.takeIf { it.isNotBlank() }?.let { location ->
+                        ValueBlock(label = strings.common.fieldLocation, value = location)
+                    }
+                    OutlinedButton(
+                        onClick = onRetryMovementScan,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.importer.actionRetryScan)
+                    }
+                    scanState.resolution.parsedSku.takeIf { it.isNotBlank() }?.let { sku ->
+                        OutlinedButton(
+                            onClick = { onSearchInventoryBySku(sku) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(strings.common.actionViewInventory)
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            onDismissMovementScanResult()
+                            onRecordMovement()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.common.actionRecordMovement)
+                    }
+                }
+            }
+
+            scanState.resolution.matchStatus == MovementScanMatchStatus.Ambiguous -> {
+                SectionPane(
+                    title = strings.movements.ambiguousTitle,
+                    supporting = strings.movements.ambiguousDescription,
+                ) {
+                    scanState.resolution.parsedSku.takeIf { it.isNotBlank() }?.let { sku ->
+                        ValueBlock(label = strings.common.fieldSku, value = sku)
+                    }
+                    OutlinedButton(
+                        onClick = onRetryMovementScan,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.importer.actionRetryScan)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            onDismissMovementScanResult()
+                            onRecordMovement()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.common.actionRecordMovement)
+                    }
+                }
+            }
+
+            else -> Unit
+        }
+    }
+}
+
+@Composable
+private fun MovementQuickActionSheet(
+    component: ComponentRecord,
+    onSelectQuickAction: (MovementQuickAction) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val strings = vaultStrings()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text(
+            text = strings.movements.quickActionsTitle,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = strings.movements.quickActionsSubtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        MovementResolvedComponentSummary(component = component)
+        FilledTonalButton(
+            onClick = { onSelectQuickAction(MovementQuickAction.Inbound) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.movements.typeInbound)
+        }
+        OutlinedButton(
+            onClick = { onSelectQuickAction(MovementQuickAction.Outbound) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.movements.typeOutbound)
+        }
+        OutlinedButton(
+            onClick = { onSelectQuickAction(MovementQuickAction.Adjustment) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.movements.typeAdjustment)
+        }
+        OutlinedButton(
+            onClick = onDismiss,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.common.actionCancel)
+        }
+    }
+}
+
+@Composable
+private fun MovementResolvedComponentSummary(
+    component: ComponentRecord,
+) {
+    val strings = vaultStrings()
+
+    SectionPane(
+        title = component.name,
+        supporting = component.sku,
+    ) {
+        ValueBlock(label = strings.common.fieldCategory, value = component.category)
+        ValueBlock(label = strings.common.fieldPackage, value = component.packageName)
+        ValueBlock(label = strings.common.fieldLocation, value = component.location)
+        ValueBlock(label = strings.movements.currentStockLabel, value = component.quantity.toString())
+        ValueBlock(label = strings.movements.minimumStockLabel, value = component.minStock.toString())
     }
 }
 

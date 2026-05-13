@@ -251,6 +251,8 @@ internal fun MovementEditorSurface(
     components: List<ComponentRecord>,
     selectedComponentId: String?,
     layoutMode: InventoryLayoutMode,
+    initialMovementType: String? = null,
+    allowManualComponentSelection: Boolean = true,
     onDismiss: () -> Unit,
     onSave: (MovementEntryDraft) -> Unit,
 ) {
@@ -261,7 +263,7 @@ internal fun MovementEditorSurface(
             components.firstOrNull { it.id == selectedComponentId } ?: components.firstOrNull(),
         )
     }
-    var movementType by remember { mutableStateOf("inbound") }
+    var movementType by remember(initialMovementType) { mutableStateOf(initialMovementType ?: "inbound") }
     var quantityText by remember { mutableStateOf("1") }
     var reason by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
@@ -302,26 +304,40 @@ internal fun MovementEditorSurface(
                 title = strings.forms.movementScopeTitle,
                 supporting = strings.forms.movementScopeSubtitle,
             ) {
-                Column {
-                    OutlinedButton(onClick = { componentMenuExpanded = true }) {
-                        Text(
-                            selectedComponent?.let { "${it.name} (${it.sku})" }
-                                ?: strings.common.fieldComponent,
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = componentMenuExpanded,
-                        onDismissRequest = { componentMenuExpanded = false },
-                    ) {
-                        components.forEach { component ->
-                            DropdownMenuItem(
-                                text = { Text("${component.name} (${component.sku})") },
-                                onClick = {
-                                    selectedComponent = component
-                                    componentMenuExpanded = false
-                                },
+                if (allowManualComponentSelection) {
+                    Column {
+                        OutlinedButton(onClick = { componentMenuExpanded = true }) {
+                            Text(
+                                selectedComponent?.let { "${it.name} (${it.sku})" }
+                                    ?: strings.common.fieldComponent,
                             )
                         }
+                        DropdownMenu(
+                            expanded = componentMenuExpanded,
+                            onDismissRequest = { componentMenuExpanded = false },
+                        ) {
+                            components.forEach { component ->
+                                DropdownMenuItem(
+                                    text = { Text("${component.name} (${component.sku})") },
+                                    onClick = {
+                                        selectedComponent = component
+                                        componentMenuExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    selectedComponent?.let { component ->
+                        ValueBlock(label = strings.common.fieldName, value = component.name)
+                        ValueBlock(label = strings.common.fieldSku, value = component.sku)
+                        ValueBlock(label = strings.common.fieldCategory, value = component.category)
+                        ValueBlock(label = strings.common.fieldPackage, value = component.packageName)
+                        ValueBlock(label = strings.common.fieldLocation, value = component.location)
+                        ValueBlock(
+                            label = strings.movements.currentStockLabel,
+                            value = component.quantity.toString(),
+                        )
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

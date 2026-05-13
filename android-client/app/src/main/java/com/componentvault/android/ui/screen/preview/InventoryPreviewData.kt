@@ -14,6 +14,9 @@ import com.componentvault.android.model.InventoryScreenUiState
 import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.model.InventoryUiState
+import com.componentvault.android.model.MovementScanMatchStatus
+import com.componentvault.android.model.MovementScanResolutionUiState
+import com.componentvault.android.model.MovementScanUiState
 import com.componentvault.android.model.MovementsUiState
 import com.componentvault.android.model.OcrEngineMode
 import com.componentvault.android.model.OverviewUiState
@@ -308,15 +311,16 @@ internal object InventoryPreviewData {
         syncConfiguration: SyncConfiguration,
         statusMessage: String,
         inventory: InventoryScreenUiState,
+        movements: MovementsUiState = MovementsUiState(
+            items = previewMovements,
+            componentCount = previewComponents.size,
+        ),
         isBusy: Boolean = false,
     ): InventoryUiState = InventoryUiState(
         overview = previewOverviewUiState(),
         availableComponents = previewComponents,
         inventory = inventory,
-        movements = MovementsUiState(
-            items = previewMovements,
-            componentCount = previewComponents.size,
-        ),
+        movements = movements,
         importLearningSummary = ImportLearningSummary(mappingCount = 6),
         appPreferences = previewAppPreferences(),
         syncConfiguration = syncConfiguration,
@@ -379,6 +383,51 @@ internal object InventoryPreviewData {
             syncConfiguration = previewSyncConfiguration(lastSyncMessage = MovementRecordedMessage),
             statusMessage = MovementRecordedMessage,
             inventory = previewInventoryScreenState(InventoryFiltersUiState()),
+        )
+    }
+
+    fun movementsMatchedState(): InventoryUiState {
+        return previewState(
+            syncConfiguration = previewSyncConfiguration(lastSyncMessage = MovementRecordedMessage),
+            statusMessage = MovementRecordedMessage,
+            inventory = previewInventoryScreenState(InventoryFiltersUiState()),
+            movements = MovementsUiState(
+                items = previewMovements,
+                componentCount = previewComponents.size,
+                scan = MovementScanUiState(
+                    resolution = MovementScanResolutionUiState(
+                        matchStatus = MovementScanMatchStatus.Matched,
+                        rawValue = "cvl2|RES-10K-0402|10k+Ohm+Resistor|Resistor|0402|-|-|16",
+                        parsedSku = selectedComponent.sku,
+                        parsedName = selectedComponent.name,
+                        parsedPackageName = selectedComponent.packageName,
+                        parsedLocation = selectedComponent.location,
+                        matchedComponent = selectedComponent,
+                    ),
+                ),
+            ),
+        )
+    }
+
+    fun movementsNotFoundState(): InventoryUiState {
+        return previewState(
+            syncConfiguration = previewSyncConfiguration(lastSyncMessage = MovementRecordedMessage),
+            statusMessage = MovementRecordedMessage,
+            inventory = previewInventoryScreenState(InventoryFiltersUiState()),
+            movements = MovementsUiState(
+                items = previewMovements,
+                componentCount = previewComponents.size,
+                scan = MovementScanUiState(
+                    resolution = MovementScanResolutionUiState(
+                        matchStatus = MovementScanMatchStatus.NotFound,
+                        rawValue = "cvl2|IC-OPAMP-NEW|Precision+Op-Amp|IC|SOIC-8|-|-|4",
+                        parsedSku = "IC-OPAMP-NEW",
+                        parsedName = "Precision Op-Amp",
+                        parsedPackageName = "SOIC-8",
+                        parsedLocation = "E-01-01",
+                    ),
+                ),
+            ),
         )
     }
 
