@@ -5,6 +5,12 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- Added Android scan-first stock movement entry for generated warehouse and
+  app-generated JLC-compatible labels, including local label parsing by `sku`,
+  match-status feedback (`invalid`, `not found`, `ambiguous`, `matched`), and
+  quick `Inbound`, `Outbound`, and `Adjustment` actions that open a
+  component-locked movement form without requiring server lookup.
+
 ## [0.3.6] - 2026-05-13
 
 - Reworked Android inventory labels into collision-safe physical templates

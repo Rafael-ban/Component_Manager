@@ -93,7 +93,10 @@ connects to it over HTTP.
   user-selectable OCR engine preference (`Auto`,
   `ML Kit offline`, `Paddle experimental`), persisted in-app language
   switching with first-launch default `zh-CN`, stronger vendor-aware QR
-  package/category inference, and scroll-safe `Scaffold` inset handling;
+  package/category inference, generated-label QR round-trip parsing for
+  warehouse and JLC-compatible labels, scan-first stock movement entry with
+  quick `Inbound`, `Outbound`, and `Adjustment` actions, and scroll-safe
+  `Scaffold` inset handling;
   `assembleDebug` and `assembleRelease` were re-verified on `2026-05-11` on
   this host with the configured Android SDK
   and JDK paths.
@@ -190,6 +193,8 @@ preferences and supports:
 
 - component create/edit/soft delete
 - inventory movement entry
+- generated warehouse label scan for quick component locate plus
+  scan-first `Inbound`, `Outbound`, and `Adjustment` movement entry
 - JLC copied-text import with automatic field mapping
 - JLC package QR import through an in-app CameraX scanner backed by bundled
   ML Kit barcode scanning, with runtime camera permission handling

@@ -55,9 +55,17 @@
   the pure text strip uses single-line fit-to-fill typography. Preview now
   respects each template's physical aspect ratio, exports use the resolved
   label dimensions directly, and a bounded two-zone renderer keeps dynamic
-  field text out of the QR safe area.
+  field text out of the QR safe area. The label codec now also round-trips
+  generated warehouse QR payloads and app-generated JLC-compatible labels so
+  printed labels can be scanned back into local movement flows without server
+  involvement.
 - `Movements` uses the same adaptive approach: compact history-first layouts on
-  phones and split history/detail arrangements on larger widths.
+  phones and split history/detail arrangements on larger widths. It now also
+  supports a scan-first workflow for already-generated warehouse labels:
+  CameraX + bundled ML Kit barcode scanning returns raw QR content, the client
+  resolves the label locally by parsed `sku`, and the user then chooses a
+  quick `Inbound`, `Outbound`, or `Adjustment` action before confirming the
+  final movement form.
 - `Overview` is now a summary surface that routes users back into inventory or
   movement flows rather than acting as the primary editing page.
 - `Settings` is organized as grouped sync forms and status blocks instead of
