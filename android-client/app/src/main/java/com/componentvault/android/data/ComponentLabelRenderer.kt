@@ -33,6 +33,44 @@ internal data class ResolvedLabelPageSpec(
     val textOnlyFontSizeMm: Float? = null,
 )
 
+private data class LandscapeStackTypography(
+    val packageFontSizeMm: Float,
+    val nameFontSizeMm: Float,
+    val quantityFontSizeMm: Float,
+    val metaFontSizeMm: Float,
+    val mainGapMm: Float,
+    val sectionGapMm: Float,
+    val lineGapMm: Float,
+)
+
+private enum class SecondaryLineRole {
+    Meta,
+    Quantity,
+}
+
+private data class SecondaryLineSpec(
+    val text: String,
+    val role: SecondaryLineRole,
+    val required: Boolean,
+)
+
+private data class MeasuredSecondaryLine(
+    val text: CharSequence,
+    val paint: TextPaint,
+    val height: Float,
+)
+
+private data class LandscapeStackLayoutPlan(
+    val packageLayout: StaticLayout?,
+    val nameLayout: StaticLayout,
+    val secondaryLines: List<MeasuredSecondaryLine>,
+    val mainGap: Float,
+    val sectionGap: Float,
+    val lineGap: Float,
+    val mainHeight: Float,
+    val secondaryHeight: Float,
+)
+
 internal object ComponentLabelRenderer {
     private const val DefaultFooterText = "Scan to import or update inventory."
     private const val PreviewUnitsPerMm = 36f
@@ -45,6 +83,36 @@ internal object ComponentLabelRenderer {
     private const val TextOnlyMinFontSizeMm = 1.3f
     private const val TextOnlyMaxFontSizeMm = 3.4f
     private const val TextOnlyFontStepMm = 0.05f
+
+    private val LandscapeStackTypographyTiers = listOf(
+        LandscapeStackTypography(
+            packageFontSizeMm = 1.32f,
+            nameFontSizeMm = 1.78f,
+            quantityFontSizeMm = 1.42f,
+            metaFontSizeMm = 1.08f,
+            mainGapMm = 0.34f,
+            sectionGapMm = 0.82f,
+            lineGapMm = 0.18f,
+        ),
+        LandscapeStackTypography(
+            packageFontSizeMm = 1.22f,
+            nameFontSizeMm = 1.64f,
+            quantityFontSizeMm = 1.3f,
+            metaFontSizeMm = 1.02f,
+            mainGapMm = 0.3f,
+            sectionGapMm = 0.72f,
+            lineGapMm = 0.16f,
+        ),
+        LandscapeStackTypography(
+            packageFontSizeMm = 1.12f,
+            nameFontSizeMm = 1.5f,
+            quantityFontSizeMm = 1.2f,
+            metaFontSizeMm = 0.96f,
+            mainGapMm = 0.26f,
+            sectionGapMm = 0.64f,
+            lineGapMm = 0.14f,
+        ),
+    )
 
     fun buildTextLabelContent(
         seed: ComponentLabelSeed,
@@ -231,8 +299,8 @@ internal object ComponentLabelRenderer {
                 val qrPayload = requireNotNull(ComponentLabelCodec.buildQrPayload(seed, template))
                 pages += createPageSpec(
                     template = template,
-                    contentWidthMm = requireNotNull(template.widthMm),
-                    contentHeightMm = template.heightMm,
+                    contentWidthMm = requireNotNull(template.physicalWidthMm),
+                    contentHeightMm = template.physicalHeightMm,
                     qrPayload = qrPayload,
                 )
                 if (includeCompanionTextLabel) {
@@ -257,7 +325,7 @@ internal object ComponentLabelRenderer {
         return createPageSpec(
             template = ComponentLabelTemplate.TextOnly,
             contentWidthMm = textWidthMm,
-            contentHeightMm = ComponentLabelTemplate.TextOnly.heightMm,
+            contentHeightMm = ComponentLabelTemplate.TextOnly.physicalHeightMm,
             textOnlyContent = content,
             textOnlyFontSizeMm = textFontSizeMm,
         )
@@ -273,8 +341,8 @@ internal object ComponentLabelRenderer {
     ): ResolvedLabelPageSpec {
         return ResolvedLabelPageSpec(
             template = template,
-            canvasWidthMm = contentWidthMm,
-            canvasHeightMm = contentHeightMm,
+            canvasWidthMm = template.physicalWidthMm ?: contentWidthMm,
+            canvasHeightMm = template.physicalHeightMm,
             contentLeftMm = 0f,
             contentTopMm = 0f,
             contentWidthMm = contentWidthMm,
@@ -329,11 +397,10 @@ internal object ComponentLabelRenderer {
                 unitsPerMm = unitsPerMm,
             )
 
-            ComponentLabelLayoutMode.LeftQrRightDetails -> drawLeftQrRightDetailsLabel(
+            ComponentLabelLayoutMode.LandscapeLeftQrRightStack -> drawLandscapeLeftQrRightStackLabel(
                 canvas = canvas,
                 seed = seed,
                 page = page,
-                footerText = footerText,
                 unitsPerMm = unitsPerMm,
             )
 
@@ -441,129 +508,75 @@ internal object ComponentLabelRenderer {
         )
     }
 
-    private fun drawLeftQrRightDetailsLabel(
+    private fun drawLandscapeLeftQrRightStackLabel(
         canvas: Canvas,
         seed: ComponentLabelSeed,
         page: ResolvedLabelPageSpec,
-        footerText: String,
         unitsPerMm: Float,
     ) {
         val labelRect = page.contentRect(unitsPerMm)
         drawCardBackground(canvas, labelRect, unitsPerMm)
 
-        val outerPadding = mm(0.6f, unitsPerMm)
-        val columnGap = mm(0.6f, unitsPerMm)
+        val outerPadding = mm(0.8f, unitsPerMm)
+        val columnGap = mm(0.8f, unitsPerMm)
         val quietZone = mm(page.template.quietZoneMm, unitsPerMm)
         val qrSize = mm(requireNotNull(page.template.qrSizeMm), unitsPerMm)
         val qrFootprint = qrSize + quietZone * 2f
         val qrZoneLeft = labelRect.left + outerPadding
-        val qrZoneTop = labelRect.top + outerPadding
+        val qrZoneTop = labelRect.top + ((labelRect.height() - qrFootprint) / 2f)
         val qrLeft = qrZoneLeft + quietZone
         val qrTop = qrZoneTop + quietZone
         val qrBitmap = createQrBitmap(requireNotNull(page.qrPayload).rawValue, qrSize.roundToInt())
         canvas.drawBitmap(qrBitmap, qrLeft, qrTop, null)
 
         val infoLeft = qrZoneLeft + qrFootprint + columnGap
-        val infoTop = labelRect.top + outerPadding
-        val infoWidth = (labelRect.right - outerPadding - infoLeft).roundToInt().coerceAtLeast(1)
-
-        val titlePaint = buildTextPaint(
-            color = "#111827",
-            fontSizeMm = 1.52f,
-            unitsPerMm = unitsPerMm,
-            bold = true,
+        val infoRect = RectF(
+            infoLeft,
+            labelRect.top + outerPadding,
+            labelRect.right - outerPadding,
+            labelRect.bottom - outerPadding,
         )
-        val subtitlePaint = buildTextPaint(
-            color = "#475569",
-            fontSizeMm = 1.14f,
-            unitsPerMm = unitsPerMm,
-        )
-        val fieldPaint = buildTextPaint(
-            color = "#334155",
-            fontSizeMm = 1.2f,
-            unitsPerMm = unitsPerMm,
-        )
-        val quantityPaint = buildTextPaint(
-            color = "#0F766E",
-            fontSizeMm = 1.34f,
-            unitsPerMm = unitsPerMm,
-            bold = true,
-        )
-        val footerPaint = buildTextPaint(
-            color = "#64748B",
-            fontSizeMm = 0.92f,
-            unitsPerMm = unitsPerMm,
-        )
-
-        var cursorTop = infoTop
-        cursorTop += drawTextBlock(
-            canvas = canvas,
-            text = seed.name.ifBlank { seed.sku },
-            paint = titlePaint,
-            x = infoLeft,
-            y = cursorTop,
+        val infoWidth = infoRect.width().roundToInt().coerceAtLeast(1)
+        val plan = resolveLandscapeStackLayoutPlan(
+            seed = seed,
             width = infoWidth,
-            maxLines = 4,
+            maxHeight = infoRect.height(),
+            unitsPerMm = unitsPerMm,
         )
-        buildRightColumnSecondarySummary(seed)?.let { summary ->
-            cursorTop += mm(0.45f, unitsPerMm)
-            cursorTop += drawTextBlock(
+
+        val mainTop = infoRect.top + max(
+            0f,
+            ((infoRect.height() - plan.secondaryHeight - plan.sectionGap) - plan.mainHeight) / 2f,
+        )
+        if (plan.packageLayout != null) {
+            drawTextLayout(
                 canvas = canvas,
-                text = summary,
-                paint = subtitlePaint,
-                x = infoLeft,
-                y = cursorTop,
-                width = infoWidth,
-                maxLines = 4,
+                layout = plan.packageLayout,
+                x = infoRect.left,
+                y = mainTop,
             )
         }
-
-        cursorTop += mm(0.6f, unitsPerMm)
-        cursorTop += drawSingleLine(
+        val nameTop = mainTop + (plan.packageLayout?.height?.toFloat() ?: 0f) + plan.mainGap
+        drawTextLayout(
             canvas = canvas,
-            text = "SKU ${seed.sku}",
-            paint = fieldPaint,
-            x = infoLeft,
-            y = cursorTop,
-            width = infoWidth,
-        )
-        cursorTop += mm(0.26f, unitsPerMm)
-        cursorTop += drawSingleLine(
-            canvas = canvas,
-            text = "QTY ${seed.quantity}",
-            paint = quantityPaint,
-            x = infoLeft,
-            y = cursorTop,
-            width = infoWidth,
+            layout = plan.nameLayout,
+            x = infoRect.left,
+            y = nameTop,
         )
 
-        seed.location.takeIf(String::isNotBlank)?.let { location ->
-            val locationTop = cursorTop + mm(0.3f, unitsPerMm)
-            val footerReserve = footerPaint.fontSpacing + mm(0.45f, unitsPerMm)
-            val maxLocationBottom = labelRect.bottom - outerPadding - footerReserve
-            if (locationTop + fieldPaint.fontSpacing <= maxLocationBottom) {
-                cursorTop = locationTop
-                cursorTop += drawSingleLine(
-                    canvas = canvas,
-                    text = "LOC $location",
-                    paint = fieldPaint,
-                    x = infoLeft,
-                    y = cursorTop,
-                    width = infoWidth,
-                )
+        var secondaryTop = infoRect.bottom - plan.secondaryHeight
+        plan.secondaryLines.forEachIndexed { index, line ->
+            secondaryTop += drawSingleLine(
+                canvas = canvas,
+                text = line.text.toString(),
+                paint = line.paint,
+                x = infoRect.left,
+                y = secondaryTop,
+                width = infoWidth,
+            )
+            if (index != plan.secondaryLines.lastIndex) {
+                secondaryTop += plan.lineGap
             }
-        }
-
-        val footerTop = labelRect.bottom - outerPadding - footerPaint.fontSpacing
-        if (footerTop >= cursorTop + mm(0.35f, unitsPerMm)) {
-            drawSingleLine(
-                canvas = canvas,
-                text = footerText,
-                paint = footerPaint,
-                x = infoLeft,
-                y = footerTop,
-                width = infoWidth,
-            )
         }
     }
 
@@ -622,18 +635,36 @@ internal object ComponentLabelRenderer {
         width: Int,
         maxLines: Int,
     ): Float {
+        val layout = buildTextLayout(text, paint, width, maxLines)
+        return drawTextLayout(canvas, layout, x, y)
+    }
+
+    private fun drawTextLayout(
+        canvas: Canvas,
+        layout: StaticLayout,
+        x: Float,
+        y: Float,
+    ): Float {
         canvas.save()
         canvas.translate(x, y)
-        val layout = StaticLayout.Builder
-            .obtain(text, 0, text.length, paint, width)
+        layout.draw(canvas)
+        canvas.restore()
+        return layout.height.toFloat()
+    }
+
+    private fun buildTextLayout(
+        text: String,
+        paint: TextPaint,
+        width: Int,
+        maxLines: Int,
+    ): StaticLayout {
+        return StaticLayout.Builder
+            .obtain(text, 0, text.length, paint, width.coerceAtLeast(1))
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
             .setMaxLines(maxLines)
             .setEllipsize(TextUtils.TruncateAt.END)
             .setIncludePad(false)
             .build()
-        layout.draw(canvas)
-        canvas.restore()
-        return layout.height.toFloat()
     }
 
     private fun drawSingleLine(
@@ -654,15 +685,6 @@ internal object ComponentLabelRenderer {
         return paint.fontSpacing
     }
 
-    private fun buildRightColumnSecondarySummary(seed: ComponentLabelSeed): String? {
-        val preferred = listOfNotNull(
-            seed.model?.trim().takeUnless { it.isNullOrBlank() },
-            seed.packageName.trim().takeUnless { it.isBlank() },
-            seed.brand?.trim().takeUnless { it.isNullOrBlank() },
-        )
-        return preferred.takeIf { it.isNotEmpty() }?.joinToString(" | ")
-    }
-
     private fun buildTextPaint(
         color: String,
         fontSizeMm: Float,
@@ -678,6 +700,153 @@ internal object ComponentLabelRenderer {
                 Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             }
         }
+    }
+
+    private fun resolveLandscapeStackLayoutPlan(
+        seed: ComponentLabelSeed,
+        width: Int,
+        maxHeight: Float,
+        unitsPerMm: Float,
+    ): LandscapeStackLayoutPlan {
+        val packageText = seed.packageName.trim().takeIf { it.isNotBlank() }
+        val nameText = seed.name.ifBlank { seed.sku }
+        val secondaryCandidates = buildLandscapeStackSecondaryCandidates(seed)
+        var fallbackPlan: LandscapeStackLayoutPlan? = null
+
+        LandscapeStackTypographyTiers.forEach { typography ->
+            val packagePaint = buildTextPaint(
+                color = "#0F172A",
+                fontSizeMm = typography.packageFontSizeMm,
+                unitsPerMm = unitsPerMm,
+                bold = true,
+            )
+            val namePaint = buildTextPaint(
+                color = "#111827",
+                fontSizeMm = typography.nameFontSizeMm,
+                unitsPerMm = unitsPerMm,
+                bold = true,
+            )
+            val quantityPaint = buildTextPaint(
+                color = "#0F766E",
+                fontSizeMm = typography.quantityFontSizeMm,
+                unitsPerMm = unitsPerMm,
+                bold = true,
+            )
+            val metaPaint = buildTextPaint(
+                color = "#334155",
+                fontSizeMm = typography.metaFontSizeMm,
+                unitsPerMm = unitsPerMm,
+            )
+
+            secondaryCandidates.forEach { secondaryLines ->
+                val plan = createLandscapeStackLayoutPlan(
+                    packageText = packageText,
+                    nameText = nameText,
+                    secondaryLines = secondaryLines,
+                    width = width,
+                    unitsPerMm = unitsPerMm,
+                    typography = typography,
+                    packagePaint = packagePaint,
+                    namePaint = namePaint,
+                    quantityPaint = quantityPaint,
+                    metaPaint = metaPaint,
+                )
+                fallbackPlan = plan
+                if (plan.mainHeight + plan.sectionGap + plan.secondaryHeight <= maxHeight) {
+                    return plan
+                }
+            }
+        }
+
+        return requireNotNull(fallbackPlan)
+    }
+
+    private fun createLandscapeStackLayoutPlan(
+        packageText: String?,
+        nameText: String,
+        secondaryLines: List<SecondaryLineSpec>,
+        width: Int,
+        unitsPerMm: Float,
+        typography: LandscapeStackTypography,
+        packagePaint: TextPaint,
+        namePaint: TextPaint,
+        quantityPaint: TextPaint,
+        metaPaint: TextPaint,
+    ): LandscapeStackLayoutPlan {
+        val packageLayout = packageText?.let {
+            buildTextLayout(
+                text = it,
+                paint = packagePaint,
+                width = width,
+                maxLines = 1,
+            )
+        }
+        val nameLayout = buildTextLayout(
+            text = nameText,
+            paint = namePaint,
+            width = width,
+            maxLines = 2,
+        )
+        val measuredSecondaryLines = secondaryLines.map { spec ->
+            val paint = when (spec.role) {
+                SecondaryLineRole.Meta -> metaPaint
+                SecondaryLineRole.Quantity -> quantityPaint
+            }
+            MeasuredSecondaryLine(
+                text = TextUtils.ellipsize(
+                    spec.text,
+                    paint,
+                    width.toFloat(),
+                    TextUtils.TruncateAt.END,
+                ),
+                paint = paint,
+                height = paint.fontSpacing,
+            )
+        }
+        val mainGap = if (packageLayout != null) {
+            mm(typography.mainGapMm, unitsPerMm)
+        } else {
+            0f
+        }
+        val lineGap = mm(typography.lineGapMm, unitsPerMm)
+        val sectionGap = if (measuredSecondaryLines.isNotEmpty()) {
+            mm(typography.sectionGapMm, unitsPerMm)
+        } else {
+            0f
+        }
+        val mainHeight = (packageLayout?.height?.toFloat() ?: 0f) + mainGap + nameLayout.height.toFloat()
+        val secondaryHeight = measuredSecondaryLines.foldIndexed(0f) { index, total, line ->
+            total + line.height + if (index > 0) lineGap else 0f
+        }
+        return LandscapeStackLayoutPlan(
+            packageLayout = packageLayout,
+            nameLayout = nameLayout,
+            secondaryLines = measuredSecondaryLines,
+            mainGap = mainGap,
+            sectionGap = sectionGap,
+            lineGap = lineGap,
+            mainHeight = mainHeight,
+            secondaryHeight = secondaryHeight,
+        )
+    }
+
+    private fun buildLandscapeStackSecondaryCandidates(
+        seed: ComponentLabelSeed,
+    ): List<List<SecondaryLineSpec>> {
+        val all = buildList {
+            add(SecondaryLineSpec(text = "QTY ${seed.quantity}", role = SecondaryLineRole.Quantity, required = true))
+            add(SecondaryLineSpec(text = "SKU ${seed.sku}", role = SecondaryLineRole.Meta, required = true))
+            seed.model?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { add(SecondaryLineSpec(text = "MODEL $it", role = SecondaryLineRole.Meta, required = false)) }
+            seed.location.trim()
+                .takeIf { it.isNotBlank() }
+                ?.let { add(SecondaryLineSpec(text = "LOC $it", role = SecondaryLineRole.Meta, required = false)) }
+        }
+        val noLocation = all.filterNot { !it.required && it.text.startsWith("LOC ") }
+        val requiredOnly = all.filter(SecondaryLineSpec::required)
+        return listOf(all, noLocation, requiredOnly)
+            .distinctBy { candidate -> candidate.joinToString(separator = "|") { it.text } }
     }
 
     private fun resolveTextOnlyFontSizeMm(content: String): Float {
@@ -701,7 +870,7 @@ internal object ComponentLabelRenderer {
 
     private fun resolveTextOnlyFontSizeMmWithPaint(content: String): Float {
         val maxContentHeightUnits = mm(
-            ComponentLabelTemplate.TextOnly.heightMm - (TextOnlyVerticalPaddingMm * 2f),
+            ComponentLabelTemplate.TextOnly.physicalHeightMm - (TextOnlyVerticalPaddingMm * 2f),
             PreviewUnitsPerMm,
         )
         var candidate = TextOnlyMaxFontSizeMm
@@ -725,7 +894,8 @@ internal object ComponentLabelRenderer {
     }
 
     private fun resolveTextOnlyFontSizeMmFallback(content: String): Float {
-        val maxContentHeightMm = ComponentLabelTemplate.TextOnly.heightMm - (TextOnlyVerticalPaddingMm * 2f)
+        val maxContentHeightMm =
+            ComponentLabelTemplate.TextOnly.physicalHeightMm - (TextOnlyVerticalPaddingMm * 2f)
         var candidate = TextOnlyMaxFontSizeMm
         while (candidate >= TextOnlyMinFontSizeMm) {
             val estimatedFontSpacingMm = candidate * 1.12f

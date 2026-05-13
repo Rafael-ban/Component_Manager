@@ -5,15 +5,16 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
-## [0.3.6] - 2026-05-12
+## [0.3.6] - 2026-05-13
 
-<!-- Add unreleased notes below this line. -->
 - Reworked Android inventory labels into collision-safe physical templates
   with user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip modes,
   compact offline warehouse QR payloads for the narrow label, optional
   companion text-label export, direct label-sized export, size-specific QR
-  placement rules, larger label typography, and refreshed Compose preview
-  states for long-text and Chinese label cases.
+  placement rules, larger label typography, fixed physical preview ratios,
+  a horizontal `30x40mm` layout with QR-left and centered package/name
+  stacking, and refreshed Compose preview states for long-text and Chinese
+  label cases.
 - Fixed Android import semantics so unresolved supplier parts no longer save
   raw `model` or `sku` values into the canonical component `name`; the import
   form now shows them as reference labels and allows manual adoption or full

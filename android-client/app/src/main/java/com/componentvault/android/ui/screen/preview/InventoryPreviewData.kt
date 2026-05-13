@@ -193,6 +193,21 @@ internal object InventoryPreviewData {
             rawPayload = "{on:SO25020715054,pc:C30926,pm:0603B104K500NT,qty:300}",
         )
 
+    val wideLabelSeed: ComponentLabelSeed
+        get() = ComponentLabelSeed(
+            sku = "C7430468",
+            name = "1x2P \u95f4\u8ddd:1.25mm \u5367\u8d34 \u7cfb\u5217:PicoBlade(MX 1.25)",
+            category = "Connector / Wire-to-board",
+            packageName = "SMD,P=1.25mm,\u5367\u8d34",
+            location = "Drawer-CN-12-A",
+            quantity = 300,
+            minStock = 60,
+            model = "ZX-MX1.25-2PWT",
+            brand = "Megastar(\u5146\u661f)",
+            sourceLabel = "JLC package QR",
+            rawPayload = "{on:SO25020715054,pc:C30926,pm:0603B104K500NT,qty:300}",
+        )
+
     val selectedComponentId: String
         get() = SelectedComponentId
 

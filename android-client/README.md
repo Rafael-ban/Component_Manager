@@ -18,12 +18,15 @@ and Material 3.
 - Quantity-first import confirmation implemented with optional full editor
   handoff for JLC text, JLC-compatible QR payloads, warehouse labels, and
   supplier packaging text
-- Compact label preview plus PNG/PDF export implemented for inventory labels
+- Compact label preview plus PNG/PDF export implemented for inventory labels,
+  including `10x40mm QR`, horizontal `30x40mm QR`, and pure text strip
+  templates
 - Expanded local-only settings implemented for sync behavior, import defaults,
   and About
-- Optional LCSC official metadata enrichment implemented for JLC text and QR
-  imports through the server-side `/admin-api/lcsc/lookup` proxy, with local
-  cache reuse and an in-app toggle
+- Optional hybrid server-side part enrichment implemented for JLC text and QR
+  imports through `/admin-api/part-lookup`, with local cache reuse and an
+  in-app toggle, while `/admin-api/lcsc/lookup` remains a server compatibility
+  endpoint
 - Push/pull sync wiring implemented against the FastAPI service
 - Chinese-first Material 3 UI implemented for the primary screens, with a
   matching Simplified Chinese (`zh-CN`) resource set
@@ -180,13 +183,14 @@ the `ViewModel` entrypoint:
   App-internal CameraX + bundled ML Kit Chinese text recognition surface for
   supplier packaging OCR
 - `ui/screen/ComponentLabelPreviewScreen.kt`
-  Compact inventory label preview and PNG/PDF export flow
+  Compact inventory label preview and PNG/PDF export flow with physical-size
+  templates and preview-safe aspect ratios
 - `ui/screen/InventoryForms.kt`
   Adaptive full-screen and dialog-based editing forms
 - `ui/screen/InventoryUiParts.kt`
   Shared dense list rows, badges, and section containers
 - `data/InventoryRepository.kt`
-  Local SQLite, sync wiring, and cached `/admin-api/lcsc/lookup` integration
+  Local SQLite, sync wiring, and cached `/admin-api/part-lookup` integration
 - `ui/screen/preview/`
   Preview annotations, preview host, static preview string bundles, sample
   states, and dedicated preview files

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -238,7 +240,10 @@ internal fun ComponentLabelPreviewSurface(
                     Image(
                         bitmap = bitmap.asImageBitmap(),
                         contentDescription = strings.importer.labelPreviewTitle,
-                        modifier = Modifier.fillMaxWidth(),
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(selectedTemplate.previewAspectRatio(bitmap.width, bitmap.height)),
                     )
                 }
             }
@@ -359,4 +364,16 @@ private fun suggestedFileName(
     }
     val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
     return "$safeSku-$suffix-$timestamp.$extension"
+}
+
+private fun ComponentLabelTemplate.previewAspectRatio(
+    bitmapWidth: Int,
+    bitmapHeight: Int,
+): Float {
+    val physicalWidth = physicalWidthMm
+    return if (physicalWidth != null && physicalHeightMm > 0f) {
+        physicalWidth / physicalHeightMm
+    } else {
+        bitmapWidth.toFloat() / bitmapHeight.coerceAtLeast(1).toFloat()
+    }
 }

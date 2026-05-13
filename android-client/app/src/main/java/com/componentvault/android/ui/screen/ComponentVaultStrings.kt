@@ -374,8 +374,8 @@ internal data class ImportStrings(
         formatPattern(
             labelFormatQrSummaryPattern,
             labelTemplateLabel(template),
-            requireNotNull(template.nominalWidthMm),
-            template.nominalHeightMm,
+            requireNotNull(template.displayWidthMm),
+            template.displayHeightMm,
             requireNotNull(template.qrSizeMm),
         )
     } else {

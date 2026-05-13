@@ -47,6 +47,24 @@ private fun ComponentLabelPreviewCompactWithCompanion() {
 
 @InventoryZhCnPreview
 @Composable
+private fun ComponentLabelPreview30x40LandscapeZhCn() {
+    PreviewHost(strings = PreviewComponentVaultStrings.ZhCn) {
+        ComponentLabelPreviewSurface(
+            seed = InventoryPreviewData.wideLabelSeed,
+            layoutMode = InventoryLayoutMode(
+                widthClass = InventoryWidthClass.Compact,
+                usesNavigationRail = false,
+                showsListDetail = false,
+                prefersDialogForms = false,
+            ),
+            onDismiss = {},
+            selectedTemplate = ComponentLabelTemplate.Qr30x40,
+        )
+    }
+}
+
+@InventoryZhCnPreview
+@Composable
 private fun ComponentLabelPreviewZhCnLongText() {
     PreviewHost(strings = PreviewComponentVaultStrings.ZhCn) {
         ComponentLabelPreviewSurface(

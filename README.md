@@ -84,8 +84,10 @@ connects to it over HTTP.
   tablet list-detail layouts, quantity-first import confirmation, generated
   JLC-compatible or warehouse QR labels, user-selectable `10x40mm QR`,
   `30x40mm QR`, and pure text strip templates, direct label-sized PNG/PDF
-  export, larger on-label typography, collision-safe text layout, local import
-  learning backed by a device-only SQLite mapping table, optional
+  export, larger on-label typography, collision-safe text layout with a
+  horizontal `30x40mm` QR-left details layout, physical-aspect preview
+  rendering, local import learning backed by a device-only SQLite mapping
+  table, optional
   server-assisted metadata lookup for filling missing JLC fields,
   capture-first supplier packaging OCR with structured line extraction,
   user-selectable OCR engine preference (`Auto`,
@@ -198,7 +200,8 @@ preferences and supports:
   payloads for JLC-sourced items and warehouse QR payloads for other items
 - user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
   templates, with linked QR dimensions, larger text treatment, direct
-  label-sized export, and fixed per-size layouts
+  label-sized export, physical-aspect preview rendering, and fixed per-size
+  layouts including a horizontal `30x40mm` QR-left detail stack
 - local-first JLC import enrichment through parser heuristics plus a device-only
   learned mapping table keyed by JLC SKU and fallback MPN reuse
 - bundled offline recognition rules for package normalization, model-family
