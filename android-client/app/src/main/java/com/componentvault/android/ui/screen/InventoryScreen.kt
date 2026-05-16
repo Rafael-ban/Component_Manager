@@ -1,11 +1,10 @@
 package com.componentvault.android.ui.screen
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -15,25 +14,38 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.layout.AnimatedPane
+import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
+import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneScaffold
+import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,6 +61,7 @@ import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.ui.theme.VaultWarning
 import com.componentvault.android.ui.theme.VaultWarningContainer
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun InventoryScreen(
@@ -89,6 +102,7 @@ internal fun InventoryScreen(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 internal fun InventoryContent(
     contentPadding: PaddingValues,
@@ -108,90 +122,76 @@ internal fun InventoryContent(
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
 ) {
-    val strings = vaultStrings()
-
     if (layoutMode.showsListDetail) {
-        Row(
+        val navigator = rememberListDetailPaneScaffoldNavigator<String>()
+        val scope = rememberCoroutineScope()
+
+        LaunchedEffect(uiState.list.selectedComponentId) {
+            val selectedComponentId = uiState.list.selectedComponentId ?: return@LaunchedEffect
+            navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, selectedComponentId)
+        }
+
+        NavigableListDetailPaneScaffold(
             modifier = Modifier
                 .fillMaxSize()
                 .consumeWindowInsets(contentPadding)
                 .padding(rememberContentPadding(contentPadding, horizontal = 20.dp, vertical = 20.dp)),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            InventoryListPane(
-                uiState = uiState,
-                statusMessage = statusMessage,
-                modifier = Modifier
-                    .weight(1.08f)
-                    .fillMaxHeight(),
-                onQueryChange = onQueryChange,
-                onStockFilterChange = onStockFilterChange,
-                onCategoryChange = onCategoryChange,
-                onLocationChange = onLocationChange,
-                onSortChange = onSortChange,
-                onImportComponent = onImportComponent,
-                onSelectComponent = onSelectComponent,
-                onOpenComponentDetail = onSelectComponent,
-            )
-            InventoryDetailPane(
-                detail = uiState.detail,
-                modifier = Modifier
-                    .weight(0.92f)
-                    .fillMaxHeight(),
-                onEditComponent = onEditComponent,
-                onGenerateLabel = { component -> onGenerateLabel(component.id) },
-                onRequestDeleteComponent = onRequestDeleteComponent,
-                onRecordMovement = onRecordMovement,
-            )
-        }
+            navigator = navigator,
+            listPane = {
+                AnimatedPane {
+                    InventoryListPane(
+                        uiState = uiState,
+                        statusMessage = statusMessage,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(),
+                        onQueryChange = onQueryChange,
+                        onStockFilterChange = onStockFilterChange,
+                        onCategoryChange = onCategoryChange,
+                        onLocationChange = onLocationChange,
+                        onSortChange = onSortChange,
+                        onSelectComponent = { componentId ->
+                            onSelectComponent(componentId)
+                            scope.launch {
+                                navigator.navigateTo(
+                                    ListDetailPaneScaffoldRole.Detail,
+                                    componentId,
+                                )
+                            }
+                        },
+                    )
+                }
+            },
+            detailPane = {
+                AnimatedPane {
+                    InventoryDetailPane(
+                        detail = uiState.detail,
+                        modifier = Modifier.fillMaxSize(),
+                        onEditComponent = onEditComponent,
+                        onGenerateLabel = { component -> onGenerateLabel(component.id) },
+                        onRequestDeleteComponent = onRequestDeleteComponent,
+                        onRecordMovement = onRecordMovement,
+                    )
+                }
+            },
+        )
     } else {
-        LazyColumn(
+        InventoryListPane(
             modifier = Modifier
                 .fillMaxSize()
                 .consumeWindowInsets(contentPadding),
             contentPadding = rememberContentPadding(contentPadding, horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item {
-                InventoryFilterBar(
-                    uiState = uiState,
-                    statusMessage = statusMessage,
-                    onQueryChange = onQueryChange,
-                    onStockFilterChange = onStockFilterChange,
-                    onCategoryChange = onCategoryChange,
-                    onLocationChange = onLocationChange,
-                    onSortChange = onSortChange,
-                    onImportComponent = onImportComponent,
-                )
-            }
-            item {
-                Text(
-                    text = strings.inventory.resultsSummary(
-                        uiState.list.items.size,
-                        uiState.availableCategories.size,
-                        uiState.availableLocations.size,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (uiState.list.items.isEmpty()) {
-                item {
-                    EmptyPane(strings.common.emptyNoComponentsMatchFilter)
-                }
-            } else {
-                items(uiState.list.items, key = { it.id }) { item ->
-                    InventoryListRow(
-                        item = item,
-                        selected = item.id == uiState.list.selectedComponentId,
-                        onClick = {
-                            onSelectComponent(item.id)
-                            onOpenComponentDetail(item.id)
-                        },
-                    )
-                }
-            }
-        }
+            uiState = uiState,
+            statusMessage = statusMessage,
+            onQueryChange = onQueryChange,
+            onStockFilterChange = onStockFilterChange,
+            onCategoryChange = onCategoryChange,
+            onLocationChange = onLocationChange,
+            onSortChange = onSortChange,
+            onSelectComponent = { componentId ->
+                onSelectComponent(componentId)
+                onOpenComponentDetail(componentId)
+            },
+        )
     }
 }
 
@@ -255,73 +255,65 @@ internal fun InventoryDetailRoute(
 
 @Composable
 private fun InventoryListPane(
+    modifier: Modifier,
+    contentPadding: PaddingValues,
     uiState: InventoryScreenUiState,
     statusMessage: String,
-    modifier: Modifier = Modifier,
     onQueryChange: (String) -> Unit,
     onStockFilterChange: (InventoryStockFilter) -> Unit,
     onCategoryChange: (String?) -> Unit,
     onLocationChange: (String?) -> Unit,
     onSortChange: (InventorySortOption) -> Unit,
-    onImportComponent: () -> Unit,
     onSelectComponent: (String) -> Unit,
-    onOpenComponentDetail: (String) -> Unit,
 ) {
     val strings = vaultStrings()
 
-    Column(
+    LazyColumn(
         modifier = modifier,
+        contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        InventoryFilterBar(
-            uiState = uiState,
-            statusMessage = statusMessage,
-            onQueryChange = onQueryChange,
-            onStockFilterChange = onStockFilterChange,
-            onCategoryChange = onCategoryChange,
-            onLocationChange = onLocationChange,
-            onSortChange = onSortChange,
-            onImportComponent = onImportComponent,
-        )
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(bottom = 12.dp),
-        ) {
+        item {
+            InventoryFilterHeader(
+                uiState = uiState,
+                statusMessage = statusMessage,
+                onQueryChange = onQueryChange,
+                onStockFilterChange = onStockFilterChange,
+                onCategoryChange = onCategoryChange,
+                onLocationChange = onLocationChange,
+                onSortChange = onSortChange,
+            )
+        }
+        item {
+            Text(
+                text = strings.inventory.resultsSummary(
+                    uiState.list.items.size,
+                    uiState.availableCategories.size,
+                    uiState.availableLocations.size,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (uiState.list.items.isEmpty()) {
             item {
-                Text(
-                    text = strings.inventory.resultsSummary(
-                        uiState.list.items.size,
-                        uiState.availableCategories.size,
-                        uiState.availableLocations.size,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                EmptyPane(strings.common.emptyNoComponentsMatchFilter)
             }
-            if (uiState.list.items.isEmpty()) {
-                item {
-                    EmptyPane(strings.common.emptyNoComponentsMatchFilter)
-                }
-            } else {
-                items(uiState.list.items, key = { it.id }) { item ->
-                    InventoryListRow(
-                        item = item,
-                        selected = item.id == uiState.list.selectedComponentId,
-                        onClick = {
-                            onSelectComponent(item.id)
-                            onOpenComponentDetail(item.id)
-                        },
-                    )
-                }
+        } else {
+            items(uiState.list.items, key = { it.id }) { item ->
+                InventoryListRow(
+                    item = item,
+                    selected = item.id == uiState.list.selectedComponentId,
+                    onClick = { onSelectComponent(item.id) },
+                )
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InventoryFilterBar(
+private fun InventoryFilterHeader(
     uiState: InventoryScreenUiState,
     statusMessage: String,
     onQueryChange: (String) -> Unit,
@@ -329,27 +321,64 @@ private fun InventoryFilterBar(
     onCategoryChange: (String?) -> Unit,
     onLocationChange: (String?) -> Unit,
     onSortChange: (InventorySortOption) -> Unit,
-    onImportComponent: () -> Unit,
 ) {
     val strings = vaultStrings()
     var categoryMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var locationMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
 
-    SectionPane(
-        title = strings.inventory.filtersTitle,
-        supporting = strings.inventory.filtersSubtitle,
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         StatusBanner(message = statusMessage)
-        OutlinedTextField(
-            value = uiState.filters.query,
-            onValueChange = onQueryChange,
+        SearchBar(
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(strings.inventory.searchLabel) },
-            placeholder = { Text(strings.inventory.searchPlaceholder) },
-            singleLine = true,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            inputField = {
+                SearchBarDefaults.InputField(
+                    query = uiState.filters.query,
+                    onQueryChange = onQueryChange,
+                    onSearch = { searchExpanded = false },
+                    expanded = searchExpanded,
+                    onExpandedChange = { searchExpanded = it },
+                    placeholder = { Text(strings.inventory.searchPlaceholder) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = null,
+                        )
+                    },
+                    trailingIcon = {
+                        if (uiState.filters.query.isNotBlank()) {
+                            IconButton(
+                                onClick = {
+                                    onQueryChange("")
+                                    searchExpanded = false
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Clear,
+                                    contentDescription = null,
+                                )
+                            }
+                        }
+                    },
+                )
+            },
+            expanded = searchExpanded,
+            onExpandedChange = { searchExpanded = it },
+        ) {
+            Text(
+                text = strings.inventory.filtersSubtitle,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             FilterChip(
                 selected = uiState.filters.stockFilter == InventoryStockFilter.All,
                 onClick = { onStockFilterChange(InventoryStockFilter.All) },
@@ -360,11 +389,6 @@ private fun InventoryFilterBar(
                 onClick = { onStockFilterChange(InventoryStockFilter.LowStock) },
                 label = { Text(strings.inventory.filterLowStock) },
             )
-        }
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
             FilterMenuButton(
                 label = strings.inventory.filterCategoryLabel,
                 value = uiState.filters.category ?: strings.inventory.filterCategoryAll,
@@ -445,18 +469,12 @@ private fun FilterMenuButton(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Column(horizontalAlignment = Alignment.Start) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                    Text(
-                        text = value,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                Text(
+                    text = "$label: $value",
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 androidx.compose.material3.Icon(
                     imageVector = Icons.Outlined.ArrowDropDown,
                     contentDescription = null,

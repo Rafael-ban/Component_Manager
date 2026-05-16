@@ -1,31 +1,23 @@
 package com.componentvault.android.ui.screen
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.model.InventoryUiState
@@ -141,22 +133,41 @@ internal fun ComponentVaultAppShellContent(
     val title = strings.shell.destinationLabel(destination)
 
     val topBar: @Composable () -> Unit = {
-        TopAppBar(
-            title = { Text(title) },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background,
-            ),
-            actions = {
-                if (uiState.isBusy) {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .padding(end = 16.dp)
-                            .size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
-                }
-            },
-        )
+        when (destination) {
+            InventoryDestination.Inventory -> MediumTopAppBar(
+                title = { Text(title) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
+                actions = {
+                    if (uiState.isBusy) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(end = 16.dp)
+                                .size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                },
+            )
+
+            else -> TopAppBar(
+                title = { Text(title) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
+                actions = {
+                    if (uiState.isBusy) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(end = 16.dp)
+                                .size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                },
+            )
+        }
     }
 
     val floatingActionButton: @Composable () -> Unit = {
@@ -183,102 +194,24 @@ internal fun ComponentVaultAppShellContent(
         }
     }
 
-    if (layoutMode.usesNavigationRail) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-        ) {
-            NavigationRail(
-                modifier = Modifier.padding(top = 12.dp),
-                header = {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(20.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            RailDot(color = MaterialTheme.colorScheme.primary)
-                            Text(
-                                text = strings.shell.appTitle,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                    }
-                },
-            ) {
-                InventoryDestination.entries.forEach { item ->
-                    val label = strings.shell.destinationLabel(item)
-                    NavigationRailItem(
-                        selected = destination == item,
-                        onClick = { onDestinationChange(item) },
-                        icon = { Icon(item.icon, contentDescription = label) },
-                        label = { Text(label) },
-                    )
-                }
-            }
-
-            Scaffold(
-                topBar = topBar,
-                floatingActionButton = floatingActionButton,
-                containerColor = MaterialTheme.colorScheme.background,
-            ) { padding ->
-                ShellContent(
-                    contentPadding = padding,
-                    uiState = uiState,
-                    destination = destination,
-                    layoutMode = layoutMode,
-                    selectedMovementId = selectedMovementId,
-                    onQueryChange = onQueryChange,
-                    onStockFilterChange = onStockFilterChange,
-                    onCategoryChange = onCategoryChange,
-                    onLocationChange = onLocationChange,
-                    onSortChange = onSortChange,
-                    onSelectComponent = onSelectComponent,
-                    onOpenComponentDetail = onOpenComponentDetail,
-                    onImportComponent = onImportComponent,
-                    onGenerateLabel = onGenerateLabel,
-                    onEditComponent = onEditComponent,
-                    onRequestDeleteComponent = onRequestDeleteComponent,
-                    onScanMovementLabel = onScanMovementLabel,
-                    onRetryMovementScan = onRetryMovementScan,
-                    onDismissMovementScanResult = onDismissMovementScanResult,
-                    onRecordResolvedMovement = onRecordResolvedMovement,
-                    onSearchInventoryBySku = onSearchInventoryBySku,
-                    onRecordMovement = onRecordMovement,
-                    onSaveSyncSettings = onSaveSyncSettings,
-                    onSaveAppPreferences = onSaveAppPreferences,
-                    onTestConnection = onTestConnection,
-                    onSyncNow = onSyncNow,
-                    onClearImportLearningMappings = onClearImportLearningMappings,
-                    onOpenLowStockInventory = onOpenLowStockInventory,
-                    onSelectOverviewComponent = onSelectOverviewComponent,
-                    onOpenMovements = onOpenMovements,
-                    onSelectMovement = onSelectMovement,
-                    onOpenSettings = { onDestinationChange(InventoryDestination.Settings) },
+    NavigationSuiteScaffold(
+        navigationSuiteItems = {
+            InventoryDestination.entries.forEach { item ->
+                val label = strings.shell.destinationLabel(item)
+                item(
+                    selected = destination == item,
+                    onClick = { onDestinationChange(item) },
+                    icon = { Icon(item.icon, contentDescription = label) },
+                    label = { Text(label) },
                 )
             }
-        }
-    } else {
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
+    ) {
         Scaffold(
             topBar = topBar,
             floatingActionButton = floatingActionButton,
-            bottomBar = {
-                NavigationBar {
-                    InventoryDestination.entries.forEach { item ->
-                        val label = strings.shell.destinationLabel(item)
-                        NavigationBarItem(
-                            selected = destination == item,
-                            onClick = { onDestinationChange(item) },
-                            icon = { Icon(item.icon, contentDescription = label) },
-                            label = { Text(label) },
-                        )
-                    }
-                }
-            },
             containerColor = MaterialTheme.colorScheme.background,
         ) { padding ->
             ShellContent(

@@ -3,12 +3,13 @@ package com.componentvault.android.ui.screen
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.window.core.layout.WindowSizeClass
 
 internal enum class InventoryWidthClass {
     Compact,
@@ -25,12 +26,17 @@ internal data class InventoryLayoutMode(
 
 @Composable
 internal fun rememberInventoryLayoutMode(): InventoryLayoutMode {
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val adaptiveInfo = currentWindowAdaptiveInfo(supportLargeAndXLargeWidth = true)
+    val windowSizeClass = adaptiveInfo.windowSizeClass
 
-    return remember(screenWidthDp) {
+    return remember(windowSizeClass) {
         val widthClass = when {
-            screenWidthDp >= 840 -> InventoryWidthClass.Expanded
-            screenWidthDp >= 600 -> InventoryWidthClass.Medium
+            windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) -> {
+                InventoryWidthClass.Expanded
+            }
+            windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND) -> {
+                InventoryWidthClass.Medium
+            }
             else -> InventoryWidthClass.Compact
         }
 

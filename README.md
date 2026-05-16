@@ -80,14 +80,17 @@ connects to it over HTTP.
   preview/export, expanded settings, server sync wiring, and Chinese-first
   Compose interface resources are implemented; the Android UI now follows an
   inventory-first adaptive Compose shell with `Inventory`, `Movements`,
-  `Overview`, and `Settings` destinations, compact phone detail drill-down,
-  tablet list-detail layouts, quantity-first import confirmation, generated
-  JLC-compatible or warehouse QR labels, user-selectable `10x40mm QR`,
-  `30x40mm QR`, and pure text strip templates, direct label-sized PNG/PDF
-  export, larger on-label typography, collision-safe text layout with a
-  horizontal `30x40mm` QR-left details layout, physical-aspect preview
-  rendering, local import learning backed by a device-only SQLite mapping
-  table, optional
+  `Overview`, and `Settings` destinations, official Material 3 adaptive
+  shell and pane primitives (`NavigationSuiteScaffold`,
+  `currentWindowAdaptiveInfo`, `NavigableListDetailPaneScaffold`), a
+  search-first Inventory header, denser inventory rows, compact phone detail
+  drill-down, tablet list-detail layouts, quantity-first import confirmation,
+  generated JLC-compatible or warehouse QR labels, user-selectable
+  `10x40mm QR`, `30x40mm QR`, and pure text strip templates, direct
+  label-sized PNG/PDF export, larger on-label typography, collision-safe text
+  layout with a horizontal `30x40mm` QR-left details layout, physical-aspect
+  preview rendering, local import learning backed by a device-only SQLite
+  mapping table, optional
   server-assisted metadata lookup for filling missing JLC fields,
   capture-first supplier packaging OCR with structured line extraction,
   user-selectable OCR engine preference (`Auto`,
@@ -103,11 +106,12 @@ connects to it over HTTP.
   app-generated JLC-compatible label parsing, a unified inventory add-entry
   sheet for `Import` vs `Manual add`, import-name protection that keeps raw
   model codes out of the canonical component `name` field, and vendor-to-brand
-  fallback during supplier parsing;
-  `assembleDebug` and `assembleRelease` were re-verified on `2026-05-11` on
-  this host with the configured Android SDK and JDK paths, and
-  `testDebugUnitTest` plus `assembleRelease` were re-verified again on
-  `2026-05-16`.
+  fallback during supplier parsing; the last full `assembleDebug` and
+  `assembleRelease` verification on this host completed on `2026-05-16`.
+  After the current adaptive-shell refactor, `compileDebugKotlin --no-daemon`
+  completed successfully on `2026-05-17`, while local APK assembly is
+  currently blocked on this host by an Android SDK build-tools permission
+  failure against `core-lambda-stubs.jar` during `compile*JavaWithJavac`.
 - Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
   separate `admin-web/` React application; backend `pytest` and `admin-web`
   production build were both verified successfully on `2026-05-08`.
@@ -243,6 +247,9 @@ preferences and supports:
   switch backed by Android per-app locales
 - an inventory-first adaptive shell:
   `Inventory`, `Movements`, `Overview`, `Settings`
+- official adaptive Compose layout primitives for the shell and Inventory:
+  `NavigationSuiteScaffold`, `currentWindowAdaptiveInfo`,
+  `NavigableListDetailPaneScaffold`, and a `SearchBar`-first filter header
 - compact phone flows centered on search, filters, dense lists, and full-screen
   detail or form routes
 - tablet layouts that keep persistent list-detail panes for inventory and

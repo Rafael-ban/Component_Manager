@@ -23,6 +23,11 @@ bump: patch
   scans complete `Inbound` / `Outbound` / `Adjustment` edits inside the same
   bottom sheet, save failures remain inline, and successful saves reselect the
   affected component before optional label preview.
+- Reworked the Android shell and Inventory workspace onto official Material 3
+  adaptive primitives, including `NavigationSuiteScaffold`,
+  `currentWindowAdaptiveInfo`, `NavigableListDetailPaneScaffold`, and a
+  search-first `SearchBar` header, while tightening inventory row density and
+  shifting the primary flow away from stacked filter cards.
 
 
 ## [0.3.7] - 2026-05-13

@@ -206,11 +206,18 @@ Current host compatibility note:
 Verification result on this host:
 
 - `help` -> success
-- `assembleDebug` -> success
-- `testDebugUnitTest` -> success
-- `assembleRelease` -> success
+- last full `assembleDebug` -> success on `2026-05-16`
+- last full `testDebugUnitTest` -> success on `2026-05-16`
+- last full `assembleRelease` -> success on `2026-05-16`
+- `compileDebugKotlin --no-daemon` after the adaptive-shell refactor ->
+  success on `2026-05-17`
+- current local `assembleDebug` / `assembleRelease` on this host ->
+  blocked on `2026-05-17` by `AccessDeniedException` against
+  `C:\Users\gdblz\AppData\Local\Android\Sdk\build-tools\36.0.0\core-lambda-stubs.jar`
+  during `compile*JavaWithJavac`
 - Android metrics warnings and Kotlin daemon fallback messages may appear on
-  this host, but the builds still complete successfully
+  this host and do not, by themselves, indicate a Kotlin or Compose source
+  failure
 
 Android Studio note:
 
@@ -232,6 +239,9 @@ Implemented client behaviors:
   until the user or server confirms them
 - supplier packaging OCR import plus generated JLC-compatible or warehouse QR
   labels
+- official adaptive Compose shell and Inventory flow built on
+  `NavigationSuiteScaffold`, `currentWindowAdaptiveInfo`,
+  `NavigableListDetailPaneScaffold`, and a `SearchBar`-first dense list layout
 
 ### Windows
 
@@ -430,6 +440,20 @@ curl -X POST http://localhost:8787/auth/ping `
 - Fix: run builds with Android Studio's embedded JBR 21, either by setting
   `JAVA_HOME=D:\android_studio\jbr` before invoking Gradle or by using
   `.\scripts\android-gradle.ps1 assembleRelease`.
+
+### Android javac cannot read `core-lambda-stubs.jar`
+
+- Symptom: local `assembleDebug` or `assembleRelease` reaches
+  `:app:compile*JavaWithJavac` and fails with
+  `AccessDeniedException: ...\build-tools\36.0.0\core-lambda-stubs.jar`.
+- Cause: the local Android SDK build-tools installation or its filesystem
+  permissions are unhealthy, even though Kotlin/Compose compilation still
+  succeeds.
+- Fix: close Android Studio and any Gradle daemons, verify the current user can
+  read the file directly, then repair or reinstall the pinned Android
+  build-tools version (`36.0.0`). Until the SDK is repaired, use
+  `compileDebugKotlin --no-daemon` as the code-level verification step for UI
+  refactors.
 
 ### Changelog release automation cannot push commit or tag
 

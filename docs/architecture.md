@@ -26,9 +26,15 @@
   `Inventory`, `Movements`, `Overview`, and `Settings`.
 - `Inventory` is the default high-frequency workflow and uses dense search,
   filter, and list-first layouts on phones, plus persistent list-detail panes
-  on larger widths. It now also includes quantity-first import flows for JLC
-  copied mobile product text, package QR payloads, supplier packaging OCR,
-  and generated warehouse labels.
+  on larger widths. The current shell is built on official Material 3 adaptive
+  primitives: `NavigationSuiteScaffold` for top-level navigation,
+  `currentWindowAdaptiveInfo` for width class handling, and
+  `NavigableListDetailPaneScaffold` for Inventory list-detail behavior. The
+  Inventory header now treats search as the primary action through
+  `SearchBar`, with fixed horizontal filters and denser inventory rows instead
+  of the older stacked filter-card layout. It now also includes quantity-first
+  import flows for JLC copied mobile product text, package QR payloads,
+  supplier packaging OCR, and generated warehouse labels.
 - Package QR scanning now runs through an in-app CameraX surface backed by the
   bundled ML Kit Barcode Scanning API, so first use does not depend on Google
   Play services downloading an external scanner module.
@@ -105,10 +111,13 @@
   `/admin-api/lcsc/lookup` now sits behind the newer hybrid recognition flow as
   a direct compatibility endpoint when official LCSC credentials are available.
 - Android build verification completed successfully on `2026-05-08` on the
-  current host machine after local SDK and JDK configuration. The latest
-  Android `assembleDebug` and `assembleRelease` verification completed
-  successfully on `2026-05-11`, and `testDebugUnitTest` plus
-  `assembleRelease` completed successfully again on `2026-05-16`.
+  current host machine after local SDK and JDK configuration. The last full
+  Android `assembleDebug` and `assembleRelease` verification on this host
+  completed on `2026-05-16`. After the adaptive-shell refactor,
+  `compileDebugKotlin --no-daemon` completed successfully on `2026-05-17`;
+  local APK assembly is currently blocked on this host by an SDK build-tools
+  permission issue against `core-lambda-stubs.jar`, not by Kotlin or Compose
+  compilation failures.
   Preview-focused
   `Phone`, `Tablet`, `Locale`, `Theme`, `Accessibility`, `Shell`, and `Dialogs`
   surfaces are now isolated under `ui/screen/preview/`.

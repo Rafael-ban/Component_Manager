@@ -8,6 +8,9 @@ and Material 3.
 - Native navigation shell implemented
 - Inventory-first adaptive shell implemented with `Inventory`, `Movements`,
   `Overview`, and `Settings` destinations
+- Official adaptive Compose shell primitives now back the Android UI:
+  `NavigationSuiteScaffold`, `currentWindowAdaptiveInfo`,
+  `NavigableListDetailPaneScaffold`, and a `SearchBar`-first Inventory header
 - Local SQLite persistence and sync settings persistence implemented
 - Component create/edit/soft delete workflow implemented
 - Movement entry workflow implemented
@@ -37,8 +40,12 @@ and Material 3.
   bundles plus content-level preview composables so Android Studio does not
   have to resolve the runtime `R.string` graph for preview-only rendering
 - `gradle -p android-client help` verified successfully on `2026-05-08`
-- `assembleDebug` verified successfully on `2026-05-10` on this host
-- `assembleRelease` verified successfully on `2026-05-10` on this host
+- Last full `assembleDebug` verification completed successfully on
+  `2026-05-16` on this host
+- Last full `assembleRelease` verification completed successfully on
+  `2026-05-16` on this host
+- `compileDebugKotlin --no-daemon` completed successfully on `2026-05-17`
+  after the adaptive-shell refactor
 - On this host, non-blocking Android metrics warnings and Kotlin daemon
   fallback messages can appear during verification
 
@@ -104,6 +111,14 @@ initialization error, the machine is likely using an unsupported Java 25
 runtime. Use `.\scripts\android-gradle.ps1 assembleRelease` or set
 `JAVA_HOME=D:\android_studio\jbr` before invoking Gradle.
 
+If local `assembleDebug` or `assembleRelease` instead fails in
+`compile*JavaWithJavac` with `AccessDeniedException` against
+`C:\Users\gdblz\AppData\Local\Android\Sdk\build-tools\36.0.0\core-lambda-stubs.jar`,
+the current SDK build-tools installation is unhealthy on this host. In that
+state, `compileDebugKotlin --no-daemon` is still a valid code-level check for
+Compose refactors, but the SDK install needs repair before APK packaging can
+pass again.
+
 ## Visual Editing
 
 Jetpack Compose does not use the old XML layout designer. For this client,
@@ -164,11 +179,14 @@ the `ViewModel` entrypoint:
   Runtime string bundle assembly plus preview-safe composition locals for
   shared UI copy
 - `ui/screen/ComponentVaultShell.kt`
-  Adaptive app shell and destination routing
+  Adaptive app shell and destination routing built on
+  `NavigationSuiteScaffold`
 - `ui/screen/OverviewScreen.kt`
   Summary-first overview surface
 - `ui/screen/InventoryScreen.kt`
-  Search/filter-driven inventory list, detail flows, and JLC import entrypoint
+  Search-first inventory list, adaptive list-detail handling through
+  `NavigableListDetailPaneScaffold`, dense filter rows, and JLC import
+  entrypoint
 - `ui/screen/MovementsScreen.kt`
   Movement history and detail flows
 - `ui/screen/SettingsScreen.kt`
