@@ -9,17 +9,65 @@ internal object ComponentImportParser {
     private val lcscSkuRegex = Regex("""\bC\d{5,10}\b""", RegexOption.IGNORE_CASE)
     private val quantityRegexes = listOf(
         Regex("""(?i)\b(?:qty|quantity)\b\s*[:：]?\s*(\d{1,7})"""),
-        Regex("""数量\s*[:：]?\s*(\d{1,7})"""),
+        Regex("""\u6570\u91CF\s*[:：]?\s*(\d{1,7})"""),
     )
     private val traceabilityKeywords = listOf(
         "lot",
         "date",
         "datecode",
         "d/c",
-        "批次",
-        "批号",
-        "日期",
-        "生产日期",
+        "\u6279\u6B21",
+        "\u65E5\u671F",
+        "\u751F\u4EA7",
+    )
+    private val nameLabelKeys = arrayOf(
+        "\u540D\u79F0",
+        "\u54C1\u540D",
+        "name",
+        "product",
+        "description",
+        "item",
+        "part",
+    )
+    private val skuLabelKeys = arrayOf(
+        "sku",
+        "\u7F16\u53F7",
+        "\u7269\u6599\u7F16\u53F7",
+        "\u6599\u53F7",
+        "item no",
+        "code",
+    )
+    private val brandLabelKeys = arrayOf(
+        "\u54C1\u724C",
+        "\u5382\u5546",
+        "\u5236\u9020\u5546",
+        "manufacturer",
+        "brand",
+        "mfg",
+        "vendor",
+    )
+    private val modelLabelKeys = arrayOf(
+        "\u578B\u53F7",
+        "\u7269\u6599\u578B\u53F7",
+        "\u6599\u53F7",
+        "model",
+        "mpn",
+        "p/n",
+        "pn",
+        "part no",
+    )
+    private val packageLabelKeys = arrayOf(
+        "\u5C01\u88C5",
+        "\u5C3A\u5BF8",
+        "package",
+        "pkg",
+        "case",
+        "footprint",
+    )
+    private val quantityLabelKeys = arrayOf(
+        "\u6570\u91CF",
+        "qty",
+        "quantity",
     )
 
     fun parseJlcText(rawInput: String): ComponentImportCandidate = JlcImportParser.parseText(rawInput)
@@ -60,46 +108,17 @@ internal object ComponentImportParser {
         ocrResult: OcrResult?,
     ): ComponentImportCandidate {
         val labeledValues = lines.flatMap(::parseStructuredFragments)
-
-        val name = labeledValues.firstMatch(
-            "名称",
-            "品名",
-            "name",
-            "product",
-            "part",
-        ).ifBlank {
-            lines.firstOrNull(::looksLikeHumanName).orEmpty()
-        }
-
-        val sku = labeledValues.firstMatch(
-            "sku",
-            "编号",
-            "物料编号",
-            "货号",
-            "item no",
-            "code",
-        ).ifBlank {
+        val sku = labeledValues.firstMatch(*skuLabelKeys).ifBlank {
             findStandaloneSku(lines).orEmpty()
         }
-
-        val brand = labeledValues.firstMatch(
-            "品牌",
-            "厂商",
-            "manufacturer",
-            "brand",
-            "mfg",
-        ).blankToNull()
-
-        val model = labeledValues.firstMatch(
-            "型号",
-            "料号",
-            "规格型号",
-            "model",
-            "mpn",
-            "p/n",
-            "pn",
-            "part no",
-        ).ifBlank {
+        val brand = labeledValues.firstMatch(*brandLabelKeys).blankToNull()
+        val name = resolveSupplierName(
+            labeledValues = labeledValues,
+            lines = lines,
+            sku = sku,
+            brand = brand,
+        )
+        val model = labeledValues.firstMatch(*modelLabelKeys).ifBlank {
             lines.firstOrNull { line ->
                 looksLikeModelCode(line) &&
                     !line.equals(name, ignoreCase = true) &&
@@ -107,15 +126,7 @@ internal object ComponentImportParser {
                     !line.equals(brand, ignoreCase = true)
             }.orEmpty()
         }.blankToNull()
-
-        val packageName = labeledValues.firstMatch(
-            "封装",
-            "规格",
-            "package",
-            "pkg",
-            "case",
-            "footprint",
-        ).ifBlank {
+        val packageName = labeledValues.firstMatch(*packageLabelKeys).ifBlank {
             ComponentPackageInferencer.infer(
                 name,
                 model,
@@ -123,12 +134,7 @@ internal object ComponentImportParser {
                 *lines.toTypedArray(),
             ).orEmpty()
         }
-
-        val quantity = labeledValues.firstMatch(
-            "数量",
-            "qty",
-            "quantity",
-        ).extractFirstInt()
+        val quantity = labeledValues.firstMatch(*quantityLabelKeys).extractFirstInt()
             ?: findQuantity(lines)
 
         val classificationHint = name.ifBlank {
@@ -172,6 +178,73 @@ internal object ComponentImportParser {
         )
     }
 
+    private fun resolveSupplierName(
+        labeledValues: List<Pair<String, String>>,
+        lines: List<String>,
+        sku: String,
+        brand: String?,
+    ): String {
+        val labeledName = labeledValues.firstMatch(*nameLabelKeys)
+        if (labeledName.isNotBlank()) {
+            return labeledName
+        }
+
+        return lines.asSequence()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .mapNotNull { line ->
+                val score = scoreNameCandidate(
+                    line = line,
+                    sku = sku,
+                    brand = brand,
+                ) ?: return@mapNotNull null
+                score to line
+            }
+            .sortedByDescending { (score, line) ->
+                score * 1000 + line.length
+            }
+            .map { (_, line) -> line }
+            .firstOrNull()
+            .orEmpty()
+    }
+
+    private fun scoreNameCandidate(
+        line: String,
+        sku: String,
+        brand: String?,
+    ): Int? {
+        if (!looksLikeNameCandidate(line)) {
+            return null
+        }
+        if (line.equals(sku, ignoreCase = true) || line.equals(brand, ignoreCase = true)) {
+            return null
+        }
+        if (looksLikeSkuCode(line) || looksLikeModelCode(line) || looksLikeTraceabilityLine(line)) {
+            return null
+        }
+        if (quantityRegexes.any { it.containsMatchIn(line) }) {
+            return null
+        }
+
+        var score = 0
+        if (line.any { it.code in 0x4E00..0x9FFF }) {
+            score += 5
+        }
+        if (line.contains(' ')) {
+            score += 3
+        }
+        if (line.contains('(') || line.contains(')')) {
+            score += 2
+        }
+        if (line.length in 8..56) {
+            score += 2
+        }
+        if (line.any(Char::isLowerCase)) {
+            score += 1
+        }
+        return score.takeIf { it > 0 }
+    }
+
     private fun normalizeLines(lines: Sequence<String>): List<String> {
         return lines
             .map { line -> line.replace('\u3000', ' ').trim() }
@@ -180,14 +253,17 @@ internal object ComponentImportParser {
     }
 
     private fun parseStructuredFragments(line: String): List<Pair<String, String>> {
-        val normalized = line.replace('：', ':')
         return buildList {
-            parseKeyValueLine(normalized)?.let(::add)
+            parseKeyValueLine(line)?.let(::add)
         }
     }
 
     private fun parseKeyValueLine(line: String): Pair<String, String>? {
-        val separatorIndex = line.indexOf(':').takeIf { it > 0 } ?: return null
+        val separatorIndex = listOf(':', '\uFF1A')
+            .map { line.indexOf(it) }
+            .filter { it > 0 }
+            .minOrNull()
+            ?: return null
         val key = line.substring(0, separatorIndex).trim()
         val value = line.substring(separatorIndex + 1).trim()
         if (key.isBlank() || value.isBlank()) {
@@ -221,10 +297,9 @@ internal object ComponentImportParser {
                 "lot",
                 "date",
                 "datecode",
-                "批次",
-                "批号",
-                "日期",
-                "生产日期",
+                "\u6279\u6B21",
+                "\u65E5\u671F",
+                "\u751F\u4EA7",
             ).forEach { value ->
                 addIfMissing("Packaging mark: $value")
             }
@@ -252,21 +327,32 @@ internal object ComponentImportParser {
         }
     }
 
-    private fun looksLikeHumanName(line: String): Boolean {
-        if (line.length < 4 || line.contains(':') || line.contains('：')) {
+    private fun looksLikeNameCandidate(line: String): Boolean {
+        if (line.length < 4 || line.length > 80) {
+            return false
+        }
+        if (line.contains(':') || line.contains('\uFF1A')) {
             return false
         }
         val hasLettersOrChinese = line.any { it.isLetter() || it.code in 0x4E00..0x9FFF }
-        val hasSpacesOrSymbols = line.contains(' ') || line.contains('-') || line.contains('(')
-        return hasLettersOrChinese && hasSpacesOrSymbols
+        if (!hasLettersOrChinese) {
+            return false
+        }
+        return line.any { it.code in 0x4E00..0x9FFF } ||
+            line.contains(' ') ||
+            line.contains('(') ||
+            line.contains(')')
     }
 
     private fun looksLikeModelCode(line: String): Boolean {
-        if (line.length < 5 || line.contains(':') || line.contains('：')) {
+        if (line.length < 5 || line.contains(':') || line.contains('\uFF1A')) {
+            return false
+        }
+        if (line.any { it.code in 0x4E00..0x9FFF } || line.contains(' ')) {
             return false
         }
         val alphaNumericCount = line.count { it.isLetterOrDigit() }
-        return alphaNumericCount >= 5 && line.any { it == '-' || it.isDigit() }
+        return alphaNumericCount >= 5 && line.any(Char::isDigit)
     }
 
     private fun looksLikeSkuCode(line: String): Boolean {

@@ -285,6 +285,7 @@ private fun SupplierTextScannerOverlay(
             headline = headline,
             supporting = supporting,
             showProgress = showProgress,
+            scannerMode = JlcQrScannerMode.ImportQr,
         )
 
         Surface(

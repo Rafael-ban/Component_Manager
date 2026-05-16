@@ -112,6 +112,7 @@ fun ComponentVaultApp(
                     failedTitle = strings.movements.scannerFailedTitle,
                     failedDescription = strings.movements.scannerFailedDescription,
                     returnActionLabel = strings.common.actionBack,
+                    scannerMode = JlcQrScannerMode.MovementSmallLabel,
                 )
             }
 

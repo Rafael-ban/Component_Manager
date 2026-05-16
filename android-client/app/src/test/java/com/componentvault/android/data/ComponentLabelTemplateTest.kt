@@ -9,20 +9,20 @@ import kotlin.test.assertTrue
 class ComponentLabelTemplateTest {
     @Test
     fun qrLabelSpecsUseResolvedContentDimensions() {
-        assertEquals(40f, ComponentLabelTemplate.Qr10x40.widthMm)
-        assertEquals(10f, ComponentLabelTemplate.Qr10x40.heightMm)
-        assertEquals(10f, ComponentLabelTemplate.Qr10x40.nominalWidthMm)
-        assertEquals(40f, ComponentLabelTemplate.Qr10x40.nominalHeightMm)
+        assertEquals(40f, ComponentLabelTemplate.Qr10x40.physicalWidthMm)
+        assertEquals(10f, ComponentLabelTemplate.Qr10x40.physicalHeightMm)
+        assertEquals(10f, ComponentLabelTemplate.Qr10x40.displayWidthMm)
+        assertEquals(40f, ComponentLabelTemplate.Qr10x40.displayHeightMm)
         assertEquals(ComponentLabelOrientation.Landscape, ComponentLabelTemplate.Qr10x40.orientation)
-        assertEquals(8f, ComponentLabelTemplate.Qr10x40.qrSizeMm)
+        assertEquals(8.8f, ComponentLabelTemplate.Qr10x40.qrSizeMm)
 
-        assertEquals(30f, ComponentLabelTemplate.Qr30x40.widthMm)
-        assertEquals(40f, ComponentLabelTemplate.Qr30x40.heightMm)
-        assertEquals(30f, ComponentLabelTemplate.Qr30x40.nominalWidthMm)
-        assertEquals(40f, ComponentLabelTemplate.Qr30x40.nominalHeightMm)
-        assertEquals(ComponentLabelOrientation.Portrait, ComponentLabelTemplate.Qr30x40.orientation)
+        assertEquals(40f, ComponentLabelTemplate.Qr30x40.physicalWidthMm)
+        assertEquals(30f, ComponentLabelTemplate.Qr30x40.physicalHeightMm)
+        assertEquals(30f, ComponentLabelTemplate.Qr30x40.displayWidthMm)
+        assertEquals(40f, ComponentLabelTemplate.Qr30x40.displayHeightMm)
+        assertEquals(ComponentLabelOrientation.Landscape, ComponentLabelTemplate.Qr30x40.orientation)
         assertEquals(16f, ComponentLabelTemplate.Qr30x40.qrSizeMm)
-        assertEquals(ComponentLabelLayoutMode.LeftQrRightDetails, ComponentLabelTemplate.Qr30x40.layoutMode)
+        assertEquals(ComponentLabelLayoutMode.LandscapeLeftQrRightStack, ComponentLabelTemplate.Qr30x40.layoutMode)
     }
 
     @Test
@@ -35,7 +35,7 @@ class ComponentLabelTemplateTest {
     @Test
     fun textOnlyLabelIsIndependentAndAutoWidth() {
         assertFalse(ComponentLabelTemplate.TextOnly.isQrLabel)
-        assertNull(ComponentLabelTemplate.TextOnly.widthMm)
+        assertNull(ComponentLabelTemplate.TextOnly.physicalWidthMm)
         assertEquals(0.5f, ComponentLabelTemplate.TextOnly.textHeightMm)
         assertFalse(ComponentLabelTemplate.TextOnly.supportsCompanionTextLabel)
         assertTrue(ComponentLabelTemplate.Qr10x40.supportsCompanionTextLabel)

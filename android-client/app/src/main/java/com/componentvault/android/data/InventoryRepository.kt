@@ -1231,17 +1231,27 @@ class InventoryRepository(
         )
         val mappingId = existingRecord?.first ?: "ilm-${randomId()}"
         val createdAt = existingRecord?.second ?: now
+        val resolvedModel = parsedDescription.model?.trim()?.blankToNull()
+            ?: sourceCandidate.model?.trim()?.blankToNull()
+        val resolvedBrand = parsedDescription.brand?.trim()?.blankToNull()
+            ?: sourceCandidate.brand?.trim()?.blankToNull()
+        val resolvedName = draft.name.trim().blankToNull()?.takeUnless {
+            it.isLikelyModelLike(
+                sku = normalizedSourceSku.orEmpty(),
+                model = resolvedModel,
+            )
+        }
 
         val values = ContentValues().apply {
             put("id", mappingId)
             put("source_type", sourceCandidate.sourceType.toStorageValue())
             put("source_sku", normalizedSourceSku)
             put("source_mpn", normalizedSourceMpn)
-            put("resolved_name", draft.name.trim().blankToNull())
+            put("resolved_name", resolvedName)
             put("resolved_category", draft.category.trim().blankToNull())
             put("resolved_package_name", draft.packageName.trim().blankToNull())
-            put("resolved_model", parsedDescription.model?.trim()?.blankToNull() ?: sourceCandidate.model?.trim()?.blankToNull())
-            put("resolved_brand", parsedDescription.brand?.trim()?.blankToNull() ?: sourceCandidate.brand?.trim()?.blankToNull())
+            put("resolved_model", resolvedModel)
+            put("resolved_brand", resolvedBrand)
             put("resolved_description", draft.description.trim().blankToNull())
             put("confidence", 100)
             put("last_used_at", now)
@@ -1784,6 +1794,28 @@ class InventoryRepository(
             com.componentvault.android.model.ComponentImportSourceType.SupplierOcr -> "supplier_ocr"
             com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel -> "warehouse_label"
         }
+
+    private fun String.isLikelyModelLike(
+        sku: String,
+        model: String?,
+    ): Boolean {
+        val normalized = trim()
+        if (normalized.isBlank()) {
+            return false
+        }
+        if (normalized.equals(sku.trim(), ignoreCase = true)) {
+            return true
+        }
+        if (!model.isNullOrBlank() && normalized.equals(model.trim(), ignoreCase = true)) {
+            return true
+        }
+        if (normalized.any { it.code in 0x4E00..0x9FFF } || normalized.any(Char::isWhitespace)) {
+            return false
+        }
+        val alphaNumericCount = normalized.count(Char::isLetterOrDigit)
+        val hasSeparator = normalized.any { it == '-' || it == '_' || it == '/' || it == '.' }
+        return alphaNumericCount >= 5 && (hasSeparator || normalized.any(Char::isDigit))
+    }
 
     private fun String.blankToNull(): String? = trim().takeIf { it.isNotBlank() }
 

@@ -25,4 +25,25 @@ class ComponentImportModelsTest {
         assertEquals("100nF Ceramic Capacitor", resolved.name)
         assertEquals(ComponentImportFieldOrigin.Server, resolved.fieldOrigins.name)
     }
+
+    @Test
+    fun recognitionMetadataPromotesVendorIntoBrandWhenBrandIsMissing() {
+        val candidate = ComponentImportCandidate(
+            sourceType = ComponentImportSourceType.JlcQr,
+            rawPayload = "{pc:C30926,pm:0603B104K500NT}",
+            sourceLabel = "JLC package QR",
+            sku = "C30926",
+            model = "0603B104K500NT",
+        )
+
+        val resolved = candidate.withRecognitionMetadata(
+            ComponentRecognitionMetadata(
+                vendor = "FH",
+                category = "Capacitor",
+            ),
+        )
+
+        assertEquals("FH", resolved.brand)
+        assertEquals(ComponentImportFieldOrigin.Rule, resolved.fieldOrigins.brand)
+    }
 }

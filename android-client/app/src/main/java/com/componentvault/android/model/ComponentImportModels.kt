@@ -252,10 +252,17 @@ fun ComponentImportCandidate.withRecognitionMetadata(
         metadata.ruleVersion?.let { addIfMissing("Recognition rules version: $it") }
     }
 
+    val resolvedBrand = brand?.takeIf { it.isNotBlank() }
+        ?: vendor?.takeIf { it.isNotBlank() }
+        ?: metadata.vendor?.takeIf { it.isNotBlank() }
+    val resolvedVendor = vendor?.takeIf { it.isNotBlank() }
+        ?: metadata.vendor?.takeIf { it.isNotBlank() }
+
     return copy(
         packageName = resolvedPackageName,
         category = resolvedCategory,
-        vendor = vendor?.takeIf { it.isNotBlank() } ?: metadata.vendor?.takeIf { it.isNotBlank() },
+        brand = resolvedBrand,
+        vendor = resolvedVendor,
         modelFamily = modelFamily?.takeIf { it.isNotBlank() } ?: metadata.modelFamily?.takeIf { it.isNotBlank() },
         recognitionConfidence = metadata.confidence?.takeIf { it.isNotBlank() } ?: recognitionConfidence,
         matchedBy = metadata.matchedBy?.takeIf { it.isNotBlank() } ?: matchedBy,
@@ -272,6 +279,11 @@ fun ComponentImportCandidate.withRecognitionMetadata(
             } else {
                 fieldOrigins.packageName
             },
+            brand = if (brand.isNullOrBlank() && !resolvedBrand.isNullOrBlank()) {
+                ComponentImportFieldOrigin.Rule
+            } else {
+                fieldOrigins.brand
+            },
         ),
     )
 }
@@ -282,7 +294,7 @@ fun ComponentImportCandidate.withOfficialMetadata(
     val resolvedName = when {
         metadata.name.isNullOrBlank() -> name
         name.isBlank() -> metadata.name
-        !model.isNullOrBlank() && name.equals(model, ignoreCase = true) -> metadata.name
+        name.isLikelyModelLike(sku = sku, model = model) -> metadata.name
         name.equals(sku, ignoreCase = true) -> metadata.name
         else -> name
     }.orEmpty()
@@ -318,14 +330,22 @@ fun ComponentImportCandidate.withOfficialMetadata(
         metadata.ruleVersion?.let { addIfMissing("Recognition rules version: $it") }
     }
 
+    val resolvedBrand = brand?.takeIf { it.isNotBlank() }
+        ?: vendor?.takeIf { it.isNotBlank() }
+        ?: metadata.brand?.takeIf { it.isNotBlank() }
+        ?: metadata.vendor?.takeIf { it.isNotBlank() }
+    val resolvedVendor = vendor?.takeIf { it.isNotBlank() }
+        ?: metadata.vendor?.takeIf { it.isNotBlank() }
+        ?: metadata.brand?.takeIf { it.isNotBlank() }
+
     return copy(
         sku = sku.ifBlank { metadata.sku?.takeIf { it.isNotBlank() }.orEmpty() },
         name = resolvedName,
         packageName = resolvedPackageName,
         category = resolvedCategory,
         model = model?.takeIf { it.isNotBlank() } ?: metadata.model?.takeIf { it.isNotBlank() },
-        brand = brand?.takeIf { it.isNotBlank() } ?: metadata.brand?.takeIf { it.isNotBlank() },
-        vendor = vendor?.takeIf { it.isNotBlank() } ?: metadata.vendor?.takeIf { it.isNotBlank() },
+        brand = resolvedBrand,
+        vendor = resolvedVendor,
         modelFamily = modelFamily?.takeIf { it.isNotBlank() } ?: metadata.modelFamily?.takeIf { it.isNotBlank() },
         recognitionConfidence = metadata.confidence?.takeIf { it.isNotBlank() } ?: recognitionConfidence,
         matchedBy = metadata.matchedBy?.takeIf { it.isNotBlank() } ?: matchedBy,
@@ -357,7 +377,7 @@ fun ComponentImportCandidate.withOfficialMetadata(
             } else {
                 fieldOrigins.model
             },
-            brand = if (brand.isNullOrBlank() && !metadata.brand.isNullOrBlank()) {
+            brand = if (brand.isNullOrBlank() && !resolvedBrand.isNullOrBlank()) {
                 ComponentImportFieldOrigin.Server
             } else {
                 fieldOrigins.brand
@@ -481,6 +501,28 @@ private fun MutableList<String>.addIfMissing(value: String) {
     if (none { it.equals(value, ignoreCase = true) }) {
         add(value)
     }
+}
+
+private fun String.isLikelyModelLike(
+    sku: String,
+    model: String?,
+): Boolean {
+    val normalized = trim()
+    if (normalized.isBlank()) {
+        return false
+    }
+    if (normalized.equals(sku.trim(), ignoreCase = true)) {
+        return true
+    }
+    if (!model.isNullOrBlank() && normalized.equals(model.trim(), ignoreCase = true)) {
+        return true
+    }
+    if (normalized.any { it.code in 0x4E00..0x9FFF } || normalized.any(Char::isWhitespace)) {
+        return false
+    }
+    val alphaNumericCount = normalized.count(Char::isLetterOrDigit)
+    val hasSeparator = normalized.any { it == '-' || it == '_' || it == '/' || it == '.' }
+    return alphaNumericCount >= 5 && (hasSeparator || normalized.any(Char::isDigit))
 }
 
 private fun String.blankToNull(): String? = takeIf { it.isNotBlank() }

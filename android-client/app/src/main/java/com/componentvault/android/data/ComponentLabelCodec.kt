@@ -28,6 +28,7 @@ internal object ComponentLabelCodec {
     private const val WarehouseFormat = "component-vault-label"
     private const val WarehouseVersion = 1
     private const val CompactWarehousePrefix = "cvl2"
+    private const val CompactWarehouseLookupPrefix = "cvl3"
 
     fun buildQrPayload(
         seed: ComponentLabelSeed,
@@ -52,7 +53,7 @@ internal object ComponentLabelCodec {
         return when {
             template.payloadMode == ComponentLabelPayloadMode.CompactOffline -> {
                 ComponentQrPayload(
-                    rawValue = encodeCompactWarehouseLabel(payload),
+                    rawValue = encodeCompactWarehouseLookupLabel(payload),
                     mode = ComponentLabelPayloadMode.CompactOffline,
                 )
             }
@@ -74,6 +75,22 @@ internal object ComponentLabelCodec {
     }
 
     fun parseScannedPayload(rawPayload: String): ComponentImportCandidate? {
+        decodeCompactWarehouseLookupLabel(rawPayload)?.let { payload ->
+            return ComponentImportCandidate(
+                sourceType = ComponentImportSourceType.WarehouseLabel,
+                rawPayload = rawPayload.trim(),
+                sourceLabel = "Warehouse compact label QR",
+                sku = payload.sku,
+                name = payload.name,
+                packageName = payload.packageName,
+                category = payload.category,
+                model = payload.model,
+                brand = payload.brand,
+                suggestedQuantity = payload.quantity,
+                notes = listOf("Compact lookup-first warehouse label"),
+            )
+        }
+
         decodeCompactWarehouseLabel(rawPayload)?.let { payload ->
             return ComponentImportCandidate(
                 sourceType = ComponentImportSourceType.WarehouseLabel,
@@ -188,6 +205,14 @@ internal object ComponentLabelCodec {
         )
     }
 
+    private fun encodeCompactWarehouseLookupLabel(payload: WarehouseLabelPayload): String {
+        return listOf(
+            CompactWarehouseLookupPrefix,
+            encodeCompactValue(payload.sku),
+            payload.quantity.toString(),
+        ).joinToString(separator = "|")
+    }
+
     private fun encodeCompactWarehouseLabel(payload: WarehouseLabelPayload): String {
         return listOf(
             CompactWarehousePrefix,
@@ -230,9 +255,33 @@ internal object ComponentLabelCodec {
                     brand = payload["brand"]?.takeIf { it.isNotBlank() },
                 )
             }
-            ?.takeIf {
-                it.sku.isNotBlank() && it.name.isNotBlank() && it.packageName.isNotBlank()
-            }
+            ?.takeIf { it.sku.isNotBlank() }
+    }
+
+    private fun decodeCompactWarehouseLookupLabel(rawPayload: String): WarehouseLabelPayload? {
+        val trimmed = rawPayload.trim()
+        if (!trimmed.startsWith("$CompactWarehouseLookupPrefix|")) {
+            return null
+        }
+
+        val parts = trimmed.split('|')
+        if (parts.size < 3) {
+            return null
+        }
+
+        return WarehouseLabelPayload(
+            sku = decodeCompactValue(parts.getOrNull(1)),
+            name = "",
+            category = "",
+            packageName = "",
+            location = "",
+            quantity = parts.getOrNull(2)?.toIntOrNull() ?: 0,
+            minStock = 0,
+            model = null,
+            brand = null,
+        ).takeIf {
+            it.sku.isNotBlank()
+        }
     }
 
     private fun decodeCompactWarehouseLabel(rawPayload: String): WarehouseLabelPayload? {
@@ -257,7 +306,7 @@ internal object ComponentLabelCodec {
             model = decodeCompactValue(parts.getOrNull(5)).ifBlank { null },
             brand = decodeCompactValue(parts.getOrNull(6)).ifBlank { null },
         ).takeIf {
-            it.sku.isNotBlank() && it.name.isNotBlank() && it.packageName.isNotBlank()
+            it.sku.isNotBlank()
         }
     }
 
@@ -282,7 +331,7 @@ internal object ComponentLabelCodec {
             model = values["pm"].cleanNullable(),
             brand = values["br"].cleanNullable(),
         ).takeIf {
-            it.sku.isNotBlank() && it.name.isNotBlank() && it.packageName.isNotBlank()
+            it.sku.isNotBlank()
         }
     }
 

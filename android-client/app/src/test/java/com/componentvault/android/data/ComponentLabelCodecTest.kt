@@ -24,12 +24,12 @@ class ComponentLabelCodecTest {
         val payload = requireNotNull(ComponentLabelCodec.buildQrPayload(seed, ComponentLabelTemplate.Qr10x40))
 
         assertEquals(ComponentLabelPayloadMode.CompactOffline, payload.mode)
-        assertTrue(payload.rawValue.startsWith("cvl2|"))
+        assertTrue(payload.rawValue.startsWith("cvl3|"))
 
         val parsed = assertNotNull(ComponentLabelCodec.parseScannedPayload(payload.rawValue))
         assertEquals(seed.sku, parsed.sku)
-        assertEquals(seed.name, parsed.name)
-        assertEquals(seed.packageName, parsed.packageName)
+        assertEquals("", parsed.name)
+        assertEquals("", parsed.packageName)
         assertEquals(seed.quantity, parsed.suggestedQuantity)
     }
 
@@ -55,5 +55,19 @@ class ComponentLabelCodecTest {
 
         assertEquals(ComponentLabelPayloadMode.JlcCompatible, payload.mode)
         assertTrue(payload.rawValue.startsWith("{on:"))
+    }
+
+    @Test
+    fun legacyCompactPayloadStillParsesForBackwardCompatibility() {
+        val parsed = assertNotNull(
+            ComponentLabelCodec.parseScannedPayload(
+                "cvl2|C7430468|1x2P%20PicoBlade|Connector|SMD%2CP%3D1.25mm|ZX-MX1.25-2PWT|Megastar|300",
+            ),
+        )
+
+        assertEquals("C7430468", parsed.sku)
+        assertEquals("1x2P PicoBlade", parsed.name)
+        assertEquals("SMD,P=1.25mm", parsed.packageName)
+        assertEquals(300, parsed.suggestedQuantity)
     }
 }

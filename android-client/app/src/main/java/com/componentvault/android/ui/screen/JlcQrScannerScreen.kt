@@ -1,12 +1,18 @@
 package com.componentvault.android.ui.screen
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.util.Size
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
@@ -18,14 +24,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -53,12 +60,15 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScanner
-import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.ZoomSuggestionOptions
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.abs
 
 internal enum class JlcQrScannerUiState {
     RequestingPermission,
@@ -66,6 +76,46 @@ internal enum class JlcQrScannerUiState {
     StartingCamera,
     Scanning,
     Failed,
+}
+
+internal enum class JlcQrScannerMode {
+    ImportQr,
+    MovementSmallLabel,
+}
+
+internal data class JlcQrScannerZoomUiState(
+    val currentZoomRatio: Float = 1f,
+    val presets: List<Float> = emptyList(),
+    val setZoomRatio: ((Float) -> Unit)? = null,
+) {
+    val isAvailable: Boolean
+        get() = presets.isNotEmpty() && setZoomRatio != null
+}
+
+private data class JlcQrScannerConfig(
+    val analysisTargetResolution: Size,
+    val overlaySizeDp: Int,
+    val zoomPresets: List<Float>,
+    val enablePotentialBarcodeDetection: Boolean,
+    val enableZoomSuggestions: Boolean,
+)
+
+private fun JlcQrScannerMode.toConfig(): JlcQrScannerConfig = when (this) {
+    JlcQrScannerMode.ImportQr -> JlcQrScannerConfig(
+        analysisTargetResolution = Size(1280, 720),
+        overlaySizeDp = 260,
+        zoomPresets = emptyList(),
+        enablePotentialBarcodeDetection = true,
+        enableZoomSuggestions = true,
+    )
+
+    JlcQrScannerMode.MovementSmallLabel -> JlcQrScannerConfig(
+        analysisTargetResolution = Size(1920, 1080),
+        overlaySizeDp = 220,
+        zoomPresets = listOf(1f, 2f, 3f),
+        enablePotentialBarcodeDetection = true,
+        enableZoomSuggestions = true,
+    )
 }
 
 @Composable
@@ -82,6 +132,7 @@ internal fun JlcQrScannerSurface(
     failedTitle: String? = null,
     failedDescription: String? = null,
     returnActionLabel: String? = null,
+    scannerMode: JlcQrScannerMode = JlcQrScannerMode.ImportQr,
 ) {
     val context = LocalContext.current
     val cameraPermissionGranted = remember(context) {
@@ -93,6 +144,7 @@ internal fun JlcQrScannerSurface(
     var scannerState by rememberSaveable { mutableStateOf(JlcQrScannerUiState.RequestingPermission) }
     var scannerError by rememberSaveable { mutableStateOf<String?>(null) }
     var sessionId by rememberSaveable { mutableIntStateOf(0) }
+    var zoomUiState by remember { mutableStateOf(JlcQrScannerZoomUiState()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -134,6 +186,8 @@ internal fun JlcQrScannerSurface(
         failedTitle = failedTitle,
         failedDescription = failedDescription,
         returnActionLabel = returnActionLabel,
+        scannerMode = scannerMode,
+        zoomUiState = zoomUiState,
         onBack = onDismiss,
         onGrantCameraAccess = {
             scannerState = JlcQrScannerUiState.RequestingPermission
@@ -141,6 +195,7 @@ internal fun JlcQrScannerSurface(
         },
         onRetry = {
             scannerError = null
+            zoomUiState = JlcQrScannerZoomUiState()
             if (cameraPermissionGranted.value) {
                 scannerState = JlcQrScannerUiState.StartingCamera
                 sessionId += 1
@@ -153,6 +208,7 @@ internal fun JlcQrScannerSurface(
         cameraPreview = {
             key(sessionId) {
                 JlcQrCameraPreview(
+                    scannerMode = scannerMode,
                     onScannerReady = {
                         scannerState = JlcQrScannerUiState.Scanning
                     },
@@ -160,6 +216,7 @@ internal fun JlcQrScannerSurface(
                         scannerError = throwable.message
                         scannerState = JlcQrScannerUiState.Failed
                     },
+                    onZoomUiStateChanged = { zoomUiState = it },
                     onBarcodeScanned = onScanResult,
                 )
             }
@@ -183,6 +240,8 @@ internal fun JlcQrScannerContent(
     failedTitle: String? = null,
     failedDescription: String? = null,
     returnActionLabel: String? = null,
+    scannerMode: JlcQrScannerMode = JlcQrScannerMode.ImportQr,
+    zoomUiState: JlcQrScannerZoomUiState = JlcQrScannerZoomUiState(),
     onBack: () -> Unit,
     onGrantCameraAccess: () -> Unit,
     onRetry: () -> Unit,
@@ -253,6 +312,7 @@ internal fun JlcQrScannerContent(
                         headline = resolvedStartingMessage,
                         supporting = resolvedScanningHint,
                         showProgress = true,
+                        scannerMode = scannerMode,
                     )
                 }
 
@@ -261,6 +321,8 @@ internal fun JlcQrScannerContent(
                         headline = resolvedScanningHint,
                         supporting = null,
                         showProgress = false,
+                        scannerMode = scannerMode,
+                        zoomUiState = zoomUiState,
                     )
                 }
 
@@ -295,7 +357,7 @@ internal fun ScannerMessagePane(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
         ) {
-            Button(
+            androidx.compose.material3.Button(
                 onClick = primaryAction.second,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -316,12 +378,14 @@ internal fun ScannerPreviewOverlay(
     headline: String,
     supporting: String?,
     showProgress: Boolean,
+    scannerMode: JlcQrScannerMode,
+    zoomUiState: JlcQrScannerZoomUiState = JlcQrScannerZoomUiState(),
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
-                .size(260.dp)
+                .size(scannerMode.toConfig().overlaySizeDp.dp)
                 .border(
                     width = 2.dp,
                     color = Color.White.copy(alpha = 0.9f),
@@ -359,6 +423,20 @@ internal fun ScannerPreviewOverlay(
                         color = Color.White.copy(alpha = 0.84f),
                     )
                 }
+                if (!showProgress && zoomUiState.isAvailable) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        zoomUiState.presets.forEach { preset ->
+                            FilterChip(
+                                selected = abs(zoomUiState.currentZoomRatio - preset) < 0.25f,
+                                onClick = { zoomUiState.setZoomRatio?.invoke(preset) },
+                                label = { Text("${preset.toInt()}x") },
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -366,8 +444,10 @@ internal fun ScannerPreviewOverlay(
 
 @Composable
 private fun JlcQrCameraPreview(
+    scannerMode: JlcQrScannerMode,
     onScannerReady: () -> Unit,
     onScannerError: (Throwable) -> Unit,
+    onZoomUiStateChanged: (JlcQrScannerZoomUiState) -> Unit,
     onBarcodeScanned: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -380,16 +460,58 @@ private fun JlcQrCameraPreview(
     }
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
+    val scannerConfig = remember(scannerMode) { scannerMode.toConfig() }
 
-    DisposableEffect(context, lifecycleOwner, previewView) {
+    DisposableEffect(context, lifecycleOwner, previewView, scannerMode) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-        val barcodeScanner = BarcodeScanning.getClient(
-            BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                .build(),
-        )
+        val cameraRef = AtomicReference<Camera?>(null)
         val isProcessingFrame = AtomicBoolean(false)
         val hasCompleted = AtomicBoolean(false)
+
+        fun publishZoomState(camera: Camera, currentZoomRatio: Float? = null) {
+            val zoomState = camera.cameraInfo.zoomState.value
+            val minZoomRatio = zoomState?.minZoomRatio ?: 1f
+            val maxZoomRatio = zoomState?.maxZoomRatio ?: 1f
+            val current = currentZoomRatio ?: zoomState?.zoomRatio ?: minZoomRatio
+            val availablePresets = scannerConfig.zoomPresets
+                .filter { it in minZoomRatio..maxZoomRatio }
+                .ifEmpty { listOf(minZoomRatio) }
+            onZoomUiStateChanged(
+                JlcQrScannerZoomUiState(
+                    currentZoomRatio = current,
+                    presets = availablePresets,
+                    setZoomRatio = { requestedZoomRatio ->
+                        val clampedZoomRatio = requestedZoomRatio.coerceIn(minZoomRatio, maxZoomRatio)
+                        camera.cameraControl.setZoomRatio(clampedZoomRatio)
+                        publishZoomState(camera, clampedZoomRatio)
+                    },
+                ),
+            )
+        }
+
+        val scannerOptionsBuilder = BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+        if (scannerConfig.enablePotentialBarcodeDetection) {
+            scannerOptionsBuilder.enableAllPotentialBarcodes()
+        }
+        if (scannerConfig.enableZoomSuggestions) {
+            scannerOptionsBuilder.setZoomSuggestionOptions(
+                ZoomSuggestionOptions.Builder { suggestedZoomRatio ->
+                    val camera = cameraRef.get() ?: return@Builder false
+                    val zoomState = camera.cameraInfo.zoomState.value
+                    val clampedZoomRatio = suggestedZoomRatio.coerceIn(
+                        zoomState?.minZoomRatio ?: 1f,
+                        zoomState?.maxZoomRatio ?: suggestedZoomRatio,
+                    )
+                    camera.cameraControl.setZoomRatio(clampedZoomRatio)
+                    mainExecutor.execute {
+                        publishZoomState(camera, clampedZoomRatio)
+                    }
+                    true
+                }.build(),
+            )
+        }
+        val barcodeScanner = BarcodeScanning.getClient(scannerOptionsBuilder.build())
 
         val listener = Runnable {
             try {
@@ -398,6 +520,7 @@ private fun JlcQrCameraPreview(
                     .build()
                     .also { it.surfaceProvider = previewView.surfaceProvider }
                 val analysis = ImageAnalysis.Builder()
+                    .setTargetResolution(scannerConfig.analysisTargetResolution)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                     .also { imageAnalysis ->
@@ -414,12 +537,21 @@ private fun JlcQrCameraPreview(
                     }
 
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
+                val camera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     preview,
                     analysis,
                 )
+                cameraRef.set(camera)
+                configurePreviewGestures(
+                    previewView = previewView,
+                    camera = camera,
+                    onZoomChanged = { zoomRatio ->
+                        publishZoomState(camera, zoomRatio)
+                    },
+                )
+                publishZoomState(camera)
                 onScannerReady()
             } catch (throwable: Throwable) {
                 onScannerError(throwable)
@@ -429,6 +561,8 @@ private fun JlcQrCameraPreview(
         cameraProviderFuture.addListener(listener, mainExecutor)
 
         onDispose {
+            previewView.setOnTouchListener(null)
+            onZoomUiStateChanged(JlcQrScannerZoomUiState())
             if (cameraProviderFuture.isDone) {
                 runCatching { cameraProviderFuture.get().unbindAll() }
             }
@@ -441,6 +575,50 @@ private fun JlcQrCameraPreview(
         factory = { previewView },
         modifier = Modifier.fillMaxSize(),
     )
+}
+
+@SuppressLint("ClickableViewAccessibility")
+private fun configurePreviewGestures(
+    previewView: PreviewView,
+    camera: Camera,
+    onZoomChanged: (Float) -> Unit,
+) {
+    val scaleGestureDetector = ScaleGestureDetector(
+        previewView.context,
+        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val zoomState = camera.cameraInfo.zoomState.value ?: return false
+                val nextZoomRatio = (zoomState.zoomRatio * detector.scaleFactor)
+                    .coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio)
+                camera.cameraControl.setZoomRatio(nextZoomRatio)
+                onZoomChanged(nextZoomRatio)
+                return true
+            }
+        },
+    )
+
+    previewView.setOnTouchListener { _, event ->
+        scaleGestureDetector.onTouchEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_UP -> {
+                if (!scaleGestureDetector.isInProgress) {
+                    val focusPoint = previewView.meteringPointFactory.createPoint(event.x, event.y)
+                    val focusAction = FocusMeteringAction.Builder(focusPoint).build()
+                    camera.cameraControl.startFocusAndMetering(focusAction)
+                }
+                true
+            }
+
+            MotionEvent.ACTION_DOWN,
+            MotionEvent.ACTION_MOVE,
+            MotionEvent.ACTION_CANCEL,
+            MotionEvent.ACTION_POINTER_DOWN,
+            MotionEvent.ACTION_POINTER_UP,
+            -> true
+
+            else -> false
+        }
+    }
 }
 
 @ExperimentalGetImage

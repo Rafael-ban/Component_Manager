@@ -954,7 +954,7 @@ internal object ComponentLabelRenderer {
         size: Int,
     ): Bitmap {
         val hints = mapOf(
-            EncodeHintType.MARGIN to 0,
+            EncodeHintType.MARGIN to 1,
         )
         val matrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, size, size, hints)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)

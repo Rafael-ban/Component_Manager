@@ -74,6 +74,25 @@ class JlcImportParserTest {
     }
 
     @Test
+    fun parseSupplierTextPrefersStructuredNameAndBrandOverModelLikeLines() {
+        val candidate = ComponentImportParser.parseSupplierText(
+            """
+            名称：贴片电容 100nF 0603
+            型号：0603B104K500NT
+            品牌：FH
+            封装：0603
+            编号：C30926
+            """.trimIndent(),
+        )
+
+        assertEquals("C30926", candidate.sku)
+        assertEquals("贴片电容 100nF 0603", candidate.name)
+        assertEquals("0603B104K500NT", candidate.model)
+        assertEquals("FH", candidate.brand)
+        assertEquals("0603", candidate.packageName)
+    }
+
+    @Test
     fun categoryInferencerRecognizesVendorModelFamiliesOffline() {
         assertEquals("Resistor", ComponentCategoryInferencer.infer("0603WAF1002T5E"))
         assertEquals("Capacitor", ComponentCategoryInferencer.infer("GRM188R71H104KA93D"))

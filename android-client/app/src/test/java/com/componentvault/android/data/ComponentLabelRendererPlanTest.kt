@@ -48,11 +48,11 @@ class ComponentLabelRendererPlanTest {
         )
 
         val page = pages.single()
-        assertEquals(30f, page.canvasWidthMm)
-        assertEquals(40f, page.canvasHeightMm)
+        assertEquals(40f, page.canvasWidthMm)
+        assertEquals(30f, page.canvasHeightMm)
         assertEquals(0f, page.contentLeftMm)
         assertEquals(0f, page.contentTopMm)
-        assertEquals(ComponentLabelLayoutMode.LeftQrRightDetails, page.template.layoutMode)
+        assertEquals(ComponentLabelLayoutMode.LandscapeLeftQrRightStack, page.template.layoutMode)
     }
 
     @Test
@@ -67,7 +67,7 @@ class ComponentLabelRendererPlanTest {
         assertEquals(2, pages.size)
         assertEquals(ComponentLabelTemplate.Qr30x40, pages.first().template)
         assertEquals(ComponentLabelTemplate.TextOnly, pages.last().template)
-        assertEquals(ComponentLabelTemplate.TextOnly.heightMm, pages.last().canvasHeightMm)
+        assertEquals(ComponentLabelTemplate.TextOnly.physicalHeightMm, pages.last().canvasHeightMm)
         assertEquals(0f, pages.last().contentLeftMm)
         assertEquals(0f, pages.last().contentTopMm)
         assertTrue(pages.last().contentWidthMm > 0f)
