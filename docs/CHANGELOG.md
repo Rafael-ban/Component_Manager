@@ -5,12 +5,6 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
-## [0.3.8] - 2026-05-16
-
-- Fixed the Android matched-component bottom sheet so the matched scan flow now
-  uses a scrollable `LazyColumn` layout with IME and bottom inset handling,
-  keeping all fields and actions reachable on compact screens and with large
-  text.
 - Tightened Android small-label warehouse scanning with a dedicated movement
   scan mode that raises CameraX analysis resolution, enables bundled ML Kit
   potential-barcode detection plus zoom suggestions, and keeps narrow printed
