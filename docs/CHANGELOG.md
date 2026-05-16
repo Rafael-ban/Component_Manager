@@ -5,6 +5,25 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- Tightened Android small-label warehouse scanning with a dedicated movement
+  scan mode that raises CameraX analysis resolution, enables bundled ML Kit
+  potential-barcode detection plus zoom suggestions, and keeps narrow printed
+  labels on a pure auto-zoom plus tap-to-focus path instead of manual zoom
+  controls.
+- Switched the Android `10x40mm QR` warehouse label to a shorter
+  lookup-first payload (`cvl3|sku|qty`) so the app resolves full component
+  metadata locally by `sku`, while preserving backward compatibility for older
+  compact `cvl2` labels and app-generated JLC-compatible labels.
+- Hardened Android import parsing so supplier `vendor` values can populate
+  `brand`, model-like tokens are no longer learned or saved as canonical
+  component names, and explicit or server-resolved names take precedence over
+  raw model codes during JLC and OCR import refinement.
+- Refactored Android inventory and movement create flows so the main inventory
+  add action opens a unified `Import` / `Manual add` chooser, matched label
+  scans complete `Inbound` / `Outbound` / `Adjustment` edits inside the same
+  bottom sheet, save failures remain inline, and successful saves reselect the
+  affected component before optional label preview.
+
 ## [0.3.7] - 2026-05-13
 
 <!-- Add unreleased notes below this line. -->

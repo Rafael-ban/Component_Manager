@@ -29,6 +29,7 @@ import com.componentvault.android.model.ComponentImportCandidate
 import com.componentvault.android.model.ComponentImportFieldOrigin
 import com.componentvault.android.model.ComponentImportLearningMatchType
 import com.componentvault.android.model.ComponentOfficialLookupOutcome
+import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.SyncConfiguration
 import com.componentvault.android.model.isJlcSource
 import com.componentvault.android.model.referenceDisplayName
@@ -44,7 +45,7 @@ internal fun JlcImportSurface(
     syncConfiguration: SyncConfiguration,
     appPreferences: AppPreferences,
     onDismiss: () -> Unit,
-    onSaveImportedComponent: (ComponentDraft, ComponentImportCandidate) -> Unit,
+    onSaveImportedComponent: (ComponentDraft, ComponentImportCandidate, (OperationResult) -> Unit) -> Unit,
     onOpenFullEditor: (ComponentDraft, ComponentImportCandidate) -> Unit,
 ) {
     val context = LocalContext.current
@@ -158,15 +159,14 @@ internal fun JlcImportSurface(
             feedbackMessage = strings.forms.componentRequiredFields
             return null
         }
-        if (quantity == null || quantity <= 0) {
-            feedbackMessage = strings.forms.movementQuantityPositive
+        if (quantity == null || minStock == null) {
+            feedbackMessage = strings.forms.invalidQuantityMinStock
             return null
         }
-        if (minStock == null || minStock < 0) {
+        if (quantity < 0 || minStock < 0) {
             feedbackMessage = strings.forms.componentNonNegative
             return null
         }
-
         feedbackMessage = null
         return candidate.toComponentDraft(
             quantity = quantity,
@@ -190,8 +190,8 @@ internal fun JlcImportSurface(
 
         feedbackMessage = null
         return candidate.toComponentDraft(
-            quantity = quantityText.toIntOrNull()?.takeIf { it > 0 }
-                ?: (candidate.suggestedQuantity ?: 1).coerceAtLeast(1),
+            quantity = quantityText.toIntOrNull()?.takeIf { it >= 0 }
+                ?: (candidate.suggestedQuantity ?: 0).coerceAtLeast(0),
             location = location.ifBlank { appPreferences.suggestedImportLocation },
             minStock = minStockText.toIntOrNull()?.takeIf { it >= 0 }
                 ?: appPreferences.defaultImportMinStock.coerceAtLeast(0),
@@ -206,7 +206,7 @@ internal fun JlcImportSurface(
 
     fun buildPreviewDraft(): ComponentDraft? {
         val candidate = displayedCandidate ?: return null
-        val quantity = quantityText.toIntOrNull()?.coerceAtLeast(1) ?: 1
+        val quantity = quantityText.toIntOrNull()?.coerceAtLeast(0) ?: 0
         val minStock = minStockText.toIntOrNull()?.coerceAtLeast(0) ?: 0
         return candidate.toComponentDraft(
             quantity = quantity,
@@ -325,7 +325,11 @@ internal fun JlcImportSurface(
         onSave = {
             baseCandidate?.let { sourceCandidate ->
                 buildQuickSaveDraftOrNull()?.let { draft ->
-                    onSaveImportedComponent(draft, sourceCandidate)
+                    onSaveImportedComponent(draft, sourceCandidate) { result ->
+                        if (!result.isSuccess) {
+                            feedbackMessage = result.message
+                        }
+                    }
                 }
             }
         },

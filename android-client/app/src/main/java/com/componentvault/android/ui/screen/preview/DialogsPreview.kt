@@ -20,7 +20,7 @@ private fun NewComponentFormPreview() {
                 prefersDialogForms = false,
             ),
             onDismiss = {},
-            onSave = {},
+            onSave = { _, _ -> },
         )
     }
 }
@@ -38,7 +38,7 @@ private fun EditComponentFormPreview() {
                 prefersDialogForms = false,
             ),
             onDismiss = {},
-            onSave = {},
+            onSave = { _, _ -> },
         )
     }
 }
@@ -57,7 +57,7 @@ private fun MovementFormPreview() {
                 prefersDialogForms = false,
             ),
             onDismiss = {},
-            onSave = {},
+            onSave = { _, _ -> },
         )
     }
 }
@@ -76,7 +76,7 @@ private fun JlcImportPreview() {
             syncConfiguration = InventoryPreviewData.settingsState().syncConfiguration,
             appPreferences = InventoryPreviewData.settingsState().appPreferences,
             onDismiss = {},
-            onSaveImportedComponent = { _, _ -> },
+            onSaveImportedComponent = { _, _, _ -> },
             onOpenFullEditor = { _, _ -> },
         )
     }

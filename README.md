@@ -95,11 +95,19 @@ connects to it over HTTP.
   switching with first-launch default `zh-CN`, stronger vendor-aware QR
   package/category inference, generated-label QR round-trip parsing for
   warehouse and JLC-compatible labels, scan-first stock movement entry with
-  quick `Inbound`, `Outbound`, and `Adjustment` actions, and scroll-safe
-  `Scaffold` inset handling;
+  quick `Inbound`, `Outbound`, and `Adjustment` actions completed inside the
+  matched scan sheet, movement-side small-label scan tuning with higher
+  analysis resolution, potential-barcode detection, auto-zoom suggestions, and
+  tap-to-focus, a shorter lookup-first `10x40mm` warehouse QR payload
+  (`cvl3|sku|qty`) for narrow labels while preserving legacy `cvl2` and
+  app-generated JLC-compatible label parsing, a unified inventory add-entry
+  sheet for `Import` vs `Manual add`, import-name protection that keeps raw
+  model codes out of the canonical component `name` field, and vendor-to-brand
+  fallback during supplier parsing;
   `assembleDebug` and `assembleRelease` were re-verified on `2026-05-11` on
-  this host with the configured Android SDK
-  and JDK paths.
+  this host with the configured Android SDK and JDK paths, and
+  `testDebugUnitTest` plus `assembleRelease` were re-verified again on
+  `2026-05-16`.
 - Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
   separate `admin-web/` React application; backend `pytest` and `admin-web`
   production build were both verified successfully on `2026-05-08`.
@@ -198,6 +206,9 @@ preferences and supports:
 - JLC copied-text import with automatic field mapping
 - JLC package QR import through an in-app CameraX scanner backed by bundled
   ML Kit barcode scanning, with runtime camera permission handling
+- movement-side label scanning uses a dedicated small-label mode with higher
+  CameraX analysis resolution, ML Kit potential-barcode detection, zoom
+  suggestions, and tap-to-focus for dense `10x40mm` tags
 - supplier packaging OCR import through an in-app CameraX scanner backed by
   bundled ML Kit Chinese text recognition, now using a frozen-frame capture
   step plus structured line extraction before packaging-field parsing
@@ -206,7 +217,10 @@ preferences and supports:
 - user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
   templates, with linked QR dimensions, larger text treatment, direct
   label-sized export, physical-aspect preview rendering, and fixed per-size
-  layouts including a horizontal `30x40mm` QR-left detail stack
+  layouts including a horizontal `30x40mm` QR-left detail stack; the narrow
+  `10x40mm` template now prefers a short lookup-first warehouse payload so the
+  scanner resolves full metadata locally by `sku` instead of forcing a dense
+  all-fields QR
 - local-first JLC import enrichment through parser heuristics plus a device-only
   learned mapping table keyed by JLC SKU and fallback MPN reuse
 - bundled offline recognition rules for package normalization, model-family
@@ -215,8 +229,10 @@ preferences and supports:
 - optional server-assisted part enrichment for JLC text and QR imports via
   `GET /admin-api/part-lookup`, with client-side cache reuse, missing-field-only
   merge behavior, in-app toggles for local recognition aggressiveness vs
-  server lookup, and canonical-name handling that no longer copies raw
-  `model` or `sku` values into the saved component `name`
+  server lookup, canonical-name handling that no longer copies raw
+  `model` or `sku` values into the saved component `name`, vendor-to-brand
+  fallback during local parsing, and stronger preference for explicit or
+  server-resolved names over model-like tokens
 - sync settings save/test/sync-now
 - separate sync-on-launch and sync-after-write behavior controls
 - import defaults, local-learning controls, OCR engine preference, and an

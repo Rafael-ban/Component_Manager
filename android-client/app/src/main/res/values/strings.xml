@@ -111,7 +111,7 @@
     <string name="movements_scanner_permission_denied_title">Camera access denied</string>
     <string name="movements_scanner_permission_denied_description">Grant camera access and retry, or return to movement history.</string>
     <string name="movements_scanner_starting">Starting camera...</string>
-    <string name="movements_scanner_scanning_hint">Align the small warehouse label QR code inside the frame. Tap to focus, then try 2x or 3x zoom if needed.</string>
+    <string name="movements_scanner_scanning_hint">Align the small warehouse label QR code inside the frame. Tap to focus if needed. Auto zoom will assist when the code is small.</string>
     <string name="movements_scanner_failed_title">Scanner unavailable</string>
     <string name="movements_scanner_failed_description">The in-app label scanner could not start.</string>
 

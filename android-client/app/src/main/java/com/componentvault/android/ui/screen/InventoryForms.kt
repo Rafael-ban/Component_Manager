@@ -38,6 +38,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.MovementEntryDraft
+import com.componentvault.android.model.OperationResult
 
 @Composable
 internal fun ComponentEditorSurface(
@@ -45,8 +46,8 @@ internal fun ComponentEditorSurface(
     initialDraft: ComponentDraft? = null,
     layoutMode: InventoryLayoutMode,
     onDismiss: () -> Unit,
-    onSave: (ComponentDraft) -> Unit,
-    onSaveAndGenerateLabel: ((ComponentDraft) -> Unit)? = null,
+    onSave: (ComponentDraft, (OperationResult) -> Unit) -> Unit,
+    onSaveAndGenerateLabel: ((ComponentDraft, (OperationResult) -> Unit) -> Unit)? = null,
 ) {
     val strings = vaultStrings()
     val stateKey = existing?.id ?: initialDraft?.sku.orEmpty()
@@ -98,7 +99,11 @@ internal fun ComponentEditorSurface(
                 onError = { errorMessage = it },
             )?.let { draft ->
                 errorMessage = null
-                onSave(draft)
+                onSave(draft) { result ->
+                    if (!result.isSuccess) {
+                        errorMessage = result.message
+                    }
+                }
             }
         },
         onSecondarySave = {
@@ -116,7 +121,11 @@ internal fun ComponentEditorSurface(
                 onError = { errorMessage = it },
             )?.let { draft ->
                 errorMessage = null
-                onSaveAndGenerateLabel?.invoke(draft)
+                onSaveAndGenerateLabel?.invoke(draft) { result ->
+                    if (!result.isSuccess) {
+                        errorMessage = result.message
+                    }
+                }
             }
         },
     ) {
@@ -246,6 +255,107 @@ private fun validateComponentDraft(
     )
 }
 
+internal data class MovementEditorState(
+    val movementType: String = "inbound",
+    val quantityText: String = "1",
+    val reason: String = "",
+    val note: String = "",
+    val errorMessage: String? = null,
+)
+
+internal fun validateMovementEditorState(
+    strings: ComponentVaultStrings,
+    selectedComponentId: String?,
+    state: MovementEditorState,
+): Result<MovementEntryDraft> {
+    return runCatching {
+        val quantity = state.quantityText.toIntOrNull()
+        if (selectedComponentId.isNullOrBlank() || state.reason.isBlank() || quantity == null) {
+            throw IllegalStateException(strings.forms.chooseComponentTypeReason)
+        }
+        if (state.movementType == "adjustment" && quantity == 0) {
+            throw IllegalStateException(strings.forms.adjustmentNonZero)
+        }
+        if (state.movementType != "adjustment" && quantity <= 0) {
+            throw IllegalStateException(strings.forms.movementQuantityPositive)
+        }
+        MovementEntryDraft(
+            componentId = selectedComponentId,
+            movementType = state.movementType,
+            quantity = quantity,
+            reason = state.reason,
+            note = state.note,
+        )
+    }
+}
+
+@Composable
+internal fun MovementTypeSelector(
+    movementType: String,
+    onMovementTypeChange: (String) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("inbound", "outbound", "adjustment").forEach { type ->
+            FilterChip(
+                selected = movementType == type,
+                onClick = { onMovementTypeChange(type) },
+                label = { Text(movementTypeLabel(type)) },
+            )
+        }
+    }
+}
+
+@Composable
+internal fun MovementEntryFields(
+    state: MovementEditorState,
+    onStateChange: (MovementEditorState) -> Unit,
+) {
+    val strings = vaultStrings()
+
+    SectionPane(title = strings.forms.movementEntryTitle) {
+        OutlinedTextField(
+            value = state.quantityText,
+            onValueChange = {
+                onStateChange(state.copy(quantityText = it, errorMessage = null))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(strings.common.fieldQuantity) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
+        OutlinedTextField(
+            value = state.reason,
+            onValueChange = {
+                onStateChange(state.copy(reason = it, errorMessage = null))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(strings.common.fieldReason) },
+            singleLine = true,
+        )
+        OutlinedTextField(
+            value = state.note,
+            onValueChange = {
+                onStateChange(state.copy(note = it, errorMessage = null))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(strings.common.fieldNote) },
+            minLines = 2,
+        )
+        Text(
+            text = strings.forms.movementEditorInstruction,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        state.errorMessage?.takeIf { it.isNotBlank() }?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
+
 @Composable
 internal fun MovementEditorSurface(
     components: List<ComponentRecord>,
@@ -254,7 +364,7 @@ internal fun MovementEditorSurface(
     initialMovementType: String? = null,
     allowManualComponentSelection: Boolean = true,
     onDismiss: () -> Unit,
-    onSave: (MovementEntryDraft) -> Unit,
+    onSave: (MovementEntryDraft, (OperationResult) -> Unit) -> Unit,
 ) {
     val strings = vaultStrings()
     var componentMenuExpanded by remember { mutableStateOf(false) }
@@ -263,40 +373,35 @@ internal fun MovementEditorSurface(
             components.firstOrNull { it.id == selectedComponentId } ?: components.firstOrNull(),
         )
     }
-    var movementType by remember(initialMovementType) { mutableStateOf(initialMovementType ?: "inbound") }
-    var quantityText by remember { mutableStateOf("1") }
-    var reason by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var editorState by remember(initialMovementType) {
+        mutableStateOf(
+            MovementEditorState(
+                movementType = initialMovementType ?: "inbound",
+            ),
+        )
+    }
 
     AdaptiveFormSurface(
         title = strings.forms.recordStockMovementTitle,
         layoutMode = layoutMode,
         onDismiss = onDismiss,
         onSave = {
-            val quantity = quantityText.toIntOrNull()
-            if (selectedComponent == null || reason.isBlank() || quantity == null) {
-                errorMessage = strings.forms.chooseComponentTypeReason
-                return@AdaptiveFormSurface
+            validateMovementEditorState(
+                strings = strings,
+                selectedComponentId = selectedComponent?.id,
+                state = editorState,
+            ).onSuccess { draft ->
+                editorState = editorState.copy(errorMessage = null)
+                onSave(draft) { result ->
+                    if (!result.isSuccess) {
+                        editorState = editorState.copy(errorMessage = result.message)
+                    }
+                }
+            }.onFailure { throwable ->
+                editorState = editorState.copy(
+                    errorMessage = throwable.message ?: strings.forms.chooseComponentTypeReason,
+                )
             }
-            if (movementType == "adjustment" && quantity == 0) {
-                errorMessage = strings.forms.adjustmentNonZero
-                return@AdaptiveFormSurface
-            }
-            if (movementType != "adjustment" && quantity <= 0) {
-                errorMessage = strings.forms.movementQuantityPositive
-                return@AdaptiveFormSurface
-            }
-            errorMessage = null
-            onSave(
-                MovementEntryDraft(
-                    componentId = selectedComponent!!.id,
-                    movementType = movementType,
-                    quantity = quantity,
-                    reason = reason,
-                    note = note,
-                ),
-            )
         },
     ) {
         item {
@@ -322,6 +427,7 @@ internal fun MovementEditorSurface(
                                     onClick = {
                                         selectedComponent = component
                                         componentMenuExpanded = false
+                                        editorState = editorState.copy(errorMessage = null)
                                     },
                                 )
                             }
@@ -340,56 +446,22 @@ internal fun MovementEditorSurface(
                         )
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("inbound", "outbound", "adjustment").forEach { type ->
-                        FilterChip(
-                            selected = movementType == type,
-                            onClick = { movementType = type },
-                            label = { Text(movementTypeLabel(type)) },
+                MovementTypeSelector(
+                    movementType = editorState.movementType,
+                    onMovementTypeChange = { movementType ->
+                        editorState = editorState.copy(
+                            movementType = movementType,
+                            errorMessage = null,
                         )
-                    }
-                }
+                    },
+                )
             }
         }
         item {
-            SectionPane(title = strings.forms.movementEntryTitle) {
-                OutlinedTextField(
-                    value = quantityText,
-                    onValueChange = { quantityText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(strings.common.fieldQuantity) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                )
-                OutlinedTextField(
-                    value = reason,
-                    onValueChange = { reason = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(strings.common.fieldReason) },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(strings.common.fieldNote) },
-                    minLines = 2,
-                )
-                Text(
-                    text = strings.forms.movementEditorInstruction,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        if (!errorMessage.isNullOrBlank()) {
-            item {
-                Text(
-                    text = errorMessage.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
+            MovementEntryFields(
+                state = editorState,
+                onStateChange = { editorState = it },
+            )
         }
     }
 }

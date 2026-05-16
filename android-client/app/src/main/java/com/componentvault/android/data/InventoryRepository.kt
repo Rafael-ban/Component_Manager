@@ -541,11 +541,12 @@ class InventoryRepository(
     suspend fun saveComponent(draft: ComponentDraft): OperationResult = withContext(Dispatchers.IO) {
         try {
             validateComponentDraft(draft)
+            var componentId: String? = null
 
             databaseHelper.writableDatabase.use { db ->
                 db.beginTransaction()
                 try {
-                    upsertComponent(db, draft)
+                    componentId = upsertComponent(db, draft)
                     db.setTransactionSuccessful()
                 } finally {
                     db.endTransaction()
@@ -559,6 +560,7 @@ class InventoryRepository(
                 } else {
                     text(R.string.sync_component_saved_local)
                 },
+                entityId = componentId,
             )
         } catch (exception: Exception) {
             OperationResult(
@@ -576,11 +578,12 @@ class InventoryRepository(
         try {
             validateComponentDraft(draft)
             val parsedDescription = parseImportDescription(draft.description)
+            var componentId: String? = null
 
             databaseHelper.writableDatabase.use { db ->
                 db.beginTransaction()
                 try {
-                    upsertComponent(db, draft)
+                    componentId = upsertComponent(db, draft)
                     if (
                         appPreferences.enableLocalImportLearning &&
                         sourceCandidate != null &&
@@ -606,6 +609,7 @@ class InventoryRepository(
                 } else {
                     text(R.string.sync_component_saved_local)
                 },
+                entityId = componentId,
             )
         } catch (exception: Exception) {
             OperationResult(
@@ -1076,7 +1080,7 @@ class InventoryRepository(
     private fun upsertComponent(
         db: SQLiteDatabase,
         draft: ComponentDraft,
-    ) {
+    ): String {
         ensureUniqueActiveSku(db, draft.sku.trim(), draft.id)
         val updatedAt = utcNow()
         val componentId = draft.id ?: "cmp-${randomId()}"
@@ -1101,6 +1105,7 @@ class InventoryRepository(
             SQLiteDatabase.CONFLICT_REPLACE,
         )
         enqueueEntity(db, "component", componentId, updatedAt)
+        return componentId
     }
 
     private fun findImportLearningMatch(

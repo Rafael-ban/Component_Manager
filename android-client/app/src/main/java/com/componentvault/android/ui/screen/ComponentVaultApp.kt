@@ -1,17 +1,28 @@
 package com.componentvault.android.ui.screen
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.ComponentLabelTemplate
 import com.componentvault.android.data.ComponentTextLabelTemplate
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentImportCandidate
 import com.componentvault.android.model.InventoryStockFilter
+import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.toLabelSeed
 
 @Composable
@@ -33,6 +44,7 @@ fun ComponentVaultApp(
     var movementEditorAllowManualSelection by rememberSaveable { mutableStateOf(true) }
     var importSurfaceVisible by rememberSaveable { mutableStateOf(false) }
     var showDeleteConfirmation by rememberSaveable { mutableStateOf(false) }
+    var showAddEntrySheet by rememberSaveable { mutableStateOf(false) }
     var componentEditorInitialDraft by remember { mutableStateOf<ComponentDraft?>(null) }
     var componentEditorImportCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
     var labelPreviewSeed by remember { mutableStateOf<com.componentvault.android.model.ComponentLabelSeed?>(null) }
@@ -52,26 +64,22 @@ fun ComponentVaultApp(
         uiState.movements.items.filter { it.componentId == compactDetailComponent.id }.take(5)
     }
 
-    BackHandler(enabled = componentEditorVisible && !layoutMode.prefersDialogForms) {
+    fun closeComponentEditor() {
         componentEditorVisible = false
         componentEditorTargetId = null
         componentEditorInitialDraft = null
         componentEditorImportCandidate = null
     }
-    BackHandler(enabled = movementEditorVisible && !layoutMode.prefersDialogForms) {
+
+    fun closeMovementEditor() {
         movementEditorVisible = false
         movementEditorTargetId = null
         movementEditorInitialType = null
         movementEditorAllowManualSelection = true
     }
-    BackHandler(enabled = importSurfaceVisible && !layoutMode.prefersDialogForms) {
+
+    fun closeImportSurface() {
         importSurfaceVisible = false
-    }
-    BackHandler(enabled = labelPreviewSeed != null && !layoutMode.prefersDialogForms) {
-        labelPreviewSeed = null
-    }
-    BackHandler(enabled = compactDetailComponentId != null && !layoutMode.showsListDetail) {
-        compactDetailComponentId = null
     }
 
     fun openComponentEditor(
@@ -94,6 +102,69 @@ fun ComponentVaultApp(
         movementEditorInitialType = initialMovementType
         movementEditorAllowManualSelection = allowManualSelection
         movementEditorVisible = true
+    }
+
+    fun revealSavedComponent(result: OperationResult) {
+        result.entityId?.let { componentId ->
+            viewModel.selectComponent(componentId)
+            if (!layoutMode.showsListDetail) {
+                compactDetailComponentId = componentId
+            }
+        }
+    }
+
+    fun submitComponentEditorDraft(
+        draft: ComponentDraft,
+        generateLabelAfterSave: Boolean,
+        onComplete: (OperationResult) -> Unit,
+    ) {
+        val handleResult: (OperationResult) -> Unit = { result ->
+            onComplete(result)
+            if (result.isSuccess) {
+                closeComponentEditor()
+                revealSavedComponent(result)
+                if (generateLabelAfterSave) {
+                    labelPreviewSeed = draft.toLabelSeed()
+                }
+            }
+        }
+        if (editingComponent == null && componentEditorInitialDraft != null) {
+            viewModel.saveImportedComponent(draft, componentEditorImportCandidate, handleResult)
+        } else {
+            viewModel.saveComponent(draft, handleResult)
+        }
+    }
+
+    fun submitImportedDraft(
+        draft: ComponentDraft,
+        sourceCandidate: ComponentImportCandidate,
+        onComplete: (OperationResult) -> Unit,
+    ) {
+        viewModel.saveImportedComponent(draft, sourceCandidate) { result ->
+            onComplete(result)
+            if (!result.isSuccess) {
+                return@saveImportedComponent
+            }
+            closeImportSurface()
+            revealSavedComponent(result)
+            labelPreviewSeed = draft.toLabelSeed()
+        }
+    }
+
+    BackHandler(enabled = componentEditorVisible && !layoutMode.prefersDialogForms) {
+        closeComponentEditor()
+    }
+    BackHandler(enabled = movementEditorVisible && !layoutMode.prefersDialogForms) {
+        closeMovementEditor()
+    }
+    BackHandler(enabled = importSurfaceVisible && !layoutMode.prefersDialogForms) {
+        closeImportSurface()
+    }
+    BackHandler(enabled = labelPreviewSeed != null && !layoutMode.prefersDialogForms) {
+        labelPreviewSeed = null
+    }
+    BackHandler(enabled = compactDetailComponentId != null && !layoutMode.showsListDetail) {
+        compactDetailComponentId = null
     }
 
     ProvideComponentVaultStrings(strings) {
@@ -121,34 +192,20 @@ fun ComponentVaultApp(
                     existing = editingComponent,
                     initialDraft = componentEditorInitialDraft,
                     layoutMode = layoutMode,
-                    onDismiss = {
-                        componentEditorVisible = false
-                        componentEditorTargetId = null
-                        componentEditorInitialDraft = null
-                        componentEditorImportCandidate = null
+                    onDismiss = ::closeComponentEditor,
+                    onSave = { draft, onComplete ->
+                        submitComponentEditorDraft(
+                            draft = draft,
+                            generateLabelAfterSave = false,
+                            onComplete = onComplete,
+                        )
                     },
-                    onSave = { draft ->
-                        if (editingComponent == null && componentEditorInitialDraft != null) {
-                            viewModel.saveImportedComponent(draft, componentEditorImportCandidate)
-                        } else {
-                            viewModel.saveComponent(draft)
-                        }
-                        componentEditorVisible = false
-                        componentEditorTargetId = null
-                        componentEditorInitialDraft = null
-                        componentEditorImportCandidate = null
-                    },
-                    onSaveAndGenerateLabel = { draft ->
-                        if (editingComponent == null && componentEditorInitialDraft != null) {
-                            viewModel.saveImportedComponent(draft, componentEditorImportCandidate)
-                        } else {
-                            viewModel.saveComponent(draft)
-                        }
-                        componentEditorVisible = false
-                        componentEditorTargetId = null
-                        componentEditorInitialDraft = null
-                        componentEditorImportCandidate = null
-                        labelPreviewSeed = draft.toLabelSeed()
+                    onSaveAndGenerateLabel = { draft, onComplete ->
+                        submitComponentEditorDraft(
+                            draft = draft,
+                            generateLabelAfterSave = true,
+                            onComplete = onComplete,
+                        )
                     },
                 )
             }
@@ -160,18 +217,14 @@ fun ComponentVaultApp(
                     layoutMode = layoutMode,
                     initialMovementType = movementEditorInitialType,
                     allowManualComponentSelection = movementEditorAllowManualSelection,
-                    onDismiss = {
-                        movementEditorVisible = false
-                        movementEditorTargetId = null
-                        movementEditorInitialType = null
-                        movementEditorAllowManualSelection = true
-                    },
-                    onSave = { draft ->
-                        viewModel.recordMovement(draft)
-                        movementEditorVisible = false
-                        movementEditorTargetId = null
-                        movementEditorInitialType = null
-                        movementEditorAllowManualSelection = true
+                    onDismiss = ::closeMovementEditor,
+                    onSave = { draft, onComplete ->
+                        viewModel.recordMovement(draft) { result ->
+                            onComplete(result)
+                            if (result.isSuccess) {
+                                closeMovementEditor()
+                            }
+                        }
                     },
                 )
             }
@@ -181,14 +234,16 @@ fun ComponentVaultApp(
                     layoutMode = layoutMode,
                     syncConfiguration = uiState.syncConfiguration,
                     appPreferences = uiState.appPreferences,
-                    onDismiss = { importSurfaceVisible = false },
-                    onSaveImportedComponent = { draft, sourceCandidate ->
-                        viewModel.saveImportedComponent(draft, sourceCandidate)
-                        importSurfaceVisible = false
-                        labelPreviewSeed = draft.toLabelSeed()
+                    onDismiss = ::closeImportSurface,
+                    onSaveImportedComponent = { draft, sourceCandidate, onComplete ->
+                        submitImportedDraft(
+                            draft = draft,
+                            sourceCandidate = sourceCandidate,
+                            onComplete = onComplete,
+                        )
                     },
                     onOpenFullEditor = { draft, sourceCandidate ->
-                        importSurfaceVisible = false
+                        closeImportSurface()
                         openComponentEditor(
                             componentId = null,
                             initialDraft = draft,
@@ -226,6 +281,7 @@ fun ComponentVaultApp(
                         showDeleteConfirmation = true
                     },
                     onRecordMovement = { componentId -> openMovementEditor(componentId) },
+                    onAddComponent = { showAddEntrySheet = true },
                 )
             }
 
@@ -253,7 +309,7 @@ fun ComponentVaultApp(
                             compactDetailComponentId = componentId
                         }
                     },
-                    onAddComponent = { openComponentEditor(null) },
+                    onAddComponent = { showAddEntrySheet = true },
                     onImportComponent = { importSurfaceVisible = true },
                     onGenerateLabel = { componentId ->
                         uiState.availableComponents.firstOrNull { it.id == componentId }?.let { component ->
@@ -274,17 +330,8 @@ fun ComponentVaultApp(
                     },
                     onRetryMovementScan = viewModel::openMovementScanner,
                     onDismissMovementScanResult = viewModel::clearMovementScanState,
-                    onSelectQuickMovementAction = { action ->
-                        val componentId = uiState.movements.scan.resolution.matchedComponent?.id
-                        viewModel.clearMovementScanState()
-                        if (componentId != null) {
-                            viewModel.selectComponent(componentId)
-                            openMovementEditor(
-                                componentId = componentId,
-                                initialMovementType = action.movementType,
-                                allowManualSelection = false,
-                            )
-                        }
+                    onRecordResolvedMovement = { draft, onComplete ->
+                        viewModel.recordMovement(draft, onComplete)
                     },
                     onSearchInventoryBySku = { sku ->
                         destination = InventoryDestination.Inventory
@@ -329,34 +376,20 @@ fun ComponentVaultApp(
                     existing = editingComponent,
                     initialDraft = componentEditorInitialDraft,
                     layoutMode = layoutMode,
-                    onDismiss = {
-                        componentEditorVisible = false
-                        componentEditorTargetId = null
-                        componentEditorInitialDraft = null
-                        componentEditorImportCandidate = null
+                    onDismiss = ::closeComponentEditor,
+                    onSave = { draft, onComplete ->
+                        submitComponentEditorDraft(
+                            draft = draft,
+                            generateLabelAfterSave = false,
+                            onComplete = onComplete,
+                        )
                     },
-                    onSave = { draft ->
-                        if (editingComponent == null && componentEditorInitialDraft != null) {
-                            viewModel.saveImportedComponent(draft, componentEditorImportCandidate)
-                        } else {
-                            viewModel.saveComponent(draft)
-                        }
-                        componentEditorVisible = false
-                        componentEditorTargetId = null
-                        componentEditorInitialDraft = null
-                        componentEditorImportCandidate = null
-                    },
-                    onSaveAndGenerateLabel = { draft ->
-                        if (editingComponent == null && componentEditorInitialDraft != null) {
-                            viewModel.saveImportedComponent(draft, componentEditorImportCandidate)
-                        } else {
-                            viewModel.saveComponent(draft)
-                        }
-                        componentEditorVisible = false
-                        componentEditorTargetId = null
-                        componentEditorInitialDraft = null
-                        componentEditorImportCandidate = null
-                        labelPreviewSeed = draft.toLabelSeed()
+                    onSaveAndGenerateLabel = { draft, onComplete ->
+                        submitComponentEditorDraft(
+                            draft = draft,
+                            generateLabelAfterSave = true,
+                            onComplete = onComplete,
+                        )
                     },
                 )
             }
@@ -368,18 +401,14 @@ fun ComponentVaultApp(
                     layoutMode = layoutMode,
                     initialMovementType = movementEditorInitialType,
                     allowManualComponentSelection = movementEditorAllowManualSelection,
-                    onDismiss = {
-                        movementEditorVisible = false
-                        movementEditorTargetId = null
-                        movementEditorInitialType = null
-                        movementEditorAllowManualSelection = true
-                    },
-                    onSave = { draft ->
-                        viewModel.recordMovement(draft)
-                        movementEditorVisible = false
-                        movementEditorTargetId = null
-                        movementEditorInitialType = null
-                        movementEditorAllowManualSelection = true
+                    onDismiss = ::closeMovementEditor,
+                    onSave = { draft, onComplete ->
+                        viewModel.recordMovement(draft) { result ->
+                            onComplete(result)
+                            if (result.isSuccess) {
+                                closeMovementEditor()
+                            }
+                        }
                     },
                 )
             }
@@ -389,14 +418,16 @@ fun ComponentVaultApp(
                     layoutMode = layoutMode,
                     syncConfiguration = uiState.syncConfiguration,
                     appPreferences = uiState.appPreferences,
-                    onDismiss = { importSurfaceVisible = false },
-                    onSaveImportedComponent = { draft, sourceCandidate ->
-                        viewModel.saveImportedComponent(draft, sourceCandidate)
-                        importSurfaceVisible = false
-                        labelPreviewSeed = draft.toLabelSeed()
+                    onDismiss = ::closeImportSurface,
+                    onSaveImportedComponent = { draft, sourceCandidate, onComplete ->
+                        submitImportedDraft(
+                            draft = draft,
+                            sourceCandidate = sourceCandidate,
+                            onComplete = onComplete,
+                        )
                     },
                     onOpenFullEditor = { draft, sourceCandidate ->
-                        importSurfaceVisible = false
+                        closeImportSurface()
                         openComponentEditor(
                             componentId = null,
                             initialDraft = draft,
@@ -421,6 +452,20 @@ fun ComponentVaultApp(
             }
         }
 
+        if (showAddEntrySheet) {
+            AddComponentEntrySheet(
+                onDismiss = { showAddEntrySheet = false },
+                onImportComponent = {
+                    showAddEntrySheet = false
+                    importSurfaceVisible = true
+                },
+                onAddComponent = {
+                    showAddEntrySheet = false
+                    openComponentEditor(null)
+                },
+            )
+        }
+
         if (showDeleteConfirmation) {
             DeleteComponentConfirmationDialog(
                 onDismiss = { showDeleteConfirmation = false },
@@ -430,6 +475,44 @@ fun ComponentVaultApp(
                     compactDetailComponentId = null
                 },
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddComponentEntrySheet(
+    onDismiss: () -> Unit,
+    onImportComponent: () -> Unit,
+    onAddComponent: () -> Unit,
+) {
+    val strings = vaultStrings()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+    ) {
+        SectionPane(
+            title = strings.common.actionAdd,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+        ) {
+            FilledTonalButton(
+                onClick = onImportComponent,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(strings.common.actionImport)
+            }
+            OutlinedButton(
+                onClick = onAddComponent,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(strings.forms.addComponentTitle)
+            }
+            OutlinedButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(strings.common.actionCancel)
+            }
         }
     }
 }

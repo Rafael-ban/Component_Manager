@@ -19,15 +19,20 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.model.ComponentRecord
-import com.componentvault.android.model.MovementQuickAction
+import com.componentvault.android.model.MovementEntryDraft
 import com.componentvault.android.model.MovementScanMatchStatus
 import com.componentvault.android.model.MovementScanUiState
 import com.componentvault.android.model.MovementsUiState
+import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.StockMovementRecord
 
 @Composable
@@ -41,7 +46,7 @@ internal fun MovementsScreen(
     onScanMovementLabel: () -> Unit,
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
-    onSelectQuickAction: (MovementQuickAction) -> Unit,
+    onRecordResolvedMovement: (MovementEntryDraft, (OperationResult) -> Unit) -> Unit,
     onSearchInventoryBySku: (String) -> Unit,
     onImportComponent: () -> Unit,
     onRecordMovement: () -> Unit,
@@ -56,7 +61,7 @@ internal fun MovementsScreen(
         onScanMovementLabel = onScanMovementLabel,
         onRetryMovementScan = onRetryMovementScan,
         onDismissMovementScanResult = onDismissMovementScanResult,
-        onSelectQuickAction = onSelectQuickAction,
+        onRecordResolvedMovement = onRecordResolvedMovement,
         onSearchInventoryBySku = onSearchInventoryBySku,
         onImportComponent = onImportComponent,
         onRecordMovement = onRecordMovement,
@@ -75,7 +80,7 @@ internal fun MovementsContent(
     onScanMovementLabel: () -> Unit,
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
-    onSelectQuickAction: (MovementQuickAction) -> Unit,
+    onRecordResolvedMovement: (MovementEntryDraft, (OperationResult) -> Unit) -> Unit,
     onSearchInventoryBySku: (String) -> Unit,
     onImportComponent: () -> Unit,
     onRecordMovement: () -> Unit,
@@ -193,13 +198,40 @@ internal fun MovementsContent(
 
     val matchedComponent = uiState.scan.resolution.matchedComponent
     if (uiState.scan.resolution.matchStatus == MovementScanMatchStatus.Matched && matchedComponent != null) {
+        var editorState by remember(
+            uiState.scan.resolution.rawValue,
+            matchedComponent.id,
+        ) {
+            mutableStateOf(MovementEditorState())
+        }
         ModalBottomSheet(
             onDismissRequest = onDismissMovementScanResult,
         ) {
-            MovementQuickActionSheet(
+            MovementResolvedEntrySheet(
                 component = matchedComponent,
-                onSelectQuickAction = onSelectQuickAction,
+                state = editorState,
+                onStateChange = { editorState = it },
                 onDismiss = onDismissMovementScanResult,
+                onSave = {
+                    validateMovementEditorState(
+                        strings = strings,
+                        selectedComponentId = matchedComponent.id,
+                        state = editorState,
+                    ).onSuccess { draft ->
+                        editorState = editorState.copy(errorMessage = null)
+                        onRecordResolvedMovement(draft) { result ->
+                            if (result.isSuccess) {
+                                onDismissMovementScanResult()
+                            } else {
+                                editorState = editorState.copy(errorMessage = result.message)
+                            }
+                        }
+                    }.onFailure { throwable ->
+                        editorState = editorState.copy(
+                            errorMessage = throwable.message ?: strings.forms.chooseComponentTypeReason,
+                        )
+                    }
+                },
             )
         }
     }
@@ -361,10 +393,12 @@ private fun MovementQuickEntryPane(
 }
 
 @Composable
-private fun MovementQuickActionSheet(
+private fun MovementResolvedEntrySheet(
     component: ComponentRecord,
-    onSelectQuickAction: (MovementQuickAction) -> Unit,
+    state: MovementEditorState,
+    onStateChange: (MovementEditorState) -> Unit,
     onDismiss: () -> Unit,
+    onSave: () -> Unit,
 ) {
     val strings = vaultStrings()
 
@@ -385,23 +419,31 @@ private fun MovementQuickActionSheet(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         MovementResolvedComponentSummary(component = component)
+        SectionPane(
+            title = vaultStrings().forms.movementScopeTitle,
+            supporting = vaultStrings().forms.movementScopeSubtitle,
+        ) {
+            MovementTypeSelector(
+                movementType = state.movementType,
+                onMovementTypeChange = { movementType ->
+                    onStateChange(
+                        state.copy(
+                            movementType = movementType,
+                            errorMessage = null,
+                        ),
+                    )
+                },
+            )
+        }
+        MovementEntryFields(
+            state = state,
+            onStateChange = onStateChange,
+        )
         FilledTonalButton(
-            onClick = { onSelectQuickAction(MovementQuickAction.Inbound) },
+            onClick = onSave,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(strings.movements.typeInbound)
-        }
-        OutlinedButton(
-            onClick = { onSelectQuickAction(MovementQuickAction.Outbound) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(strings.movements.typeOutbound)
-        }
-        OutlinedButton(
-            onClick = { onSelectQuickAction(MovementQuickAction.Adjustment) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(strings.movements.typeAdjustment)
+            Text(strings.common.actionSave)
         }
         OutlinedButton(
             onClick = onDismiss,

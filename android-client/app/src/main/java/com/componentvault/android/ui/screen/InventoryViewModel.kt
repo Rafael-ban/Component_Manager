@@ -26,6 +26,7 @@ import com.componentvault.android.model.InventoryUiState
 import com.componentvault.android.model.MovementEntryDraft
 import com.componentvault.android.model.MovementScanUiState
 import com.componentvault.android.model.MovementsUiState
+import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.OverviewUiState
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.SyncConfiguration
@@ -122,18 +123,31 @@ class InventoryViewModel(
         )
     }
 
-    fun saveComponent(draft: ComponentDraft) {
+    fun saveComponent(
+        draft: ComponentDraft,
+        onComplete: (OperationResult) -> Unit = {},
+    ) {
         viewModelScope.launch {
             uiState = uiState.copy(isBusy = true)
             val result = repository.saveComponent(draft)
-            reloadState(result.message)
+            reloadState(
+                statusMessage = result.message,
+                preferredSelectedComponentId = result.entityId,
+            )
+            if (result.isSuccess) {
+                result.entityId?.let(::revealSavedComponent)
+            }
+            onComplete(result)
             if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
                 runSyncInternal()
             }
         }
     }
 
-    fun saveImportedComponent(draft: ComponentDraft) {
+    fun saveImportedComponent(
+        draft: ComponentDraft,
+        onComplete: (OperationResult) -> Unit = {},
+    ) {
         viewModelScope.launch {
             uiState = uiState.copy(isBusy = true)
             val result = repository.saveImportedComponent(
@@ -144,7 +158,14 @@ class InventoryViewModel(
             if (result.isSuccess && uiState.appPreferences.rememberLastImportLocation) {
                 repository.rememberLastImportLocation(draft.location)
             }
-            reloadState(result.message)
+            reloadState(
+                statusMessage = result.message,
+                preferredSelectedComponentId = result.entityId,
+            )
+            if (result.isSuccess) {
+                result.entityId?.let(::revealSavedComponent)
+            }
+            onComplete(result)
             if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
                 runSyncInternal()
             }
@@ -154,6 +175,7 @@ class InventoryViewModel(
     fun saveImportedComponent(
         draft: ComponentDraft,
         sourceCandidate: ComponentImportCandidate?,
+        onComplete: (OperationResult) -> Unit = {},
     ) {
         viewModelScope.launch {
             uiState = uiState.copy(isBusy = true)
@@ -165,7 +187,14 @@ class InventoryViewModel(
             if (result.isSuccess && uiState.appPreferences.rememberLastImportLocation) {
                 repository.rememberLastImportLocation(draft.location)
             }
-            reloadState(result.message)
+            reloadState(
+                statusMessage = result.message,
+                preferredSelectedComponentId = result.entityId,
+            )
+            if (result.isSuccess) {
+                result.entityId?.let(::revealSavedComponent)
+            }
+            onComplete(result)
             if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
                 runSyncInternal()
             }
@@ -189,11 +218,25 @@ class InventoryViewModel(
         }
     }
 
-    fun recordMovement(draft: MovementEntryDraft) {
+    fun recordMovement(
+        draft: MovementEntryDraft,
+        onComplete: (OperationResult) -> Unit = {},
+    ) {
         viewModelScope.launch {
             uiState = uiState.copy(isBusy = true)
             val result = repository.recordMovement(draft)
-            reloadState(result.message)
+            reloadState(
+                statusMessage = result.message,
+                preferredSelectedComponentId = if (result.isSuccess) {
+                    draft.componentId
+                } else {
+                    null
+                },
+            )
+            if (result.isSuccess) {
+                selectComponent(draft.componentId)
+            }
+            onComplete(result)
             if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
                 runSyncInternal()
             }
@@ -327,7 +370,10 @@ class InventoryViewModel(
         )
     }
 
-    private suspend fun reloadState(statusMessage: String? = null) {
+    private suspend fun reloadState(
+        statusMessage: String? = null,
+        preferredSelectedComponentId: String? = null,
+    ) {
         allComponentsCache = repository.loadComponents()
         allMovementsCache = repository.loadMovements()
         val appPreferences = repository.loadAppPreferences()
@@ -337,7 +383,9 @@ class InventoryViewModel(
         uiState = uiState.copy(
             overview = buildOverviewUiState(dashboardSnapshot),
             availableComponents = allComponentsCache,
-            inventory = buildInventoryScreenUiState(),
+            inventory = buildInventoryScreenUiState(
+                preferredSelectedComponentId = preferredSelectedComponentId,
+            ),
             movements = buildMovementsUiState(uiState.movements.scan),
             importLearningSummary = importLearningSummary,
             appPreferences = appPreferences,
@@ -396,12 +444,13 @@ class InventoryViewModel(
 
     private fun buildInventoryScreenUiState(
         filters: InventoryFiltersUiState = uiState.inventory.filters,
+        preferredSelectedComponentId: String? = null,
     ): InventoryScreenUiState {
         val filteredComponents = applyComponentFilter(
             components = allComponentsCache,
             filters = filters,
         )
-        val selectedComponentId = uiState.inventory.list.selectedComponentId?.takeIf { selectedId ->
+        val selectedComponentId = (preferredSelectedComponentId ?: uiState.inventory.list.selectedComponentId)?.takeIf { selectedId ->
             filteredComponents.any { it.id == selectedId }
         }
         val selectedComponent = filteredComponents.firstOrNull { it.id == selectedComponentId }
@@ -477,6 +526,30 @@ class InventoryViewModel(
             minStock = component.minStock,
             isLowStock = component.isLowStock,
             updatedAt = component.updatedAt,
+        )
+    }
+
+    private fun revealSavedComponent(componentId: String) {
+        val filters = uiState.inventory.filters
+        val isVisibleUnderCurrentFilters = applyComponentFilter(
+            components = allComponentsCache,
+            filters = filters,
+        ).any { it.id == componentId }
+        val effectiveFilters = if (isVisibleUnderCurrentFilters) {
+            filters
+        } else {
+            filters.copy(
+                query = "",
+                stockFilter = InventoryStockFilter.All,
+                category = null,
+                location = null,
+            )
+        }
+        uiState = uiState.copy(
+            inventory = buildInventoryScreenUiState(
+                filters = effectiveFilters,
+                preferredSelectedComponentId = componentId,
+            ),
         )
     }
 

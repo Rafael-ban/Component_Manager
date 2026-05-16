@@ -49,23 +49,34 @@
   be exported as PNG or PDF for physical bag, bin, or drawer labels. The
   current Android implementation uses three client-side label templates:
   `10x40mm QR`, `30x40mm QR`, and a pure text strip. The narrow label renders
-  horizontally with the QR code on the right, the `30x40mm` label now uses a
+  horizontally with the QR code on the right and now emits a shorter
+  lookup-first warehouse payload (`cvl3|sku|qty`) so dense small labels stay
+  scan-friendly; legacy compact `cvl2` labels and app-generated
+  JLC-compatible labels still round-trip. The `30x40mm` label now uses a
   horizontal physical `40x30mm` page with the QR on the left, a centered
   package-plus-name stack on the right, and bottom-aligned metadata rows, and
   the pure text strip uses single-line fit-to-fill typography. Preview now
   respects each template's physical aspect ratio, exports use the resolved
   label dimensions directly, and a bounded two-zone renderer keeps dynamic
-  field text out of the QR safe area. The label codec now also round-trips
-  generated warehouse QR payloads and app-generated JLC-compatible labels so
-  printed labels can be scanned back into local movement flows without server
-  involvement.
+  field text out of the QR safe area. Movement import and label scan flows
+  resolve the compact `10x40mm` payload locally by `sku` so no sync API or
+  schema change is required for the shorter code path.
 - `Movements` uses the same adaptive approach: compact history-first layouts on
   phones and split history/detail arrangements on larger widths. It now also
   supports a scan-first workflow for already-generated warehouse labels:
   CameraX + bundled ML Kit barcode scanning returns raw QR content, the client
   resolves the label locally by parsed `sku`, and the user then chooses a
-  quick `Inbound`, `Outbound`, or `Adjustment` action before confirming the
-  final movement form.
+  quick `Inbound`, `Outbound`, or `Adjustment` action and completes the final
+  movement form inside the same matched bottom sheet instead of navigating to a
+  separate movement page. The movement scanner now runs in a dedicated
+  small-label mode with higher analysis resolution, ML Kit
+  potential-barcode detection, zoom suggestions, and tap-to-focus to improve
+  read rates on narrow printed labels.
+- `Inventory` now routes primary create flows through a unified add-entry sheet
+  so the main action consistently branches into `Import` or `Manual add`.
+  Component create/import forms stay open on save failure, surface repository
+  errors inline, and reselect the saved component after a successful local
+  reload so compact detail flows do not lose context.
 - `Overview` is now a summary surface that routes users back into inventory or
   movement flows rather than acting as the primary editing page.
 - `Settings` is organized as grouped sync forms and status blocks instead of
@@ -86,15 +97,19 @@
   category inference can come from model families instead of only raw
   keywords. Canonical component names now stay blank until explicit source
   text, learned mappings, or server metadata confirms them, so raw model codes
-  are no longer written into the saved `name` field by fallback. User edits in
-  the import confirmation form remain authoritative.
+  are no longer written into the saved `name` field by fallback. Local parsing
+  now also treats supplier `vendor` fields as a `brand` fallback and rejects
+  model-like tokens when persisting learned names. User edits in the import
+  confirmation form remain authoritative.
 - Android still keeps a local cache for repeated server-assisted lookups, while
   `/admin-api/lcsc/lookup` now sits behind the newer hybrid recognition flow as
   a direct compatibility endpoint when official LCSC credentials are available.
 - Android build verification completed successfully on `2026-05-08` on the
   current host machine after local SDK and JDK configuration. The latest
   Android `assembleDebug` and `assembleRelease` verification completed
-  successfully on `2026-05-11`. Preview-focused
+  successfully on `2026-05-11`, and `testDebugUnitTest` plus
+  `assembleRelease` completed successfully again on `2026-05-16`.
+  Preview-focused
   `Phone`, `Tablet`, `Locale`, `Theme`, `Accessibility`, `Shell`, and `Dialogs`
   surfaces are now isolated under `ui/screen/preview/`.
 

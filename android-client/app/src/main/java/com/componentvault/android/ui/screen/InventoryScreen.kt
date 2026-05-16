@@ -205,6 +205,7 @@ internal fun InventoryDetailRoute(
     onGenerateLabel: (ComponentRecord) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
+    onAddComponent: () -> Unit,
 ) {
     val strings = vaultStrings()
 
@@ -221,6 +222,11 @@ internal fun InventoryDetailRoute(
                 navigationIcon = {
                     TextButton(onClick = onDismiss) {
                         Text(strings.common.actionBack)
+                    }
+                },
+                actions = {
+                    TextButton(onClick = onAddComponent) {
+                        Text(strings.common.actionAdd)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -335,12 +341,6 @@ private fun InventoryFilterBar(
         supporting = strings.inventory.filtersSubtitle,
     ) {
         StatusBanner(message = statusMessage)
-        FilledTonalButton(
-            onClick = onImportComponent,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(strings.common.actionImport)
-        }
         OutlinedTextField(
             value = uiState.filters.query,
             onValueChange = onQueryChange,

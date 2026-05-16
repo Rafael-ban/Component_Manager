@@ -101,7 +101,7 @@
     <string name="movements_scanner_permission_denied_title">相机权限已拒绝</string>
     <string name="movements_scanner_permission_denied_description">重新授权后可以继续扫描，或直接返回变动历史。</string>
     <string name="movements_scanner_starting">正在启动相机...</string>
-    <string name="movements_scanner_scanning_hint">将小尺寸仓库标签二维码对准取景框。可点按对焦，必要时切换到 2x 或 3x 缩放。</string>
+    <string name="movements_scanner_scanning_hint">将小尺寸仓库标签二维码对准取景框。可点按对焦，二维码偏小时会自动辅助缩放。</string>
     <string name="movements_scanner_failed_title">标签扫码不可用</string>
     <string name="movements_scanner_failed_description">应用内的标签扫码器未能正常启动。</string>
     <string name="field_api_token">API 令牌</string>
