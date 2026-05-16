@@ -181,6 +181,7 @@ $env:ANDROID_HOME='C:\Users\gdblz\AppData\Local\Android\Sdk'
 $env:ANDROID_USER_HOME='D:\Project_Folder\Component_warehouse\.android-user'
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client help
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleDebug
+& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client testDebugUnitTest
 & 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
 ```
 
@@ -194,10 +195,19 @@ Simpler Windows helper:
 That helper prefers Android Studio's embedded JBR if the current machine
 default `java` is newer than the Android lint toolchain supports.
 
+Current host compatibility note:
+
+- system `java -version` returns `25.0.1`
+- Android `assembleRelease` can fail under that JDK during `lintVitalAnalyzeRelease`
+  with `IllegalArgumentException: 25.0.1`
+- using Android Studio's bundled `D:\android_studio\jbr` (`OpenJDK 21`) avoids
+  the lint failure on this host
+
 Verification result on this host:
 
 - `help` -> success
 - `assembleDebug` -> success
+- `testDebugUnitTest` -> success
 - `assembleRelease` -> success
 - Android metrics warnings and Kotlin daemon fallback messages may appear on
   this host, but the builds still complete successfully

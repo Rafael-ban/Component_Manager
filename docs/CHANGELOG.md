@@ -5,6 +5,12 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.3.8] - 2026-05-16
+
+- Fixed the Android matched-component bottom sheet so the matched scan flow now
+  uses a scrollable `LazyColumn` layout with IME and bottom inset handling,
+  keeping all fields and actions reachable on compact screens and with large
+  text.
 - Tightened Android small-label warehouse scanning with a dedicated movement
   scan mode that raises CameraX analysis resolution, enables bundled ML Kit
   potential-barcode detection plus zoom suggestions, and keeps narrow printed
@@ -24,16 +30,14 @@ bump: patch
   bottom sheet, save failures remain inline, and successful saves reselect the
   affected component before optional label preview.
 
-## [0.3.7] - 2026-05-13
 
-<!-- Add unreleased notes below this line. -->
+## [0.3.7] - 2026-05-13
 
 - Added Android scan-first stock movement entry for generated warehouse and
   app-generated JLC-compatible labels, including local label parsing by `sku`,
   match-status feedback (`invalid`, `not found`, `ambiguous`, `matched`), and
   quick `Inbound`, `Outbound`, and `Adjustment` actions that open a
   component-locked movement form without requiring server lookup.
-
 
 ## [0.3.6] - 2026-05-13
 

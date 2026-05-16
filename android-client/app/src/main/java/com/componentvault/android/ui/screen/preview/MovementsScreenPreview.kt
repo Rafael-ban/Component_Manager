@@ -63,6 +63,8 @@ private fun MovementsTabletPreview() {
 }
 
 @InventoryPhonePreview
+@InventoryZhCnPreview
+@InventoryLargeFontPreview
 @Composable
 private fun MovementsMatchedPhonePreview() {
     PreviewHost {

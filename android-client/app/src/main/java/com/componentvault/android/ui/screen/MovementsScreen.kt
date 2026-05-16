@@ -2,6 +2,8 @@ package com.componentvault.android.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -402,54 +404,71 @@ private fun MovementResolvedEntrySheet(
 ) {
     val strings = vaultStrings()
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .fillMaxHeight(0.9f)
+            .navigationBarsPadding()
+            .imePadding(),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(
-            text = strings.movements.quickActionsTitle,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = strings.movements.quickActionsSubtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        MovementResolvedComponentSummary(component = component)
-        SectionPane(
-            title = vaultStrings().forms.movementScopeTitle,
-            supporting = vaultStrings().forms.movementScopeSubtitle,
-        ) {
-            MovementTypeSelector(
-                movementType = state.movementType,
-                onMovementTypeChange = { movementType ->
-                    onStateChange(
-                        state.copy(
-                            movementType = movementType,
-                            errorMessage = null,
-                        ),
-                    )
-                },
+        item {
+            Text(
+                text = strings.movements.quickActionsTitle,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
             )
         }
-        MovementEntryFields(
-            state = state,
-            onStateChange = onStateChange,
-        )
-        FilledTonalButton(
-            onClick = onSave,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(strings.common.actionSave)
+        item {
+            Text(
+                text = strings.movements.quickActionsSubtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-        OutlinedButton(
-            onClick = onDismiss,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(strings.common.actionCancel)
+        item {
+            MovementResolvedComponentSummary(component = component)
+        }
+        item {
+            SectionPane(
+                title = strings.forms.movementScopeTitle,
+                supporting = strings.forms.movementScopeSubtitle,
+            ) {
+                MovementTypeSelector(
+                    movementType = state.movementType,
+                    onMovementTypeChange = { movementType ->
+                        onStateChange(
+                            state.copy(
+                                movementType = movementType,
+                                errorMessage = null,
+                            ),
+                        )
+                    },
+                )
+            }
+        }
+        item {
+            MovementEntryFields(
+                state = state,
+                onStateChange = onStateChange,
+            )
+        }
+        item {
+            FilledTonalButton(
+                onClick = onSave,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(strings.common.actionSave)
+            }
+        }
+        item {
+            OutlinedButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(strings.common.actionCancel)
+            }
         }
     }
 }
