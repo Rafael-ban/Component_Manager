@@ -5,6 +5,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.3.8] - 2026-05-16
+
+<!-- Add unreleased notes below this line. -->
+
 - Tightened Android small-label warehouse scanning with a dedicated movement
   scan mode that raises CameraX analysis resolution, enables bundled ML Kit
   potential-barcode detection plus zoom suggestions, and keeps narrow printed
@@ -23,6 +27,7 @@ bump: patch
   scans complete `Inbound` / `Outbound` / `Adjustment` edits inside the same
   bottom sheet, save failures remain inline, and successful saves reselect the
   affected component before optional label preview.
+
 
 ## [0.3.7] - 2026-05-13
 
