@@ -52,5 +52,13 @@ if ($selectedJavaHome) {
     Write-Warning "No compatible Android JBR/JDK (<= 21) was found. Gradle will use the current Java runtime."
 }
 
-& gradle -p android-client @GradleArgs
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$gradleWrapper = Join-Path $repoRoot "android-client\gradlew.bat"
+$androidProjectDir = Join-Path $repoRoot "android-client"
+
+if (!(Test-Path $gradleWrapper)) {
+    throw "Gradle wrapper not found: $gradleWrapper"
+}
+
+& $gradleWrapper -p $androidProjectDir @GradleArgs
 exit $LASTEXITCODE

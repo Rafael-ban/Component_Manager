@@ -32,6 +32,12 @@ bump: patch
   `currentWindowAdaptiveInfo`, `NavigableListDetailPaneScaffold`, and a
   search-first `SearchBar` header, while tightening inventory row density and
   shifting the primary flow away from stacked filter cards.
+- Upgraded the Android release build chain to a newer AGP and Lifecycle
+  combination, aligned CI and release workflows to the matching Gradle
+  8.11.1 plus SDK Build Tools 35.0.0 baseline, migrated off the deprecated
+  `kotlinOptions` DSL, and removed empty proxy properties to address the
+  GitHub Actions `lintVitalAnalyzeRelease` crash path triggered by Lifecycle
+  lint binary incompatibility.
 
 
 ## [0.3.7] - 2026-05-13

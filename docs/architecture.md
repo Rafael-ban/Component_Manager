@@ -111,13 +111,16 @@
   `/admin-api/lcsc/lookup` now sits behind the newer hybrid recognition flow as
   a direct compatibility endpoint when official LCSC credentials are available.
 - Android build verification completed successfully on `2026-05-08` on the
-  current host machine after local SDK and JDK configuration. The last full
-  Android `assembleDebug` and `assembleRelease` verification on this host
-  completed on `2026-05-16`. After the adaptive-shell refactor,
-  `compileDebugKotlin --no-daemon` completed successfully on `2026-05-17`;
-  local APK assembly is currently blocked on this host by an SDK build-tools
-  permission issue against `core-lambda-stubs.jar`, not by Kotlin or Compose
-  compilation failures.
+  current host machine after local SDK and JDK configuration. The current
+  Android build baseline is AGP `8.10.1`, Gradle wrapper `8.11.1`, Java 17
+  bytecode, SDK Build Tools `35.0.0`, Kotlin `2.0.21`, and Lifecycle `2.9.2`.
+  The last full Android `assembleDebug` and `assembleRelease` verification on
+  this host completed on `2026-05-16`. After the build-chain refresh,
+  `.\android-client\gradlew.bat -p android-client help --no-daemon`
+  completed successfully on `2026-05-17`; current local APK assembly is
+  blocked on this host because the Android SDK directory is not writable, so
+  AGP cannot auto-install `build-tools;35.0.0`. Kotlin and Compose source
+  compilation are not the blocker in the current state.
   Preview-focused
   `Phone`, `Tablet`, `Locale`, `Theme`, `Accessibility`, `Shell`, and `Dialogs`
   surfaces are now isolated under `ui/screen/preview/`.

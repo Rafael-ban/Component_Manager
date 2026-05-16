@@ -152,18 +152,21 @@ Known machine requirements:
 Basic check:
 
 ```powershell
-gradle -p android-client help
+.\android-client\gradlew.bat -p android-client help --no-daemon
 ```
 
-Verified working configuration on this host (`2026-05-08`):
+Verified working configuration on this host (`2026-05-17`):
 
 - Android SDK: `C:\Users\gdblz\AppData\Local\Android\Sdk`
 - JDK: `D:\android_studio\jbr`
-- Gradle: `D:\dev-tool\gradle\bin\gradle.bat`
+- Gradle wrapper: `.\android-client\gradlew.bat` (`8.11.1`)
 - project-local Gradle cache: `D:\Project_Folder\Component_warehouse\.gradle-user-home`
 - project-local Android user home: `D:\Project_Folder\Component_warehouse\.android-user`
 - the repository does not hardcode `org.gradle.java.home`, so Gradle now uses
   `JAVA_HOME` or the toolchain configured by the host/runner
+- current Android build baseline: AGP `8.10.1`, Kotlin `2.0.21`,
+  Lifecycle `2.9.2`, Android SDK Platform `35`, Build Tools `35.0.0`,
+  Java 21 in CI, and Java 17 bytecode target
 
 Create or confirm `android-client/local.properties`:
 
@@ -179,10 +182,10 @@ $env:JAVA_HOME='D:\android_studio\jbr'
 $env:ANDROID_SDK_ROOT='C:\Users\gdblz\AppData\Local\Android\Sdk'
 $env:ANDROID_HOME='C:\Users\gdblz\AppData\Local\Android\Sdk'
 $env:ANDROID_USER_HOME='D:\Project_Folder\Component_warehouse\.android-user'
-& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client help
-& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleDebug
-& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client testDebugUnitTest
-& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
+& '.\android-client\gradlew.bat' -p android-client help --no-daemon
+& '.\android-client\gradlew.bat' -p android-client assembleDebug --no-daemon
+& '.\android-client\gradlew.bat' -p android-client testDebugUnitTest --no-daemon
+& '.\android-client\gradlew.bat' -p android-client assembleRelease --no-daemon
 ```
 
 Simpler Windows helper:
@@ -192,29 +195,24 @@ Simpler Windows helper:
 .\scripts\android-gradle.ps1 assembleRelease
 ```
 
-That helper prefers Android Studio's embedded JBR if the current machine
-default `java` is newer than the Android lint toolchain supports.
-
-Current host compatibility note:
-
-- system `java -version` returns `25.0.1`
-- Android `assembleRelease` can fail under that JDK during `lintVitalAnalyzeRelease`
-  with `IllegalArgumentException: 25.0.1`
-- using Android Studio's bundled `D:\android_studio\jbr` (`OpenJDK 21`) avoids
-  the lint failure on this host
+That helper prefers Android Studio's embedded JBR and then calls the
+repository Gradle wrapper, so local Windows builds stay aligned with CI even
+when the machine has a newer system Java or another Gradle version on `PATH`.
 
 Verification result on this host:
 
-- `help` -> success
+- `.\android-client\gradlew.bat -p android-client help --no-daemon` ->
+  success on `2026-05-17`
 - last full `assembleDebug` -> success on `2026-05-16`
 - last full `testDebugUnitTest` -> success on `2026-05-16`
 - last full `assembleRelease` -> success on `2026-05-16`
 - `compileDebugKotlin --no-daemon` after the adaptive-shell refactor ->
   success on `2026-05-17`
 - current local `assembleDebug` / `assembleRelease` on this host ->
-  blocked on `2026-05-17` by `AccessDeniedException` against
-  `C:\Users\gdblz\AppData\Local\Android\Sdk\build-tools\36.0.0\core-lambda-stubs.jar`
-  during `compile*JavaWithJavac`
+  blocked on `2026-05-17` because AGP cannot install
+  `build-tools;35.0.0` into
+  `C:\Users\gdblz\AppData\Local\Android\Sdk`; the SDK directory is not
+  writable for the current user
 - Android metrics warnings and Kotlin daemon fallback messages may appear on
   this host and do not, by themselves, indicate a Kotlin or Compose source
   failure
@@ -430,30 +428,32 @@ curl -X POST http://localhost:8787/auth/ping `
 - Fix: add all four required Android signing secrets before rerunning the
   release workflow.
 
-### Android `assembleRelease` fails in `lintVitalAnalyzeRelease` on Java 25
+### Android `lintVitalAnalyzeRelease` crashes in the Lifecycle detector stack
 
-- Symptom: local Windows `gradle -p android-client assembleRelease` fails in
-  `:app:lintVitalAnalyzeRelease` with `IllegalArgumentException: 25.0.1` or a
-  follow-up `org.jetbrains.uast.UastFacade` initialization error.
-- Cause: the Android lint/UAST stack in the current toolchain is not compatible
-  with the system Java 25 runtime.
-- Fix: run builds with Android Studio's embedded JBR 21, either by setting
-  `JAVA_HOME=D:\android_studio\jbr` before invoking Gradle or by using
-  `.\scripts\android-gradle.ps1 assembleRelease`.
+- Symptom: `assembleRelease` fails in `:app:lintVitalAnalyzeRelease` with
+  `Found class ... KaCallableMemberCall, but interface was expected` and the
+  stack mentions
+  `androidx.lifecycle.lint.NonNullableMutableLiveDataDetector`.
+- Cause: a stale AGP/lint/Lifecycle detector combination is running against a
+  newer Kotlin analysis API.
+- Fix: stay on the repository baseline of AGP `8.10.1`, Gradle wrapper
+  `8.11.1`, Lifecycle `2.9.2`, SDK Build Tools `35.0.0`, and Java 21 for CI.
+  This repository also disables the unused `NullSafeMutableLiveData` lint
+  issue because the app does not use `LiveData`, which removes the crash path
+  even before a full upstream lint fix lands.
 
-### Android javac cannot read `core-lambda-stubs.jar`
+### Android SDK directory is not writable for Build Tools `35.0.0`
 
-- Symptom: local `assembleDebug` or `assembleRelease` reaches
-  `:app:compile*JavaWithJavac` and fails with
-  `AccessDeniedException: ...\build-tools\36.0.0\core-lambda-stubs.jar`.
-- Cause: the local Android SDK build-tools installation or its filesystem
-  permissions are unhealthy, even though Kotlin/Compose compilation still
-  succeeds.
-- Fix: close Android Studio and any Gradle daemons, verify the current user can
-  read the file directly, then repair or reinstall the pinned Android
-  build-tools version (`36.0.0`). Until the SDK is repaired, use
-  `compileDebugKotlin --no-daemon` as the code-level verification step for UI
-  refactors.
+- Symptom: local `assembleDebug` or `assembleRelease` fails before packaging
+  with `Failed to install the following SDK components: build-tools;35.0.0`
+  and `The SDK directory is not writable`.
+- Cause: AGP requires Build Tools `35.0.0`, but the local SDK either does not
+  have them installed or cannot update them under the current user account.
+- Fix: install or repair `build-tools;35.0.0` through Android Studio SDK
+  Manager or `sdkmanager` under a writable SDK path, then rerun the wrapper
+  build. Until the SDK is writable, use
+  `.\android-client\gradlew.bat -p android-client help --no-daemon` or
+  `compileDebugKotlin --no-daemon` only as source-level verification steps.
 
 ### Changelog release automation cannot push commit or tag
 

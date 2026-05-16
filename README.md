@@ -108,10 +108,12 @@ connects to it over HTTP.
   model codes out of the canonical component `name` field, and vendor-to-brand
   fallback during supplier parsing; the last full `assembleDebug` and
   `assembleRelease` verification on this host completed on `2026-05-16`.
-  After the current adaptive-shell refactor, `compileDebugKotlin --no-daemon`
-  completed successfully on `2026-05-17`, while local APK assembly is
-  currently blocked on this host by an Android SDK build-tools permission
-  failure against `core-lambda-stubs.jar` during `compile*JavaWithJavac`.
+  After the Android build-chain refresh to AGP `8.10.1`, Gradle `8.11.1`,
+  SDK Build Tools `35.0.0`, and Lifecycle `2.9.2`,
+  `.\android-client\gradlew.bat -p android-client help --no-daemon`
+  completed successfully on `2026-05-17`; current local APK assembly on this
+  host is blocked because the Android SDK directory is not writable, so AGP
+  cannot auto-install `build-tools;35.0.0`.
 - Server admin surface: now split into FastAPI `/admin-api/*` endpoints plus a
   separate `admin-web/` React application; backend `pytest` and `admin-web`
   production build were both verified successfully on `2026-05-08`.
@@ -167,12 +169,14 @@ Before building, make sure the machine has:
 - Gradle access to Google Maven
 - or `android-client/local.properties` created from
   `android-client/local.properties.example`
+- repository Gradle wrapper `8.11.1`, AGP `8.10.1`, Android SDK Platform `35`,
+  Build Tools `35.0.0`, Kotlin `2.0.21`, and Lifecycle `2.9.2`
 
 Verified working setup on this host:
 
 - Android SDK: `C:\Users\gdblz\AppData\Local\Android\Sdk`
 - JDK: `D:\android_studio\jbr`
-- Gradle launcher: `D:\dev-tool\gradle\bin\gradle.bat`
+- Gradle wrapper: `.\android-client\gradlew.bat`
 - local SDK file: `android-client/local.properties`
 - project-local Android user home: `D:\Project_Folder\Component_warehouse\.android-user`
 - the repository does not pin `org.gradle.java.home`, so local builds and CI
@@ -186,14 +190,14 @@ $env:JAVA_HOME='D:\android_studio\jbr'
 $env:ANDROID_SDK_ROOT='C:\Users\gdblz\AppData\Local\Android\Sdk'
 $env:ANDROID_HOME='C:\Users\gdblz\AppData\Local\Android\Sdk'
 $env:ANDROID_USER_HOME='D:\Project_Folder\Component_warehouse\.android-user'
-& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client help
-& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleDebug
-& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
+& '.\android-client\gradlew.bat' -p android-client help --no-daemon
+& '.\android-client\gradlew.bat' -p android-client assembleDebug --no-daemon
+& '.\android-client\gradlew.bat' -p android-client assembleRelease --no-daemon
 ```
 
 On Windows, the repository also includes a helper that prefers Android Studio's
-embedded JBR when the system `java` is newer than the Android lint toolchain
-supports:
+embedded JBR and then delegates to the repository wrapper, so host Java or
+global Gradle drift does not change the build chain:
 
 ```powershell
 .\scripts\android-gradle.ps1 assembleDebug
@@ -339,9 +343,10 @@ certificate plus an install script that must be run from an elevated
 PowerShell window. The script imports the certificate into
 `Cert:\LocalMachine\TrustedPeople` before calling `Add-AppxPackage`.
 
-GitHub Actions already pins Android builds to Java 21. The local
-`.\scripts\android-gradle.ps1` helper exists only to avoid Windows machines
-using unsupported newer system JDKs such as Java 25 for `assembleRelease`.
+GitHub Actions now pins Android builds to Java 21, Gradle `8.11.1`, and SDK
+Build Tools `35.0.0`. The local `.\scripts\android-gradle.ps1` helper exists
+only to keep Windows hosts on Android Studio's JBR 21 while still using the
+same repository wrapper version.
 
 When downloading from the GitHub Actions run page instead of a tagged GitHub
 Release, first extract the outer workflow artifact archive, then use the inner

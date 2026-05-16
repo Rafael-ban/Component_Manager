@@ -39,7 +39,11 @@ and Material 3.
 - Preview rendering now uses injected static `ComponentVaultStrings` sample
   bundles plus content-level preview composables so Android Studio does not
   have to resolve the runtime `R.string` graph for preview-only rendering
-- `gradle -p android-client help` verified successfully on `2026-05-08`
+- Android build chain now targets AGP `8.10.1`, Gradle wrapper `8.11.1`,
+  Kotlin `2.0.21`, Lifecycle `2.9.2`, Android SDK Platform `35`, Build Tools
+  `35.0.0`, and Java 21 in CI
+- `.\android-client\gradlew.bat -p android-client help --no-daemon` verified
+  successfully on `2026-05-17`
 - Last full `assembleDebug` verification completed successfully on
   `2026-05-16` on this host
 - Last full `assembleRelease` verification completed successfully on
@@ -68,7 +72,7 @@ Verified working paths on this Windows machine:
 
 - Android SDK: `C:\Users\gdblz\AppData\Local\Android\Sdk`
 - JDK: `D:\android_studio\jbr`
-- Gradle launcher: `D:\dev-tool\gradle\bin\gradle.bat`
+- Gradle wrapper: `.\android-client\gradlew.bat`
 - Project-local Gradle cache: `D:\Project_Folder\Component_warehouse\.gradle-user-home`
 - Project-local Android user home: `D:\Project_Folder\Component_warehouse\.android-user`
 
@@ -86,9 +90,9 @@ $env:JAVA_HOME='D:\android_studio\jbr'
 $env:ANDROID_SDK_ROOT='C:\Users\gdblz\AppData\Local\Android\Sdk'
 $env:ANDROID_HOME='C:\Users\gdblz\AppData\Local\Android\Sdk'
 $env:ANDROID_USER_HOME='D:\Project_Folder\Component_warehouse\.android-user'
-& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client help
-& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleDebug
-& 'D:\dev-tool\gradle\bin\gradle.bat' -p android-client assembleRelease
+& '.\android-client\gradlew.bat' -p android-client help --no-daemon
+& '.\android-client\gradlew.bat' -p android-client assembleDebug --no-daemon
+& '.\android-client\gradlew.bat' -p android-client assembleRelease --no-daemon
 ```
 
 For this Windows host, you can also use the repository helper script:
@@ -98,26 +102,27 @@ For this Windows host, you can also use the repository helper script:
 .\scripts\android-gradle.ps1 assembleRelease
 ```
 
-That helper prefers Android Studio's embedded JBR when the current machine
-default `java` is newer than the Android lint toolchain supports.
+That helper prefers Android Studio's embedded JBR and then calls the
+repository wrapper, so local Windows builds stay aligned with the checked-in
+Gradle version.
 
 If this host logs Kotlin daemon access warnings under
 `C:\Users\gdblz\AppData\Local\kotlin\daemon\...`, Gradle may fall back to
 non-daemon compilation and still finish successfully.
 
-If local `assembleRelease` fails in `lintVitalAnalyzeRelease` with
-`IllegalArgumentException: 25.0.1` or a follow-up `org.jetbrains.uast.UastFacade`
-initialization error, the machine is likely using an unsupported Java 25
-runtime. Use `.\scripts\android-gradle.ps1 assembleRelease` or set
-`JAVA_HOME=D:\android_studio\jbr` before invoking Gradle.
+If an older branch or stale dependency cache still fails in
+`lintVitalAnalyzeRelease` with `KaCallableMemberCall` and
+`androidx.lifecycle.lint.NonNullableMutableLiveDataDetector`, sync to the
+current repository baseline first: AGP `8.10.1`, Gradle wrapper `8.11.1`,
+Lifecycle `2.9.2`, SDK Build Tools `35.0.0`, and Java 21.
 
-If local `assembleDebug` or `assembleRelease` instead fails in
-`compile*JavaWithJavac` with `AccessDeniedException` against
-`C:\Users\gdblz\AppData\Local\Android\Sdk\build-tools\36.0.0\core-lambda-stubs.jar`,
-the current SDK build-tools installation is unhealthy on this host. In that
-state, `compileDebugKotlin --no-daemon` is still a valid code-level check for
-Compose refactors, but the SDK install needs repair before APK packaging can
-pass again.
+If local `assembleDebug` or `assembleRelease` instead fails with
+`Failed to install the following SDK components: build-tools;35.0.0` and
+`The SDK directory is not writable`, the current user cannot repair or install
+the required build-tools package in the configured SDK path. In that state,
+`.\android-client\gradlew.bat -p android-client help --no-daemon` and
+`compileDebugKotlin --no-daemon` are still valid source-level checks, but APK
+packaging will stay blocked until the SDK is writable again.
 
 ## Visual Editing
 
