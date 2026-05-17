@@ -35,7 +35,9 @@ fun ComponentVaultApp(
 
     var destination by rememberSaveable { mutableStateOf(InventoryDestination.Inventory) }
     var compactDetailComponentId by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedMovementId by rememberSaveable { mutableStateOf<String?>(null) }
+    var compactMovementDetailId by rememberSaveable { mutableStateOf<String?>(null) }
+    var settingsVisible by rememberSaveable { mutableStateOf(false) }
+    var selectedSettingsSectionName by rememberSaveable { mutableStateOf<String?>(null) }
     var componentEditorVisible by rememberSaveable { mutableStateOf(false) }
     var componentEditorTargetId by rememberSaveable { mutableStateOf<String?>(null) }
     var movementEditorVisible by rememberSaveable { mutableStateOf(false) }
@@ -58,10 +60,29 @@ fun ComponentVaultApp(
     val compactDetailComponent = uiState.inventory.detail.component
         ?.takeIf { it.id == compactDetailComponentId }
         ?: uiState.availableComponents.firstOrNull { it.id == compactDetailComponentId }
+    val compactMovementDetail = uiState.movements.items.firstOrNull { it.id == compactMovementDetailId }
     val compactDetailMovements = if (compactDetailComponent == null) {
         emptyList()
     } else {
         uiState.movements.items.filter { it.componentId == compactDetailComponent.id }.take(5)
+    }
+    val selectedSettingsSection = SettingsSection.entries.firstOrNull { it.name == selectedSettingsSectionName }
+
+    fun resetSecondaryRoutes() {
+        compactDetailComponentId = null
+        compactMovementDetailId = null
+        settingsVisible = false
+        selectedSettingsSectionName = null
+    }
+
+    fun openSettingsRoute(section: SettingsSection? = null) {
+        settingsVisible = true
+        selectedSettingsSectionName = section?.name
+    }
+
+    fun closeSettingsRoute() {
+        settingsVisible = false
+        selectedSettingsSectionName = null
     }
 
     fun closeComponentEditor() {
@@ -102,6 +123,13 @@ fun ComponentVaultApp(
         movementEditorInitialType = initialMovementType
         movementEditorAllowManualSelection = allowManualSelection
         movementEditorVisible = true
+    }
+
+    fun openCompactMovementDetail(movementId: String) {
+        viewModel.selectMovement(movementId)
+        if (!layoutMode.showsListDetail) {
+            compactMovementDetailId = movementId
+        }
     }
 
     fun revealSavedComponent(result: OperationResult) {
@@ -163,8 +191,18 @@ fun ComponentVaultApp(
     BackHandler(enabled = labelPreviewSeed != null && !layoutMode.prefersDialogForms) {
         labelPreviewSeed = null
     }
+    BackHandler(enabled = settingsVisible) {
+        if (!layoutMode.showsListDetail && selectedSettingsSection != null) {
+            selectedSettingsSectionName = null
+        } else {
+            closeSettingsRoute()
+        }
+    }
     BackHandler(enabled = compactDetailComponentId != null && !layoutMode.showsListDetail) {
         compactDetailComponentId = null
+    }
+    BackHandler(enabled = compactMovementDetailId != null && !layoutMode.showsListDetail) {
+        compactMovementDetailId = null
     }
 
     ProvideComponentVaultStrings(strings) {
@@ -285,15 +323,40 @@ fun ComponentVaultApp(
                 )
             }
 
+            settingsVisible -> {
+                SettingsRouteScreen(
+                    syncConfiguration = uiState.syncConfiguration,
+                    appPreferences = uiState.appPreferences,
+                    importLearningSummary = uiState.importLearningSummary,
+                    isBusy = uiState.isBusy,
+                    statusMessage = uiState.statusMessage,
+                    layoutMode = layoutMode,
+                    selectedSection = selectedSettingsSection,
+                    onSelectSection = { section -> selectedSettingsSectionName = section?.name },
+                    onDismiss = ::closeSettingsRoute,
+                    onSaveSyncSettings = viewModel::saveSyncConfiguration,
+                    onSaveAppPreferences = viewModel::saveAppPreferences,
+                    onTestConnection = viewModel::testConnection,
+                    onSyncNow = viewModel::runSync,
+                    onClearImportLearningMappings = viewModel::clearImportLearningMappings,
+                )
+            }
+
+            compactMovementDetailId != null && !layoutMode.showsListDetail -> {
+                MovementDetailRoute(
+                    movement = compactMovementDetail,
+                    onDismiss = { compactMovementDetailId = null },
+                )
+            }
+
             else -> {
                 ComponentVaultAppShell(
                     uiState = uiState,
                     destination = destination,
                     layoutMode = layoutMode,
-                    selectedMovementId = selectedMovementId,
                     onDestinationChange = { nextDestination ->
                         destination = nextDestination
-                        compactDetailComponentId = null
+                        resetSecondaryRoutes()
                     },
                     onQueryChange = viewModel::updateComponentQuery,
                     onStockFilterChange = { stockFilter ->
@@ -336,24 +399,25 @@ fun ComponentVaultApp(
                     onSearchInventoryBySku = { sku ->
                         destination = InventoryDestination.Inventory
                         compactDetailComponentId = null
+                        compactMovementDetailId = null
+                        closeSettingsRoute()
                         viewModel.updateComponentQuery(sku)
                     },
                     onRecordMovement = { componentId ->
                         componentId?.let(viewModel::selectComponent)
                         openMovementEditor(componentId)
                     },
-                    onSaveSyncSettings = viewModel::saveSyncConfiguration,
-                    onSaveAppPreferences = viewModel::saveAppPreferences,
-                    onTestConnection = viewModel::testConnection,
-                    onSyncNow = viewModel::runSync,
-                    onClearImportLearningMappings = viewModel::clearImportLearningMappings,
                     onOpenLowStockInventory = {
                         destination = InventoryDestination.Inventory
                         compactDetailComponentId = null
+                        compactMovementDetailId = null
+                        closeSettingsRoute()
                         viewModel.focusLowStockInventory()
                     },
                     onSelectOverviewComponent = { componentId ->
                         destination = InventoryDestination.Inventory
+                        compactMovementDetailId = null
+                        closeSettingsRoute()
                         viewModel.focusLowStockInventory(componentId)
                         if (!layoutMode.showsListDetail) {
                             compactDetailComponentId = componentId
@@ -361,11 +425,17 @@ fun ComponentVaultApp(
                     },
                     onOpenMovements = { movementId ->
                         destination = InventoryDestination.Movements
-                        selectedMovementId = movementId
+                        compactDetailComponentId = null
+                        closeSettingsRoute()
+                        viewModel.selectMovement(movementId)
+                        compactMovementDetailId = movementId?.takeIf { !layoutMode.showsListDetail }
                     },
                     onSelectMovement = { movementId ->
-                        selectedMovementId = movementId
+                        viewModel.selectMovement(movementId)
                     },
+                    onOpenMovementDetail = ::openCompactMovementDetail,
+                    onOpenSettingsHome = { openSettingsRoute() },
+                    onOpenSyncSettings = { openSettingsRoute(SettingsSection.Sync) },
                 )
             }
         }

@@ -29,6 +29,7 @@ internal fun OverviewScreen(
     onOpenMovements: () -> Unit,
     onSelectMovement: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenSyncSettings: () -> Unit,
 ) {
     OverviewContent(
         contentPadding = contentPadding,
@@ -40,6 +41,7 @@ internal fun OverviewScreen(
         onOpenMovements = onOpenMovements,
         onSelectMovement = onSelectMovement,
         onOpenSettings = onOpenSettings,
+        onOpenSyncSettings = onOpenSyncSettings,
     )
 }
 
@@ -54,6 +56,7 @@ internal fun OverviewContent(
     onOpenMovements: () -> Unit,
     onSelectMovement: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenSyncSettings: () -> Unit,
 ) {
     val strings = vaultStrings()
 
@@ -80,7 +83,7 @@ internal fun OverviewContent(
                     label = strings.settings.lastSynced,
                     value = syncConfiguration.lastSyncedAt,
                 )
-                TextButton(onClick = onOpenSettings) {
+                TextButton(onClick = onOpenSyncSettings) {
                     Text(strings.common.actionManageSync)
                 }
             }

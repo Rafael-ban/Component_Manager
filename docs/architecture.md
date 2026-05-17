@@ -22,13 +22,14 @@
   primary screens. Compose Preview uses injected `ComponentVaultStrings`
   sample bundles plus content-level preview composables so Preview rendering
   does not depend on Android Studio resolving the runtime `R.string` graph.
-- Navigation now centers on four adaptive destinations:
-  `Inventory`, `Movements`, `Overview`, and `Settings`.
+- Navigation now centers on three adaptive top-level destinations:
+  `Inventory`, `Movements`, and `Overview`, plus a secondary `Settings` route
+  opened from the shell or overview actions.
 - `Inventory` is the default high-frequency workflow and uses dense search,
   filter, and list-first layouts on phones, plus persistent list-detail panes
   on larger widths. The current shell is built on official Material 3 adaptive
   primitives: `NavigationSuiteScaffold` for top-level navigation,
-  `currentWindowAdaptiveInfo` for width class handling, and
+  window size classes for width handling, and
   `NavigableListDetailPaneScaffold` for Inventory list-detail behavior. The
   Inventory header now treats search as the primary action through
   `SearchBar`, with fixed horizontal filters and denser inventory rows instead
@@ -87,7 +88,9 @@
   movement flows rather than acting as the primary editing page.
 - `Settings` is organized as grouped sync forms and status blocks instead of
   large summary-card stacks, with local-only import defaults and an About
-  section.
+  section. On compact widths it uses a summary/list home plus full-screen
+  section drill-down, and on larger widths it uses a persistent section list
+  plus detail pane.
 - The app writes locally first, queues changed entities, and optionally syncs
   to the FastAPI service.
 - JLC import metadata, OCR-derived metadata, and label round-trip hints are
@@ -121,9 +124,9 @@
   blocked on this host because the Android SDK directory is not writable, so
   AGP cannot auto-install `build-tools;35.0.0`. Kotlin and Compose source
   compilation are not the blocker in the current state.
-  Preview-focused
-  `Phone`, `Tablet`, `Locale`, `Theme`, `Accessibility`, `Shell`, and `Dialogs`
-  surfaces are now isolated under `ui/screen/preview/`.
+  Preview-focused `Phone`, `Medium`, `Tablet`, `Locale`, `Theme`,
+  `Accessibility`, `Shell`, and `Dialogs` surfaces are now isolated under
+  `ui/screen/preview/`.
 
 ## Versioning
 

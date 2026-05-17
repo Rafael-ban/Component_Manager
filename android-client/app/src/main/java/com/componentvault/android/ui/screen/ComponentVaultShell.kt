@@ -8,15 +8,17 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallTopAppBar
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.InventoryStockFilter
@@ -27,7 +29,6 @@ internal fun ComponentVaultAppShell(
     uiState: InventoryUiState,
     destination: InventoryDestination,
     layoutMode: InventoryLayoutMode,
-    selectedMovementId: String?,
     onDestinationChange: (InventoryDestination) -> Unit,
     onQueryChange: (String) -> Unit,
     onStockFilterChange: (InventoryStockFilter) -> Unit,
@@ -47,21 +48,18 @@ internal fun ComponentVaultAppShell(
     onRecordResolvedMovement: (com.componentvault.android.model.MovementEntryDraft, (com.componentvault.android.model.OperationResult) -> Unit) -> Unit,
     onSearchInventoryBySku: (String) -> Unit,
     onRecordMovement: (String?) -> Unit,
-    onSaveSyncSettings: (String, String, Boolean) -> Unit,
-    onSaveAppPreferences: (com.componentvault.android.model.AppPreferences) -> Unit,
-    onTestConnection: () -> Unit,
-    onSyncNow: () -> Unit,
-    onClearImportLearningMappings: () -> Unit,
     onOpenLowStockInventory: () -> Unit,
     onSelectOverviewComponent: (String) -> Unit,
     onOpenMovements: (String?) -> Unit,
     onSelectMovement: (String) -> Unit,
+    onOpenMovementDetail: (String) -> Unit,
+    onOpenSettingsHome: () -> Unit,
+    onOpenSyncSettings: () -> Unit,
 ) {
     ComponentVaultAppShellContent(
         uiState = uiState,
         destination = destination,
         layoutMode = layoutMode,
-        selectedMovementId = selectedMovementId,
         onDestinationChange = onDestinationChange,
         onQueryChange = onQueryChange,
         onStockFilterChange = onStockFilterChange,
@@ -81,15 +79,13 @@ internal fun ComponentVaultAppShell(
         onRecordResolvedMovement = onRecordResolvedMovement,
         onSearchInventoryBySku = onSearchInventoryBySku,
         onRecordMovement = onRecordMovement,
-        onSaveSyncSettings = onSaveSyncSettings,
-        onSaveAppPreferences = onSaveAppPreferences,
-        onTestConnection = onTestConnection,
-        onSyncNow = onSyncNow,
-        onClearImportLearningMappings = onClearImportLearningMappings,
         onOpenLowStockInventory = onOpenLowStockInventory,
         onSelectOverviewComponent = onSelectOverviewComponent,
         onOpenMovements = onOpenMovements,
         onSelectMovement = onSelectMovement,
+        onOpenMovementDetail = onOpenMovementDetail,
+        onOpenSettingsHome = onOpenSettingsHome,
+        onOpenSyncSettings = onOpenSyncSettings,
     )
 }
 
@@ -99,7 +95,6 @@ internal fun ComponentVaultAppShellContent(
     uiState: InventoryUiState,
     destination: InventoryDestination,
     layoutMode: InventoryLayoutMode,
-    selectedMovementId: String?,
     onDestinationChange: (InventoryDestination) -> Unit,
     onQueryChange: (String) -> Unit,
     onStockFilterChange: (InventoryStockFilter) -> Unit,
@@ -119,55 +114,40 @@ internal fun ComponentVaultAppShellContent(
     onRecordResolvedMovement: (com.componentvault.android.model.MovementEntryDraft, (com.componentvault.android.model.OperationResult) -> Unit) -> Unit,
     onSearchInventoryBySku: (String) -> Unit,
     onRecordMovement: (String?) -> Unit,
-    onSaveSyncSettings: (String, String, Boolean) -> Unit,
-    onSaveAppPreferences: (com.componentvault.android.model.AppPreferences) -> Unit,
-    onTestConnection: () -> Unit,
-    onSyncNow: () -> Unit,
-    onClearImportLearningMappings: () -> Unit,
     onOpenLowStockInventory: () -> Unit,
     onSelectOverviewComponent: (String) -> Unit,
     onOpenMovements: (String?) -> Unit,
     onSelectMovement: (String) -> Unit,
+    onOpenMovementDetail: (String) -> Unit,
+    onOpenSettingsHome: () -> Unit,
+    onOpenSyncSettings: () -> Unit,
 ) {
     val strings = vaultStrings()
     val title = strings.shell.destinationLabel(destination)
 
     val topBar: @Composable () -> Unit = {
-        when (destination) {
-            InventoryDestination.Inventory -> MediumTopAppBar(
-                title = { Text(title) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-                actions = {
-                    if (uiState.isBusy) {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .padding(end = 16.dp)
-                                .size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    }
-                },
-            )
-
-            else -> TopAppBar(
-                title = { Text(title) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-                actions = {
-                    if (uiState.isBusy) {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .padding(end = 16.dp)
-                                .size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    }
-                },
-            )
-        }
+        SmallTopAppBar(
+            title = { Text(title) },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.background,
+            ),
+            actions = {
+                if (uiState.isBusy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+                IconButton(onClick = onOpenSettingsHome) {
+                    Icon(
+                        imageVector = Icons.Outlined.Settings,
+                        contentDescription = strings.shell.settingsDestination,
+                    )
+                }
+            },
+        )
     }
 
     val floatingActionButton: @Composable () -> Unit = {
@@ -219,7 +199,6 @@ internal fun ComponentVaultAppShellContent(
                 uiState = uiState,
                 destination = destination,
                 layoutMode = layoutMode,
-                selectedMovementId = selectedMovementId,
                 onQueryChange = onQueryChange,
                 onStockFilterChange = onStockFilterChange,
                 onCategoryChange = onCategoryChange,
@@ -237,16 +216,13 @@ internal fun ComponentVaultAppShellContent(
                 onRecordResolvedMovement = onRecordResolvedMovement,
                 onSearchInventoryBySku = onSearchInventoryBySku,
                 onRecordMovement = onRecordMovement,
-                onSaveSyncSettings = onSaveSyncSettings,
-                onSaveAppPreferences = onSaveAppPreferences,
-                onTestConnection = onTestConnection,
-                onSyncNow = onSyncNow,
-                onClearImportLearningMappings = onClearImportLearningMappings,
                 onOpenLowStockInventory = onOpenLowStockInventory,
                 onSelectOverviewComponent = onSelectOverviewComponent,
                 onOpenMovements = onOpenMovements,
                 onSelectMovement = onSelectMovement,
-                onOpenSettings = { onDestinationChange(InventoryDestination.Settings) },
+                onOpenMovementDetail = onOpenMovementDetail,
+                onOpenSettings = onOpenSettingsHome,
+                onOpenSyncSettings = onOpenSyncSettings,
             )
         }
     }
@@ -258,7 +234,6 @@ private fun ShellContent(
     uiState: InventoryUiState,
     destination: InventoryDestination,
     layoutMode: InventoryLayoutMode,
-    selectedMovementId: String?,
     onQueryChange: (String) -> Unit,
     onStockFilterChange: (InventoryStockFilter) -> Unit,
     onCategoryChange: (String?) -> Unit,
@@ -276,16 +251,13 @@ private fun ShellContent(
     onRecordResolvedMovement: (com.componentvault.android.model.MovementEntryDraft, (com.componentvault.android.model.OperationResult) -> Unit) -> Unit,
     onSearchInventoryBySku: (String) -> Unit,
     onRecordMovement: (String?) -> Unit,
-    onSaveSyncSettings: (String, String, Boolean) -> Unit,
-    onSaveAppPreferences: (com.componentvault.android.model.AppPreferences) -> Unit,
-    onTestConnection: () -> Unit,
-    onSyncNow: () -> Unit,
-    onClearImportLearningMappings: () -> Unit,
     onOpenLowStockInventory: () -> Unit,
     onSelectOverviewComponent: (String) -> Unit,
     onOpenMovements: (String?) -> Unit,
     onSelectMovement: (String) -> Unit,
+    onOpenMovementDetail: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenSyncSettings: () -> Unit,
 ) {
     when (destination) {
         InventoryDestination.Inventory -> InventoryContent(
@@ -312,8 +284,8 @@ private fun ShellContent(
             uiState = uiState.movements,
             statusMessage = uiState.statusMessage,
             layoutMode = layoutMode,
-            selectedMovementId = selectedMovementId,
             onSelectMovement = onSelectMovement,
+            onOpenMovementDetail = onOpenMovementDetail,
             onScanMovementLabel = onScanMovementLabel,
             onRetryMovementScan = onRetryMovementScan,
             onDismissMovementScanResult = onDismissMovementScanResult,
@@ -333,21 +305,7 @@ private fun ShellContent(
             onOpenMovements = { onOpenMovements(null) },
             onSelectMovement = { movementId -> onOpenMovements(movementId) },
             onOpenSettings = onOpenSettings,
-        )
-
-        InventoryDestination.Settings -> SettingsContent(
-            contentPadding = contentPadding,
-            syncConfiguration = uiState.syncConfiguration,
-            appPreferences = uiState.appPreferences,
-            importLearningSummary = uiState.importLearningSummary,
-            isBusy = uiState.isBusy,
-            statusMessage = uiState.statusMessage,
-            layoutMode = layoutMode,
-            onSaveSyncSettings = onSaveSyncSettings,
-            onSaveAppPreferences = onSaveAppPreferences,
-            onTestConnection = onTestConnection,
-            onSyncNow = onSyncNow,
-            onClearImportLearningMappings = onClearImportLearningMappings,
+            onOpenSyncSettings = onOpenSyncSettings,
         )
     }
 }

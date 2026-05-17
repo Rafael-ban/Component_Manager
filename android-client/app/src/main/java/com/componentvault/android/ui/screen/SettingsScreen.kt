@@ -1,5 +1,6 @@
 package com.componentvault.android.ui.screen
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,18 +10,21 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallTopAppBar
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +46,70 @@ import com.componentvault.android.model.OcrEngineMode
 import com.componentvault.android.model.SyncConfiguration
 
 @Composable
+internal fun SettingsRouteScreen(
+    syncConfiguration: SyncConfiguration,
+    appPreferences: AppPreferences,
+    importLearningSummary: ImportLearningSummary,
+    isBusy: Boolean,
+    statusMessage: String,
+    layoutMode: InventoryLayoutMode,
+    selectedSection: SettingsSection?,
+    onSelectSection: (SettingsSection?) -> Unit,
+    onDismiss: () -> Unit,
+    onSaveSyncSettings: (String, String, Boolean) -> Unit,
+    onSaveAppPreferences: (AppPreferences) -> Unit,
+    onTestConnection: () -> Unit,
+    onSyncNow: () -> Unit,
+    onClearImportLearningMappings: () -> Unit,
+) {
+    val strings = vaultStrings()
+    val canStepBackToSectionList = !layoutMode.showsListDetail && selectedSection != null
+    val title = selectedSection?.title(strings) ?: strings.shell.settingsDestination
+
+    Scaffold(
+        topBar = {
+            SmallTopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    TextButton(
+                        onClick = {
+                            if (canStepBackToSectionList) {
+                                onSelectSection(null)
+                            } else {
+                                onDismiss()
+                            }
+                        },
+                    ) {
+                        Text(strings.common.actionBack)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { padding ->
+        SettingsContent(
+            contentPadding = padding,
+            syncConfiguration = syncConfiguration,
+            appPreferences = appPreferences,
+            importLearningSummary = importLearningSummary,
+            isBusy = isBusy,
+            statusMessage = statusMessage,
+            layoutMode = layoutMode,
+            selectedSection = selectedSection,
+            onSelectSection = onSelectSection,
+            onSaveSyncSettings = onSaveSyncSettings,
+            onSaveAppPreferences = onSaveAppPreferences,
+            onTestConnection = onTestConnection,
+            onSyncNow = onSyncNow,
+            onClearImportLearningMappings = onClearImportLearningMappings,
+        )
+    }
+}
+
+@Composable
 internal fun SettingsScreen(
     contentPadding: PaddingValues,
     syncConfiguration: SyncConfiguration,
@@ -50,6 +118,8 @@ internal fun SettingsScreen(
     isBusy: Boolean,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
+    selectedSection: SettingsSection?,
+    onSelectSection: (SettingsSection?) -> Unit,
     onSaveSyncSettings: (String, String, Boolean) -> Unit,
     onSaveAppPreferences: (AppPreferences) -> Unit,
     onTestConnection: () -> Unit,
@@ -64,6 +134,8 @@ internal fun SettingsScreen(
         isBusy = isBusy,
         statusMessage = statusMessage,
         layoutMode = layoutMode,
+        selectedSection = selectedSection,
+        onSelectSection = onSelectSection,
         onSaveSyncSettings = onSaveSyncSettings,
         onSaveAppPreferences = onSaveAppPreferences,
         onTestConnection = onTestConnection,
@@ -81,6 +153,8 @@ internal fun SettingsContent(
     isBusy: Boolean,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
+    selectedSection: SettingsSection?,
+    onSelectSection: (SettingsSection?) -> Unit,
     onSaveSyncSettings: (String, String, Boolean) -> Unit,
     onSaveAppPreferences: (AppPreferences) -> Unit,
     onTestConnection: () -> Unit,
@@ -171,7 +245,7 @@ internal fun SettingsContent(
         ) {
             LazyColumn(
                 modifier = Modifier
-                    .weight(0.92f)
+                    .weight(0.9f)
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -184,17 +258,22 @@ internal fun SettingsContent(
                     )
                 }
                 item {
-                    SettingsAboutPane()
+                    SettingsSectionList(
+                        selectedSection = selectedSection ?: SettingsSection.Sync,
+                        onSelectSection = onSelectSection,
+                    )
                 }
             }
 
             LazyColumn(
                 modifier = Modifier
-                    .weight(1.08f)
+                    .weight(1.1f)
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                settingsFormItems(
+                settingsSectionDetailItems(
+                    section = selectedSection ?: SettingsSection.Sync,
+                    strings = strings,
                     serverUrl = serverUrl,
                     onServerUrlChange = { serverUrl = it },
                     apiToken = apiToken,
@@ -222,7 +301,6 @@ internal fun SettingsContent(
                     appLanguage = appLanguage,
                     onAppLanguageChange = { appLanguage = it },
                     importLearningSummary = importLearningSummary,
-                    strings = strings,
                     showToken = showToken,
                     onToggleToken = { showToken = !showToken },
                     isBusy = isBusy,
@@ -242,7 +320,7 @@ internal fun SettingsContent(
                 )
             }
         }
-    } else {
+    } else if (selectedSection == null) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -258,7 +336,24 @@ internal fun SettingsContent(
                     statusMessage = statusMessage,
                 )
             }
-            settingsFormItems(
+            item {
+                SettingsSectionList(
+                    selectedSection = null,
+                    onSelectSection = onSelectSection,
+                )
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .consumeWindowInsets(contentPadding),
+            contentPadding = rememberContentPadding(contentPadding, horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            settingsSectionDetailItems(
+                section = selectedSection,
+                strings = strings,
                 serverUrl = serverUrl,
                 onServerUrlChange = { serverUrl = it },
                 apiToken = apiToken,
@@ -286,7 +381,6 @@ internal fun SettingsContent(
                 appLanguage = appLanguage,
                 onAppLanguageChange = { appLanguage = it },
                 importLearningSummary = importLearningSummary,
-                strings = strings,
                 showToken = showToken,
                 onToggleToken = { showToken = !showToken },
                 isBusy = isBusy,
@@ -304,9 +398,6 @@ internal fun SettingsContent(
                 },
                 onClearImportLearningMappings = { showClearLearningConfirmation = true },
             )
-            item {
-                SettingsAboutPane()
-            }
         }
     }
 
@@ -331,6 +422,65 @@ internal fun SettingsContent(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun SettingsSectionList(
+    selectedSection: SettingsSection?,
+    onSelectSection: (SettingsSection) -> Unit,
+) {
+    val strings = vaultStrings()
+
+    SectionPane(
+        title = strings.shell.settingsDestination,
+        supporting = strings.settings.summarySubtitle,
+    ) {
+        SettingsSection.entries.forEach { section ->
+            SettingsSectionCard(
+                title = section.title(strings),
+                supporting = section.supporting(strings),
+                selected = section == selectedSection,
+                onClick = { onSelectSection(section) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSectionCard(
+    title: String,
+    supporting: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = supporting,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -411,7 +561,9 @@ private fun SettingsAboutPane() {
     }
 }
 
-private fun LazyListScope.settingsFormItems(
+private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetailItems(
+    section: SettingsSection,
+    strings: ComponentVaultStrings,
     serverUrl: String,
     onServerUrlChange: (String) -> Unit,
     apiToken: String,
@@ -439,7 +591,6 @@ private fun LazyListScope.settingsFormItems(
     appLanguage: AppLanguage,
     onAppLanguageChange: (AppLanguage) -> Unit,
     importLearningSummary: ImportLearningSummary,
-    strings: ComponentVaultStrings,
     showToken: Boolean,
     onToggleToken: () -> Unit,
     isBusy: Boolean,
@@ -449,212 +600,263 @@ private fun LazyListScope.settingsFormItems(
     onSyncNow: () -> Unit,
     onClearImportLearningMappings: () -> Unit,
 ) {
-    item {
-        SectionPane(
-            title = strings.settings.connectionTitle,
-            supporting = strings.settings.connectionSubtitle,
-        ) {
-            OutlinedTextField(
-                value = serverUrl,
-                onValueChange = onServerUrlChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(strings.common.fieldServerUrl) },
-                placeholder = { Text(strings.settings.serverUrlPlaceholder) },
-                singleLine = true,
-            )
-        }
-    }
-    item {
-        SectionPane(
-            title = strings.settings.authTitle,
-            supporting = strings.settings.authSubtitle,
-        ) {
-            OutlinedTextField(
-                value = apiToken,
-                onValueChange = onApiTokenChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(strings.common.fieldApiToken) },
-                singleLine = true,
-                visualTransformation = if (showToken) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-            )
-            TextButton(onClick = onToggleToken) {
-                Text(
-                    if (showToken) {
-                        strings.common.actionHideToken
-                    } else {
-                        strings.common.actionShowToken
-                    },
-                )
-            }
-        }
-    }
-    item {
-        SectionPane(
-            title = strings.settings.syncBehaviorTitle,
-            supporting = strings.settings.syncBehaviorSubtitle,
-        ) {
-            SettingsToggleRow(
-                title = strings.settings.syncOnLaunch,
-                subtitle = strings.settings.syncOnLaunchDescription,
-                checked = autoSyncEnabled,
-                onCheckedChange = onAutoSyncChange,
-            )
-            SettingsToggleRow(
-                title = strings.settings.syncAfterWrites,
-                subtitle = strings.settings.syncAfterWritesDescription,
-                checked = syncAfterLocalChanges,
-                onCheckedChange = onSyncAfterLocalChangesChange,
-            )
-        }
-    }
-    item {
-        SectionPane(
-            title = strings.settings.importPreferencesTitle,
-            supporting = strings.settings.importPreferencesSubtitle,
-        ) {
-            OutlinedTextField(
-                value = defaultImportLocation,
-                onValueChange = onDefaultImportLocationChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(strings.common.fieldLocation) },
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = defaultImportMinStockText,
-                onValueChange = onDefaultImportMinStockChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(strings.common.fieldMinimumStock) },
-                singleLine = true,
-            )
-            SettingsToggleRow(
-                title = strings.settings.rememberLastImportLocation,
-                subtitle = strings.settings.rememberLastImportLocationDescription,
-                checked = rememberLastImportLocation,
-                onCheckedChange = onRememberLastImportLocationChange,
-            )
-            SettingsToggleRow(
-                title = strings.settings.localAutoRecognition,
-                subtitle = strings.settings.localAutoRecognitionDescription,
-                checked = enableLocalAutoRecognition,
-                onCheckedChange = onEnableLocalAutoRecognitionChange,
-            )
-            SettingsToggleRow(
-                title = strings.settings.aggressiveRecognition,
-                subtitle = strings.settings.aggressiveRecognitionDescription,
-                checked = preferAggressiveAutoRecognition,
-                onCheckedChange = onPreferAggressiveAutoRecognitionChange,
-            )
-            SettingsToggleRow(
-                title = strings.settings.localImportLearning,
-                subtitle = strings.settings.localImportLearningDescription,
-                checked = enableLocalImportLearning,
-                onCheckedChange = onEnableLocalImportLearningChange,
-            )
-            SettingsToggleRow(
-                title = strings.settings.serverJlcLookup,
-                subtitle = strings.settings.serverJlcLookupDescription,
-                checked = enableServerJlcLookup,
-                onCheckedChange = onEnableServerJlcLookupChange,
-            )
-            Text(
-                text = strings.settings.ocrEngineLabel,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium,
-            )
-            SettingsChoiceRow(
-                title = strings.settings.ocrEngineAuto,
-                subtitle = strings.settings.ocrEngineAutoDescription,
-                selected = ocrEngineMode == OcrEngineMode.Auto,
-                onClick = { onOcrEngineModeChange(OcrEngineMode.Auto) },
-            )
-            SettingsChoiceRow(
-                title = strings.settings.ocrEngineMlKit,
-                subtitle = strings.settings.ocrEngineMlKitDescription,
-                selected = ocrEngineMode == OcrEngineMode.MlKit,
-                onClick = { onOcrEngineModeChange(OcrEngineMode.MlKit) },
-            )
-            SettingsChoiceRow(
-                title = strings.settings.ocrEnginePaddle,
-                subtitle = strings.settings.ocrEnginePaddleDescription,
-                selected = ocrEngineMode == OcrEngineMode.PaddleExperimental,
-                onClick = { onOcrEngineModeChange(OcrEngineMode.PaddleExperimental) },
-            )
-            ValueBlock(
-                label = strings.settings.learnedMappingsCount,
-                value = if (importLearningSummary.mappingCount > 0) {
-                    importLearningSummary.mappingCount.toString()
-                } else {
-                    strings.settings.noLearnedMappings
-                },
-            )
-            OutlinedButton(
-                onClick = onClearImportLearningMappings,
-                enabled = importLearningSummary.mappingCount > 0 && !isBusy,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(strings.settings.clearLearnedMappingsAction)
-            }
-        }
-    }
-    item {
-        SectionPane(
-            title = strings.settings.languageTitle,
-            supporting = strings.settings.languageSubtitle,
-        ) {
-            SettingsChoiceRow(
-                title = strings.settings.languageChinese,
-                subtitle = strings.settings.languageSubtitle,
-                selected = appLanguage == AppLanguage.ZhCn,
-                onClick = { onAppLanguageChange(AppLanguage.ZhCn) },
-            )
-            SettingsChoiceRow(
-                title = strings.settings.languageEnglish,
-                subtitle = strings.settings.languageSubtitle,
-                selected = appLanguage == AppLanguage.English,
-                onClick = { onAppLanguageChange(AppLanguage.English) },
-            )
-        }
-    }
-    item {
-        SectionPane(
-            title = strings.settings.summaryTitle,
-            supporting = strings.settings.summarySubtitle,
-        ) {
-            if (!errorMessage.isNullOrBlank()) {
-                Text(
-                    text = errorMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Button(
-                    onClick = { onSave() },
-                    modifier = Modifier.weight(1f),
+    when (section) {
+        SettingsSection.Sync -> {
+            item {
+                SectionPane(
+                    title = strings.settings.connectionTitle,
+                    supporting = strings.settings.connectionSubtitle,
                 ) {
-                    Text(strings.common.actionSaveSettings)
-                }
-                OutlinedButton(
-                    onClick = onTestConnection,
-                    enabled = !isBusy,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(strings.common.actionTestConnection)
+                    OutlinedTextField(
+                        value = serverUrl,
+                        onValueChange = onServerUrlChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(strings.common.fieldServerUrl) },
+                        placeholder = { Text(strings.settings.serverUrlPlaceholder) },
+                        singleLine = true,
+                    )
                 }
             }
-            OutlinedButton(
-                onClick = onSyncNow,
-                enabled = !isBusy,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(strings.common.actionSyncNow)
+            item {
+                SectionPane(
+                    title = strings.settings.authTitle,
+                    supporting = strings.settings.authSubtitle,
+                ) {
+                    OutlinedTextField(
+                        value = apiToken,
+                        onValueChange = onApiTokenChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(strings.common.fieldApiToken) },
+                        singleLine = true,
+                        visualTransformation = if (showToken) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                    )
+                    TextButton(onClick = onToggleToken) {
+                        Text(
+                            if (showToken) {
+                                strings.common.actionHideToken
+                            } else {
+                                strings.common.actionShowToken
+                            },
+                        )
+                    }
+                }
+            }
+            item {
+                SectionPane(
+                    title = strings.settings.syncBehaviorTitle,
+                    supporting = strings.settings.syncBehaviorSubtitle,
+                ) {
+                    SettingsToggleRow(
+                        title = strings.settings.syncOnLaunch,
+                        subtitle = strings.settings.syncOnLaunchDescription,
+                        checked = autoSyncEnabled,
+                        onCheckedChange = onAutoSyncChange,
+                    )
+                    SettingsToggleRow(
+                        title = strings.settings.syncAfterWrites,
+                        subtitle = strings.settings.syncAfterWritesDescription,
+                        checked = syncAfterLocalChanges,
+                        onCheckedChange = onSyncAfterLocalChangesChange,
+                    )
+                }
+            }
+            item {
+                SectionPane(
+                    title = strings.settings.summaryTitle,
+                    supporting = strings.settings.summarySubtitle,
+                ) {
+                    if (!errorMessage.isNullOrBlank()) {
+                        Text(
+                            text = errorMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Button(
+                            onClick = { onSave() },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(strings.common.actionSaveSettings)
+                        }
+                        OutlinedButton(
+                            onClick = onTestConnection,
+                            enabled = !isBusy,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(strings.common.actionTestConnection)
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = onSyncNow,
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.common.actionSyncNow)
+                    }
+                }
+            }
+        }
+
+        SettingsSection.ImportAndOcr -> {
+            item {
+                SectionPane(
+                    title = strings.settings.importPreferencesTitle,
+                    supporting = strings.settings.importPreferencesSubtitle,
+                ) {
+                    OutlinedTextField(
+                        value = defaultImportLocation,
+                        onValueChange = onDefaultImportLocationChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(strings.common.fieldLocation) },
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = defaultImportMinStockText,
+                        onValueChange = onDefaultImportMinStockChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(strings.common.fieldMinimumStock) },
+                        singleLine = true,
+                    )
+                    SettingsToggleRow(
+                        title = strings.settings.rememberLastImportLocation,
+                        subtitle = strings.settings.rememberLastImportLocationDescription,
+                        checked = rememberLastImportLocation,
+                        onCheckedChange = onRememberLastImportLocationChange,
+                    )
+                    SettingsToggleRow(
+                        title = strings.settings.localAutoRecognition,
+                        subtitle = strings.settings.localAutoRecognitionDescription,
+                        checked = enableLocalAutoRecognition,
+                        onCheckedChange = onEnableLocalAutoRecognitionChange,
+                    )
+                    SettingsToggleRow(
+                        title = strings.settings.aggressiveRecognition,
+                        subtitle = strings.settings.aggressiveRecognitionDescription,
+                        checked = preferAggressiveAutoRecognition,
+                        onCheckedChange = onPreferAggressiveAutoRecognitionChange,
+                    )
+                    SettingsToggleRow(
+                        title = strings.settings.localImportLearning,
+                        subtitle = strings.settings.localImportLearningDescription,
+                        checked = enableLocalImportLearning,
+                        onCheckedChange = onEnableLocalImportLearningChange,
+                    )
+                    SettingsToggleRow(
+                        title = strings.settings.serverJlcLookup,
+                        subtitle = strings.settings.serverJlcLookupDescription,
+                        checked = enableServerJlcLookup,
+                        onCheckedChange = onEnableServerJlcLookupChange,
+                    )
+                }
+            }
+            item {
+                SectionPane(
+                    title = strings.settings.ocrEngineLabel,
+                    supporting = strings.settings.importPreferencesSubtitle,
+                ) {
+                    SettingsChoiceRow(
+                        title = strings.settings.ocrEngineAuto,
+                        subtitle = strings.settings.ocrEngineAutoDescription,
+                        selected = ocrEngineMode == OcrEngineMode.Auto,
+                        onClick = { onOcrEngineModeChange(OcrEngineMode.Auto) },
+                    )
+                    SettingsChoiceRow(
+                        title = strings.settings.ocrEngineMlKit,
+                        subtitle = strings.settings.ocrEngineMlKitDescription,
+                        selected = ocrEngineMode == OcrEngineMode.MlKit,
+                        onClick = { onOcrEngineModeChange(OcrEngineMode.MlKit) },
+                    )
+                    SettingsChoiceRow(
+                        title = strings.settings.ocrEnginePaddle,
+                        subtitle = strings.settings.ocrEnginePaddleDescription,
+                        selected = ocrEngineMode == OcrEngineMode.PaddleExperimental,
+                        onClick = { onOcrEngineModeChange(OcrEngineMode.PaddleExperimental) },
+                    )
+                }
+            }
+            item {
+                SectionPane(
+                    title = strings.settings.learnedMappingsCount,
+                    supporting = strings.settings.localImportLearningDescription,
+                ) {
+                    ValueBlock(
+                        label = strings.settings.learnedMappingsCount,
+                        value = if (importLearningSummary.mappingCount > 0) {
+                            importLearningSummary.mappingCount.toString()
+                        } else {
+                            strings.settings.noLearnedMappings
+                        },
+                    )
+                    if (!errorMessage.isNullOrBlank()) {
+                        Text(
+                            text = errorMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    Button(
+                        onClick = { onSave() },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.common.actionSaveSettings)
+                    }
+                    OutlinedButton(
+                        onClick = onClearImportLearningMappings,
+                        enabled = importLearningSummary.mappingCount > 0 && !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.settings.clearLearnedMappingsAction)
+                    }
+                }
+            }
+        }
+
+        SettingsSection.App -> {
+            item {
+                SectionPane(
+                    title = strings.settings.languageTitle,
+                    supporting = strings.settings.languageSubtitle,
+                ) {
+                    SettingsChoiceRow(
+                        title = strings.settings.languageChinese,
+                        subtitle = strings.settings.languageSubtitle,
+                        selected = appLanguage == AppLanguage.ZhCn,
+                        onClick = { onAppLanguageChange(AppLanguage.ZhCn) },
+                    )
+                    SettingsChoiceRow(
+                        title = strings.settings.languageEnglish,
+                        subtitle = strings.settings.languageSubtitle,
+                        selected = appLanguage == AppLanguage.English,
+                        onClick = { onAppLanguageChange(AppLanguage.English) },
+                    )
+                    if (!errorMessage.isNullOrBlank()) {
+                        Text(
+                            text = errorMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    Button(
+                        onClick = { onSave() },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(strings.common.actionSaveSettings)
+                    }
+                }
+            }
+        }
+
+        SettingsSection.About -> {
+            item {
+                SettingsAboutPane()
             }
         }
     }
@@ -704,11 +906,7 @@ private fun SettingsChoiceRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .selectable(
-                selected = selected,
-                role = Role.RadioButton,
-                onClick = onClick,
-            ),
+            .clickable(role = Role.RadioButton, onClick = onClick),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {

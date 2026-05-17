@@ -2,8 +2,7 @@ package com.componentvault.android.ui.screen.preview
 
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.PaddingValues
-import com.componentvault.android.ui.screen.InventoryLayoutMode
-import com.componentvault.android.ui.screen.InventoryWidthClass
+import com.componentvault.android.ui.screen.MovementDetailRoute
 import com.componentvault.android.ui.screen.MovementsContent
 
 @InventoryPhonePreview
@@ -15,14 +14,9 @@ private fun MovementsPhonePreview() {
             contentPadding = PaddingValues(),
             uiState = uiState.movements,
             statusMessage = uiState.statusMessage,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
-            selectedMovementId = InventoryPreviewData.selectedMovementId,
+            layoutMode = CompactPreviewLayout,
             onSelectMovement = {},
+            onOpenMovementDetail = {},
             onScanMovementLabel = {},
             onRetryMovementScan = {},
             onDismissMovementScanResult = {},
@@ -43,14 +37,9 @@ private fun MovementsTabletPreview() {
             contentPadding = PaddingValues(),
             uiState = uiState.movements,
             statusMessage = uiState.statusMessage,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Expanded,
-                usesNavigationRail = true,
-                showsListDetail = true,
-                prefersDialogForms = true,
-            ),
-            selectedMovementId = InventoryPreviewData.selectedMovementId,
+            layoutMode = ExpandedPreviewLayout,
             onSelectMovement = {},
+            onOpenMovementDetail = {},
             onScanMovementLabel = {},
             onRetryMovementScan = {},
             onDismissMovementScanResult = {},
@@ -67,20 +56,15 @@ private fun MovementsTabletPreview() {
 @InventoryLargeFontPreview
 @Composable
 private fun MovementsMatchedPhonePreview() {
-    PreviewHost {
+    PreviewHost(strings = PreviewComponentVaultStrings.ZhCn) {
         val uiState = InventoryPreviewData.movementsMatchedState()
         MovementsContent(
             contentPadding = PaddingValues(),
             uiState = uiState.movements,
             statusMessage = uiState.statusMessage,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
-            selectedMovementId = InventoryPreviewData.selectedMovementId,
+            layoutMode = CompactPreviewLayout,
             onSelectMovement = {},
+            onOpenMovementDetail = {},
             onScanMovementLabel = {},
             onRetryMovementScan = {},
             onDismissMovementScanResult = {},
@@ -101,14 +85,9 @@ private fun MovementsNotFoundPhonePreview() {
             contentPadding = PaddingValues(),
             uiState = uiState.movements,
             statusMessage = uiState.statusMessage,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
-            selectedMovementId = InventoryPreviewData.selectedMovementId,
+            layoutMode = CompactPreviewLayout,
             onSelectMovement = {},
+            onOpenMovementDetail = {},
             onScanMovementLabel = {},
             onRetryMovementScan = {},
             onDismissMovementScanResult = {},
@@ -116,6 +95,17 @@ private fun MovementsNotFoundPhonePreview() {
             onSearchInventoryBySku = {},
             onImportComponent = {},
             onRecordMovement = {},
+        )
+    }
+}
+
+@InventoryNarrowPhonePreview
+@Composable
+private fun MovementDetailPhonePreview() {
+    PreviewHost {
+        MovementDetailRoute(
+            movement = InventoryPreviewData.movementsState().movements.items.first(),
+            onDismiss = {},
         )
     }
 }

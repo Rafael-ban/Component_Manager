@@ -19,6 +19,7 @@ private fun OverviewPhonePreview() {
             onOpenMovements = {},
             onSelectMovement = {},
             onOpenSettings = {},
+            onOpenSyncSettings = {},
         )
     }
 }

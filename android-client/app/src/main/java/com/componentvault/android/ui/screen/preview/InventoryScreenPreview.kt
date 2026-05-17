@@ -4,8 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.PaddingValues
 import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.ui.screen.InventoryContent
-import com.componentvault.android.ui.screen.InventoryLayoutMode
-import com.componentvault.android.ui.screen.InventoryWidthClass
 
 @InventoryPhonePreview
 @Composable
@@ -16,12 +14,7 @@ private fun InventoryPhoneListPreview() {
             contentPadding = PaddingValues(),
             uiState = uiState.inventory,
             statusMessage = uiState.statusMessage,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
+            layoutMode = CompactPreviewLayout,
             onQueryChange = {},
             onStockFilterChange = {},
             onCategoryChange = {},
@@ -47,12 +40,7 @@ private fun InventoryPhoneLowStockPreview() {
             contentPadding = PaddingValues(),
             uiState = uiState.inventory,
             statusMessage = uiState.statusMessage,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
+            layoutMode = CompactPreviewLayout,
             onQueryChange = {},
             onStockFilterChange = { _: InventoryStockFilter -> },
             onCategoryChange = {},
@@ -70,6 +58,7 @@ private fun InventoryPhoneLowStockPreview() {
 }
 
 @InventoryLargeFontPreview
+@InventoryNarrowPhonePreview
 @Composable
 private fun InventoryPhoneEmptyPreview() {
     PreviewHost {
@@ -78,12 +67,33 @@ private fun InventoryPhoneEmptyPreview() {
             contentPadding = PaddingValues(),
             uiState = uiState.inventory,
             statusMessage = uiState.statusMessage,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
+            layoutMode = CompactPreviewLayout,
+            onQueryChange = {},
+            onStockFilterChange = {},
+            onCategoryChange = {},
+            onLocationChange = {},
+            onSortChange = {},
+            onSelectComponent = {},
+            onOpenComponentDetail = {},
+            onImportComponent = {},
+            onGenerateLabel = {},
+            onEditComponent = {},
+            onRequestDeleteComponent = {},
+            onRecordMovement = {},
+        )
+    }
+}
+
+@InventoryMediumPreview
+@Composable
+private fun InventoryMediumListDetailPreview() {
+    PreviewHost {
+        val uiState = InventoryPreviewData.inventoryState()
+        InventoryContent(
+            contentPadding = PaddingValues(),
+            uiState = uiState.inventory,
+            statusMessage = uiState.statusMessage,
+            layoutMode = MediumPreviewLayout,
             onQueryChange = {},
             onStockFilterChange = {},
             onCategoryChange = {},
@@ -109,12 +119,7 @@ private fun InventoryTabletListDetailPreview() {
             contentPadding = PaddingValues(),
             uiState = uiState.inventory,
             statusMessage = uiState.statusMessage,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Expanded,
-                usesNavigationRail = true,
-                showsListDetail = true,
-                prefersDialogForms = true,
-            ),
+            layoutMode = ExpandedPreviewLayout,
             onQueryChange = {},
             onStockFilterChange = {},
             onCategoryChange = {},

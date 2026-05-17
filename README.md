@@ -79,12 +79,13 @@ connects to it over HTTP.
   JLC text and QR import, supplier packaging OCR import, physical label
   preview/export, expanded settings, server sync wiring, and Chinese-first
   Compose interface resources are implemented; the Android UI now follows an
-  inventory-first adaptive Compose shell with `Inventory`, `Movements`,
-  `Overview`, and `Settings` destinations, official Material 3 adaptive
-  shell and pane primitives (`NavigationSuiteScaffold`,
-  `currentWindowAdaptiveInfo`, `NavigableListDetailPaneScaffold`), a
-  search-first Inventory header, denser inventory rows, compact phone detail
-  drill-down, tablet list-detail layouts, quantity-first import confirmation,
+  inventory-first adaptive Compose shell with three top-level destinations
+  (`Inventory`, `Movements`, `Overview`) plus a secondary `Settings` route,
+  official Material 3 adaptive shell and pane primitives
+  (`NavigationSuiteScaffold`, window size classes,
+  `NavigableListDetailPaneScaffold`), a search-first Inventory header, denser
+  inventory rows, compact phone detail drill-down, medium/expanded list-detail
+  layouts, section-based settings, quantity-first import confirmation,
   generated JLC-compatible or warehouse QR labels, user-selectable
   `10x40mm QR`, `30x40mm QR`, and pure text strip templates, direct
   label-sized PNG/PDF export, larger on-label typography, collision-safe text
@@ -250,14 +251,15 @@ preferences and supports:
   Simplified Chinese (`zh-CN`) resource set and an in-app `中文` / `English`
   switch backed by Android per-app locales
 - an inventory-first adaptive shell:
-  `Inventory`, `Movements`, `Overview`, `Settings`
+  top-level `Inventory`, `Movements`, `Overview`, plus a secondary
+  `Settings` route
 - official adaptive Compose layout primitives for the shell and Inventory:
-  `NavigationSuiteScaffold`, `currentWindowAdaptiveInfo`,
+  `NavigationSuiteScaffold`, window size classes,
   `NavigableListDetailPaneScaffold`, and a `SearchBar`-first filter header
 - compact phone flows centered on search, filters, dense lists, and full-screen
-  detail or form routes
+  detail, settings, or form routes
 - tablet layouts that keep persistent list-detail panes for inventory and
-  movement history
+  movement history while keeping settings as a sectioned secondary route
 
 Android visual editing is based on Compose Preview in Android Studio. Open
 the files under

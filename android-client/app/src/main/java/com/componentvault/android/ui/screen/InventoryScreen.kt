@@ -268,44 +268,45 @@ private fun InventoryListPane(
 ) {
     val strings = vaultStrings()
 
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = contentPadding,
+    Column(
+        modifier = modifier.padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
-            InventoryFilterHeader(
-                uiState = uiState,
-                statusMessage = statusMessage,
-                onQueryChange = onQueryChange,
-                onStockFilterChange = onStockFilterChange,
-                onCategoryChange = onCategoryChange,
-                onLocationChange = onLocationChange,
-                onSortChange = onSortChange,
-            )
-        }
-        item {
-            Text(
-                text = strings.inventory.resultsSummary(
-                    uiState.list.items.size,
-                    uiState.availableCategories.size,
-                    uiState.availableLocations.size,
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (uiState.list.items.isEmpty()) {
-            item {
-                EmptyPane(strings.common.emptyNoComponentsMatchFilter)
-            }
-        } else {
-            items(uiState.list.items, key = { it.id }) { item ->
-                InventoryListRow(
-                    item = item,
-                    selected = item.id == uiState.list.selectedComponentId,
-                    onClick = { onSelectComponent(item.id) },
-                )
+        InventoryFilterHeader(
+            uiState = uiState,
+            statusMessage = statusMessage,
+            onQueryChange = onQueryChange,
+            onStockFilterChange = onStockFilterChange,
+            onCategoryChange = onCategoryChange,
+            onLocationChange = onLocationChange,
+            onSortChange = onSortChange,
+        )
+        Text(
+            text = strings.inventory.resultsSummary(
+                uiState.list.items.size,
+                uiState.availableCategories.size,
+                uiState.availableLocations.size,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (uiState.list.items.isEmpty()) {
+                item {
+                    EmptyPane(strings.common.emptyNoComponentsMatchFilter)
+                }
+            } else {
+                items(uiState.list.items, key = { it.id }) { item ->
+                    InventoryListRow(
+                        item = item,
+                        selected = item.id == uiState.list.selectedComponentId,
+                        onClick = { onSelectComponent(item.id) },
+                    )
+                }
             }
         }
     }
@@ -561,15 +562,24 @@ internal fun InventoryDetailPane(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     FilledTonalButton(onClick = { onEditComponent(component.id) }) {
                         Text(strings.common.actionEdit)
                     }
-                    OutlinedButton(onClick = { onRecordMovement(component.id) }) {
+                    OutlinedButton(
+                        onClick = { onRecordMovement(component.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                         Text(strings.common.actionRecordMovement)
                     }
                 }
-                OutlinedButton(onClick = { onGenerateLabel(component) }) {
+                OutlinedButton(
+                    onClick = { onGenerateLabel(component) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text(strings.common.actionGenerateLabel)
                 }
                 TextButton(onClick = { onRequestDeleteComponent(component.id) }) {

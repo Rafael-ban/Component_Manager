@@ -2,9 +2,8 @@ package com.componentvault.android.ui.screen.preview
 
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.PaddingValues
-import com.componentvault.android.ui.screen.InventoryLayoutMode
-import com.componentvault.android.ui.screen.InventoryWidthClass
 import com.componentvault.android.ui.screen.SettingsContent
+import com.componentvault.android.ui.screen.SettingsSection
 
 @InventoryPhonePreview
 @Composable
@@ -18,12 +17,9 @@ private fun SettingsPhonePreview() {
             importLearningSummary = uiState.importLearningSummary,
             isBusy = uiState.isBusy,
             statusMessage = uiState.statusMessage,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
+            layoutMode = CompactPreviewLayout,
+            selectedSection = null,
+            onSelectSection = {},
             onSaveSyncSettings = { _, _, _ -> },
             onSaveAppPreferences = {},
             onTestConnection = {},
@@ -34,6 +30,7 @@ private fun SettingsPhonePreview() {
 }
 
 @InventoryDarkPreview
+@InventoryTabletPreview
 @Composable
 private fun SettingsBusyPreview() {
     PreviewHost {
@@ -45,12 +42,9 @@ private fun SettingsBusyPreview() {
             importLearningSummary = uiState.importLearningSummary,
             isBusy = uiState.isBusy,
             statusMessage = uiState.statusMessage,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
+            layoutMode = ExpandedPreviewLayout,
+            selectedSection = SettingsSection.ImportAndOcr,
+            onSelectSection = {},
             onSaveSyncSettings = { _, _, _ -> },
             onSaveAppPreferences = {},
             onTestConnection = {},

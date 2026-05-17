@@ -13,6 +13,24 @@ import androidx.compose.ui.tooling.preview.Preview
 annotation class InventoryPhonePreview
 
 @Preview(
+    name = "Phone / Narrow",
+    group = "Phone",
+    showBackground = true,
+    widthDp = 360,
+    heightDp = 800,
+)
+annotation class InventoryNarrowPhonePreview
+
+@Preview(
+    name = "Medium / Light",
+    group = "Tablet",
+    showBackground = true,
+    widthDp = 840,
+    heightDp = 900,
+)
+annotation class InventoryMediumPreview
+
+@Preview(
     name = "Tablet / Light",
     group = "Tablet",
     showBackground = true,
@@ -75,7 +93,7 @@ annotation class InventoryShellTabletPreview
     name = "Dialog / Light",
     group = "Dialogs",
     showBackground = true,
-    widthDp = 412,
-    heightDp = 915,
+    widthDp = 960,
+    heightDp = 720,
 )
 annotation class InventoryDialogPreview

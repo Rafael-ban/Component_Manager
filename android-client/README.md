@@ -6,10 +6,10 @@ and Material 3.
 ## Current State
 
 - Native navigation shell implemented
-- Inventory-first adaptive shell implemented with `Inventory`, `Movements`,
-  `Overview`, and `Settings` destinations
+- Inventory-first adaptive shell implemented with three top-level destinations
+  (`Inventory`, `Movements`, `Overview`) plus a secondary `Settings` route
 - Official adaptive Compose shell primitives now back the Android UI:
-  `NavigationSuiteScaffold`, `currentWindowAdaptiveInfo`,
+  `NavigationSuiteScaffold`, window size classes,
   `NavigableListDetailPaneScaffold`, and a `SearchBar`-first Inventory header
 - Local SQLite persistence and sync settings persistence implemented
 - Component create/edit/soft delete workflow implemented
@@ -25,7 +25,7 @@ and Material 3.
   including `10x40mm QR`, horizontal `30x40mm QR`, and pure text strip
   templates
 - Expanded local-only settings implemented for sync behavior, import defaults,
-  and About
+  and About, now grouped into dedicated sections
 - Optional hybrid server-side part enrichment implemented for JLC text and QR
   imports through `/admin-api/part-lookup`, with local cache reuse and an
   in-app toggle, while `/admin-api/lcsc/lookup` remains a server compatibility
@@ -48,8 +48,9 @@ and Material 3.
   `2026-05-16` on this host
 - Last full `assembleRelease` verification completed successfully on
   `2026-05-16` on this host
-- `compileDebugKotlin --no-daemon` completed successfully on `2026-05-17`
-  after the adaptive-shell refactor
+- Current source-level verification on this host reaches Gradle and SDK
+  resolution with Android Studio JBR, then stops because the configured SDK
+  path is read-only and AGP cannot install `build-tools;35.0.0`
 - On this host, non-blocking Android metrics warnings and Kotlin daemon
   fallback messages can appear during verification
 
@@ -163,6 +164,7 @@ The current preview catalog is baseline-first:
 
 - baseline light previews for inventory phone and tablet states, overview,
   movements, settings, shell, and form surfaces
+- dedicated medium-width and narrow-phone previews for adaptive density checks
 - targeted secondary previews for `zh-CN`, dark theme, and large-font checks
   on selected high-value states instead of multiplying every screen by every
   variant
@@ -195,7 +197,7 @@ the `ViewModel` entrypoint:
 - `ui/screen/MovementsScreen.kt`
   Movement history and detail flows
 - `ui/screen/SettingsScreen.kt`
-  Grouped sync, import, scanner, and About layout
+  Section-based grouped sync, import, app-language, and About layout
 - `ui/screen/JlcImportScreen.kt`
   Quantity-first import surface for JLC text, JLC-compatible QR payloads,
   supplier packaging OCR, warehouse labels, and background official metadata

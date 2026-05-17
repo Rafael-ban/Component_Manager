@@ -2,14 +2,14 @@ package com.componentvault.android.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,11 +19,22 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.layout.AnimatedPane
+import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
+import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneScaffold
+import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +47,7 @@ import com.componentvault.android.model.MovementScanUiState
 import com.componentvault.android.model.MovementsUiState
 import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.StockMovementRecord
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun MovementsScreen(
@@ -43,8 +55,8 @@ internal fun MovementsScreen(
     uiState: MovementsUiState,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
-    selectedMovementId: String?,
     onSelectMovement: (String) -> Unit,
+    onOpenMovementDetail: (String) -> Unit,
     onScanMovementLabel: () -> Unit,
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
@@ -58,8 +70,8 @@ internal fun MovementsScreen(
         uiState = uiState,
         statusMessage = statusMessage,
         layoutMode = layoutMode,
-        selectedMovementId = selectedMovementId,
         onSelectMovement = onSelectMovement,
+        onOpenMovementDetail = onOpenMovementDetail,
         onScanMovementLabel = onScanMovementLabel,
         onRetryMovementScan = onRetryMovementScan,
         onDismissMovementScanResult = onDismissMovementScanResult,
@@ -70,15 +82,15 @@ internal fun MovementsScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 internal fun MovementsContent(
     contentPadding: PaddingValues,
     uiState: MovementsUiState,
     statusMessage: String,
     layoutMode: InventoryLayoutMode,
-    selectedMovementId: String?,
     onSelectMovement: (String) -> Unit,
+    onOpenMovementDetail: (String) -> Unit,
     onScanMovementLabel: () -> Unit,
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
@@ -87,115 +99,74 @@ internal fun MovementsContent(
     onImportComponent: () -> Unit,
     onRecordMovement: () -> Unit,
 ) {
-    val strings = vaultStrings()
-    val effectiveSelectedMovement = uiState.items.firstOrNull {
-        it.id == (selectedMovementId ?: uiState.items.firstOrNull()?.id)
-    }
+    val effectiveSelectedMovement = uiState.items.firstOrNull { it.id == uiState.selectedMovementId }
+        ?: uiState.items.firstOrNull()
 
     if (layoutMode.showsListDetail) {
-        Row(
+        val navigator = rememberListDetailPaneScaffoldNavigator<String>()
+        val scope = rememberCoroutineScope()
+
+        LaunchedEffect(effectiveSelectedMovement?.id) {
+            val movementId = effectiveSelectedMovement?.id ?: return@LaunchedEffect
+            navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, movementId)
+        }
+
+        NavigableListDetailPaneScaffold(
             modifier = Modifier
                 .fillMaxSize()
                 .consumeWindowInsets(contentPadding)
                 .padding(rememberContentPadding(contentPadding, horizontal = 20.dp, vertical = 20.dp)),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Column(
-                modifier = Modifier
-                    .weight(1.06f)
-                    .fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                MovementQuickEntryPane(
-                    statusMessage = statusMessage,
-                    scanState = uiState.scan,
-                    onScanMovementLabel = onScanMovementLabel,
-                    onRetryMovementScan = onRetryMovementScan,
-                    onDismissMovementScanResult = onDismissMovementScanResult,
-                    onSearchInventoryBySku = onSearchInventoryBySku,
-                    onImportComponent = onImportComponent,
-                    onRecordMovement = onRecordMovement,
-                )
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 12.dp),
-                ) {
-                    item {
-                        Text(
-                            text = strings.movements.resultsSummary(
-                                uiState.items.size,
-                                uiState.componentCount,
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (uiState.items.isEmpty()) {
-                        item {
-                            EmptyPane(strings.common.emptyNoMovements)
-                        }
-                    } else {
-                        items(uiState.items, key = { it.id }) { movement ->
-                            MovementHistoryRow(
-                                movement = movement,
-                                selected = movement.id == effectiveSelectedMovement?.id,
-                                onClick = { onSelectMovement(movement.id) },
-                            )
-                        }
-                    }
+            navigator = navigator,
+            listPane = {
+                AnimatedPane {
+                    MovementMasterPane(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(),
+                        uiState = uiState,
+                        statusMessage = statusMessage,
+                        onSelectMovement = { movementId ->
+                            onSelectMovement(movementId)
+                            scope.launch {
+                                navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, movementId)
+                            }
+                        },
+                        onScanMovementLabel = onScanMovementLabel,
+                        onRetryMovementScan = onRetryMovementScan,
+                        onDismissMovementScanResult = onDismissMovementScanResult,
+                        onSearchInventoryBySku = onSearchInventoryBySku,
+                        onImportComponent = onImportComponent,
+                        onRecordMovement = onRecordMovement,
+                    )
                 }
-            }
-            MovementDetailPane(
-                movement = effectiveSelectedMovement,
-                modifier = Modifier
-                    .weight(0.94f)
-                    .fillMaxHeight(),
-            )
-        }
+            },
+            detailPane = {
+                AnimatedPane {
+                    MovementDetailPane(
+                        movement = effectiveSelectedMovement,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            },
+        )
     } else {
-        LazyColumn(
+        MovementMasterPane(
             modifier = Modifier
                 .fillMaxSize()
                 .consumeWindowInsets(contentPadding),
             contentPadding = rememberContentPadding(contentPadding, horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item {
-                MovementQuickEntryPane(
-                    statusMessage = statusMessage,
-                    scanState = uiState.scan,
-                    onScanMovementLabel = onScanMovementLabel,
-                    onRetryMovementScan = onRetryMovementScan,
-                    onDismissMovementScanResult = onDismissMovementScanResult,
-                    onSearchInventoryBySku = onSearchInventoryBySku,
-                    onImportComponent = onImportComponent,
-                    onRecordMovement = onRecordMovement,
-                )
-            }
-            item {
-                Text(
-                    text = strings.movements.resultsSummary(
-                        uiState.items.size,
-                        uiState.componentCount,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (uiState.items.isEmpty()) {
-                item {
-                    EmptyPane(strings.common.emptyNoMovements)
-                }
-            } else {
-                items(uiState.items, key = { it.id }) { movement ->
-                    MovementHistoryRow(
-                        movement = movement,
-                        selected = false,
-                    )
-                }
-            }
-        }
+            uiState = uiState,
+            statusMessage = statusMessage,
+            onSelectMovement = { movementId ->
+                onSelectMovement(movementId)
+                onOpenMovementDetail(movementId)
+            },
+            onScanMovementLabel = onScanMovementLabel,
+            onRetryMovementScan = onRetryMovementScan,
+            onDismissMovementScanResult = onDismissMovementScanResult,
+            onSearchInventoryBySku = onSearchInventoryBySku,
+            onImportComponent = onImportComponent,
+            onRecordMovement = onRecordMovement,
+        )
     }
 
     val matchedComponent = uiState.scan.resolution.matchedComponent
@@ -216,7 +187,7 @@ internal fun MovementsContent(
                 onDismiss = onDismissMovementScanResult,
                 onSave = {
                     validateMovementEditorState(
-                        strings = strings,
+                        strings = vaultStrings(),
                         selectedComponentId = matchedComponent.id,
                         state = editorState,
                     ).onSuccess { draft ->
@@ -230,11 +201,109 @@ internal fun MovementsContent(
                         }
                     }.onFailure { throwable ->
                         editorState = editorState.copy(
-                            errorMessage = throwable.message ?: strings.forms.chooseComponentTypeReason,
+                            errorMessage = throwable.message ?: vaultStrings().forms.chooseComponentTypeReason,
                         )
                     }
                 },
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun MovementDetailRoute(
+    movement: StockMovementRecord?,
+    onDismiss: () -> Unit,
+) {
+    val strings = vaultStrings()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = movement?.componentName ?: strings.movements.detailTitle,
+                        maxLines = 1,
+                    )
+                },
+                navigationIcon = {
+                    TextButton(onClick = onDismiss) {
+                        Text(strings.common.actionBack)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { padding ->
+        MovementDetailPane(
+            movement = movement,
+            modifier = Modifier
+                .fillMaxSize()
+                .consumeWindowInsets(padding),
+            contentPadding = rememberContentPadding(padding, horizontal = 16.dp, vertical = 16.dp),
+        )
+    }
+}
+
+@Composable
+private fun MovementMasterPane(
+    modifier: Modifier,
+    contentPadding: PaddingValues,
+    uiState: MovementsUiState,
+    statusMessage: String,
+    onSelectMovement: (String) -> Unit,
+    onScanMovementLabel: () -> Unit,
+    onRetryMovementScan: () -> Unit,
+    onDismissMovementScanResult: () -> Unit,
+    onSearchInventoryBySku: (String) -> Unit,
+    onImportComponent: () -> Unit,
+    onRecordMovement: () -> Unit,
+) {
+    val strings = vaultStrings()
+
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = contentPadding,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            MovementQuickEntryPane(
+                statusMessage = statusMessage,
+                scanState = uiState.scan,
+                onScanMovementLabel = onScanMovementLabel,
+                onRetryMovementScan = onRetryMovementScan,
+                onDismissMovementScanResult = onDismissMovementScanResult,
+                onSearchInventoryBySku = onSearchInventoryBySku,
+                onImportComponent = onImportComponent,
+                onRecordMovement = onRecordMovement,
+            )
+        }
+        item {
+            Text(
+                text = strings.movements.resultsSummary(
+                    uiState.items.size,
+                    uiState.componentCount,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (uiState.items.isEmpty()) {
+            item {
+                EmptyPane(strings.common.emptyNoMovements)
+            }
+        } else {
+            items(uiState.items, key = { it.id }) { movement ->
+                MovementHistoryRow(
+                    movement = movement,
+                    selected = movement.id == uiState.selectedMovementId,
+                    onClick = { onSelectMovement(movement.id) },
+                )
+            }
         }
     }
 }

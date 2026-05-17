@@ -1,10 +1,9 @@
 package com.componentvault.android.ui.screen.preview
 
-import com.componentvault.android.model.ComponentRecord
-import com.componentvault.android.model.ComponentLabelSeed
-import com.componentvault.android.model.toLabelSeed
 import com.componentvault.android.model.AppLanguage
 import com.componentvault.android.model.AppPreferences
+import com.componentvault.android.model.ComponentLabelSeed
+import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.ImportLearningSummary
 import com.componentvault.android.model.InventoryDetailUiState
 import com.componentvault.android.model.InventoryFiltersUiState
@@ -22,6 +21,7 @@ import com.componentvault.android.model.OcrEngineMode
 import com.componentvault.android.model.OverviewUiState
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.SyncConfiguration
+import com.componentvault.android.model.toLabelSeed
 
 internal object InventoryPreviewData {
     private const val PreviewDeviceId = "android-preview-device"
@@ -314,6 +314,7 @@ internal object InventoryPreviewData {
         movements: MovementsUiState = MovementsUiState(
             items = previewMovements,
             componentCount = previewComponents.size,
+            selectedMovementId = SelectedMovementId,
         ),
         isBusy: Boolean = false,
     ): InventoryUiState = InventoryUiState(
@@ -334,6 +335,8 @@ internal object InventoryPreviewData {
         defaultImportMinStock = 12,
         rememberLastImportLocation = true,
         syncAfterLocalChanges = true,
+        enableLocalAutoRecognition = true,
+        preferAggressiveAutoRecognition = true,
         enableLocalImportLearning = true,
         enableServerJlcLookup = false,
         ocrEngineMode = OcrEngineMode.Auto,
@@ -394,6 +397,7 @@ internal object InventoryPreviewData {
             movements = MovementsUiState(
                 items = previewMovements,
                 componentCount = previewComponents.size,
+                selectedMovementId = SelectedMovementId,
                 scan = MovementScanUiState(
                     resolution = MovementScanResolutionUiState(
                         matchStatus = MovementScanMatchStatus.Matched,
@@ -417,6 +421,7 @@ internal object InventoryPreviewData {
             movements = MovementsUiState(
                 items = previewMovements,
                 componentCount = previewComponents.size,
+                selectedMovementId = SelectedMovementId,
                 scan = MovementScanUiState(
                     resolution = MovementScanResolutionUiState(
                         matchStatus = MovementScanMatchStatus.NotFound,

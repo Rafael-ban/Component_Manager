@@ -2,8 +2,6 @@ package com.componentvault.android.ui.screen.preview
 
 import androidx.compose.runtime.Composable
 import com.componentvault.android.ui.screen.ComponentEditorSurface
-import com.componentvault.android.ui.screen.InventoryLayoutMode
-import com.componentvault.android.ui.screen.InventoryWidthClass
 import com.componentvault.android.ui.screen.JlcImportSurface
 import com.componentvault.android.ui.screen.MovementEditorSurface
 
@@ -13,12 +11,7 @@ private fun NewComponentFormPreview() {
     PreviewHost {
         ComponentEditorSurface(
             existing = null,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
+            layoutMode = DialogPreviewLayout,
             onDismiss = {},
             onSave = { _, _ -> },
         )
@@ -31,12 +24,7 @@ private fun EditComponentFormPreview() {
     PreviewHost {
         ComponentEditorSurface(
             existing = InventoryPreviewData.selectedComponent,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
+            layoutMode = DialogPreviewLayout,
             onDismiss = {},
             onSave = { _, _ -> },
         )
@@ -50,12 +38,7 @@ private fun MovementFormPreview() {
         MovementEditorSurface(
             components = InventoryPreviewData.components,
             selectedComponentId = InventoryPreviewData.selectedComponentId,
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
+            layoutMode = DialogPreviewLayout,
             onDismiss = {},
             onSave = { _, _ -> },
         )
@@ -67,12 +50,7 @@ private fun MovementFormPreview() {
 private fun JlcImportPreview() {
     PreviewHost {
         JlcImportSurface(
-            layoutMode = InventoryLayoutMode(
-                widthClass = InventoryWidthClass.Compact,
-                usesNavigationRail = false,
-                showsListDetail = false,
-                prefersDialogForms = false,
-            ),
+            layoutMode = DialogPreviewLayout,
             syncConfiguration = InventoryPreviewData.settingsState().syncConfiguration,
             appPreferences = InventoryPreviewData.settingsState().appPreferences,
             onDismiss = {},

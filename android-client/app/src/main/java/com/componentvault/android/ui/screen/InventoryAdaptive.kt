@@ -17,17 +17,37 @@ internal enum class InventoryWidthClass {
     Expanded,
 }
 
+internal enum class InventoryFormPresentation {
+    FullScreenRoute,
+    Dialog,
+}
+
+internal enum class InventorySecondaryPanePresentation {
+    FullScreenRoute,
+    SplitPane,
+}
+
 internal data class InventoryLayoutMode(
     val widthClass: InventoryWidthClass,
-    val usesNavigationRail: Boolean,
-    val showsListDetail: Boolean,
-    val prefersDialogForms: Boolean,
-)
+    val supportsListDetail: Boolean,
+    val formPresentation: InventoryFormPresentation,
+    val secondaryPanePresentation: InventorySecondaryPanePresentation,
+) {
+    val usesNavigationRail: Boolean
+        get() = widthClass != InventoryWidthClass.Compact
+
+    val showsListDetail: Boolean
+        get() = supportsListDetail
+
+    val prefersDialogForms: Boolean
+        get() = formPresentation == InventoryFormPresentation.Dialog
+}
 
 @Composable
 internal fun rememberInventoryLayoutMode(): InventoryLayoutMode {
-    val adaptiveInfo = currentWindowAdaptiveInfo(supportLargeAndXLargeWidth = true)
-    val windowSizeClass = adaptiveInfo.windowSizeClass
+    val windowSizeClass = currentWindowAdaptiveInfo(
+        supportLargeAndXLargeWidth = true,
+    ).windowSizeClass
 
     return remember(windowSizeClass) {
         val widthClass = when {
@@ -42,9 +62,18 @@ internal fun rememberInventoryLayoutMode(): InventoryLayoutMode {
 
         InventoryLayoutMode(
             widthClass = widthClass,
-            usesNavigationRail = widthClass != InventoryWidthClass.Compact,
-            showsListDetail = widthClass != InventoryWidthClass.Compact,
-            prefersDialogForms = widthClass != InventoryWidthClass.Compact,
+            supportsListDetail = widthClass != InventoryWidthClass.Compact,
+            formPresentation = when (widthClass) {
+                InventoryWidthClass.Compact,
+                InventoryWidthClass.Medium,
+                -> InventoryFormPresentation.FullScreenRoute
+                InventoryWidthClass.Expanded -> InventoryFormPresentation.Dialog
+            },
+            secondaryPanePresentation = if (widthClass == InventoryWidthClass.Compact) {
+                InventorySecondaryPanePresentation.FullScreenRoute
+            } else {
+                InventorySecondaryPanePresentation.SplitPane
+            },
         )
     }
 }

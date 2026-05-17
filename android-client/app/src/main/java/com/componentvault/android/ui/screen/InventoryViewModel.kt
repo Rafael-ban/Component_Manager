@@ -243,6 +243,15 @@ class InventoryViewModel(
         }
     }
 
+    fun selectMovement(movementId: String?) {
+        uiState = uiState.copy(
+            movements = buildMovementsUiState(
+                scanState = uiState.movements.scan,
+                preferredSelectedMovementId = movementId,
+            ),
+        )
+    }
+
     fun openMovementScanner() {
         uiState = uiState.copy(
             movements = buildMovementsUiState(
@@ -434,10 +443,15 @@ class InventoryViewModel(
 
     private fun buildMovementsUiState(
         scanState: MovementScanUiState = uiState.movements.scan,
+        preferredSelectedMovementId: String? = uiState.movements.selectedMovementId,
     ): MovementsUiState {
+        val selectedMovementId = preferredSelectedMovementId?.takeIf { selectedId ->
+            allMovementsCache.any { it.id == selectedId }
+        }
         return MovementsUiState(
             items = allMovementsCache,
             componentCount = allComponentsCache.size,
+            selectedMovementId = selectedMovementId,
             scan = scanState,
         )
     }
