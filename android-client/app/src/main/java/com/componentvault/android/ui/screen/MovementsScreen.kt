@@ -99,6 +99,7 @@ internal fun MovementsContent(
     onImportComponent: () -> Unit,
     onRecordMovement: () -> Unit,
 ) {
+    val strings = vaultStrings()
     val effectiveSelectedMovement = uiState.items.firstOrNull { it.id == uiState.selectedMovementId }
         ?: uiState.items.firstOrNull()
 
@@ -187,7 +188,7 @@ internal fun MovementsContent(
                 onDismiss = onDismissMovementScanResult,
                 onSave = {
                     validateMovementEditorState(
-                        strings = vaultStrings(),
+                        strings = strings,
                         selectedComponentId = matchedComponent.id,
                         state = editorState,
                     ).onSuccess { draft ->
@@ -201,7 +202,7 @@ internal fun MovementsContent(
                         }
                     }.onFailure { throwable ->
                         editorState = editorState.copy(
-                            errorMessage = throwable.message ?: vaultStrings().forms.chooseComponentTypeReason,
+                            errorMessage = throwable.message ?: strings.forms.chooseComponentTypeReason,
                         )
                     }
                 },
