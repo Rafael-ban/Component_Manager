@@ -114,6 +114,17 @@
     <string name="movements_scanner_scanning_hint">Align the small warehouse label QR code inside the frame. Tap to focus if needed. Auto zoom will assist when the code is small.</string>
     <string name="movements_scanner_failed_title">Scanner unavailable</string>
     <string name="movements_scanner_failed_description">The in-app label scanner could not start.</string>
+    <string name="movements_batch_review_title">Batch review</string>
+    <string name="movements_batch_review_action">Review queue</string>
+    <string name="movements_batch_continue_action">Continue scanning</string>
+    <string name="movements_batch_save_action">Save batch</string>
+    <string name="movements_batch_discard_action">Discard batch</string>
+    <string name="movements_batch_remove_action">Remove from batch</string>
+    <string name="movements_batch_projected_stock_label">Projected stock</string>
+    <string name="movements_batch_summary_pattern">%1$d queued items from %2$d successful scans.</string>
+    <string name="movements_batch_last_queued_pattern">Last queued: %1$s (%2$s)</string>
+    <string name="movements_batch_scan_count_pattern">Scanned %1$d times in this batch.</string>
+    <string name="movements_batch_scanner_hint_pattern">%1$d queued items from %2$d scans. Keep scanning labels or return to review.</string>
 
     <string name="field_api_token">API token</string>
     <string name="field_category">Category</string>
@@ -172,6 +183,7 @@
     <string name="sync_choose_active_component_first">Select an active component first.</string>
     <string name="sync_negative_stock_error">This movement would make stock negative.</string>
     <string name="sync_movement_recorded_local">Movement was recorded locally.</string>
+    <string name="sync_movement_batch_recorded_local">%1$d stock movements were recorded locally.</string>
     <string name="sync_movement_record_failed">Unable to record the movement.</string>
     <string name="sync_enter_server_url_first">Enter the server URL first.</string>
     <string name="sync_enter_api_token_first">Enter the API token first.</string>
@@ -188,6 +200,8 @@
     <string name="sync_choose_component_type_reason">Select a component and movement type, then enter a reason.</string>
     <string name="sync_adjustment_non_zero">Adjustment quantity cannot be zero.</string>
     <string name="sync_movement_quantity_positive">Movement quantity must be greater than zero.</string>
+    <string name="sync_invalid_movement_quantity">Enter a valid movement quantity.</string>
+    <string name="sync_movement_batch_empty">Scan at least one component before saving the batch.</string>
     <string name="sync_duplicate_active_sku">An active component with the same SKU already exists.</string>
     <string name="sync_unsupported_movement_type">Unsupported movement type.</string>
     <string name="settings_local_learning_cleared">Local import learning was cleared on this device.</string>

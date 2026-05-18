@@ -13,6 +13,10 @@ import com.componentvault.android.model.InventoryScreenUiState
 import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.model.InventoryUiState
+import com.componentvault.android.model.MovementBatchQueueItemUiState
+import com.componentvault.android.model.MovementBatchSessionUiState
+import com.componentvault.android.model.MovementBatchStage
+import com.componentvault.android.model.MovementQuickAction
 import com.componentvault.android.model.MovementScanMatchStatus
 import com.componentvault.android.model.MovementScanResolutionUiState
 import com.componentvault.android.model.MovementScanUiState
@@ -389,7 +393,8 @@ internal object InventoryPreviewData {
         )
     }
 
-    fun movementsMatchedState(): InventoryUiState {
+    fun movementsBatchReviewState(): InventoryUiState {
+        val secondComponent = previewComponents.first { it.id == "cmp-1" }
         return previewState(
             syncConfiguration = previewSyncConfiguration(lastSyncMessage = MovementRecordedMessage),
             statusMessage = MovementRecordedMessage,
@@ -398,15 +403,41 @@ internal object InventoryPreviewData {
                 items = previewMovements,
                 componentCount = previewComponents.size,
                 selectedMovementId = SelectedMovementId,
-                scan = MovementScanUiState(
-                    resolution = MovementScanResolutionUiState(
-                        matchStatus = MovementScanMatchStatus.Matched,
-                        rawValue = "cvl2|RES-10K-0402|10k+Ohm+Resistor|Resistor|0402|-|-|16",
-                        parsedSku = selectedComponent.sku,
-                        parsedName = selectedComponent.name,
-                        parsedPackageName = selectedComponent.packageName,
-                        parsedLocation = selectedComponent.location,
-                        matchedComponent = selectedComponent,
+                batchSession = MovementBatchSessionUiState(
+                    stage = MovementBatchStage.Review,
+                    totalScans = 3,
+                    lastQueuedComponentName = secondComponent.name,
+                    lastQueuedComponentSku = secondComponent.sku,
+                    queuedItems = listOf(
+                        MovementBatchQueueItemUiState(
+                            componentId = selectedComponent.id,
+                            componentName = selectedComponent.name,
+                            componentSku = selectedComponent.sku,
+                            category = selectedComponent.category,
+                            packageName = selectedComponent.packageName,
+                            location = selectedComponent.location,
+                            currentStock = selectedComponent.quantity,
+                            minStock = selectedComponent.minStock,
+                            scanCount = 2,
+                            movementType = MovementQuickAction.Inbound.movementType,
+                            quantityText = "2",
+                            reason = "Restock reel",
+                        ),
+                        MovementBatchQueueItemUiState(
+                            componentId = secondComponent.id,
+                            componentName = secondComponent.name,
+                            componentSku = secondComponent.sku,
+                            category = secondComponent.category,
+                            packageName = secondComponent.packageName,
+                            location = secondComponent.location,
+                            currentStock = secondComponent.quantity,
+                            minStock = secondComponent.minStock,
+                            scanCount = 1,
+                            movementType = MovementQuickAction.Outbound.movementType,
+                            quantityText = "6",
+                            reason = "Prototype build",
+                            note = "Bench handoff",
+                        ),
                     ),
                 ),
             ),

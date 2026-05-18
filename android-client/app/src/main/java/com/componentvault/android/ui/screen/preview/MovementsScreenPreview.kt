@@ -1,7 +1,7 @@
 package com.componentvault.android.ui.screen.preview
 
-import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.Composable
 import com.componentvault.android.ui.screen.MovementDetailRoute
 import com.componentvault.android.ui.screen.MovementsContent
 
@@ -20,7 +20,13 @@ private fun MovementsPhonePreview() {
             onScanMovementLabel = {},
             onRetryMovementScan = {},
             onDismissMovementScanResult = {},
-            onRecordResolvedMovement = { _, _ -> },
+            onDiscardMovementBatch = {},
+            onCommitMovementBatch = {},
+            onUpdateMovementBatchItemMovementType = { _, _ -> },
+            onUpdateMovementBatchItemQuantity = { _, _ -> },
+            onUpdateMovementBatchItemReason = { _, _ -> },
+            onUpdateMovementBatchItemNote = { _, _ -> },
+            onRemoveMovementBatchItem = {},
             onSearchInventoryBySku = {},
             onImportComponent = {},
             onRecordMovement = {},
@@ -43,7 +49,13 @@ private fun MovementsTabletPreview() {
             onScanMovementLabel = {},
             onRetryMovementScan = {},
             onDismissMovementScanResult = {},
-            onRecordResolvedMovement = { _, _ -> },
+            onDiscardMovementBatch = {},
+            onCommitMovementBatch = {},
+            onUpdateMovementBatchItemMovementType = { _, _ -> },
+            onUpdateMovementBatchItemQuantity = { _, _ -> },
+            onUpdateMovementBatchItemReason = { _, _ -> },
+            onUpdateMovementBatchItemNote = { _, _ -> },
+            onRemoveMovementBatchItem = {},
             onSearchInventoryBySku = {},
             onImportComponent = {},
             onRecordMovement = {},
@@ -55,9 +67,9 @@ private fun MovementsTabletPreview() {
 @InventoryZhCnPreview
 @InventoryLargeFontPreview
 @Composable
-private fun MovementsMatchedPhonePreview() {
+private fun MovementsBatchReviewPhonePreview() {
     PreviewHost(strings = PreviewComponentVaultStrings.ZhCn) {
-        val uiState = InventoryPreviewData.movementsMatchedState()
+        val uiState = InventoryPreviewData.movementsBatchReviewState()
         MovementsContent(
             contentPadding = PaddingValues(),
             uiState = uiState.movements,
@@ -68,7 +80,13 @@ private fun MovementsMatchedPhonePreview() {
             onScanMovementLabel = {},
             onRetryMovementScan = {},
             onDismissMovementScanResult = {},
-            onRecordResolvedMovement = { _, _ -> },
+            onDiscardMovementBatch = {},
+            onCommitMovementBatch = {},
+            onUpdateMovementBatchItemMovementType = { _, _ -> },
+            onUpdateMovementBatchItemQuantity = { _, _ -> },
+            onUpdateMovementBatchItemReason = { _, _ -> },
+            onUpdateMovementBatchItemNote = { _, _ -> },
+            onRemoveMovementBatchItem = {},
             onSearchInventoryBySku = {},
             onImportComponent = {},
             onRecordMovement = {},
@@ -91,7 +109,13 @@ private fun MovementsNotFoundPhonePreview() {
             onScanMovementLabel = {},
             onRetryMovementScan = {},
             onDismissMovementScanResult = {},
-            onRecordResolvedMovement = { _, _ -> },
+            onDiscardMovementBatch = {},
+            onCommitMovementBatch = {},
+            onUpdateMovementBatchItemMovementType = { _, _ -> },
+            onUpdateMovementBatchItemQuantity = { _, _ -> },
+            onUpdateMovementBatchItemReason = { _, _ -> },
+            onUpdateMovementBatchItemNote = { _, _ -> },
+            onRemoveMovementBatchItem = {},
             onSearchInventoryBySku = {},
             onImportComponent = {},
             onRecordMovement = {},

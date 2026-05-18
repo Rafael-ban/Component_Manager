@@ -106,6 +106,7 @@ private fun JlcQrScannerMode.toConfig(): JlcQrScannerConfig = when (this) {
 internal fun JlcQrScannerSurface(
     onDismiss: () -> Unit,
     onScanResult: (String) -> Unit,
+    scanSessionToken: Int = 0,
     title: String? = null,
     permissionTitle: String? = null,
     permissionDescription: String? = null,
@@ -187,7 +188,7 @@ internal fun JlcQrScannerSurface(
         },
         onReturnToImport = onDismiss,
         cameraPreview = {
-            key(sessionId) {
+            key(sessionId, scanSessionToken) {
                 JlcQrCameraPreview(
                     scannerMode = scannerMode,
                     onScannerReady = {

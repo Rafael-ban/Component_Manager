@@ -104,6 +104,17 @@
     <string name="movements_scanner_scanning_hint">将小尺寸仓库标签二维码对准取景框。可点按对焦，二维码偏小时会自动辅助缩放。</string>
     <string name="movements_scanner_failed_title">标签扫码不可用</string>
     <string name="movements_scanner_failed_description">应用内的标签扫码器未能正常启动。</string>
+    <string name="movements_batch_review_title">批量复核</string>
+    <string name="movements_batch_review_action">查看队列</string>
+    <string name="movements_batch_continue_action">继续扫描</string>
+    <string name="movements_batch_save_action">提交批量变动</string>
+    <string name="movements_batch_discard_action">放弃批次</string>
+    <string name="movements_batch_remove_action">从批次中移除</string>
+    <string name="movements_batch_projected_stock_label">预计库存</string>
+    <string name="movements_batch_summary_pattern">已缓存 %1$d 个元件，来自 %2$d 次成功扫描。</string>
+    <string name="movements_batch_last_queued_pattern">最近加入：%1$s (%2$s)</string>
+    <string name="movements_batch_scan_count_pattern">本批次已扫到 %1$d 次。</string>
+    <string name="movements_batch_scanner_hint_pattern">已缓存 %1$d 个元件，来自 %2$d 次扫描。可继续扫描或返回复核。</string>
     <string name="field_api_token">API 令牌</string>
     <string name="field_category">分类</string>
     <string name="field_component">元件</string>
@@ -156,6 +167,7 @@
     <string name="sync_choose_active_component_first">请先选择一个未删除的元器件。</string>
     <string name="sync_negative_stock_error">这次变动会导致库存变成负数。</string>
     <string name="sync_movement_recorded_local">库存变动已记录到本地。</string>
+    <string name="sync_movement_batch_recorded_local">已在本地记录 %1$d 条库存变动。</string>
     <string name="sync_movement_record_failed">无法记录库存变动。</string>
     <string name="sync_enter_server_url_first">请先填写服务器地址。</string>
     <string name="sync_enter_api_token_first">请先填写 API 令牌。</string>
@@ -172,6 +184,8 @@
     <string name="sync_choose_component_type_reason">请选择元件、变动类型并填写原因。</string>
     <string name="sync_adjustment_non_zero">调整数量不能为 0。</string>
     <string name="sync_movement_quantity_positive">变动数量必须大于 0。</string>
+    <string name="sync_invalid_movement_quantity">请输入有效的变动数量。</string>
+    <string name="sync_movement_batch_empty">请至少扫描一个元件后再提交批量变动。</string>
     <string name="sync_duplicate_active_sku">已存在相同 SKU 的有效元器件。</string>
     <string name="sync_unsupported_movement_type">不支持的库存变动类型。</string>
     <string name="settings_local_learning_cleared">当前设备上的本地导入学习已清空。</string>

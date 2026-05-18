@@ -5,6 +5,20 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.3.9] - 2026-05-19
+
+- Reworked Android stock movements into a scan-then-review batch workflow:
+  successful warehouse-label scans now stay in a continuous session, merge
+  duplicate scans into one queue row, and let each queued component choose its
+  own inbound, outbound, or adjustment details before one local commit.
+- Re-armed the Android in-app label scanner between successful movement scans
+  without dropping the existing auto-zoom and tap-to-focus path, and changed
+  the scanner exit flow to return to the pending review queue instead of
+  forcing a one-scan-one-entry sheet.
+- Added Android movement batch validation, localized batch-review copy, and
+  refreshed movement previews so the new queue editing states render in both
+  runtime and Compose Preview.
+
 ## [0.3.8] - 2026-05-16
 
 <!-- Add unreleased notes below this line. -->

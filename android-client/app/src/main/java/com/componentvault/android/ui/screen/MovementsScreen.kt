@@ -1,24 +1,21 @@
 package com.componentvault.android.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,21 +28,17 @@ import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneSca
 import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.componentvault.android.model.ComponentRecord
-import com.componentvault.android.model.MovementEntryDraft
+import com.componentvault.android.model.MovementBatchQueueItemUiState
+import com.componentvault.android.model.MovementQuickAction
 import com.componentvault.android.model.MovementScanMatchStatus
 import com.componentvault.android.model.MovementScanUiState
 import com.componentvault.android.model.MovementsUiState
-import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.StockMovementRecord
 import kotlinx.coroutines.launch
 
@@ -60,7 +53,13 @@ internal fun MovementsScreen(
     onScanMovementLabel: () -> Unit,
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
-    onRecordResolvedMovement: (MovementEntryDraft, (OperationResult) -> Unit) -> Unit,
+    onDiscardMovementBatch: () -> Unit,
+    onCommitMovementBatch: () -> Unit,
+    onUpdateMovementBatchItemMovementType: (String, String) -> Unit,
+    onUpdateMovementBatchItemQuantity: (String, String) -> Unit,
+    onUpdateMovementBatchItemReason: (String, String) -> Unit,
+    onUpdateMovementBatchItemNote: (String, String) -> Unit,
+    onRemoveMovementBatchItem: (String) -> Unit,
     onSearchInventoryBySku: (String) -> Unit,
     onImportComponent: () -> Unit,
     onRecordMovement: () -> Unit,
@@ -75,7 +74,13 @@ internal fun MovementsScreen(
         onScanMovementLabel = onScanMovementLabel,
         onRetryMovementScan = onRetryMovementScan,
         onDismissMovementScanResult = onDismissMovementScanResult,
-        onRecordResolvedMovement = onRecordResolvedMovement,
+        onDiscardMovementBatch = onDiscardMovementBatch,
+        onCommitMovementBatch = onCommitMovementBatch,
+        onUpdateMovementBatchItemMovementType = onUpdateMovementBatchItemMovementType,
+        onUpdateMovementBatchItemQuantity = onUpdateMovementBatchItemQuantity,
+        onUpdateMovementBatchItemReason = onUpdateMovementBatchItemReason,
+        onUpdateMovementBatchItemNote = onUpdateMovementBatchItemNote,
+        onRemoveMovementBatchItem = onRemoveMovementBatchItem,
         onSearchInventoryBySku = onSearchInventoryBySku,
         onImportComponent = onImportComponent,
         onRecordMovement = onRecordMovement,
@@ -94,12 +99,17 @@ internal fun MovementsContent(
     onScanMovementLabel: () -> Unit,
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
-    onRecordResolvedMovement: (MovementEntryDraft, (OperationResult) -> Unit) -> Unit,
+    onDiscardMovementBatch: () -> Unit,
+    onCommitMovementBatch: () -> Unit,
+    onUpdateMovementBatchItemMovementType: (String, String) -> Unit,
+    onUpdateMovementBatchItemQuantity: (String, String) -> Unit,
+    onUpdateMovementBatchItemReason: (String, String) -> Unit,
+    onUpdateMovementBatchItemNote: (String, String) -> Unit,
+    onRemoveMovementBatchItem: (String) -> Unit,
     onSearchInventoryBySku: (String) -> Unit,
     onImportComponent: () -> Unit,
     onRecordMovement: () -> Unit,
 ) {
-    val strings = vaultStrings()
     val effectiveSelectedMovement = uiState.items.firstOrNull { it.id == uiState.selectedMovementId }
         ?: uiState.items.firstOrNull()
 
@@ -134,6 +144,13 @@ internal fun MovementsContent(
                         onScanMovementLabel = onScanMovementLabel,
                         onRetryMovementScan = onRetryMovementScan,
                         onDismissMovementScanResult = onDismissMovementScanResult,
+                        onDiscardMovementBatch = onDiscardMovementBatch,
+                        onCommitMovementBatch = onCommitMovementBatch,
+                        onUpdateMovementBatchItemMovementType = onUpdateMovementBatchItemMovementType,
+                        onUpdateMovementBatchItemQuantity = onUpdateMovementBatchItemQuantity,
+                        onUpdateMovementBatchItemReason = onUpdateMovementBatchItemReason,
+                        onUpdateMovementBatchItemNote = onUpdateMovementBatchItemNote,
+                        onRemoveMovementBatchItem = onRemoveMovementBatchItem,
                         onSearchInventoryBySku = onSearchInventoryBySku,
                         onImportComponent = onImportComponent,
                         onRecordMovement = onRecordMovement,
@@ -164,50 +181,17 @@ internal fun MovementsContent(
             onScanMovementLabel = onScanMovementLabel,
             onRetryMovementScan = onRetryMovementScan,
             onDismissMovementScanResult = onDismissMovementScanResult,
+            onDiscardMovementBatch = onDiscardMovementBatch,
+            onCommitMovementBatch = onCommitMovementBatch,
+            onUpdateMovementBatchItemMovementType = onUpdateMovementBatchItemMovementType,
+            onUpdateMovementBatchItemQuantity = onUpdateMovementBatchItemQuantity,
+            onUpdateMovementBatchItemReason = onUpdateMovementBatchItemReason,
+            onUpdateMovementBatchItemNote = onUpdateMovementBatchItemNote,
+            onRemoveMovementBatchItem = onRemoveMovementBatchItem,
             onSearchInventoryBySku = onSearchInventoryBySku,
             onImportComponent = onImportComponent,
             onRecordMovement = onRecordMovement,
         )
-    }
-
-    val matchedComponent = uiState.scan.resolution.matchedComponent
-    if (uiState.scan.resolution.matchStatus == MovementScanMatchStatus.Matched && matchedComponent != null) {
-        var editorState by remember(
-            uiState.scan.resolution.rawValue,
-            matchedComponent.id,
-        ) {
-            mutableStateOf(MovementEditorState())
-        }
-        ModalBottomSheet(
-            onDismissRequest = onDismissMovementScanResult,
-        ) {
-            MovementResolvedEntrySheet(
-                component = matchedComponent,
-                state = editorState,
-                onStateChange = { editorState = it },
-                onDismiss = onDismissMovementScanResult,
-                onSave = {
-                    validateMovementEditorState(
-                        strings = strings,
-                        selectedComponentId = matchedComponent.id,
-                        state = editorState,
-                    ).onSuccess { draft ->
-                        editorState = editorState.copy(errorMessage = null)
-                        onRecordResolvedMovement(draft) { result ->
-                            if (result.isSuccess) {
-                                onDismissMovementScanResult()
-                            } else {
-                                editorState = editorState.copy(errorMessage = result.message)
-                            }
-                        }
-                    }.onFailure { throwable ->
-                        editorState = editorState.copy(
-                            errorMessage = throwable.message ?: strings.forms.chooseComponentTypeReason,
-                        )
-                    }
-                },
-            )
-        }
     }
 }
 
@@ -260,6 +244,13 @@ private fun MovementMasterPane(
     onScanMovementLabel: () -> Unit,
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
+    onDiscardMovementBatch: () -> Unit,
+    onCommitMovementBatch: () -> Unit,
+    onUpdateMovementBatchItemMovementType: (String, String) -> Unit,
+    onUpdateMovementBatchItemQuantity: (String, String) -> Unit,
+    onUpdateMovementBatchItemReason: (String, String) -> Unit,
+    onUpdateMovementBatchItemNote: (String, String) -> Unit,
+    onRemoveMovementBatchItem: (String) -> Unit,
     onSearchInventoryBySku: (String) -> Unit,
     onImportComponent: () -> Unit,
     onRecordMovement: () -> Unit,
@@ -275,6 +266,7 @@ private fun MovementMasterPane(
             MovementQuickEntryPane(
                 statusMessage = statusMessage,
                 scanState = uiState.scan,
+                hasBatchItems = uiState.batchSession.queuedItems.isNotEmpty(),
                 onScanMovementLabel = onScanMovementLabel,
                 onRetryMovementScan = onRetryMovementScan,
                 onDismissMovementScanResult = onDismissMovementScanResult,
@@ -283,6 +275,37 @@ private fun MovementMasterPane(
                 onRecordMovement = onRecordMovement,
             )
         }
+
+        if (uiState.batchSession.queuedItems.isNotEmpty()) {
+            item {
+                MovementBatchReviewSummaryPane(
+                    uiState = uiState,
+                    onScanMovementLabel = onScanMovementLabel,
+                    onCommitMovementBatch = onCommitMovementBatch,
+                    onDiscardMovementBatch = onDiscardMovementBatch,
+                )
+            }
+
+            items(uiState.batchSession.queuedItems, key = { it.componentId }) { item ->
+                MovementBatchQueueItemCard(
+                    item = item,
+                    onMovementTypeChange = { movementType ->
+                        onUpdateMovementBatchItemMovementType(item.componentId, movementType)
+                    },
+                    onQuantityChange = { quantityText ->
+                        onUpdateMovementBatchItemQuantity(item.componentId, quantityText)
+                    },
+                    onReasonChange = { reason ->
+                        onUpdateMovementBatchItemReason(item.componentId, reason)
+                    },
+                    onNoteChange = { note ->
+                        onUpdateMovementBatchItemNote(item.componentId, note)
+                    },
+                    onRemove = { onRemoveMovementBatchItem(item.componentId) },
+                )
+            }
+        }
+
         item {
             Text(
                 text = strings.movements.resultsSummary(
@@ -293,6 +316,7 @@ private fun MovementMasterPane(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
         if (uiState.items.isEmpty()) {
             item {
                 EmptyPane(strings.common.emptyNoMovements)
@@ -313,6 +337,7 @@ private fun MovementMasterPane(
 private fun MovementQuickEntryPane(
     statusMessage: String,
     scanState: MovementScanUiState,
+    hasBatchItems: Boolean,
     onScanMovementLabel: () -> Unit,
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
@@ -321,6 +346,11 @@ private fun MovementQuickEntryPane(
     onRecordMovement: () -> Unit,
 ) {
     val strings = vaultStrings()
+    val scanActionLabel = if (hasBatchItems) {
+        strings.movements.batchContinueAction
+    } else {
+        strings.movements.quickScanAction
+    }
 
     SectionPane(
         title = strings.movements.recordTitle,
@@ -331,7 +361,7 @@ private fun MovementQuickEntryPane(
             onClick = onScanMovementLabel,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(strings.movements.quickScanAction)
+            Text(scanActionLabel)
         }
         OutlinedButton(
             onClick = onRecordMovement,
@@ -465,99 +495,139 @@ private fun MovementQuickEntryPane(
 }
 
 @Composable
-private fun MovementResolvedEntrySheet(
-    component: ComponentRecord,
-    state: MovementEditorState,
-    onStateChange: (MovementEditorState) -> Unit,
-    onDismiss: () -> Unit,
-    onSave: () -> Unit,
+private fun MovementBatchReviewSummaryPane(
+    uiState: MovementsUiState,
+    onScanMovementLabel: () -> Unit,
+    onCommitMovementBatch: () -> Unit,
+    onDiscardMovementBatch: () -> Unit,
 ) {
     val strings = vaultStrings()
+    val batchSession = uiState.batchSession
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.9f)
-            .navigationBarsPadding()
-            .imePadding(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    SectionPane(
+        title = strings.movements.batchReviewTitle,
+        supporting = strings.movements.batchSummary(
+            batchSession.queuedItems.size,
+            batchSession.totalScans,
+        ),
     ) {
-        item {
+        batchSession.lastQueuedComponentName.takeIf { it.isNotBlank() }?.let { componentName ->
             Text(
-                text = strings.movements.quickActionsTitle,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-        item {
-            Text(
-                text = strings.movements.quickActionsSubtitle,
-                style = MaterialTheme.typography.bodyMedium,
+                text = strings.movements.batchLastQueued(
+                    componentName,
+                    batchSession.lastQueuedComponentSku,
+                ),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        item {
-            MovementResolvedComponentSummary(component = component)
+        FilledTonalButton(
+            onClick = onCommitMovementBatch,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.movements.batchSaveAction)
         }
-        item {
-            SectionPane(
-                title = strings.forms.movementScopeTitle,
-                supporting = strings.forms.movementScopeSubtitle,
-            ) {
-                MovementTypeSelector(
-                    movementType = state.movementType,
-                    onMovementTypeChange = { movementType ->
-                        onStateChange(
-                            state.copy(
-                                movementType = movementType,
-                                errorMessage = null,
-                            ),
-                        )
-                    },
-                )
-            }
+        OutlinedButton(
+            onClick = onScanMovementLabel,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.movements.batchContinueAction)
         }
-        item {
-            MovementEntryFields(
-                state = state,
-                onStateChange = onStateChange,
-            )
-        }
-        item {
-            FilledTonalButton(
-                onClick = onSave,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(strings.common.actionSave)
-            }
-        }
-        item {
-            OutlinedButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(strings.common.actionCancel)
-            }
+        OutlinedButton(
+            onClick = onDiscardMovementBatch,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.movements.batchDiscardAction)
         }
     }
 }
 
 @Composable
-private fun MovementResolvedComponentSummary(
-    component: ComponentRecord,
+private fun MovementBatchQueueItemCard(
+    item: MovementBatchQueueItemUiState,
+    onMovementTypeChange: (String) -> Unit,
+    onQuantityChange: (String) -> Unit,
+    onReasonChange: (String) -> Unit,
+    onNoteChange: (String) -> Unit,
+    onRemove: () -> Unit,
 ) {
     val strings = vaultStrings()
+    val projectedQuantity = projectedQuantity(item)
 
     SectionPane(
-        title = component.name,
-        supporting = component.sku,
+        title = item.componentName,
+        supporting = item.componentSku,
     ) {
-        ValueBlock(label = strings.common.fieldCategory, value = localizedCategoryLabel(component.category))
-        ValueBlock(label = strings.common.fieldPackage, value = component.packageName)
-        ValueBlock(label = strings.common.fieldLocation, value = component.location)
-        ValueBlock(label = strings.movements.currentStockLabel, value = component.quantity.toString())
-        ValueBlock(label = strings.movements.minimumStockLabel, value = component.minStock.toString())
+        Text(
+            text = strings.movements.batchQueuedScanCount(item.scanCount),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ValueBlock(label = strings.common.fieldCategory, value = localizedCategoryLabel(item.category))
+        ValueBlock(label = strings.common.fieldPackage, value = item.packageName)
+        ValueBlock(label = strings.common.fieldLocation, value = item.location)
+        ValueBlock(label = strings.movements.currentStockLabel, value = item.currentStock.toString())
+        ValueBlock(label = strings.movements.minimumStockLabel, value = item.minStock.toString())
+        projectedQuantity?.let { quantity ->
+            ValueBlock(label = strings.movements.batchProjectedStockLabel, value = quantity.toString())
+        }
+        MovementTypeSelector(
+            movementType = item.movementType,
+            onMovementTypeChange = onMovementTypeChange,
+        )
+        OutlinedTextField(
+            value = item.quantityText,
+            onValueChange = onQuantityChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(strings.common.fieldQuantity) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
+        OutlinedTextField(
+            value = item.reason,
+            onValueChange = onReasonChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(strings.common.fieldReason) },
+            singleLine = true,
+        )
+        OutlinedTextField(
+            value = item.note,
+            onValueChange = onNoteChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(strings.common.fieldNote) },
+            minLines = 2,
+        )
+        Text(
+            text = strings.forms.movementEditorInstruction,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        item.errorMessage?.takeIf { it.isNotBlank() }?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        OutlinedButton(
+            onClick = onRemove,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(strings.movements.batchRemoveAction)
+        }
+    }
+}
+
+private fun projectedQuantity(
+    item: MovementBatchQueueItemUiState,
+): Int? {
+    val quantity = item.quantityText.toIntOrNull() ?: return null
+    return when (item.movementType) {
+        MovementQuickAction.Inbound.movementType -> item.currentStock + quantity
+        MovementQuickAction.Outbound.movementType -> item.currentStock - quantity
+        MovementQuickAction.Adjustment.movementType -> item.currentStock + quantity
+        else -> null
     }
 }
 

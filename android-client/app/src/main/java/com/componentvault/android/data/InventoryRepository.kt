@@ -662,54 +662,7 @@ class InventoryRepository(
             databaseHelper.writableDatabase.use { db ->
                 db.beginTransaction()
                 try {
-                    val component = getComponentById(db, draft.componentId)
-                        ?: return@withContext OperationResult(
-                            isSuccess = false,
-                            message = text(R.string.sync_choose_active_component_first),
-                        )
-
-                    val delta = calculateQuantityDelta(draft.movementType, draft.quantity)
-                    val newQuantity = component.quantity + delta
-                    if (newQuantity < 0) {
-                        return@withContext OperationResult(
-                            isSuccess = false,
-                            message = text(R.string.sync_negative_stock_error),
-                        )
-                    }
-
-                    val updatedAt = utcNow()
-                    val movementId = "mov-${randomId()}"
-                    val movementValues = ContentValues().apply {
-                        put("id", movementId)
-                        put("component_id", draft.componentId)
-                        put("movement_type", draft.movementType.lowercase(Locale.US))
-                        put("quantity", normalizeMovementQuantity(draft.movementType, draft.quantity))
-                        put("reason", draft.reason.trim())
-                        put("note", draft.note.trim())
-                        put("happened_at", updatedAt)
-                        put("updated_at", updatedAt)
-                        put("deleted", 0)
-                    }
-                    db.insertWithOnConflict(
-                        "stock_movements",
-                        null,
-                        movementValues,
-                        SQLiteDatabase.CONFLICT_REPLACE,
-                    )
-
-                    val componentValues = ContentValues().apply {
-                        put("quantity", newQuantity)
-                        put("updated_at", updatedAt)
-                    }
-                    db.update(
-                        "components",
-                        componentValues,
-                        "id = ?",
-                        arrayOf(draft.componentId),
-                    )
-
-                    enqueueEntity(db, "component", draft.componentId, updatedAt)
-                    enqueueEntity(db, "stock_movement", movementId, updatedAt)
+                    applyMovementDrafts(db, listOf(draft))
                     db.setTransactionSuccessful()
                 } finally {
                     db.endTransaction()
@@ -719,6 +672,35 @@ class InventoryRepository(
             OperationResult(
                 isSuccess = true,
                 message = text(R.string.sync_movement_recorded_local),
+            )
+        } catch (exception: Exception) {
+            OperationResult(
+                isSuccess = false,
+                message = exception.message ?: text(R.string.sync_movement_record_failed),
+            )
+        }
+    }
+
+    suspend fun recordMovementsBatch(drafts: List<MovementEntryDraft>): OperationResult = withContext(Dispatchers.IO) {
+        try {
+            if (drafts.isEmpty()) {
+                throw IllegalStateException(text(R.string.sync_movement_batch_empty))
+            }
+            drafts.forEach(::validateMovementDraft)
+
+            databaseHelper.writableDatabase.use { db ->
+                db.beginTransaction()
+                try {
+                    applyMovementDrafts(db, drafts)
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+            }
+
+            OperationResult(
+                isSuccess = true,
+                message = text(R.string.sync_movement_batch_recorded_local, drafts.size),
             )
         } catch (exception: Exception) {
             OperationResult(
@@ -1343,6 +1325,56 @@ class InventoryRepository(
             }
         } else if (draft.quantity <= 0) {
             throw IllegalStateException(text(R.string.sync_movement_quantity_positive))
+        }
+    }
+
+    private fun applyMovementDrafts(
+        db: SQLiteDatabase,
+        drafts: List<MovementEntryDraft>,
+    ) {
+        drafts.forEach { draft ->
+            val component = getComponentById(db, draft.componentId)
+                ?: throw IllegalStateException(text(R.string.sync_choose_active_component_first))
+
+            val delta = calculateQuantityDelta(draft.movementType, draft.quantity)
+            val newQuantity = component.quantity + delta
+            if (newQuantity < 0) {
+                throw IllegalStateException(text(R.string.sync_negative_stock_error))
+            }
+
+            val updatedAt = utcNow()
+            val movementId = "mov-${randomId()}"
+            val movementValues = ContentValues().apply {
+                put("id", movementId)
+                put("component_id", draft.componentId)
+                put("movement_type", draft.movementType.lowercase(Locale.US))
+                put("quantity", normalizeMovementQuantity(draft.movementType, draft.quantity))
+                put("reason", draft.reason.trim())
+                put("note", draft.note.trim())
+                put("happened_at", updatedAt)
+                put("updated_at", updatedAt)
+                put("deleted", 0)
+            }
+            db.insertWithOnConflict(
+                "stock_movements",
+                null,
+                movementValues,
+                SQLiteDatabase.CONFLICT_REPLACE,
+            )
+
+            val componentValues = ContentValues().apply {
+                put("quantity", newQuantity)
+                put("updated_at", updatedAt)
+            }
+            db.update(
+                "components",
+                componentValues,
+                "id = ?",
+                arrayOf(draft.componentId),
+            )
+
+            enqueueEntity(db, "component", draft.componentId, updatedAt)
+            enqueueEntity(db, "stock_movement", movementId, updatedAt)
         }
     }
 

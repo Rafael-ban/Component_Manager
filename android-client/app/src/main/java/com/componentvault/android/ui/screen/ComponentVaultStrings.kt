@@ -165,6 +165,17 @@ internal data class MovementsStrings(
     val scannerScanningHint: String,
     val scannerFailedTitle: String,
     val scannerFailedDescription: String,
+    val batchReviewTitle: String,
+    val batchReviewAction: String,
+    val batchContinueAction: String,
+    val batchSaveAction: String,
+    val batchDiscardAction: String,
+    val batchRemoveAction: String,
+    val batchProjectedStockLabel: String,
+    val batchSummaryPattern: String,
+    val batchLastQueuedPattern: String,
+    val batchQueuedScanCountPattern: String,
+    val batchScannerHintPattern: String,
     val resultsSummaryPattern: String,
     val detailTitle: String,
     val detailEmptySupporting: String,
@@ -176,6 +187,18 @@ internal data class MovementsStrings(
     val positiveQuantityPattern: String,
     val updatedAtPattern: String,
 ) {
+    fun batchSummary(itemCount: Int, scanCount: Int): String =
+        formatPattern(batchSummaryPattern, itemCount, scanCount)
+
+    fun batchLastQueued(componentName: String, componentSku: String): String =
+        formatPattern(batchLastQueuedPattern, componentName, componentSku)
+
+    fun batchQueuedScanCount(scanCount: Int): String =
+        formatPattern(batchQueuedScanCountPattern, scanCount)
+
+    fun batchScannerHint(itemCount: Int, scanCount: Int): String =
+        formatPattern(batchScannerHintPattern, itemCount, scanCount)
+
     fun resultsSummary(itemCount: Int, componentCount: Int): String =
         formatPattern(resultsSummaryPattern, itemCount, componentCount)
 
@@ -584,6 +607,17 @@ internal fun runtimeComponentVaultStrings(): ComponentVaultStrings {
             scannerScanningHint = stringResource(R.string.movements_scanner_scanning_hint),
             scannerFailedTitle = stringResource(R.string.movements_scanner_failed_title),
             scannerFailedDescription = stringResource(R.string.movements_scanner_failed_description),
+            batchReviewTitle = stringResource(R.string.movements_batch_review_title),
+            batchReviewAction = stringResource(R.string.movements_batch_review_action),
+            batchContinueAction = stringResource(R.string.movements_batch_continue_action),
+            batchSaveAction = stringResource(R.string.movements_batch_save_action),
+            batchDiscardAction = stringResource(R.string.movements_batch_discard_action),
+            batchRemoveAction = stringResource(R.string.movements_batch_remove_action),
+            batchProjectedStockLabel = stringResource(R.string.movements_batch_projected_stock_label),
+            batchSummaryPattern = stringResource(R.string.movements_batch_summary_pattern),
+            batchLastQueuedPattern = stringResource(R.string.movements_batch_last_queued_pattern),
+            batchQueuedScanCountPattern = stringResource(R.string.movements_batch_scan_count_pattern),
+            batchScannerHintPattern = stringResource(R.string.movements_batch_scanner_hint_pattern),
             resultsSummaryPattern = stringResource(R.string.movements_results_summary),
             detailTitle = stringResource(R.string.movements_detail_title),
             detailEmptySupporting = stringResource(R.string.movements_detail_empty_supporting),

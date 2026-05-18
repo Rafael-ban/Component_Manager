@@ -211,16 +211,28 @@ fun ComponentVaultApp(
                 JlcQrScannerSurface(
                     onDismiss = viewModel::dismissMovementScanner,
                     onScanResult = viewModel::resolveMovementComponentFromLabel,
+                    scanSessionToken = uiState.movements.scan.scanSessionToken,
                     title = strings.movements.quickScanAction,
                     permissionTitle = strings.movements.scannerPermissionTitle,
                     permissionDescription = strings.movements.scannerPermissionDescription,
                     permissionDeniedTitle = strings.movements.scannerPermissionDeniedTitle,
                     permissionDeniedDescription = strings.movements.scannerPermissionDeniedDescription,
                     startingMessage = strings.movements.scannerStarting,
-                    scanningHint = strings.movements.scannerScanningHint,
+                    scanningHint = if (uiState.movements.batchSession.queuedItems.isNotEmpty()) {
+                        strings.movements.batchScannerHint(
+                            uiState.movements.batchSession.queuedItems.size,
+                            uiState.movements.batchSession.totalScans,
+                        )
+                    } else {
+                        strings.movements.scannerScanningHint
+                    },
                     failedTitle = strings.movements.scannerFailedTitle,
                     failedDescription = strings.movements.scannerFailedDescription,
-                    returnActionLabel = strings.common.actionBack,
+                    returnActionLabel = if (uiState.movements.batchSession.queuedItems.isNotEmpty()) {
+                        strings.movements.batchReviewAction
+                    } else {
+                        strings.common.actionBack
+                    },
                     scannerMode = JlcQrScannerMode.MovementSmallLabel,
                 )
             }
@@ -393,9 +405,13 @@ fun ComponentVaultApp(
                     },
                     onRetryMovementScan = viewModel::openMovementScanner,
                     onDismissMovementScanResult = viewModel::clearMovementScanState,
-                    onRecordResolvedMovement = { draft, onComplete ->
-                        viewModel.recordMovement(draft, onComplete)
-                    },
+                    onDiscardMovementBatch = viewModel::discardMovementBatchSession,
+                    onCommitMovementBatch = { viewModel.commitMovementBatch() },
+                    onUpdateMovementBatchItemMovementType = viewModel::updateMovementBatchItemMovementType,
+                    onUpdateMovementBatchItemQuantity = viewModel::updateMovementBatchItemQuantity,
+                    onUpdateMovementBatchItemReason = viewModel::updateMovementBatchItemReason,
+                    onUpdateMovementBatchItemNote = viewModel::updateMovementBatchItemNote,
+                    onRemoveMovementBatchItem = viewModel::removeMovementBatchItem,
                     onSearchInventoryBySku = { sku ->
                         destination = InventoryDestination.Inventory
                         compactDetailComponentId = null

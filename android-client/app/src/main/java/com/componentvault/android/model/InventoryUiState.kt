@@ -72,6 +72,7 @@ data class MovementsUiState(
     val componentCount: Int = 0,
     val selectedMovementId: String? = null,
     val scan: MovementScanUiState = MovementScanUiState(),
+    val batchSession: MovementBatchSessionUiState = MovementBatchSessionUiState(),
 )
 
 enum class InventoryStockFilter {

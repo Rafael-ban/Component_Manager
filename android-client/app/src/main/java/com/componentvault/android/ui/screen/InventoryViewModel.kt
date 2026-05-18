@@ -23,7 +23,12 @@ import com.componentvault.android.model.InventoryScreenUiState
 import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.model.InventoryUiState
+import com.componentvault.android.model.MovementBatchQueueItemUiState
+import com.componentvault.android.model.MovementBatchSessionUiState
+import com.componentvault.android.model.MovementBatchStage
 import com.componentvault.android.model.MovementEntryDraft
+import com.componentvault.android.model.MovementQuickAction
+import com.componentvault.android.model.MovementScanResolutionUiState
 import com.componentvault.android.model.MovementScanUiState
 import com.componentvault.android.model.MovementsUiState
 import com.componentvault.android.model.OperationResult
@@ -247,15 +252,24 @@ class InventoryViewModel(
         uiState = uiState.copy(
             movements = buildMovementsUiState(
                 scanState = uiState.movements.scan,
+                batchSession = uiState.movements.batchSession,
                 preferredSelectedMovementId = movementId,
             ),
         )
     }
 
     fun openMovementScanner() {
+        val nextBatchSession = uiState.movements.batchSession
+            .takeIf { it.isActive }
+            ?.copy(stage = MovementBatchStage.Scanning)
+            ?: MovementBatchSessionUiState(stage = MovementBatchStage.Scanning)
         uiState = uiState.copy(
             movements = buildMovementsUiState(
-                scanState = MovementScanUiState(isScannerVisible = true),
+                scanState = MovementScanUiState(
+                    isScannerVisible = true,
+                    scanSessionToken = uiState.movements.scan.scanSessionToken + 1,
+                ),
+                batchSession = nextBatchSession,
             ),
         )
     }
@@ -267,7 +281,13 @@ class InventoryViewModel(
         }
         uiState = uiState.copy(
             movements = buildMovementsUiState(
-                scanState = currentScanState.copy(isScannerVisible = false),
+                scanState = currentScanState.copy(
+                    isScannerVisible = false,
+                    isResolving = false,
+                ),
+                batchSession = uiState.movements.batchSession.copy(
+                    stage = MovementBatchStage.Review,
+                ),
             ),
         )
     }
@@ -275,31 +295,191 @@ class InventoryViewModel(
     fun clearMovementScanState() {
         uiState = uiState.copy(
             movements = buildMovementsUiState(
-                scanState = MovementScanUiState(),
+                scanState = uiState.movements.scan.copy(
+                    isResolving = false,
+                    resolution = MovementScanResolutionUiState(),
+                ),
+                batchSession = uiState.movements.batchSession,
             ),
         )
+    }
+
+    fun discardMovementBatchSession() {
+        uiState = uiState.copy(
+            movements = buildMovementsUiState(
+                scanState = MovementScanUiState(),
+                batchSession = MovementBatchSessionUiState(),
+            ),
+        )
+    }
+
+    fun updateMovementBatchItemMovementType(
+        componentId: String,
+        movementType: String,
+    ) {
+        updateMovementBatchItem(componentId) { item ->
+            item.copy(
+                movementType = movementType,
+                errorMessage = null,
+            )
+        }
+    }
+
+    fun updateMovementBatchItemQuantity(
+        componentId: String,
+        quantityText: String,
+    ) {
+        updateMovementBatchItem(componentId) { item ->
+            item.copy(
+                quantityText = quantityText,
+                errorMessage = null,
+                isDirty = true,
+            )
+        }
+    }
+
+    fun updateMovementBatchItemReason(
+        componentId: String,
+        reason: String,
+    ) {
+        updateMovementBatchItem(componentId) { item ->
+            item.copy(
+                reason = reason,
+                errorMessage = null,
+            )
+        }
+    }
+
+    fun updateMovementBatchItemNote(
+        componentId: String,
+        note: String,
+    ) {
+        updateMovementBatchItem(componentId) { item ->
+            item.copy(
+                note = note,
+                errorMessage = null,
+            )
+        }
+    }
+
+    fun removeMovementBatchItem(componentId: String) {
+        val remainingItems = uiState.movements.batchSession.queuedItems.filterNot { it.componentId == componentId }
+        if (remainingItems.isEmpty()) {
+            discardMovementBatchSession()
+            return
+        }
+        uiState = uiState.copy(
+            movements = buildMovementsUiState(
+                scanState = uiState.movements.scan,
+                batchSession = uiState.movements.batchSession.copy(
+                    queuedItems = remainingItems,
+                    stage = MovementBatchStage.Review,
+                ),
+            ),
+        )
+    }
+
+    fun commitMovementBatch(
+        onComplete: (OperationResult) -> Unit = {},
+    ) {
+        val validation = validateMovementBatchSession(uiState.movements.batchSession)
+        if (!validation.isValid) {
+            uiState = uiState.copy(
+                movements = buildMovementsUiState(
+                    scanState = uiState.movements.scan.copy(
+                        isScannerVisible = false,
+                        isResolving = false,
+                    ),
+                    batchSession = validation.session,
+                ),
+                statusMessage = validation.message,
+            )
+            onComplete(OperationResult(isSuccess = false, message = validation.message))
+            return
+        }
+
+        val drafts = validation.drafts
+        viewModelScope.launch {
+            uiState = uiState.copy(
+                isBusy = true,
+                movements = buildMovementsUiState(
+                    scanState = uiState.movements.scan.copy(
+                        isScannerVisible = false,
+                        isResolving = false,
+                        resolution = MovementScanResolutionUiState(),
+                    ),
+                    batchSession = validation.session.copy(stage = MovementBatchStage.Review),
+                ),
+            )
+            val result = repository.recordMovementsBatch(drafts)
+            if (result.isSuccess) {
+                uiState = uiState.copy(
+                    movements = buildMovementsUiState(
+                        scanState = MovementScanUiState(),
+                        batchSession = MovementBatchSessionUiState(),
+                    ),
+                )
+            }
+            reloadState(
+                statusMessage = result.message,
+                preferredSelectedComponentId = if (result.isSuccess) {
+                    drafts.lastOrNull()?.componentId
+                } else {
+                    null
+                },
+            )
+            onComplete(result)
+            if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
+                runSyncInternal()
+            }
+        }
     }
 
     fun resolveMovementComponentFromLabel(rawValue: String) {
         viewModelScope.launch {
             uiState = uiState.copy(
                 movements = buildMovementsUiState(
-                    scanState = MovementScanUiState(
-                        isScannerVisible = false,
+                    scanState = uiState.movements.scan.copy(
+                        isScannerVisible = true,
                         isResolving = true,
+                        resolution = MovementScanResolutionUiState(),
+                    ),
+                    batchSession = uiState.movements.batchSession.copy(
+                        stage = MovementBatchStage.Scanning,
                     ),
                 ),
             )
             val resolution = repository.resolveComponentByScannedLabel(rawValue)
-            uiState = uiState.copy(
-                movements = buildMovementsUiState(
-                    scanState = MovementScanUiState(
-                        isScannerVisible = false,
-                        isResolving = false,
-                        resolution = resolution,
+            val matchedComponent = resolution.matchedComponent
+            if (matchedComponent != null) {
+                uiState = uiState.copy(
+                    movements = buildMovementsUiState(
+                        scanState = uiState.movements.scan.copy(
+                            isScannerVisible = true,
+                            isResolving = false,
+                            resolution = MovementScanResolutionUiState(),
+                            scanSessionToken = uiState.movements.scan.scanSessionToken + 1,
+                        ),
+                        batchSession = enqueueMovementBatchItem(
+                            session = uiState.movements.batchSession,
+                            component = matchedComponent,
+                        ),
                     ),
-                ),
-            )
+                )
+            } else {
+                uiState = uiState.copy(
+                    movements = buildMovementsUiState(
+                        scanState = uiState.movements.scan.copy(
+                            isScannerVisible = false,
+                            isResolving = false,
+                            resolution = resolution,
+                        ),
+                        batchSession = uiState.movements.batchSession.copy(
+                            stage = MovementBatchStage.Review,
+                        ),
+                    ),
+                )
+            }
         }
     }
 
@@ -366,7 +546,10 @@ class InventoryViewModel(
             overview = buildOverviewUiState(dashboardSnapshot),
             availableComponents = allComponentsCache,
             inventory = buildInventoryScreenUiState(),
-            movements = buildMovementsUiState(uiState.movements.scan),
+            movements = buildMovementsUiState(
+                scanState = uiState.movements.scan,
+                batchSession = uiState.movements.batchSession,
+            ),
             importLearningSummary = importLearningSummary,
             appPreferences = appPreferences,
             syncConfiguration = syncConfiguration,
@@ -395,7 +578,10 @@ class InventoryViewModel(
             inventory = buildInventoryScreenUiState(
                 preferredSelectedComponentId = preferredSelectedComponentId,
             ),
-            movements = buildMovementsUiState(uiState.movements.scan),
+            movements = buildMovementsUiState(
+                scanState = uiState.movements.scan,
+                batchSession = uiState.movements.batchSession,
+            ),
             importLearningSummary = importLearningSummary,
             appPreferences = appPreferences,
             syncConfiguration = syncConfiguration,
@@ -443,6 +629,7 @@ class InventoryViewModel(
 
     private fun buildMovementsUiState(
         scanState: MovementScanUiState = uiState.movements.scan,
+        batchSession: MovementBatchSessionUiState = uiState.movements.batchSession,
         preferredSelectedMovementId: String? = uiState.movements.selectedMovementId,
     ): MovementsUiState {
         val selectedMovementId = preferredSelectedMovementId?.takeIf { selectedId ->
@@ -453,6 +640,7 @@ class InventoryViewModel(
             componentCount = allComponentsCache.size,
             selectedMovementId = selectedMovementId,
             scan = scanState,
+            batchSession = reconcileMovementBatchSession(batchSession),
         )
     }
 
@@ -566,6 +754,187 @@ class InventoryViewModel(
             ),
         )
     }
+
+    private fun updateMovementBatchItem(
+        componentId: String,
+        transform: (MovementBatchQueueItemUiState) -> MovementBatchQueueItemUiState,
+    ) {
+        uiState = uiState.copy(
+            movements = buildMovementsUiState(
+                scanState = uiState.movements.scan,
+                batchSession = uiState.movements.batchSession.copy(
+                    stage = MovementBatchStage.Review,
+                    queuedItems = uiState.movements.batchSession.queuedItems.map { item ->
+                        if (item.componentId == componentId) {
+                            transform(item)
+                        } else {
+                            item
+                        }
+                    },
+                ),
+            ),
+        )
+    }
+
+    private fun enqueueMovementBatchItem(
+        session: MovementBatchSessionUiState,
+        component: ComponentRecord,
+    ): MovementBatchSessionUiState {
+        val existingItem = session.queuedItems.firstOrNull { it.componentId == component.id }
+        val queuedItems = if (existingItem == null) {
+            session.queuedItems + toMovementBatchQueueItem(component)
+        } else {
+            session.queuedItems.map { item ->
+                if (item.componentId != component.id) {
+                    item
+                } else {
+                    val nextScanCount = item.scanCount + 1
+                    item.copy(
+                        componentName = component.name,
+                        componentSku = component.sku,
+                        category = component.category,
+                        packageName = component.packageName,
+                        location = component.location,
+                        currentStock = component.quantity,
+                        minStock = component.minStock,
+                        scanCount = nextScanCount,
+                        quantityText = if (item.isDirty) {
+                            item.quantityText
+                        } else {
+                            nextScanCount.toString()
+                        },
+                        errorMessage = null,
+                    )
+                }
+            }
+        }
+
+        return session.copy(
+            stage = MovementBatchStage.Scanning,
+            queuedItems = queuedItems,
+            totalScans = session.totalScans + 1,
+            lastQueuedComponentName = component.name,
+            lastQueuedComponentSku = component.sku,
+        )
+    }
+
+    private fun toMovementBatchQueueItem(
+        component: ComponentRecord,
+    ): MovementBatchQueueItemUiState {
+        return MovementBatchQueueItemUiState(
+            componentId = component.id,
+            componentName = component.name,
+            componentSku = component.sku,
+            category = component.category,
+            packageName = component.packageName,
+            location = component.location,
+            currentStock = component.quantity,
+            minStock = component.minStock,
+        )
+    }
+
+    private fun reconcileMovementBatchSession(
+        session: MovementBatchSessionUiState,
+    ): MovementBatchSessionUiState {
+        if (!session.isActive) {
+            return session
+        }
+
+        val missingComponentMessage = getApplication<Application>()
+            .getString(R.string.sync_choose_active_component_first)
+
+        return session.copy(
+            queuedItems = session.queuedItems.map { item ->
+                val component = allComponentsCache.firstOrNull { it.id == item.componentId }
+                if (component == null) {
+                    item.copy(errorMessage = missingComponentMessage)
+                } else {
+                    item.copy(
+                        componentName = component.name,
+                        componentSku = component.sku,
+                        category = component.category,
+                        packageName = component.packageName,
+                        location = component.location,
+                        currentStock = component.quantity,
+                        minStock = component.minStock,
+                    )
+                }
+            },
+        )
+    }
+
+    private fun validateMovementBatchSession(
+        session: MovementBatchSessionUiState,
+    ): MovementBatchValidationResult {
+        val application = getApplication<Application>()
+        if (session.queuedItems.isEmpty()) {
+            val message = application.getString(R.string.sync_movement_batch_empty)
+            return MovementBatchValidationResult(
+                isValid = false,
+                drafts = emptyList(),
+                session = session.copy(stage = MovementBatchStage.Review),
+                message = message,
+            )
+        }
+
+        var firstError: String? = null
+        val drafts = mutableListOf<MovementEntryDraft>()
+        val queuedItems = session.queuedItems.map { item ->
+            val quantity = item.quantityText.toIntOrNull()
+            val errorMessage = when {
+                allComponentsCache.none { it.id == item.componentId } ->
+                    application.getString(R.string.sync_choose_active_component_first)
+                item.reason.isBlank() || item.movementType.isBlank() ->
+                    application.getString(R.string.sync_choose_component_type_reason)
+                quantity == null ->
+                    application.getString(R.string.sync_invalid_movement_quantity)
+                item.movementType == MovementQuickAction.Adjustment.movementType && quantity == 0 ->
+                    application.getString(R.string.sync_adjustment_non_zero)
+                item.movementType != MovementQuickAction.Adjustment.movementType && quantity <= 0 ->
+                    application.getString(R.string.sync_movement_quantity_positive)
+                item.movementType == MovementQuickAction.Outbound.movementType &&
+                    item.currentStock - quantity < 0 ->
+                    application.getString(R.string.sync_negative_stock_error)
+                item.movementType == MovementQuickAction.Adjustment.movementType &&
+                    item.currentStock + quantity < 0 ->
+                    application.getString(R.string.sync_negative_stock_error)
+                else -> null
+            }
+
+            if (errorMessage == null && quantity != null) {
+                drafts += MovementEntryDraft(
+                    componentId = item.componentId,
+                    movementType = item.movementType,
+                    quantity = quantity,
+                    reason = item.reason,
+                    note = item.note,
+                )
+                item.copy(errorMessage = null)
+            } else {
+                if (firstError == null) {
+                    firstError = errorMessage
+                }
+                item.copy(errorMessage = errorMessage)
+            }
+        }
+
+        return MovementBatchValidationResult(
+            isValid = firstError == null,
+            drafts = drafts,
+            session = session.copy(
+                stage = MovementBatchStage.Review,
+                queuedItems = queuedItems,
+            ),
+            message = firstError ?: "",
+        )
+    }
+
+    private data class MovementBatchValidationResult(
+        val isValid: Boolean,
+        val drafts: List<MovementEntryDraft>,
+        val session: MovementBatchSessionUiState,
+        val message: String,
+    )
 
     companion object {
         fun factory(application: Application): ViewModelProvider.Factory =
