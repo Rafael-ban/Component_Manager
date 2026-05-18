@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using ComponentVault.WinUI.Localization;
 
 namespace ComponentVault.WinUI.Services;
 
@@ -29,7 +30,7 @@ internal static class StartupDiagnostics
     {
         ShowMessageBox(
             title,
-            $"{exception.Message}{Environment.NewLine}{Environment.NewLine}Log: {logPath}"
+            $"{exception.Message}{Environment.NewLine}{Environment.NewLine}{AppStrings.Format("Windows_Diagnostics_LogPathPattern", logPath)}"
         );
     }
 
@@ -37,7 +38,7 @@ internal static class StartupDiagnostics
     {
         ShowMessageBox(
             title,
-            $"{exception.Message}{Environment.NewLine}{Environment.NewLine}Log: {logPath}"
+            $"{exception.Message}{Environment.NewLine}{Environment.NewLine}{AppStrings.Format("Windows_Diagnostics_LogPathPattern", logPath)}"
         );
     }
 

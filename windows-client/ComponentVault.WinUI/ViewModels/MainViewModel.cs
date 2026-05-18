@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Linq;
+using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.Services;
 using Microsoft.UI.Xaml.Controls;
@@ -236,7 +237,7 @@ public sealed class MainViewModel : ObservableObject
 
             if (SelectedComponentCategoryFilter != AllCategoriesOption)
             {
-                summaries.Add($"分类：{SelectedComponentCategoryFilter}");
+                summaries.Add($"分类：{CategoryDisplay.Localize(SelectedComponentCategoryFilter)}");
             }
 
             if (SelectedComponentLocationFilter != AllLocationsOption)
@@ -304,7 +305,7 @@ public sealed class MainViewModel : ObservableObject
     public string SelectedComponentSubtitle =>
         SelectedComponent is null
             ? "请先从左侧列表中选择一项，以查看封装、仓位和补货风险。"
-            : $"{SelectedComponent.Sku} | {SelectedComponent.Category} | {SelectedComponent.PackageName}";
+            : $"{SelectedComponent.Sku} | {SelectedComponent.DisplayCategory} | {SelectedComponent.PackageName}";
 
     public string SelectedComponentQuantityText => (SelectedComponent?.Quantity ?? 0).ToString();
 

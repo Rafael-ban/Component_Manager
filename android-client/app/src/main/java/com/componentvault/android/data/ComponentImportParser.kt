@@ -79,24 +79,24 @@ internal object ComponentImportParser {
 
     fun parseSupplierText(rawInput: String): ComponentImportCandidate {
         val normalizedInput = rawInput.trim()
-        require(normalizedInput.isNotBlank()) { "Scan or paste supplier text before parsing." }
+        require(normalizedInput.isNotBlank()) { "请先扫描或粘贴供应商包装文字后再解析。" }
 
         return parseSupplierPayload(
             lines = normalizeLines(normalizedInput.lineSequence()),
             rawPayload = normalizedInput,
-            sourceLabel = "Supplier packaging text",
+            sourceLabel = "供应商包装文字",
             ocrResult = null,
         )
     }
 
     fun parseSupplierOcr(result: OcrResult): ComponentImportCandidate {
         val normalizedInput = result.normalizedText()
-        require(normalizedInput.isNotBlank()) { "Capture readable supplier text before parsing." }
+        require(normalizedInput.isNotBlank()) { "请先拍摄并识别可读的供应商包装文字后再解析。" }
 
         return parseSupplierPayload(
             lines = normalizeLines(result.lines.asSequence().map { it.text }),
             rawPayload = normalizedInput,
-            sourceLabel = "Supplier packaging OCR (${result.engineLabel})",
+            sourceLabel = "供应商包装 OCR（${result.engineLabel}）",
             ocrResult = result,
         )
     }
@@ -149,11 +149,11 @@ internal object ComponentImportParser {
 
         val notes = buildList {
             if (ocrResult != null) {
-                add("OCR engine: ${ocrResult.engineLabel}")
-                add("OCR blocks: ${ocrResult.blocks.size}")
+                add("OCR 引擎：${ocrResult.engineLabel}")
+                add("OCR 文本块：${ocrResult.blocks.size}")
             }
             if (lines.isNotEmpty()) {
-                add("Recognized lines: ${lines.size}")
+                add("识别行数：${lines.size}")
             }
             collectTraceabilityNotes(
                 lines = lines,
@@ -301,13 +301,13 @@ internal object ComponentImportParser {
                 "\u65E5\u671F",
                 "\u751F\u4EA7",
             ).forEach { value ->
-                addIfMissing("Packaging mark: $value")
+                addIfMissing("包装标记：$value")
             }
 
             lines.filter(::looksLikeTraceabilityLine)
                 .take(3)
                 .forEach { line ->
-                    addIfMissing("Packaging mark: $line")
+                    addIfMissing("包装标记：$line")
                 }
         }
     }

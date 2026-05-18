@@ -912,8 +912,11 @@ class InventoryRepository(
     }
 
     private fun extractWarehouseLocation(candidate: ComponentImportCandidate): String {
-        return candidate.notes.firstOrNull { it.startsWith("Warehouse location: ") }
+        return candidate.notes.firstOrNull {
+            it.startsWith("Warehouse location: ") || it.startsWith("仓位：")
+        }
             ?.removePrefix("Warehouse location: ")
+            ?.removePrefix("仓位：")
             ?.trim()
             .orEmpty()
     }

@@ -1,4 +1,5 @@
 using ComponentVault.WinUI.Design;
+using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.ViewModels;
 using Microsoft.UI.Xaml;
@@ -72,7 +73,10 @@ public sealed partial class ComponentsView : Page
 
         if (viewModel.SelectedComponent is null)
         {
-            await ShowMessageAsync("编辑元器件", "请先选择一个元器件。");
+            await ShowMessageAsync(
+                AppStrings.Get("Components_Dialog_EditTitle"),
+                AppStrings.Get("Components_Dialog_SelectFirstMessage")
+            );
             return;
         }
 
@@ -95,20 +99,26 @@ public sealed partial class ComponentsView : Page
 
         if (viewModel.SelectedComponent is null)
         {
-            await ShowMessageAsync("软删除元器件", "请先选择一个元器件。");
+            await ShowMessageAsync(
+                AppStrings.Get("Components_Dialog_DeleteTitle"),
+                AppStrings.Get("Components_Dialog_SelectFirstMessage")
+            );
             return;
         }
 
         var dialog = new ContentDialog
         {
-            Title = "软删除元器件",
-            PrimaryButtonText = "确认删除",
-            CloseButtonText = "取消",
+            Title = AppStrings.Get("Components_Dialog_DeleteTitle"),
+            PrimaryButtonText = AppStrings.Get("Components_Dialog_DeleteConfirmPrimary"),
+            CloseButtonText = AppStrings.Get("Common_Cancel"),
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
             Content = new TextBlock
             {
-                Text = $"确认将 {viewModel.SelectedComponent.Name} 标记为已删除吗？历史出入库记录会保留。",
+                Text = AppStrings.Format(
+                    "Components_Dialog_DeleteConfirmMessagePattern",
+                    viewModel.SelectedComponent.Name
+                ),
                 TextWrapping = TextWrapping.Wrap,
                 MaxWidth = 420,
             },
@@ -126,7 +136,7 @@ public sealed partial class ComponentsView : Page
     {
         var skuBox = CreateTextBox(existing?.Sku, "例如 RES-10K-0402");
         var nameBox = CreateTextBox(existing?.Name, "例如 10k 电阻");
-        var categoryBox = CreateTextBox(existing?.Category, "例如 Resistor");
+        var categoryBox = CreateTextBox(existing?.Category, "例如 电阻");
         var packageBox = CreateTextBox(existing?.PackageName, "例如 0402");
         var locationBox = CreateTextBox(existing?.Location, "例如 B-02-01");
         var descriptionBox = new TextBox
@@ -180,14 +190,16 @@ public sealed partial class ComponentsView : Page
         ComponentDraft? draft = null;
         var dialog = new ContentDialog
         {
-            Title = existing is null ? "新增元器件" : "编辑元器件",
+            Title = existing is null
+                ? AppStrings.Get("Components_Dialog_AddTitle")
+                : AppStrings.Get("Components_Dialog_EditTitle"),
             Content = new ScrollViewer
             {
                 Content = panel,
                 MaxHeight = 620,
             },
-            PrimaryButtonText = "保存",
-            CloseButtonText = "取消",
+            PrimaryButtonText = AppStrings.Get("Common_Save"),
+            CloseButtonText = AppStrings.Get("Common_Cancel"),
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot,
         };
@@ -227,7 +239,12 @@ public sealed partial class ComponentsView : Page
 
     private async Task ShowOperationResultAsync(OperationResult result)
     {
-        await ShowMessageAsync(result.IsSuccess ? "操作完成" : "操作失败", result.Message);
+        await ShowMessageAsync(
+            result.IsSuccess
+                ? AppStrings.Get("Components_Dialog_OperationSuccessTitle")
+                : AppStrings.Get("Components_Dialog_OperationFailureTitle"),
+            result.Message
+        );
     }
 
     private async Task ShowMessageAsync(string title, string message)
@@ -236,7 +253,7 @@ public sealed partial class ComponentsView : Page
         {
             Title = title,
             Content = message,
-            CloseButtonText = "关闭",
+            CloseButtonText = AppStrings.Get("Common_Close"),
             XamlRoot = XamlRoot,
         };
         await dialog.ShowAsync();

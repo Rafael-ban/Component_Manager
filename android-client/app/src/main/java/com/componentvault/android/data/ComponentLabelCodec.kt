@@ -79,7 +79,7 @@ internal object ComponentLabelCodec {
             return ComponentImportCandidate(
                 sourceType = ComponentImportSourceType.WarehouseLabel,
                 rawPayload = rawPayload.trim(),
-                sourceLabel = "Warehouse compact label QR",
+                sourceLabel = "仓库紧凑标签二维码",
                 sku = payload.sku,
                 name = payload.name,
                 packageName = payload.packageName,
@@ -87,7 +87,7 @@ internal object ComponentLabelCodec {
                 model = payload.model,
                 brand = payload.brand,
                 suggestedQuantity = payload.quantity,
-                notes = listOf("Compact lookup-first warehouse label"),
+                notes = listOf("紧凑查找优先仓库标签"),
             )
         }
 
@@ -95,7 +95,7 @@ internal object ComponentLabelCodec {
             return ComponentImportCandidate(
                 sourceType = ComponentImportSourceType.WarehouseLabel,
                 rawPayload = rawPayload.trim(),
-                sourceLabel = "Warehouse compact label QR",
+                sourceLabel = "仓库紧凑标签二维码",
                 sku = payload.sku,
                 name = payload.name,
                 packageName = payload.packageName,
@@ -103,7 +103,7 @@ internal object ComponentLabelCodec {
                 model = payload.model,
                 brand = payload.brand,
                 suggestedQuantity = payload.quantity,
-                notes = listOf("Compact offline warehouse label"),
+                notes = listOf("紧凑离线仓库标签"),
             )
         }
 
@@ -111,7 +111,7 @@ internal object ComponentLabelCodec {
             return ComponentImportCandidate(
                 sourceType = ComponentImportSourceType.WarehouseLabel,
                 rawPayload = rawPayload.trim(),
-                sourceLabel = "Warehouse label QR",
+                sourceLabel = "仓库标签二维码",
                 sku = payload.sku,
                 name = payload.name,
                 packageName = payload.packageName,
@@ -120,8 +120,8 @@ internal object ComponentLabelCodec {
                 brand = payload.brand,
                 suggestedQuantity = payload.quantity,
                 notes = buildList {
-                    add("Warehouse location: ${payload.location}")
-                    add("Minimum stock: ${payload.minStock}")
+                    add("仓位：${payload.location}")
+                    add("最低库存：${payload.minStock}")
                 },
             )
         }
@@ -130,7 +130,7 @@ internal object ComponentLabelCodec {
             return ComponentImportCandidate(
                 sourceType = ComponentImportSourceType.WarehouseLabel,
                 rawPayload = rawPayload.trim(),
-                sourceLabel = "Warehouse JLC-compatible label QR",
+                sourceLabel = "仓库 JLC 兼容标签二维码",
                 sku = payload.sku,
                 name = payload.name,
                 packageName = payload.packageName,
@@ -139,7 +139,7 @@ internal object ComponentLabelCodec {
                 brand = payload.brand,
                 suggestedQuantity = payload.quantity,
                 notes = buildList {
-                    add("Warehouse location: ${payload.location}")
+                    add("仓位：${payload.location}")
                 },
             )
         }

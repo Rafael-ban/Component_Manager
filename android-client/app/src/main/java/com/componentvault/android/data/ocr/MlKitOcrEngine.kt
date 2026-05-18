@@ -12,7 +12,7 @@ import kotlin.coroutines.resumeWithException
 
 internal class MlKitOcrEngine : OcrEngine {
     override val resolvedMode: OcrEngineMode = OcrEngineMode.MlKit
-    override val engineLabel: String = "ML Kit Chinese OCR"
+    override val engineLabel: String = "ML Kit 中文 OCR"
 
     override suspend fun recognize(bitmap: Bitmap): OcrResult {
         return suspendCancellableCoroutine { continuation ->

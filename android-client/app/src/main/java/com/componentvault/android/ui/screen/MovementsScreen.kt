@@ -553,7 +553,7 @@ private fun MovementResolvedComponentSummary(
         title = component.name,
         supporting = component.sku,
     ) {
-        ValueBlock(label = strings.common.fieldCategory, value = component.category)
+        ValueBlock(label = strings.common.fieldCategory, value = localizedCategoryLabel(component.category))
         ValueBlock(label = strings.common.fieldPackage, value = component.packageName)
         ValueBlock(label = strings.common.fieldLocation, value = component.location)
         ValueBlock(label = strings.movements.currentStockLabel, value = component.quantity.toString())

@@ -171,6 +171,7 @@ internal fun InventoryListRow(
     onClick: () -> Unit,
 ) {
     val strings = vaultStrings()
+    val localizedCategory = localizedCategoryLabel(item.category)
 
     Surface(
         modifier = modifier
@@ -212,7 +213,7 @@ internal fun InventoryListRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = "${item.category} / ${item.packageName}",
+                        text = "$localizedCategory / ${item.packageName}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

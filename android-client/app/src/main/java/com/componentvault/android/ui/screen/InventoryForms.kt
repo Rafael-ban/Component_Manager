@@ -437,7 +437,7 @@ internal fun MovementEditorSurface(
                     selectedComponent?.let { component ->
                         ValueBlock(label = strings.common.fieldName, value = component.name)
                         ValueBlock(label = strings.common.fieldSku, value = component.sku)
-                        ValueBlock(label = strings.common.fieldCategory, value = component.category)
+                        ValueBlock(label = strings.common.fieldCategory, value = localizedCategoryLabel(component.category))
                         ValueBlock(label = strings.common.fieldPackage, value = component.packageName)
                         ValueBlock(label = strings.common.fieldLocation, value = component.location)
                         ValueBlock(

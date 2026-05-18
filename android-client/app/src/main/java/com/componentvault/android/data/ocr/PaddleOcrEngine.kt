@@ -5,11 +5,11 @@ import com.componentvault.android.model.OcrEngineMode
 
 internal class PaddleOcrEngine : OcrEngine {
     override val resolvedMode: OcrEngineMode = OcrEngineMode.PaddleExperimental
-    override val engineLabel: String = "PaddleOCR experimental"
+    override val engineLabel: String = "PaddleOCR 实验模式"
 
     override suspend fun recognize(bitmap: Bitmap): OcrResult {
         throw OcrEngineUnavailableException(
-            "PaddleOCR experimental mode is not bundled in this build yet.",
+            "当前构建尚未内置 PaddleOCR 实验模式。",
         )
     }
 }

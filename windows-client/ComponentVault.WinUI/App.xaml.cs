@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Services;
 using ComponentVault.WinUI.ViewModels;
 
@@ -31,7 +32,7 @@ public partial class App : Application
         {
             var logPath = StartupDiagnostics.LogException("startup", exception);
             StartupDiagnostics.ShowStartupFailure(
-                "Component Vault failed to start.",
+                AppStrings.Get("Windows_App_StartupFailureTitle"),
                 exception,
                 logPath
             );
@@ -44,7 +45,11 @@ public partial class App : Application
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
         var logPath = StartupDiagnostics.LogException("ui-unhandled", e.Exception);
-        StartupDiagnostics.ShowRuntimeFailure("Component Vault encountered a fatal UI error.", e.Exception, logPath);
+        StartupDiagnostics.ShowRuntimeFailure(
+            AppStrings.Get("Windows_App_FatalUiFailureTitle"),
+            e.Exception,
+            logPath
+        );
     }
 
     private void OnCurrentDomainUnhandledException(object? sender, System.UnhandledExceptionEventArgs e)
@@ -55,6 +60,10 @@ public partial class App : Application
         }
 
         var logPath = StartupDiagnostics.LogException("domain-unhandled", exception);
-        StartupDiagnostics.ShowRuntimeFailure("Component Vault encountered a fatal application error.", exception, logPath);
+        StartupDiagnostics.ShowRuntimeFailure(
+            AppStrings.Get("Windows_App_FatalAppFailureTitle"),
+            exception,
+            logPath
+        );
     }
 }

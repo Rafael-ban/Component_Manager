@@ -12,8 +12,9 @@
     <ScrollViewer>
         <StackPanel Padding="24" Spacing="20">
             <StackPanel Spacing="6">
-                <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="概览" />
+                <TextBlock x:Uid="DashboardViewPageTitle" Style="{StaticResource PageTitleTextStyle}" Text="概览" />
                 <TextBlock
+                    x:Uid="DashboardViewPageSubtitle"
                     Style="{StaticResource PageSubtitleTextStyle}"
                     Text="这里只保留库存规模、风险和同步状态摘要，日常操作请回到库存与出入库工作台。" />
             </StackPanel>
@@ -90,6 +91,7 @@
                                 </StackPanel>
 
                                 <Button
+                                    x:Uid="DashboardOpenInventoryButton"
                                     Grid.Column="1"
                                     Click="OnOpenInventoryClicked"
                                     Content="打开库存工作台" />
@@ -152,6 +154,7 @@
                                 </StackPanel>
 
                                 <Button
+                                    x:Uid="DashboardOpenMovementsButton"
                                     Grid.Column="1"
                                     Click="OnOpenMovementsClicked"
                                     Content="打开出入库台账" />
@@ -215,16 +218,18 @@
                                 Foreground="{StaticResource TextFillColorSecondaryBrush}"
                                 Text="{Binding StatusMessage}"
                                 TextWrapping="Wrap" />
-                            <Button Click="OnOpenSettingsClicked" Content="打开同步设置" />
+                            <Button x:Uid="DashboardOpenSettingsButton" Click="OnOpenSettingsClicked" Content="打开同步设置" />
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource InsetPanelStyle}">
                         <StackPanel Spacing="10">
-                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="使用建议" />
+                            <TextBlock x:Uid="DashboardTipsTitle" Style="{StaticResource SectionTitleTextStyle}" Text="使用建议" />
                             <TextBlock
+                                x:Uid="DashboardTipsBody"
                                 Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                Text="常规作业优先进入“库存”页面进行搜索、筛选和编辑；记录到货、领用或盘点差异时，进入“出入库”页面。" />
+                                Text="常规作业优先进入“库存”页面进行搜索、筛选和编辑；记录到货、领用或盘点差异时，进入“出入库”页面。"
+                                TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

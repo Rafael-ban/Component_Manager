@@ -1,4 +1,5 @@
 using ComponentVault.WinUI.Design;
+using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.ViewModels;
 using Microsoft.UI.Xaml;
@@ -55,7 +56,12 @@ public sealed partial class SettingsView : Page
             AutoSyncToggle.IsOn
         );
         LoadValuesFromCurrentContext();
-        await ShowMessageAsync(result.IsSuccess ? "设置已保存" : "保存失败", result.Message);
+        await ShowMessageAsync(
+            result.IsSuccess
+                ? AppStrings.Get("Settings_Dialog_SaveSuccessTitle")
+                : AppStrings.Get("Settings_Dialog_SaveFailureTitle"),
+            result.Message
+        );
     }
 
     private async void OnTestConnectionClicked(object sender, RoutedEventArgs e)
@@ -73,7 +79,12 @@ public sealed partial class SettingsView : Page
         );
         var result = await viewModel.TestConnectionAsync();
         LoadValuesFromCurrentContext();
-        await ShowMessageAsync(result.IsSuccess ? "连接成功" : "连接失败", result.Message);
+        await ShowMessageAsync(
+            result.IsSuccess
+                ? AppStrings.Get("Settings_Dialog_TestSuccessTitle")
+                : AppStrings.Get("Settings_Dialog_TestFailureTitle"),
+            result.Message
+        );
     }
 
     private async void OnSyncNowClicked(object sender, RoutedEventArgs e)
@@ -92,7 +103,9 @@ public sealed partial class SettingsView : Page
         var result = await viewModel.RunSyncAsync();
         LoadValuesFromCurrentContext();
         await ShowMessageAsync(
-            result.IsSuccess ? "同步完成" : "同步失败",
+            result.IsSuccess
+                ? AppStrings.Get("Settings_Dialog_SyncSuccessTitle")
+                : AppStrings.Get("Settings_Dialog_SyncFailureTitle"),
             result.IsSuccess ? viewModel.SyncConfiguration.LastSyncMessage : result.Message
         );
     }
@@ -103,7 +116,7 @@ public sealed partial class SettingsView : Page
         {
             Title = title,
             Content = message,
-            CloseButtonText = "关闭",
+            CloseButtonText = AppStrings.Get("Common_Close"),
             XamlRoot = XamlRoot,
         };
         await dialog.ShowAsync();

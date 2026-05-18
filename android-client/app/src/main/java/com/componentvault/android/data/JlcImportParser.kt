@@ -11,7 +11,7 @@ internal object JlcImportParser {
 
     fun parseText(rawInput: String): ComponentImportCandidate {
         val normalizedInput = rawInput.trim()
-        require(normalizedInput.isNotBlank()) { "Paste JLC text before parsing." }
+        require(normalizedInput.isNotBlank()) { "请先粘贴 JLC 文本后再解析。" }
 
         val values = normalizedInput
             .lineSequence()
@@ -28,12 +28,12 @@ internal object JlcImportParser {
             ComponentPackageInferencer.infer(name, model, brand, normalizedInput).orEmpty()
         }
 
-        require(sku.isNotBlank()) { "Unable to recognize the JLC component number." }
+        require(sku.isNotBlank()) { "无法识别 JLC 元件编号。" }
 
         return ComponentImportCandidate(
             sourceType = ComponentImportSourceType.JlcText,
             rawPayload = normalizedInput,
-            sourceLabel = "JLC paste text",
+            sourceLabel = "JLC 粘贴文本",
             sku = sku,
             name = name,
             packageName = packageName,
@@ -41,16 +41,16 @@ internal object JlcImportParser {
             model = model,
             brand = brand,
             notes = buildList {
-                add("JLC part number: $sku")
-                model?.let { add("Supplier model: $it") }
-                brand?.let { add("Supplier brand: $it") }
+                add("JLC 编号：$sku")
+                model?.let { add("供应商型号：$it") }
+                brand?.let { add("供应商品牌：$it") }
             },
         )
     }
 
     fun parseQr(rawInput: String): ComponentImportCandidate {
         val normalizedInput = rawInput.trim()
-        require(normalizedInput.isNotBlank()) { "Scan a JLC code before importing." }
+        require(normalizedInput.isNotBlank()) { "请先扫描 JLC 二维码后再导入。" }
 
         val values = parseQrKeyValues(normalizedInput)
 
@@ -83,12 +83,12 @@ internal object JlcImportParser {
             ?: manufacturerCode
             ?: sku
 
-        require(sku.isNotBlank()) { "Unable to recognize the JLC part code from the QR payload." }
+        require(sku.isNotBlank()) { "无法从二维码载荷中识别 JLC 料号。" }
 
         return ComponentImportCandidate(
             sourceType = ComponentImportSourceType.JlcQr,
             rawPayload = normalizedInput,
-            sourceLabel = "JLC package QR",
+            sourceLabel = "JLC 包装二维码",
             sku = sku,
             name = explicitName.orEmpty(),
             packageName = packageName,
@@ -104,12 +104,12 @@ internal object JlcImportParser {
             brand = brand,
             suggestedQuantity = quantity,
             notes = buildList {
-                values["on"]?.cleanNullable()?.let { add("Order number: $it") }
-                values["pdi"]?.cleanNullable()?.let { add("Package data id: $it") }
-                values["cc"]?.cleanNullable()?.let { add("Package count: $it") }
-                values["hp"]?.cleanNullable()?.let { add("Shelf hint: $it") }
-                manufacturerCode?.let { add("Manufacturer code: $it") }
-                explicitLocation?.let { add("Warehouse location: $it") }
+                values["on"]?.cleanNullable()?.let { add("订单号：$it") }
+                values["pdi"]?.cleanNullable()?.let { add("包装数据 ID：$it") }
+                values["cc"]?.cleanNullable()?.let { add("包装数量：$it") }
+                values["hp"]?.cleanNullable()?.let { add("货架提示：$it") }
+                manufacturerCode?.let { add("厂商编码：$it") }
+                explicitLocation?.let { add("仓位：$it") }
             },
         )
     }

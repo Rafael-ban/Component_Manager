@@ -178,7 +178,7 @@ fun ComponentImportCandidate.withLearningMapping(
     val mergedNotes = buildList {
         addAll(notes)
         addIfMissing(
-            "Local import learning: matched by ${
+            "本地导入学习：匹配方式 ${
                 when (learningMatch.matchedBy) {
                     ComponentImportLearningMatchType.Sku -> "SKU"
                     ComponentImportLearningMatchType.Mpn -> "MPN"
@@ -245,11 +245,11 @@ fun ComponentImportCandidate.withRecognitionMetadata(
 
     val mergedNotes = buildList {
         addAll(notes)
-        metadata.vendor?.let { addIfMissing("Recognition vendor: $it") }
-        metadata.modelFamily?.let { addIfMissing("Recognition model family: $it") }
-        metadata.matchedBy?.let { addIfMissing("Recognition matched by: $it") }
-        metadata.confidence?.let { addIfMissing("Recognition confidence: $it") }
-        metadata.ruleVersion?.let { addIfMissing("Recognition rules version: $it") }
+        metadata.vendor?.let { addIfMissing("识别厂商：$it") }
+        metadata.modelFamily?.let { addIfMissing("识别型号族：$it") }
+        metadata.matchedBy?.let { addIfMissing("识别命中方式：$it") }
+        metadata.confidence?.let { addIfMissing("识别置信度：$it") }
+        metadata.ruleVersion?.let { addIfMissing("识别规则版本：$it") }
     }
 
     val resolvedBrand = brand?.takeIf { it.isNotBlank() }
@@ -321,13 +321,13 @@ fun ComponentImportCandidate.withOfficialMetadata(
 
     val mergedNotes = buildList {
         addAll(notes)
-        metadata.source?.let { addIfMissing("Recognition source: $it") }
-        metadata.vendor?.let { addIfMissing("Recognition vendor: $it") }
-        metadata.modelFamily?.let { addIfMissing("Recognition model family: $it") }
-        metadata.matchedBy?.let { addIfMissing("Official lookup: matched by ${it.uppercase()}") }
-        metadata.categoryPath?.let { addIfMissing("Official category path: $it") }
-        metadata.officialUrl?.let { addIfMissing("Official URL: $it") }
-        metadata.ruleVersion?.let { addIfMissing("Recognition rules version: $it") }
+        metadata.source?.let { addIfMissing("识别来源：$it") }
+        metadata.vendor?.let { addIfMissing("识别厂商：$it") }
+        metadata.modelFamily?.let { addIfMissing("识别型号族：$it") }
+        metadata.matchedBy?.let { addIfMissing("官方查询：匹配方式 ${it.uppercase()}") }
+        metadata.categoryPath?.let { addIfMissing("官方分类路径：$it") }
+        metadata.officialUrl?.let { addIfMissing("官方链接：$it") }
+        metadata.ruleVersion?.let { addIfMissing("识别规则版本：$it") }
     }
 
     val resolvedBrand = brand?.takeIf { it.isNotBlank() }
@@ -454,14 +454,14 @@ fun buildImportDescription(
 ): String {
     val descriptionLines = buildList {
         if (!model.isNullOrBlank()) {
-            add("Model: ${model.trim()}")
+            add("型号：${model.trim()}")
         }
         if (!brand.isNullOrBlank()) {
-            add("Brand: ${brand.trim()}")
+            add("品牌：${brand.trim()}")
         }
         addAll(notes.map(String::trim).filter(String::isNotBlank))
-        add("Import source: ${sourceLabel.trim()}")
-        add("Raw payload: ${rawPayload.trim()}")
+        add("导入来源：${sourceLabel.trim()}")
+        add("原始载荷：${rawPayload.trim()}")
     }
     return descriptionLines.joinToString(separator = "\n")
 }
@@ -478,12 +478,30 @@ fun parseImportDescription(description: String): ParsedImportDescription {
         .filter(String::isNotBlank)
         .forEach { line ->
             when {
-                line.startsWith("Model: ") -> model = line.removePrefix("Model: ").trim().blankToNull()
-                line.startsWith("Brand: ") -> brand = line.removePrefix("Brand: ").trim().blankToNull()
-                line.startsWith("Import source: ") ->
-                    sourceLabel = line.removePrefix("Import source: ").trim().blankToNull()
-                line.startsWith("Raw payload: ") ->
-                    rawPayload = line.removePrefix("Raw payload: ").trim().blankToNull()
+                line.startsWith("Model: ") || line.startsWith("型号：") ->
+                    model = line
+                        .removePrefix("Model: ")
+                        .removePrefix("型号：")
+                        .trim()
+                        .blankToNull()
+                line.startsWith("Brand: ") || line.startsWith("品牌：") ->
+                    brand = line
+                        .removePrefix("Brand: ")
+                        .removePrefix("品牌：")
+                        .trim()
+                        .blankToNull()
+                line.startsWith("Import source: ") || line.startsWith("导入来源：") ->
+                    sourceLabel = line
+                        .removePrefix("Import source: ")
+                        .removePrefix("导入来源：")
+                        .trim()
+                        .blankToNull()
+                line.startsWith("Raw payload: ") || line.startsWith("原始载荷：") ->
+                    rawPayload = line
+                        .removePrefix("Raw payload: ")
+                        .removePrefix("原始载荷：")
+                        .trim()
+                        .blankToNull()
                 else -> notes += line
             }
         }

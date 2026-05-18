@@ -1,3 +1,5 @@
+using ComponentVault.WinUI.Localization;
+
 namespace ComponentVault.WinUI.Models;
 
 public sealed class ComponentRecord
@@ -17,4 +19,6 @@ public sealed class ComponentRecord
     public bool IsLowStock => !Deleted && Quantity <= MinStock;
 
     public string Status => IsLowStock ? "低库存" : "库存正常";
+
+    public string DisplayCategory => CategoryDisplay.Localize(Category);
 }

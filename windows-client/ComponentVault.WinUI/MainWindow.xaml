@@ -1,10 +1,11 @@
 <Window
     x:Class="ComponentVault.WinUI.MainWindow"
+    x:Uid="MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    Title="Component Vault"
+    Title="元件仓库"
     mc:Ignorable="d">
 
     <Grid Background="{StaticResource VaultBackgroundBrush}">
@@ -23,8 +24,13 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Spacing="2">
-                        <TextBlock FontSize="24" FontWeight="SemiBold" Text="库存工作台" />
                         <TextBlock
+                            x:Uid="MainWindowHeaderTitle"
+                            FontSize="24"
+                            FontWeight="SemiBold"
+                            Text="库存工作台" />
+                        <TextBlock
+                            x:Uid="MainWindowHeaderSubtitle"
                             Style="{StaticResource PageSubtitleTextStyle}"
                             Text="本地优先 · 电子元器件库存与同步工作区" />
                     </StackPanel>
@@ -35,6 +41,7 @@
                             Foreground="{StaticResource TextFillColorSecondaryBrush}"
                             Text="{Binding ShellSyncSummary}" />
                         <Button
+                            x:Uid="MainWindowSyncNowButton"
                             HorizontalAlignment="Right"
                             Click="OnSyncNowClicked"
                             Content="立即同步" />
@@ -43,17 +50,17 @@
             </NavigationView.Header>
 
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="InventoryItem" Content="库存" Tag="Inventory">
+                <NavigationViewItem x:Name="InventoryItem" x:Uid="MainWindowInventoryItem" Content="库存" Tag="Inventory">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Library" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="MovementsItem" Content="出入库" Tag="Movements">
+                <NavigationViewItem x:Name="MovementsItem" x:Uid="MainWindowMovementsItem" Content="出入库" Tag="Movements">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Sort" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="OverviewItem" Content="概览" Tag="Overview">
+                <NavigationViewItem x:Name="OverviewItem" x:Uid="MainWindowOverviewItem" Content="概览" Tag="Overview">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Home" />
                     </NavigationViewItem.Icon>
@@ -61,7 +68,7 @@
             </NavigationView.MenuItems>
 
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem x:Name="SettingsItem" Content="设置" Tag="Settings">
+                <NavigationViewItem x:Name="SettingsItem" x:Uid="MainWindowSettingsItem" Content="设置" Tag="Settings">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Setting" />
                     </NavigationViewItem.Icon>

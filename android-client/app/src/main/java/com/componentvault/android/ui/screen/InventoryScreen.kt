@@ -392,7 +392,9 @@ private fun InventoryFilterHeader(
             )
             FilterMenuButton(
                 label = strings.inventory.filterCategoryLabel,
-                value = uiState.filters.category ?: strings.inventory.filterCategoryAll,
+                value = uiState.filters.category
+                    ?.let { localizedCategoryLabel(it) }
+                    ?: strings.inventory.filterCategoryAll,
                 expanded = categoryMenuExpanded,
                 onExpandedChange = { categoryMenuExpanded = it },
             ) {
@@ -405,7 +407,7 @@ private fun InventoryFilterHeader(
                 )
                 uiState.availableCategories.forEach { category ->
                     DropdownMenuItem(
-                        text = { Text(category) },
+                        text = { Text(localizedCategoryLabel(category)) },
                         onClick = {
                             onCategoryChange(category)
                             categoryMenuExpanded = false
@@ -526,7 +528,7 @@ internal fun InventoryDetailPane(
                 title = component.name,
                 supporting = strings.inventory.componentSubtitle(
                     component.sku,
-                    component.category,
+                    localizedCategoryLabel(component.category),
                     component.packageName,
                 ),
             ) {
@@ -591,7 +593,7 @@ internal fun InventoryDetailPane(
             SectionPane(title = strings.inventory.detailBasicTitle) {
                 ValueBlock(label = strings.common.fieldSku, value = component.sku)
                 ValueBlock(label = strings.common.fieldName, value = component.name)
-                ValueBlock(label = strings.common.fieldCategory, value = component.category)
+                ValueBlock(label = strings.common.fieldCategory, value = localizedCategoryLabel(component.category))
                 ValueBlock(label = strings.common.fieldPackage, value = component.packageName)
             }
         }

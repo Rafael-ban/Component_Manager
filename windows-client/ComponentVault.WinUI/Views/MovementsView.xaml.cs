@@ -1,4 +1,5 @@
 using ComponentVault.WinUI.Design;
+using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.ViewModels;
 using Microsoft.UI.Xaml;
@@ -35,7 +36,10 @@ public sealed partial class MovementsView : Page
 
         if (viewModel.AvailableComponents.Count == 0)
         {
-            await ShowMessageAsync("记录库存变动", "请先新增一个元器件，再记录库存变动。");
+            await ShowMessageAsync(
+                AppStrings.Get("Movements_Dialog_Title"),
+                AppStrings.Get("Movements_Dialog_NoComponentMessage")
+            );
             return;
         }
 
@@ -46,7 +50,12 @@ public sealed partial class MovementsView : Page
         }
 
         var result = viewModel.RecordMovement(draft);
-        await ShowMessageAsync(result.IsSuccess ? "记录已保存" : "记录失败", result.Message);
+        await ShowMessageAsync(
+            result.IsSuccess
+                ? AppStrings.Get("Movements_Dialog_SuccessTitle")
+                : AppStrings.Get("Movements_Dialog_FailureTitle"),
+            result.Message
+        );
     }
 
     private void OnMovementSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -127,14 +136,14 @@ public sealed partial class MovementsView : Page
         MovementEntryDraft? draft = null;
         var dialog = new ContentDialog
         {
-            Title = "记录库存变动",
+            Title = AppStrings.Get("Movements_Dialog_Title"),
             Content = new ScrollViewer
             {
                 Content = panel,
                 MaxHeight = 600,
             },
-            PrimaryButtonText = "保存",
-            CloseButtonText = "取消",
+            PrimaryButtonText = AppStrings.Get("Common_Save"),
+            CloseButtonText = AppStrings.Get("Common_Cancel"),
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot,
         };
@@ -181,7 +190,7 @@ public sealed partial class MovementsView : Page
         {
             Title = title,
             Content = message,
-            CloseButtonText = "关闭",
+            CloseButtonText = AppStrings.Get("Common_Close"),
             XamlRoot = XamlRoot,
         };
         await dialog.ShowAsync();

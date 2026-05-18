@@ -1,4 +1,5 @@
 using ComponentVault.WinUI.Views;
+using ComponentVault.WinUI.Localization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -13,7 +14,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         _viewModel =
             ((App)Application.Current).MainViewModel
-            ?? throw new InvalidOperationException("MainViewModel was not initialized.");
+            ?? throw new InvalidOperationException(AppStrings.Get("Windows_App_MainViewModelMissing"));
         AppNavigationView.DataContext = _viewModel;
         NavigateTo("Inventory");
     }
@@ -68,7 +69,9 @@ public sealed partial class MainWindow : Window
     {
         var result = await _viewModel.RunSyncAsync();
         await ShowMessageAsync(
-            result.IsSuccess ? "同步完成" : "同步失败",
+            result.IsSuccess
+                ? AppStrings.Get("MainWindow_SyncSuccessTitle")
+                : AppStrings.Get("MainWindow_SyncFailureTitle"),
             result.IsSuccess ? _viewModel.SyncConfiguration.LastSyncMessage : result.Message
         );
     }
@@ -79,7 +82,7 @@ public sealed partial class MainWindow : Window
         {
             Title = title,
             Content = message,
-            CloseButtonText = "关闭",
+            CloseButtonText = AppStrings.Get("Common_Close"),
             XamlRoot = AppNavigationView.XamlRoot,
         };
         await dialog.ShowAsync();

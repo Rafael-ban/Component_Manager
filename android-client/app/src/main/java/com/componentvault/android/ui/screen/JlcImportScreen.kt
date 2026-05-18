@@ -119,11 +119,23 @@ internal fun JlcImportSurface(
         }
         if (!preserveUserEdits) {
             quantityText = (candidate.suggestedQuantity ?: 1).coerceAtLeast(1).toString()
-            candidate.notes.firstOrNull { it.startsWith("Warehouse location: ") }?.let { note ->
-                location = note.removePrefix("Warehouse location: ").trim()
+            candidate.notes.firstOrNull {
+                it.startsWith("Warehouse location: ") || it.startsWith("仓位：")
+            }?.let { note ->
+                location = note
+                    .removePrefix("Warehouse location: ")
+                    .removePrefix("仓位：")
+                    .trim()
             }
-            candidate.notes.firstOrNull { it.startsWith("Minimum stock: ") }?.let { note ->
-                note.removePrefix("Minimum stock: ").trim().toIntOrNull()?.let { parsedMinStock ->
+            candidate.notes.firstOrNull {
+                it.startsWith("Minimum stock: ") || it.startsWith("最低库存：")
+            }?.let { note ->
+                note
+                    .removePrefix("Minimum stock: ")
+                    .removePrefix("最低库存：")
+                    .trim()
+                    .toIntOrNull()
+                    ?.let { parsedMinStock ->
                     minStockText = parsedMinStock.toString()
                 }
             }

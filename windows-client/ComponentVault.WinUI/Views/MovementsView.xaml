@@ -17,8 +17,9 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Spacing="6">
-            <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="出入库台账" />
+            <TextBlock x:Uid="MovementsViewPageTitle" Style="{StaticResource PageTitleTextStyle}" Text="出入库台账" />
             <TextBlock
+                x:Uid="MovementsViewPageSubtitle"
                 Style="{StaticResource PageSubtitleTextStyle}"
                 Text="记录到货、领用和盘点调整；左侧保持连续历史，右侧提供选中记录的审计详情。" />
         </StackPanel>
@@ -27,11 +28,12 @@
             <StackPanel Spacing="16">
                 <CommandBar Background="Transparent" DefaultLabelPosition="Right">
                     <AppBarButton
+                        x:Uid="MovementsRecordButton"
                         Click="OnRecordMovementClicked"
                         Icon="Add"
                         IsEnabled="{Binding CanRecordMovement}"
                         Label="记录变动" />
-                    <AppBarButton Click="OnRefreshFeedClicked" Icon="Refresh" Label="刷新台账" />
+                    <AppBarButton x:Uid="MovementsRefreshButton" Click="OnRefreshFeedClicked" Icon="Refresh" Label="刷新台账" />
                 </CommandBar>
 
                 <Grid ColumnSpacing="12">

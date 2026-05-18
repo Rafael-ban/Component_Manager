@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="MainWindow.Title" xml:space="preserve"><value>Component Vault</value></data>
+  <data name="MainWindowHeaderTitle.Text" xml:space="preserve"><value>Inventory Workspace</value></data>
+  <data name="MainWindowHeaderSubtitle.Text" xml:space="preserve"><value>Local-first electronic component inventory and sync workspace</value></data>
+  <data name="MainWindowSyncNowButton.Content" xml:space="preserve"><value>Sync now</value></data>
+  <data name="MainWindowInventoryItem.Content" xml:space="preserve"><value>Inventory</value></data>
+  <data name="MainWindowMovementsItem.Content" xml:space="preserve"><value>Movements</value></data>
+  <data name="MainWindowOverviewItem.Content" xml:space="preserve"><value>Overview</value></data>
+  <data name="MainWindowSettingsItem.Content" xml:space="preserve"><value>Settings</value></data>
+  <data name="ComponentsViewPageTitle.Text" xml:space="preserve"><value>Inventory workspace</value></data>
+  <data name="ComponentsViewPageSubtitle.Text" xml:space="preserve"><value>Search, filter, and browse the continuous list first; inspect stock, storage, and recent movement summary on the right.</value></data>
+  <data name="ComponentsViewAddButton.Label" xml:space="preserve"><value>Add component</value></data>
+  <data name="ComponentsViewSearchBox.PlaceholderText" xml:space="preserve"><value>Search SKU, name, category, or location</value></data>
+  <data name="ComponentsViewLowStockToggle.Header" xml:space="preserve"><value>Low stock</value></data>
+  <data name="ComponentsViewCategoryCombo.Header" xml:space="preserve"><value>Category</value></data>
+  <data name="ComponentsViewLocationCombo.Header" xml:space="preserve"><value>Location</value></data>
+  <data name="ComponentsViewSortCombo.Header" xml:space="preserve"><value>Sort</value></data>
+  <data name="ComponentsViewSkuCaption.Text" xml:space="preserve"><value>SKU</value></data>
+  <data name="DashboardViewPageTitle.Text" xml:space="preserve"><value>Overview</value></data>
+  <data name="DashboardViewPageSubtitle.Text" xml:space="preserve"><value>Keep the inventory scale, risk, and sync summary here; return to Inventory and Movements for daily work.</value></data>
+  <data name="DashboardOpenInventoryButton.Content" xml:space="preserve"><value>Open inventory workspace</value></data>
+  <data name="DashboardOpenMovementsButton.Content" xml:space="preserve"><value>Open movement ledger</value></data>
+  <data name="DashboardOpenSettingsButton.Content" xml:space="preserve"><value>Open sync settings</value></data>
+  <data name="DashboardTipsTitle.Text" xml:space="preserve"><value>Usage tips</value></data>
+  <data name="DashboardTipsBody.Text" xml:space="preserve"><value>Use Inventory for search, filtering, and edits. Use Movements for inbound, outbound, and stock adjustment records.</value></data>
+  <data name="MovementsViewPageTitle.Text" xml:space="preserve"><value>Movement ledger</value></data>
+  <data name="MovementsViewPageSubtitle.Text" xml:space="preserve"><value>Record receiving, usage, and stock adjustments; keep the continuous history on the left and audit detail on the right.</value></data>
+  <data name="MovementsRecordButton.Label" xml:space="preserve"><value>Record movement</value></data>
+  <data name="MovementsRefreshButton.Label" xml:space="preserve"><value>Refresh ledger</value></data>
+  <data name="SettingsViewPageTitle.Text" xml:space="preserve"><value>Settings</value></data>
+  <data name="SettingsViewPageSubtitle.Text" xml:space="preserve"><value>Configure the server endpoint, shared token, and sync strategy; writes still land locally first and sync later on demand.</value></data>
+  <data name="SettingsSaveButton.Label" xml:space="preserve"><value>Save settings</value></data>
+  <data name="SettingsTestButton.Label" xml:space="preserve"><value>Test connection</value></data>
+  <data name="SettingsSyncButton.Label" xml:space="preserve"><value>Sync now</value></data>
+  <data name="SettingsServerUrlLabel.Text" xml:space="preserve"><value>Server URL</value></data>
+  <data name="SettingsApiTokenLabel.Text" xml:space="preserve"><value>API token</value></data>
+  <data name="SettingsServerUrlTextBox.PlaceholderText" xml:space="preserve"><value>https://example.com:8787</value></data>
+  <data name="Common_Close" xml:space="preserve"><value>Close</value></data>
+  <data name="Common_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Common_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Components_Dialog_AddTitle" xml:space="preserve"><value>Add component</value></data>
+  <data name="Components_Dialog_EditTitle" xml:space="preserve"><value>Edit component</value></data>
+  <data name="Components_Dialog_DeleteTitle" xml:space="preserve"><value>Soft delete component</value></data>
+  <data name="Components_Dialog_SelectFirstMessage" xml:space="preserve"><value>Select a component first.</value></data>
+  <data name="Components_Dialog_DeleteConfirmPrimary" xml:space="preserve"><value>Confirm delete</value></data>
+  <data name="Components_Dialog_DeleteConfirmMessagePattern" xml:space="preserve"><value>Mark {0} as deleted? Movement history will be retained.</value></data>
+  <data name="Components_Dialog_OperationSuccessTitle" xml:space="preserve"><value>Operation completed</value></data>
+  <data name="Components_Dialog_OperationFailureTitle" xml:space="preserve"><value>Operation failed</value></data>
+  <data name="Movements_Dialog_Title" xml:space="preserve"><value>Record stock movement</value></data>
+  <data name="Movements_Dialog_NoComponentMessage" xml:space="preserve"><value>Add a component before recording stock movement.</value></data>
+  <data name="Movements_Dialog_SuccessTitle" xml:space="preserve"><value>Movement saved</value></data>
+  <data name="Movements_Dialog_FailureTitle" xml:space="preserve"><value>Movement failed</value></data>
+  <data name="Settings_Dialog_SaveSuccessTitle" xml:space="preserve"><value>Settings saved</value></data>
+  <data name="Settings_Dialog_SaveFailureTitle" xml:space="preserve"><value>Save failed</value></data>
+  <data name="Settings_Dialog_TestSuccessTitle" xml:space="preserve"><value>Connection succeeded</value></data>
+  <data name="Settings_Dialog_TestFailureTitle" xml:space="preserve"><value>Connection failed</value></data>
+  <data name="Settings_Dialog_SyncSuccessTitle" xml:space="preserve"><value>Sync completed</value></data>
+  <data name="Settings_Dialog_SyncFailureTitle" xml:space="preserve"><value>Sync failed</value></data>
+  <data name="MainWindow_SyncSuccessTitle" xml:space="preserve"><value>Sync completed</value></data>
+  <data name="MainWindow_SyncFailureTitle" xml:space="preserve"><value>Sync failed</value></data>
+  <data name="Windows_App_StartupFailureTitle" xml:space="preserve"><value>Component Vault failed to start.</value></data>
+  <data name="Windows_App_FatalUiFailureTitle" xml:space="preserve"><value>Component Vault encountered a fatal UI error.</value></data>
+  <data name="Windows_App_FatalAppFailureTitle" xml:space="preserve"><value>Component Vault encountered a fatal application error.</value></data>
+  <data name="Windows_App_MainViewModelMissing" xml:space="preserve"><value>MainViewModel was not initialized.</value></data>
+  <data name="Windows_Diagnostics_LogPathPattern" xml:space="preserve"><value>Log: {0}</value></data>
+</root>

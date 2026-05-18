@@ -89,7 +89,7 @@ internal fun ComponentLabelPreviewSurface(
         }
         feedbackMessage = runCatching {
             context.contentResolver.openOutputStream(uri).use { stream ->
-                requireNotNull(stream) { "Unable to open the selected file." }
+                requireNotNull(stream) { "无法打开所选文件。" }
                 ComponentLabelRenderer.writePng(
                     outputStream = stream,
                     seed = seed,
@@ -114,7 +114,7 @@ internal fun ComponentLabelPreviewSurface(
         val copies = copiesText.toIntOrNull()?.coerceAtLeast(1) ?: 1
         feedbackMessage = runCatching {
             context.contentResolver.openOutputStream(uri).use { stream ->
-                requireNotNull(stream) { "Unable to open the selected file." }
+                requireNotNull(stream) { "无法打开所选文件。" }
                 ComponentLabelRenderer.writePdf(
                     outputStream = stream,
                     seed = seed,

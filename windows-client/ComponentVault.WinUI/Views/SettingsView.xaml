@@ -11,26 +11,30 @@
     <ScrollViewer>
         <StackPanel Padding="24" Spacing="20">
             <StackPanel Spacing="6">
-                <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="设置" />
-                <TextBlock
-                    Style="{StaticResource PageSubtitleTextStyle}"
-                    Text="配置服务器地址、共享令牌和同步策略；所有写入仍然会先落到本地，再按需同步。" />
+            <TextBlock x:Uid="SettingsViewPageTitle" Style="{StaticResource PageTitleTextStyle}" Text="设置" />
+            <TextBlock
+                x:Uid="SettingsViewPageSubtitle"
+                Style="{StaticResource PageSubtitleTextStyle}"
+                Text="配置服务器地址、共享令牌和同步策略；所有写入仍然会先落到本地，再按需同步。" />
             </StackPanel>
 
             <Border Style="{StaticResource CardBorderStyle}">
                 <StackPanel Spacing="16">
                     <CommandBar Background="Transparent" DefaultLabelPosition="Right">
                         <AppBarButton
+                            x:Uid="SettingsSaveButton"
                             Click="OnSaveSettingsClicked"
                             Icon="Save"
                             IsEnabled="{Binding CanRunSyncActions}"
                             Label="保存设置" />
                         <AppBarButton
+                            x:Uid="SettingsTestButton"
                             Click="OnTestConnectionClicked"
                             Icon="World"
                             IsEnabled="{Binding CanRunSyncActions}"
                             Label="测试连接" />
                         <AppBarButton
+                            x:Uid="SettingsSyncButton"
                             Click="OnSyncNowClicked"
                             Icon="Sync"
                             IsEnabled="{Binding CanRunSyncActions}"
@@ -82,14 +86,15 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="服务器地址" />
+                                <TextBlock x:Uid="SettingsServerUrlLabel" Grid.Row="0" VerticalAlignment="Center" Text="服务器地址" />
                                 <TextBox
+                                    x:Uid="SettingsServerUrlTextBox"
                                     x:Name="ServerUrlTextBox"
                                     Grid.Row="0"
                                     Grid.Column="1"
                                     PlaceholderText="http://localhost:8787" />
 
-                                <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="API 令牌" />
+                                <TextBlock x:Uid="SettingsApiTokenLabel" Grid.Row="1" VerticalAlignment="Center" Text="API 令牌" />
                                 <PasswordBox
                                     x:Name="ApiTokenBox"
                                     Grid.Row="1"
