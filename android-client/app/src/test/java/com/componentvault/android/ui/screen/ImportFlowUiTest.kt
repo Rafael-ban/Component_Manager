@@ -5,9 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import com.componentvault.android.R
 import org.junit.Rule
 import org.junit.Test
@@ -18,7 +22,7 @@ import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], application = Application::class)
+@Config(sdk = [28], application = Application::class, qualifiers = "w360dp-h640dp-xhdpi")
 class ImportFlowUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val context: Application get() = RuntimeEnvironment.getApplication()
@@ -39,12 +43,22 @@ class ImportFlowUiTest {
             }
         }
 
-        compose.onNodeWithText(context.getString(R.string.import_menu_single)).assertIsDisplayed()
-        compose.onNodeWithText(context.getString(R.string.import_menu_batch)).assertIsDisplayed()
-        compose.onNodeWithText(context.getString(R.string.import_menu_bom)).assertIsDisplayed()
-        compose.onNodeWithText(context.getString(R.string.import_menu_migration)).assertIsDisplayed().performClick()
+        val workflows = listOf(
+            R.string.import_menu_single,
+            R.string.import_menu_batch,
+            R.string.import_menu_bom,
+            R.string.import_menu_migration,
+        )
+        workflows.forEach { labelRes ->
+            val label = context.getString(labelRes)
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText(label))
+            compose.onNodeWithText(label).assertIsDisplayed()
+        }
+        compose.onNodeWithText(context.getString(R.string.import_menu_migration)).performClick()
         assertEquals("migration", selected)
-        compose.onNodeWithText(context.getString(R.string.import_menu_manual)).assertIsDisplayed()
+        val manualLabel = context.getString(R.string.import_menu_manual)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText(manualLabel))
+        compose.onNodeWithText(manualLabel).assertIsDisplayed()
     }
 
     @Test

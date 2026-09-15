@@ -30,7 +30,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], application = Application::class)
+@Config(sdk = [28], application = Application::class, qualifiers = "w360dp-h640dp-xhdpi")
 class LocationManagementUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val context: Application get() = RuntimeEnvironment.getApplication()
