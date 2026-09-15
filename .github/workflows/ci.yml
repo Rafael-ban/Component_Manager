@@ -144,6 +144,7 @@ jobs:
           --tests 'com.componentvault.android.ui.screen.StartupFailureDetailsTest'
           --tests 'com.componentvault.android.ui.screen.InventoryNavigationUiTest'
           --tests 'com.componentvault.android.ui.screen.SettingsDraftUiTest'
+          --tests 'com.componentvault.android.ui.screen.LocationManagementUiTest'
           --tests 'com.componentvault.android.data.SettingsConnectionTest'
           --tests 'com.componentvault.android.data.bom.*'
 

@@ -1,6 +1,5 @@
 package com.componentvault.android.ui.screen
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -27,10 +26,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -262,10 +259,6 @@ internal fun BatchJlcInboundScreen(
         )
         return
     }
-    BackHandler {
-        if (!processing && !committing) requestDismiss()
-    }
-
     val selectedReady = draft.rows.filter { it.status == BatchJlcStatus.Ready && it.selected }
     val planResult = remember(selectedReady) { runCatching { BatchJlcCommitPlanner.plan(selectedReady, emptySet()) } }
     val visibleRows = draft.rows.filter {
@@ -297,9 +290,11 @@ internal fun BatchJlcInboundScreen(
         }
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.batch_title)) }, navigationIcon = {
-        TextButton(onClick = ::requestDismiss, enabled = !processing && !committing) { Text(stringResource(R.string.action_back)) }
-    }) }, bottomBar = {
+    SecondaryPageScaffold(
+        title = stringResource(R.string.batch_title),
+        onBack = ::requestDismiss,
+        navigationEnabled = !processing && !committing,
+        bottomBar = {
         Column(
             Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -322,7 +317,8 @@ internal fun BatchJlcInboundScreen(
             if (saveFailed) OutlinedButton(onClick = { save(draft) }, enabled = !saving,
                 modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_retry_save)) }
         }
-    }) { padding ->
+        },
+    ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding).testTag("batch_inbound_list"),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),

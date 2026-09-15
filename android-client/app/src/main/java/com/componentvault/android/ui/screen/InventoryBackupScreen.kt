@@ -1,7 +1,5 @@
 package com.componentvault.android.ui.screen
 
-import androidx.activity.compose.BackHandler
-
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -17,10 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.R
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun InventoryBackupScreen(viewModel: InventoryViewModel, onDismiss: () -> Unit) {
-    BackHandler(onBack = onDismiss)
     val state = viewModel.backupUiState
     val create = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
@@ -28,8 +24,9 @@ internal fun InventoryBackupScreen(viewModel: InventoryViewModel, onDismiss: () 
     val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(viewModel::previewInventoryBackup)
     }
-    Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.backup_title)) }, navigationIcon = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.backup_back)) } }) },
+    SecondaryPageScaffold(
+        title = stringResource(R.string.backup_title),
+        onBack = onDismiss,
     ) { padding ->
         Column(
             Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),

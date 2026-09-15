@@ -403,6 +403,19 @@
     <string name="import_catalog_image_source">商品图片来源</string>
     <string name="import_domestic_selected">已选择立创商城商品，请核对回填字段后再保存。</string>
     <string name="movement_type_transfer">调拨</string>
+    <string name="locations_title">库位管理</string>
+    <string name="locations_add">新增库位</string>
+    <string name="locations_empty_title">还没有库位</string>
+    <string name="locations_empty_description">为第一个库位设置稳定编码和清晰名称。</string>
+    <string name="locations_create_title">新增库位</string>
+    <string name="locations_edit_title">编辑库位</string>
+    <string name="locations_code_label">稳定库位编码</string>
+    <string name="locations_code_immutable_hint">创建后不可修改编码。</string>
+    <string name="locations_name_label">库位名称</string>
+    <string name="locations_saving">正在保存库位…</string>
+    <string name="locations_delete_title">删除空库位？</string>
+    <string name="locations_delete_description">确定删除 %1$s（%2$s）？仍有库存的库位无法删除。</string>
+    <string name="bom_import_title">BOM 与 Component Hub 导入</string>
     <string name="backup_title">Excel 备份与恢复</string>
     <string name="backup_back">返回</string>
     <string name="backup_description">导出 component-vault schemaVersion=1 工作簿，包含库位、分配、流水和已持久化图片。</string>

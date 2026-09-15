@@ -1,7 +1,6 @@
 package com.componentvault.android.ui.screen
 
 import android.provider.OpenableColumns
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,7 +29,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.componentvault.android.R
 import com.componentvault.android.data.bom.BomReleasePreview
 import com.componentvault.android.data.bom.BomSheet
 import com.componentvault.android.data.bom.ComponentHubParseResult
@@ -47,8 +47,6 @@ internal fun BomImportScreen(
     viewModel: InventoryViewModel,
     onDismiss: () -> Unit,
 ) {
-    BackHandler(onBack = onDismiss)
-    BackHandler(onBack = onDismiss)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var fileBytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -152,15 +150,17 @@ internal fun BomImportScreen(
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onDismiss) { Text("返回") }
-            Button(enabled = !busy, onClick = { picker.launch(arrayOf("text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/json")) }) {
-                Text(if (fileName.isBlank()) "选择 BOM / Hub 文件" else fileName)
-            }
+    SecondaryPageScaffold(
+        title = stringResource(R.string.bom_import_title),
+        onBack = onDismiss,
+        navigationEnabled = !busy,
+    ) { scaffoldPadding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(scaffoldPadding).imePadding().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+        Button(enabled = !busy, onClick = { picker.launch(arrayOf("text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/json")) }, modifier = Modifier.fillMaxWidth()) {
+            Text(if (fileName.isBlank()) "选择 BOM / Hub 文件" else fileName)
         }
         if (!fileName.endsWith(".json", true)) OutlinedTextField(
             value = projectName,
@@ -277,6 +277,7 @@ internal fun BomImportScreen(
                 onClick = { confirmKind = "hub" },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("确认迁移") }
+        }
         }
     }
     confirmKind?.let { kind ->

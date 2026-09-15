@@ -421,6 +421,19 @@
     <string name="import_catalog_image_source">Product image source</string>
     <string name="import_domestic_selected">Chinese LCSC product selected. Review the filled fields before saving.</string>
     <string name="movement_type_transfer">Transfer</string>
+    <string name="locations_title">Storage locations</string>
+    <string name="locations_add">Add storage location</string>
+    <string name="locations_empty_title">No storage locations yet</string>
+    <string name="locations_empty_description">Add a stable code and a clear name for the first location.</string>
+    <string name="locations_create_title">New storage location</string>
+    <string name="locations_edit_title">Edit storage location</string>
+    <string name="locations_code_label">Stable location code</string>
+    <string name="locations_code_immutable_hint">The code cannot be changed after creation.</string>
+    <string name="locations_name_label">Location name</string>
+    <string name="locations_saving">Saving location…</string>
+    <string name="locations_delete_title">Delete empty location?</string>
+    <string name="locations_delete_description">Delete %1$s (%2$s)? Locations with inventory cannot be deleted.</string>
+    <string name="bom_import_title">BOM and Component Hub import</string>
     <string name="backup_title">Excel backup and restore</string>
     <string name="backup_back">Back</string>
     <string name="backup_description">Exports a component-vault schemaVersion=1 workbook containing locations, allocations, movement history, and persisted images.</string>
