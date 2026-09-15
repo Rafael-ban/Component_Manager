@@ -2,6 +2,8 @@ using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.Services;
 using Xunit;
 using Microsoft.Data.Sqlite;
+using System.IO.Compression;
+using System.Xml.Linq;
 
 namespace ComponentVault.WinUI.CoreTests;
 
@@ -132,6 +134,34 @@ public sealed class InventoryExpansionTests : IDisposable
         Assert.True(backup.ImportNewOnly(path).IsSuccess);
         Assert.Equal(5, Assert.Single(store.GetComponents()).Quantity);
         Assert.Equal("LCSC schema1 initial inventory", Assert.Single(store.GetMovements()).Reason);
+        Assert.Equal("A1",Assert.Single(store.GetComponents()).Location);
+    }
+
+    [Fact]
+    public void SimpleXlsx_ReadsPoiNumericFormsExactlyAndAllowsMoreThanFiveThousandRows()
+    {
+        Directory.CreateDirectory(_root);var path=Path.Combine(_root,"numeric.xlsx");
+        var rows=new List<object?[]>{new object?[]{"id","quantity","epoch"},new object?[]{2,5.0m,1.7E12m}};
+        rows.AddRange(Enumerable.Range(0,5001).Select(i=>new object?[]{"row-"+i,i,1_700_000_000_000m}));
+        SimpleXlsx.Write(path,new Dictionary<string,IReadOnlyList<object?[]>>{{"data",rows}});
+        using(var zip=ZipFile.Open(path,ZipArchiveMode.Update))
+        {
+            var entry=zip.GetEntry("xl/worksheets/sheet1.xml")!;XDocument document;using(var input=entry.Open())document=XDocument.Load(input);
+            XNamespace n="http://schemas.openxmlformats.org/spreadsheetml/2006/main";var cell=document.Descendants(n+"c").First(x=>(string?)x.Attribute("r")=="C2");cell.Attribute("t")?.Remove();cell.Element(n+"v")!.Value="1.7E12";
+            entry.Delete();var replacement=zip.CreateEntry("xl/worksheets/sheet1.xml");using var output=replacement.Open();document.Save(output);
+        }
+        var read=SimpleXlsx.Read(path)["data"];
+        Assert.Equal(5003,read.Count);Assert.Equal(5.0m,read[1][1]);Assert.Equal(1_700_000_000_000m,read[1][2]);
+    }
+
+    [Fact]
+    public void EmptyComponentBackup_WithLocation_IsImportable()
+    {
+        var source=Store("empty-source.db");Assert.True(source.SaveStorageLocation("ONLY","Only bin").IsSuccess);
+        var path=Path.Combine(_root,"empty.xlsx");new InventoryWorkbookBackup(source).Export(path);
+        var target=Store("empty-target.db");var backup=new InventoryWorkbookBackup(target);var preview=backup.Preview(path);
+        Assert.True(preview.CanImport,string.Join(";",preview.Issues));Assert.Equal(0,preview.Components);
+        Assert.True(backup.ImportNewOnly(path,preview).IsSuccess);Assert.Contains(target.GetStorageLocations(),x=>x.Id=="ONLY");
     }
 
     [Fact]

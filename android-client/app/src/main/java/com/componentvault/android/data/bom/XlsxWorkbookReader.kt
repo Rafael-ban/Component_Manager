@@ -19,14 +19,44 @@ internal data class XlsxWorkbook(
     val rowsBySheetName: Map<String, List<TabularRow>>,
 )
 
+internal data class XlsxReadLimits(
+    val maxFileBytes: Int,
+    val maxRowsPerSheet: Int,
+    val maxZipEntries: Int,
+    val maxZipEntryBytes: Int,
+    val maxZipTotalBytes: Int,
+    val maxSharedStrings: Int,
+) {
+    companion object {
+        val Bom = XlsxReadLimits(
+            maxFileBytes = LocalImportLimits.MAX_FILE_BYTES,
+            maxRowsPerSheet = LocalImportLimits.MAX_DATA_ROWS,
+            maxZipEntries = LocalImportLimits.MAX_ZIP_ENTRIES,
+            maxZipEntryBytes = LocalImportLimits.MAX_ZIP_ENTRY_BYTES,
+            maxZipTotalBytes = LocalImportLimits.MAX_ZIP_TOTAL_BYTES,
+            maxSharedStrings = 100_000,
+        )
+        val InventoryBackup = XlsxReadLimits(
+            maxFileBytes = 50 * 1024 * 1024,
+            maxRowsPerSheet = 100_000,
+            maxZipEntries = 10_000,
+            maxZipEntryBytes = 20 * 1024 * 1024,
+            maxZipTotalBytes = 100 * 1024 * 1024,
+            maxSharedStrings = 2_000_000,
+        )
+    }
+}
+
 internal object XlsxWorkbookReader {
     fun read(
         bytes: ByteArray,
         loadWorksheetRows: Boolean,
         selectedSheetName: String? = null,
         loadAllWorksheets: Boolean = false,
+        limits: XlsxReadLimits = XlsxReadLimits.Bom,
     ): XlsxWorkbook {
-        val entries = unzipBounded(bytes)
+        if (bytes.size > limits.maxFileBytes) zipLimit("XLSX 文件超过限制。")
+        val entries = unzipBounded(bytes, limits)
         val workbookXml = entries["xl/workbook.xml"] ?: invalid("XLSX 缺少 xl/workbook.xml。")
         val relationshipsXml = entries["xl/_rels/workbook.xml.rels"]
             ?: invalid("XLSX 缺少 workbook relationships。")
@@ -40,19 +70,19 @@ internal object XlsxWorkbookReader {
         } else {
             sheetRefs.firstOrNull { it.name == selectedSheetName }
         } ?: return XlsxWorkbook(sheets, emptyMap())
-        val sharedStrings = entries["xl/sharedStrings.xml"]?.let(::parseSharedStrings).orEmpty()
+        val sharedStrings = entries["xl/sharedStrings.xml"]?.let { parseSharedStrings(it, limits.maxSharedStrings) }.orEmpty()
         val requested = if (loadAllWorksheets) sheetRefs else listOf(selected)
         val rowsByName = requested.associate { sheet ->
             val target = relationships[sheet.relationshipId]
                 ?: invalid("工作表 ${sheet.name} 缺少 relationship。")
             val worksheetXml = entries[target]
                 ?: invalid("XLSX 缺少工作表内容：${sheet.name}。")
-            sheet.name to parseWorksheet(worksheetXml, sharedStrings, sheet.name)
+            sheet.name to parseWorksheet(worksheetXml, sharedStrings, sheet.name, limits.maxRowsPerSheet)
         }
         return XlsxWorkbook(sheets, rowsByName)
     }
 
-    private fun unzipBounded(bytes: ByteArray): Map<String, ByteArray> {
+    private fun unzipBounded(bytes: ByteArray, limits: XlsxReadLimits): Map<String, ByteArray> {
         val result = linkedMapOf<String, ByteArray>()
         var entryCount = 0
         var totalBytes = 0L
@@ -61,9 +91,9 @@ internal object XlsxWorkbookReader {
                 while (true) {
                     val entry = zip.nextEntry ?: break
                     entryCount++
-                    if (entryCount > LocalImportLimits.MAX_ZIP_ENTRIES) zipLimit("XLSX ZIP entry 数超过限制。")
+                    if (entryCount > limits.maxZipEntries) zipLimit("XLSX ZIP entry 数超过限制。")
                     val normalizedName = normalizeEntryName(entry.name)
-                    if (entry.size > LocalImportLimits.MAX_ZIP_ENTRY_BYTES) {
+                    if (entry.size > limits.maxZipEntryBytes) {
                         zipLimit("XLSX ZIP entry 过大：${entry.name}")
                     }
                     if (normalizedName in result) invalid("XLSX 包含重复 ZIP entry：$normalizedName")
@@ -75,10 +105,10 @@ internal object XlsxWorkbookReader {
                         if (count < 0) break
                         entryBytes += count
                         totalBytes += count
-                        if (entryBytes > LocalImportLimits.MAX_ZIP_ENTRY_BYTES) {
+                        if (entryBytes > limits.maxZipEntryBytes) {
                             zipLimit("XLSX ZIP entry 解压后过大：${entry.name}")
                         }
-                        if (totalBytes > LocalImportLimits.MAX_ZIP_TOTAL_BYTES) {
+                        if (totalBytes > limits.maxZipTotalBytes) {
                             zipLimit("XLSX ZIP 总解压量超过限制。")
                         }
                         if (!entry.isDirectory) output.write(buffer, 0, count)
@@ -155,7 +185,7 @@ internal object XlsxWorkbookReader {
         return resolved
     }
 
-    private fun parseSharedStrings(xml: ByteArray): List<String> {
+    private fun parseSharedStrings(xml: ByteArray, maxSharedStrings: Int): List<String> {
         val strings = mutableListOf<String>()
         var inStringItem = false
         var inText = false
@@ -180,7 +210,7 @@ internal object XlsxWorkbookReader {
                     "t" -> inText = false
                     "si" -> {
                         strings += current.toString()
-                        if (strings.size > 100_000) zipLimit("XLSX shared strings 数量超过限制。")
+                        if (strings.size > maxSharedStrings) zipLimit("XLSX shared strings 数量超过限制。")
                         inStringItem = false
                     }
                 }
@@ -193,6 +223,7 @@ internal object XlsxWorkbookReader {
         xml: ByteArray,
         sharedStrings: List<String>,
         sheetName: String,
+        maxDataRows: Int,
     ): List<TabularRow> {
         val rows = mutableListOf<TabularRow>()
         var fallbackRowNumber = 0
@@ -260,8 +291,8 @@ internal object XlsxWorkbookReader {
                                 List(width) { column -> currentCells[column].orEmpty() },
                                 List(width) { column -> currentCellTypes[column].orEmpty() },
                             )
-                            if (rows.size > LocalImportLimits.MAX_DATA_ROWS + 1) {
-                                throw RowLimitSaxException()
+                            if (rows.size > maxDataRows + 1) {
+                                throw RowLimitSaxException(maxDataRows)
                             }
                         }
                     }
@@ -305,7 +336,7 @@ internal object XlsxWorkbookReader {
         } catch (error: RowLimitSaxException) {
             throw LocalImportException(
                 LocalImportErrorCode.TOO_MANY_ROWS,
-                "BOM 数据行超过 5000 行限制。",
+                "数据行超过 ${error.maxRows} 行限制。",
                 sheetName,
                 cause = error,
             )
@@ -345,5 +376,5 @@ internal object XlsxWorkbookReader {
     )
 
     private data class SheetRef(val name: String, val relationshipId: String, val hidden: Boolean)
-    private class RowLimitSaxException : SAXException()
+    private class RowLimitSaxException(val maxRows: Int) : SAXException()
 }

@@ -7,6 +7,7 @@ import kotlin.test.assertTrue
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import java.util.zip.ZipInputStream
 
 class InventoryWorkbookCodecTest {
     private fun sample(components:List<WorkbookComponent> = listOf(WorkbookComponent("cmp-1","C1","电阻","电阻","0603","loc-1","",4,1,"2026-09-15T00:00:00Z",false,null)))=InventoryWorkbook(
@@ -25,6 +26,13 @@ class InventoryWorkbookCodecTest {
         val duplicate=sample().components.first().copy(id="cmp-2")
         val model=sample(sample().components+duplicate).copy(allocations=sample().allocations+WorkbookAllocation("cmp-2","loc-1",4))
         assertFailsWith<IllegalArgumentException>{InventoryWorkbookCodec.parse(InventoryWorkbookWriter.write(model))}
+    }
+
+    @Test fun ownNumericQuantitiesAcceptIntegralDecimalsButRejectBoolean(){
+        val decimal=rewriteEntries(InventoryWorkbookWriter.write(sample())){path,xml->if(path.endsWith("sheet2.xml")||path.endsWith("sheet4.xml"))xml.replace("<v>4</v>","<v>4.0</v>") else xml}
+        assertEquals(4,InventoryWorkbookCodec.parse(decimal).components.single().quantity)
+        val bool=rewriteEntries(decimal){path,xml->if(path.endsWith("sheet4.xml"))xml.replace("<c r=\"C2\"><v>4.0</v></c>","<c r=\"C2\" t=\"b\"><v>1</v></c>") else xml}
+        assertFailsWith<IllegalStateException>{InventoryWorkbookCodec.parse(bool)}
     }
 
     @Test fun lcscPoiNumericCellsAcceptIntegralDecimalsAndScientificEpoch(){
@@ -65,4 +73,5 @@ class InventoryWorkbookCodecTest {
         };return out.toByteArray()
     }
     private fun poiSheet(rows:List<List<String>>)="<?xml version=\"1.0\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>"+rows.mapIndexed{ri,row->"<row r=\"${ri+1}\">"+row.mapIndexed{ci,value->val ref=('A'.code+ci).toChar().toString()+(ri+1);if(value.startsWith("#"))"<c r=\"$ref\"><v>${value.drop(1)}</v></c>" else "<c r=\"$ref\" t=\"inlineStr\"><is><t>$value</t></is></c>"}.joinToString("")+"</row>"}.joinToString("")+"</sheetData></worksheet>"
+    private fun rewriteEntries(bytes:ByteArray,change:(String,String)->String):ByteArray{val out=ByteArrayOutputStream();ZipOutputStream(out).use{target->ZipInputStream(bytes.inputStream()).use{source->while(true){val entry=source.nextEntry?:break;val data=source.readBytes();target.putNextEntry(ZipEntry(entry.name));target.write(if(entry.name.endsWith(".xml"))change(entry.name,data.toString(Charsets.UTF_8)).toByteArray() else data);target.closeEntry()}}};return out.toByteArray()}
 }

@@ -5,6 +5,17 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.4.1] - 2026-09-15
+
+<!-- Add unreleased notes below this line. -->
+
+- Unified Android and Windows inventory workbook size/row limits, separating
+  full inventory backups from the smaller BOM import limit. Export validates its
+  result before publishing the file so it can be read back by the clients.
+- Improved Excel numeric-cell interoperability for integral decimals and
+  scientific notation while retaining strict inventory integer validation.
+
+
 ## [0.4.0] - 2026-09-15
 
 <!-- Add unreleased notes below this line. -->

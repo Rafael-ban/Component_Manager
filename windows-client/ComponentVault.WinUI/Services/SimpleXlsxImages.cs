@@ -47,6 +47,7 @@ internal static partial class SimpleXlsx
     public static Dictionary<int, byte[]> ReadImages(string path, string sheetName, IReadOnlySet<int> allowedColumns)
     {
         using var zip = ZipFile.OpenRead(path);
+        ValidateArchive(zip);
         var workbook = Load(zip, "xl/workbook.xml"); var workbookRels = Load(zip, "xl/_rels/workbook.xml.rels");
         var sheet = workbook.Descendants(N + "sheet").FirstOrDefault(x => (string?)x.Attribute("name") == sheetName);
         if (sheet is null) return [];

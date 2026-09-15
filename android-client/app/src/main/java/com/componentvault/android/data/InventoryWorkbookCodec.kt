@@ -2,6 +2,7 @@ package com.componentvault.android.data
 
 import com.componentvault.android.data.bom.TabularRow
 import com.componentvault.android.data.bom.XlsxWorkbookReader
+import com.componentvault.android.data.bom.XlsxReadLimits
 import java.security.MessageDigest
 import java.math.BigDecimal
 
@@ -13,13 +14,14 @@ internal data class WorkbookMovement(val id:String,val componentId:String,val ty
 internal data class InventoryWorkbook(val source:WorkbookSource,val components:List<WorkbookComponent>,val locations:List<WorkbookLocation>,val allocations:List<WorkbookAllocation>,val movements:List<WorkbookMovement>,val fingerprint:String,val warnings:List<String>,val images:Map<String,ByteArray> = emptyMap())
 
 internal object InventoryWorkbookCodec {
+    const val MAX_FILE_BYTES = 50 * 1024 * 1024
     val componentHeaders=listOf("id","sku","name","category","package_name","location","description","quantity","min_stock","updated_at","deleted","base_updated_at","image_preview")
     val locationHeaders=listOf("id","name","updated_at","deleted")
     val allocationHeaders=listOf("component_id","location_id","quantity")
     val movementHeaders=listOf("id","component_id","movement_type","quantity","reason","note","happened_at","updated_at","deleted","location_id","destination_location_id")
 
     fun parse(bytes:ByteArray):InventoryWorkbook {
-        val sheets=XlsxWorkbookReader.read(bytes,true,loadAllWorksheets=true).rowsBySheetName
+        val sheets=XlsxWorkbookReader.read(bytes,true,loadAllWorksheets=true,limits=XlsxReadLimits.InventoryBackup).rowsBySheetName
         val meta=sheets["meta"] ?: error("缺少 meta 工作表。")
         val pairs=meta.associate { it.values.getOrElse(0){""}.trim() to it.values.getOrElse(1){""}.trim() }
         return when {

@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.componentvault.android.R
 import com.componentvault.android.data.InventoryRepository
+import com.componentvault.android.data.InventoryWorkbookCodec
 import com.componentvault.android.data.bom.BomParseResult
 import com.componentvault.android.data.bom.BomParser
 import com.componentvault.android.data.bom.BomReleasePreview
@@ -173,7 +174,7 @@ class InventoryViewModel(
     }
 
     fun exportInventoryBackup(uri:Uri){viewModelScope.launch{backupUiState=InventoryBackupUiState(loading=true);runCatching{val bytes=repository.exportInventoryWorkbook();withContext(Dispatchers.IO){getApplication<Application>().contentResolver.openOutputStream(uri,"w")!!.use{it.write(bytes)}}}.onSuccess{backupUiState=InventoryBackupUiState(message="备份已导出。")}.onFailure{backupUiState=InventoryBackupUiState(message=it.message?:"备份导出失败。")}}}
-    fun previewInventoryBackup(uri:Uri){viewModelScope.launch{backupUiState=InventoryBackupUiState(loading=true);runCatching{val bytes=withContext(Dispatchers.IO){getApplication<Application>().contentResolver.openInputStream(uri)!!.use{it.readBytes()}};repository.previewInventoryWorkbook(bytes)}.onSuccess{backupUiState=InventoryBackupUiState(preview=it)}.onFailure{backupUiState=InventoryBackupUiState(message=it.message?:"备份预览失败。")}}}
+    fun previewInventoryBackup(uri:Uri){viewModelScope.launch{backupUiState=InventoryBackupUiState(loading=true);runCatching{val bytes=withContext(Dispatchers.IO){getApplication<Application>().contentResolver.openInputStream(uri)!!.use{input->val output=java.io.ByteArrayOutputStream();val buffer=ByteArray(DEFAULT_BUFFER_SIZE);var total=0;while(true){val count=input.read(buffer);if(count<0)break;total=Math.addExact(total,count);require(total<=InventoryWorkbookCodec.MAX_FILE_BYTES){"备份文件超过 50 MiB。"};output.write(buffer,0,count)};output.toByteArray()}};repository.previewInventoryWorkbook(bytes)}.onSuccess{backupUiState=InventoryBackupUiState(preview=it)}.onFailure{backupUiState=InventoryBackupUiState(message=it.message?:"备份预览失败。")}}}
     fun confirmInventoryRestore(){val p=backupUiState.preview?:return;viewModelScope.launch{backupUiState=backupUiState.copy(loading=true);val result=repository.restoreInventoryWorkbook(p);backupUiState=InventoryBackupUiState(message=result.message);if(result.isSuccess)refresh()}}
     fun clearInventoryBackupState(){backupUiState=InventoryBackupUiState()}
 

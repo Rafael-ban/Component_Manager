@@ -769,7 +769,9 @@ class InventoryRepository(
             db.beginTransaction()
             try {
                 val snapshot=readWorkbookSnapshot(db)
-                InventoryWorkbookWriter.write(snapshot.copy(images=snapshot.components.mapNotNull{c->inventoryImageStore.resolve(c.description)?.let{c.id to it}}.toMap()))
+                val bytes=InventoryWorkbookWriter.write(snapshot.copy(images=snapshot.components.mapNotNull{c->inventoryImageStore.resolve(c.description)?.let{c.id to it}}.toMap()))
+                InventoryWorkbookCodec.parse(bytes)
+                bytes
             } finally { db.endTransaction() }
         }
     }
