@@ -31,7 +31,7 @@ class InventoryNavigationUiTest {
     fun importMenuOffersBatchWithoutMaintenanceEntries() {
         compose.setContent {
             MaterialTheme {
-                AddComponentEntrySheet({}, {}, {}, {}, {})
+                AddComponentEntrySheet({}, {}, {}, {}, {}, {})
             }
         }
         compose.onNodeWithText(context.getString(R.string.import_menu_batch)).assertExists()

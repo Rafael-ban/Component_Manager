@@ -11,10 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -30,6 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.R
 import com.componentvault.android.data.bom.BomReleasePreview
@@ -42,10 +49,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+internal enum class BomImportMode { Bom, Migration }
+
 @Composable
 internal fun BomImportScreen(
     viewModel: InventoryViewModel,
     onDismiss: () -> Unit,
+    initialMode: BomImportMode? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -59,28 +69,45 @@ internal fun BomImportScreen(
     var hubPreview by remember { mutableStateOf<ComponentHubParseResult?>(null) }
     var selections by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var message by remember { mutableStateOf("") }
+    var messageIsError by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var releaseId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
     var batchId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
     var releaseApplied by rememberSaveable { mutableStateOf(false) }
     var confirmKind by remember { mutableStateOf<String?>(null) }
+    var selectedMode by rememberSaveable { mutableStateOf(initialMode) }
+
+    fun resetFile() {
+        fileBytes = null
+        fileName = ""
+        sheets = emptyList()
+        selectedSheet = null
+        preview = null
+        hubPreview = null
+        selections = emptyMap()
+        message = ""
+        messageIsError = false
+        releaseApplied = false
+    }
 
     fun requestPreview() {
         val bytes = fileBytes ?: return
-        if (fileName.endsWith(".json", true)) {
+        if (selectedMode == BomImportMode.Migration) {
             busy = true
             viewModel.previewComponentHub(bytes, skipDuplicates = false) { result ->
                 busy = false
                 result.onSuccess {
                     hubPreview = it
                     message = "迁移预览：可导入 ${it.components.size} 项，冲突 ${it.conflicts.size} 项。"
-                }.onFailure { message = it.message ?: "Component Hub 解析失败。" }
+                    messageIsError = false
+                }.onFailure { message = it.message ?: "Component Hub 解析失败。"; messageIsError = true }
             }
             return
         }
         val sets = productionSets.toIntOrNull()
         if (projectName.isBlank() || sets == null || sets <= 0) {
             message = "请输入项目名和正整数生产套数。"
+            messageIsError = true
             return
         }
         busy = true
@@ -93,8 +120,8 @@ internal fun BomImportScreen(
             selections = selections,
         ) { result ->
             busy = false
-            result.onSuccess { preview = it; message = "预览完成，共 ${it.lines.size} 项。" }
-                .onFailure { message = it.message ?: "BOM 解析失败。" }
+            result.onSuccess { preview = it; message = "预览完成，共 ${it.lines.size} 项。"; messageIsError = false }
+                .onFailure { message = it.message ?: "BOM 解析失败。"; messageIsError = true }
         }
     }
 
@@ -139,58 +166,154 @@ internal fun BomImportScreen(
                     result.onSuccess {
                         sheets = it
                         selectedSheet = it.firstOrNull { sheet -> !sheet.hidden }?.name
-                    }.onFailure { message = it.message ?: "无法读取工作表。" }
+                    }.onFailure { message = it.message ?: "无法读取工作表。"; messageIsError = true }
                 }
             } else {
                 busy = false
                 sheets = emptyList()
                 selectedSheet = null
             }
-        }.onFailure { busy = false; message = it.message ?: "无法读取文件。" }
+        }.onFailure { busy = false; message = it.message ?: "无法读取文件。"; messageIsError = true }
         }
     }
 
     SecondaryPageScaffold(
         title = stringResource(R.string.bom_import_title),
-        onBack = onDismiss,
+        onBack = {
+            when {
+                preview != null || hubPreview != null -> {
+                    preview = null
+                    hubPreview = null
+                    message = ""
+                    messageIsError = false
+                }
+                fileBytes != null -> resetFile()
+                initialMode == null && selectedMode != null -> selectedMode = null
+                else -> onDismiss()
+            }
+        },
         navigationEnabled = !busy,
     ) { scaffoldPadding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(scaffoldPadding).imePadding().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-        Button(enabled = !busy, onClick = { picker.launch(arrayOf("text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/json")) }, modifier = Modifier.fillMaxWidth()) {
-            Text(if (fileName.isBlank()) "选择 BOM / Hub 文件" else fileName)
-        }
-        if (!fileName.endsWith(".json", true)) OutlinedTextField(
-            value = projectName,
-            onValueChange = { projectName = it; preview = null },
-            label = { Text("项目名") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !busy && !releaseApplied,
-        )
-        if (!fileName.endsWith(".json", true)) OutlinedTextField(
-            value = productionSets,
-            onValueChange = { productionSets = it; preview = null },
-            label = { Text("生产套数") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !busy && !releaseApplied,
-        )
-        if (sheets.size > 1) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                sheets.filterNot { it.hidden }.forEach { sheet ->
-                    TextButton(enabled = !busy && !releaseApplied, onClick = { selectedSheet = sheet.name; preview = null; selections = emptyMap() }) {
-                        Text(if (selectedSheet == sheet.name) "✓ ${sheet.name}" else sheet.name)
-                    }
+        if (selectedMode == null) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(scaffoldPadding),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item { Text(stringResource(R.string.bom_task_prompt), style = MaterialTheme.typography.bodyLarge) }
+                item {
+                    ImportTaskCard(
+                        title = stringResource(R.string.bom_task_bom),
+                        description = stringResource(R.string.bom_task_bom_description),
+                        onClick = { selectedMode = BomImportMode.Bom },
+                    )
+                }
+                item {
+                    ImportTaskCard(
+                        title = stringResource(R.string.bom_task_migration),
+                        description = stringResource(R.string.bom_task_migration_description),
+                        onClick = { selectedMode = BomImportMode.Migration },
+                    )
                 }
             }
+            return@SecondaryPageScaffold
         }
-        Button(
-            onClick = ::requestPreview,
-            enabled = !busy && !releaseApplied && fileBytes != null,
-        ) { Text("生成预览") }
-        if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
-        preview?.let { current ->
+        if (preview == null && hubPreview == null) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(scaffoldPadding).imePadding(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BomImportMode.entries.forEach { mode ->
+                            FilterChip(
+                                selected = selectedMode == mode,
+                                onClick = { if (fileBytes == null && !busy) selectedMode = mode },
+                                enabled = fileBytes == null && !busy,
+                                label = { Text(stringResource(if (mode == BomImportMode.Bom) R.string.bom_task_bom else R.string.bom_task_migration)) },
+                            )
+                        }
+                    }
+                }
+                if (fileBytes == null) item {
+                    Text(
+                        stringResource(if (selectedMode == BomImportMode.Bom) R.string.bom_task_bom_description else R.string.bom_task_migration_description),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                item {
+                    Button(
+                        enabled = !busy,
+                        onClick = {
+                            picker.launch(if (selectedMode == BomImportMode.Bom) {
+                                arrayOf("text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            } else arrayOf("application/json"))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(if (fileName.isBlank()) stringResource(R.string.bom_choose_file) else fileName) }
+                }
+                if (selectedMode == BomImportMode.Bom && fileBytes != null) {
+                    item {
+                        OutlinedTextField(
+                            value = projectName,
+                            onValueChange = { projectName = it },
+                            label = { Text(stringResource(R.string.bom_project_name)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy && !releaseApplied,
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = productionSets,
+                            onValueChange = { productionSets = it },
+                            label = { Text(stringResource(R.string.bom_production_sets)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy && !releaseApplied,
+                        )
+                    }
+                }
+                if (sheets.size > 1) item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(sheets.filterNot { it.hidden }, key = { it.name }) { sheet ->
+                            FilterChip(
+                                selected = selectedSheet == sheet.name,
+                                enabled = !busy && !releaseApplied,
+                                onClick = { selectedSheet = sheet.name; selections = emptyMap() },
+                                label = { Text(sheet.name) },
+                            )
+                        }
+                    }
+                }
+                if (fileBytes != null) item {
+                    Button(
+                        onClick = ::requestPreview,
+                        enabled = !busy && !releaseApplied,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.bom_generate_preview)) }
+                }
+                if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                if (message.isNotBlank()) item { StatusMessage(message, messageIsError) }
+            }
+            return@SecondaryPageScaffold
+        }
+
+        Column(
+            modifier = Modifier.fillMaxSize().padding(scaffoldPadding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                if (selectedMode == BomImportMode.Bom) {
+                    stringResource(R.string.bom_preview_summary, fileName, projectName, productionSets)
+                } else {
+                    stringResource(R.string.migration_preview_summary, fileName)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (message.isNotBlank()) StatusMessage(message, messageIsError)
+            preview?.let { current ->
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -232,12 +355,13 @@ internal fun BomImportScreen(
                         releaseApplied = false
                         preview = null
                         message = "已创建新生产批次，请重新生成预览。"
+                        messageIsError = false
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("新建生产批次") }
             }
-        }
-        hubPreview?.let { current ->
+            }
+            hubPreview?.let { current ->
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -265,8 +389,8 @@ internal fun BomImportScreen(
                         busy = true
                         viewModel.previewComponentHub(bytes, skipDuplicates = true) { result ->
                             busy = false
-                            result.onSuccess { hubPreview = it; message = "已明确跳过 ${it.skippedDuplicateCount} 个冲突。" }
-                                .onFailure { message = it.message ?: "无法应用跳过策略。" }
+                            result.onSuccess { hubPreview = it; message = "已明确跳过 ${it.skippedDuplicateCount} 个冲突。"; messageIsError = false }
+                                .onFailure { message = it.message ?: "无法应用跳过策略。"; messageIsError = true }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -277,7 +401,7 @@ internal fun BomImportScreen(
                 onClick = { confirmKind = "hub" },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("确认迁移") }
-        }
+            }
         }
     }
     confirmKind?.let { kind ->
@@ -303,6 +427,7 @@ internal fun BomImportScreen(
                             busy = false
                             confirmKind = null
                             message = result.message
+                            messageIsError = result.outcome == com.componentvault.android.data.bom.BomReleaseOutcome.REJECTED
                             releaseApplied = result.outcome != com.componentvault.android.data.bom.BomReleaseOutcome.REJECTED
                         }
                     } else if (hub != null) {
@@ -310,6 +435,7 @@ internal fun BomImportScreen(
                             busy = false
                             confirmKind = null
                             message = result.message
+                            messageIsError = !result.isSuccess
                         }
                     }
                 }) { Text("确认") }
@@ -317,4 +443,30 @@ internal fun BomImportScreen(
             dismissButton = { TextButton(enabled = !busy, onClick = { confirmKind = null }) { Text("取消") } },
         )
     }
+}
+
+@Composable
+private fun ImportTaskCard(title: String, description: String, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.bom_task_open))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusMessage(message: String, isError: Boolean) {
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        modifier = Modifier.semantics {
+            liveRegion = LiveRegionMode.Polite
+            if (isError) error(message)
+        },
+    )
 }

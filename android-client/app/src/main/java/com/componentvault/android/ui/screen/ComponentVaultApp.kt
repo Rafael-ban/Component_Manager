@@ -3,12 +3,12 @@ package com.componentvault.android.ui.screen
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ListItem
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.res.stringResource
 import com.componentvault.android.R
@@ -16,7 +16,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -75,6 +74,7 @@ fun ComponentVaultApp(
     var movementEditorAllowManualSelection by rememberSaveable { mutableStateOf(true) }
     var importSurfaceVisible by rememberSaveable { mutableStateOf(false) }
     var bomImportVisible by rememberSaveable { mutableStateOf(false) }
+    var bomImportInitialMode by rememberSaveable { mutableStateOf<BomImportMode?>(null) }
     var storageLocationsVisible by rememberSaveable { mutableStateOf(false) }
     var inventoryBackupVisible by rememberSaveable { mutableStateOf(false) }
     var batchJlcVisible by rememberSaveable { mutableStateOf(false) }
@@ -250,6 +250,34 @@ fun ComponentVaultApp(
 
     ProvideComponentVaultStrings(strings) {
         when {
+            showAddEntrySheet -> {
+                AddComponentEntrySheet(
+                    onDismiss = { showAddEntrySheet = false },
+                    onImportComponent = {
+                        showAddEntrySheet = false
+                        importSurfaceVisible = true
+                    },
+                    onAddComponent = {
+                        showAddEntrySheet = false
+                        openComponentEditor(null)
+                    },
+                    onImportBom = {
+                        showAddEntrySheet = false
+                        bomImportInitialMode = BomImportMode.Bom
+                        bomImportVisible = true
+                    },
+                    onImportMigration = {
+                        showAddEntrySheet = false
+                        bomImportInitialMode = BomImportMode.Migration
+                        bomImportVisible = true
+                    },
+                    onBatchJlc = {
+                        showAddEntrySheet = false
+                        batchJlcVisible = true
+                    },
+                )
+            }
+
             uiState.movements.scan.isScannerVisible -> {
                 JlcQrScannerSurface(
                     onDismiss = viewModel::dismissMovementScanner,
@@ -351,6 +379,7 @@ fun ComponentVaultApp(
                 BomImportScreen(
                     viewModel = viewModel,
                     onDismiss = { bomImportVisible = false },
+                    initialMode = bomImportInitialMode,
                 )
             }
 
@@ -618,25 +647,6 @@ fun ComponentVaultApp(
             }
         }
 
-        if (showAddEntrySheet) {
-            AddComponentEntrySheet(
-                onDismiss = { showAddEntrySheet = false },
-                onImportComponent = {
-                    showAddEntrySheet = false
-                    importSurfaceVisible = true
-                },
-                onAddComponent = {
-                    showAddEntrySheet = false
-                    openComponentEditor(null)
-                },
-                onImportBom = {
-                    showAddEntrySheet = false
-                    bomImportVisible = true
-                },
-                onBatchJlc = { showAddEntrySheet=false;batchJlcVisible=true },
-            )
-        }
-
         if (showDeleteConfirmation) {
             DeleteComponentConfirmationDialog(
                 onDismiss = { showDeleteConfirmation = false },
@@ -679,26 +689,55 @@ internal fun AddComponentEntrySheet(
     onImportComponent: () -> Unit,
     onAddComponent: () -> Unit,
     onImportBom: () -> Unit,
+    onImportMigration: () -> Unit,
     onBatchJlc: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
-            Text(stringResource(R.string.import_menu_title),
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
-            ImportMenuRow(R.string.import_menu_single, R.string.import_menu_single_hint, onImportComponent)
-            ImportMenuRow(R.string.import_menu_batch, R.string.import_menu_batch_hint, onBatchJlc)
-            ImportMenuRow(R.string.import_menu_bom, R.string.import_menu_bom_hint, onImportBom)
-            ImportMenuRow(R.string.import_menu_manual, R.string.import_menu_manual_hint, onAddComponent)
+    SecondaryPageScaffold(
+        title = stringResource(R.string.import_menu_title),
+        onBack = onDismiss,
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Text(
+                    stringResource(R.string.import_menu_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            item { ImportFeatureCard(R.string.import_menu_single, R.string.import_menu_single_hint, onImportComponent) }
+            item { ImportFeatureCard(R.string.import_menu_batch, R.string.import_menu_batch_hint, onBatchJlc) }
+            item { ImportFeatureCard(R.string.import_menu_bom, R.string.import_menu_bom_hint, onImportBom) }
+            item { ImportFeatureCard(R.string.import_menu_migration, R.string.import_menu_migration_hint, onImportMigration) }
+            item {
+                OutlinedButton(onClick = onAddComponent, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.import_menu_manual))
+                }
+            }
+            item {
+                Text(
+                    stringResource(R.string.import_menu_manual_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun ImportMenuRow(title: Int, description: Int, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(stringResource(title)) },
-        supportingContent = { Text(stringResource(description)) },
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-    )
+private fun ImportFeatureCard(title: Int, description: Int, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }

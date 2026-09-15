@@ -1,0 +1,17 @@
+<resources>
+    <string name="import_menu_description">Choose the workflow that matches this task. Each workflow keeps its own review and confirmation steps.</string>
+    <string name="import_menu_migration">Data migration</string>
+    <string name="import_menu_migration_hint">Preview a Component Hub JSON export, review conflicts, then import confirmed records</string>
+    <string name="bom_task_prompt">What would you like to do?</string>
+    <string name="bom_task_bom">Project BOM</string>
+    <string name="bom_task_bom_description">Open CSV or XLSX requirements, match them to local stock, and review the depletion plan before release.</string>
+    <string name="bom_task_migration">Data migration</string>
+    <string name="bom_task_migration_description">Open a Component Hub JSON export, preview records and conflicts, then confirm the migration.</string>
+    <string name="bom_choose_file">Choose a file</string>
+    <string name="bom_generate_preview">Generate preview</string>
+    <string name="bom_task_open">Open workflow</string>
+    <string name="bom_project_name">Project name</string>
+    <string name="bom_production_sets">Production sets</string>
+    <string name="bom_preview_summary">%1$s · Project %2$s · %3$s sets</string>
+    <string name="migration_preview_summary">%1$s · Component Hub migration preview</string>
+</resources>

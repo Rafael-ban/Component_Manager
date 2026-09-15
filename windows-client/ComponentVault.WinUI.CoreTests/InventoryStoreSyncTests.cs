@@ -146,7 +146,7 @@ public sealed class InventoryStoreSyncTests : IDisposable
 
         var draft = saved.WithDraftConnection(" https://draft.example/ ", " draft-token ", false);
 
-        Assert.Equal("https://draft.example/", draft.ServerBaseUrl);
+        Assert.Equal("https://draft.example", draft.ServerBaseUrl);
         Assert.Equal("draft-token", draft.ApiToken);
         Assert.False(draft.AutoSyncEnabled);
         Assert.Equal(saved.DeviceId, draft.DeviceId);
@@ -154,7 +154,7 @@ public sealed class InventoryStoreSyncTests : IDisposable
         Assert.True(saved.MatchesConnectionDraft(" https://saved.example/ ", " saved-token ", true));
 
         var persisted = store.GetSyncConfiguration();
-        Assert.Equal("https://saved.example/", persisted.ServerBaseUrl);
+        Assert.Equal("https://saved.example", persisted.ServerBaseUrl);
         Assert.Equal("saved-token", persisted.ApiToken);
         Assert.True(persisted.AutoSyncEnabled);
     }

@@ -9,7 +9,6 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -20,6 +19,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import kotlin.test.assertTrue
@@ -33,6 +33,59 @@ import kotlin.test.assertTrue
 )
 class UiScreenshotTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+    private val context: Application get() = RuntimeEnvironment.getApplication()
+
+    @Test
+    fun captureImportWorkflowChooserLight() {
+        compose.setContent {
+            MaterialTheme {
+                AddComponentEntrySheet({}, {}, {}, {}, {}, {})
+            }
+        }
+
+        saveScreenshot("import-workflow-chooser-light.png") {
+            compose.onRoot().captureToImage().asAndroidBitmap()
+        }
+    }
+
+    @Test
+    fun captureBomTaskChooserLight() {
+        compose.setContent {
+            MaterialTheme {
+                BomImportScreen(InventoryViewModel(context), {})
+            }
+        }
+
+        saveScreenshot("bom-task-chooser-light.png") {
+            compose.onRoot().captureToImage().asAndroidBitmap()
+        }
+    }
+
+    @Test
+    fun captureBomFileStageLight() {
+        compose.setContent {
+            MaterialTheme {
+                BomImportScreen(InventoryViewModel(context), {}, BomImportMode.Bom)
+            }
+        }
+
+        saveScreenshot("bom-file-stage-light.png") {
+            compose.onRoot().captureToImage().asAndroidBitmap()
+        }
+    }
+
+    @Test
+    fun captureMigrationFileStageLight() {
+        compose.setContent {
+            MaterialTheme {
+                BomImportScreen(InventoryViewModel(context), {}, BomImportMode.Migration)
+            }
+        }
+
+        saveScreenshot("migration-file-stage-light.png") {
+            compose.onRoot().captureToImage().asAndroidBitmap()
+        }
+    }
 
     @Test
     fun captureStorageLocationListLight() {
