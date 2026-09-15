@@ -449,6 +449,7 @@ private fun SettingsSectionList(
     selectedSection: SettingsSection?,
     onSelectSection: (SettingsSection) -> Unit,
 ) {
+    val strings = vaultStrings()
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),

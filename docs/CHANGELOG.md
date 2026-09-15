@@ -5,6 +5,13 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.3.13] - 2026-09-15
+
+- Fixed the Android settings section list's missing localized string binding
+  found by GitHub CI. Includes the native UI redesign from 0.3.12, whose
+  Android release build did not complete.
+
+
 ## [0.3.12] - 2026-09-15
 
 - Redesigned Android and Windows native navigation, home summaries, inventory
