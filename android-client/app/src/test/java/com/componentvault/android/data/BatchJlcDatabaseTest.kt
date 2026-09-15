@@ -1,6 +1,7 @@
 package com.componentvault.android.data
 
 import android.app.Application
+import android.database.sqlite.SQLiteDatabase
 import com.componentvault.android.model.ComponentDraft
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -17,7 +18,7 @@ import kotlin.test.assertTrue
 @Config(sdk = [28], application = Application::class)
 class BatchJlcDatabaseTest {
     private lateinit var repository: InventoryRepository
-    private val context: Application get() = RuntimeEnvironment.getApplication<Application>()
+    private val context: Application get() = RuntimeEnvironment.getApplication()
 
     @Before
     fun setUp() = runBlocking {
@@ -93,17 +94,37 @@ class BatchJlcDatabaseTest {
 
     @Test
     fun versionFourUpgradeCreatesReceiptsAndPreservesStock() = runBlocking {
-        InventoryDatabaseHelper(context).use { helper ->
-            helper.writableDatabase.use { db ->
-                db.execSQL("DROP TABLE batch_jlc_receipts")
-                db.version = 4
-            }
+        val backupDirectory = java.io.File(context.noBackupFilesDir, "database-preupgrade")
+        backupDirectory.listFiles()?.forEach { it.delete() }
+        val sourceHelper = InventoryDatabaseHelper(context)
+        val source = sourceHelper.writableDatabase
+        source.rawQuery("PRAGMA journal_mode=WAL", null).use { assertTrue(it.moveToFirst()) }
+        source.rawQuery("PRAGMA wal_autocheckpoint=0", null).use { assertTrue(it.moveToFirst()) }
+        source.execSQL("DROP TABLE batch_jlc_receipts")
+        source.version = 4
+        source.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use { assertTrue(it.moveToFirst()) }
+        source.execSQL("UPDATE components SET description='WAL pre-upgrade marker' WHERE sku='C70565'")
+        val sourceWal = java.io.File(context.getDatabasePath("component-vault.db").path + "-wal")
+        assertTrue(sourceWal.isFile && sourceWal.length() > 32)
+
+        try {
+            val upgraded = InventoryRepository(context)
+            assertTrue(upgraded.loadBatchJlcReceipts("new-session").isEmpty())
+        } finally {
+            sourceHelper.close()
         }
-        val upgraded = InventoryRepository(context)
-        assertTrue(upgraded.loadBatchJlcReceipts("new-session").isEmpty())
         assertEquals(10, number("SELECT quantity FROM components WHERE sku='C70565'"))
         assertEquals(10, number("SELECT SUM(quantity) FROM component_allocations"))
         assertEquals(5, number("PRAGMA user_version"))
+
+        val backup = requireNotNull(backupDirectory.listFiles()?.singleOrNull { it.name.endsWith(".db") })
+        SQLiteDatabase.openDatabase(backup.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+            db.rawQuery("SELECT description FROM components WHERE sku='C70565'", null).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("WAL pre-upgrade marker", cursor.getString(0))
+            }
+            assertEquals(4, db.version)
+        }
     }
 
     private fun row(id: String, sku: String, quantity: String, location: String) = BatchJlcRow(

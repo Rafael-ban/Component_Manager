@@ -228,7 +228,9 @@ class InventoryDatabaseHelper(private val appContext: Context) : SQLiteOpenHelpe
         val prefix = "component-vault-v$currentVersion-${System.currentTimeMillis()}"
         val database = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
         try {
-            database.execSQL("PRAGMA busy_timeout=10000")
+            database.rawQuery("PRAGMA busy_timeout=10000", null).use { cursor ->
+                check(cursor.moveToFirst()) { "Unable to configure the pre-upgrade backup lock timeout." }
+            }
             database.execSQL("BEGIN EXCLUSIVE")
             try {
                 // EXCLUSIVE prevents writers and checkpoints while the coherent DB/WAL set is copied.

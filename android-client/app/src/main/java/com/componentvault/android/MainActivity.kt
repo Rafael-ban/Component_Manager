@@ -4,8 +4,14 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.componentvault.android.ui.screen.ComponentVaultApp
 import com.componentvault.android.ui.screen.InventoryViewModel
+import com.componentvault.android.ui.screen.StartupFailureScreen
+import com.componentvault.android.ui.screen.startupFailureDetails
 import com.componentvault.android.ui.theme.ComponentVaultTheme
 
 class MainActivity : AppCompatActivity() {
@@ -18,8 +24,19 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
+            var retryAttempt by remember { mutableStateOf(0) }
+            val initialization = remember(retryAttempt) { runCatching { inventoryViewModel } }
             ComponentVaultTheme {
-                ComponentVaultApp(viewModel = inventoryViewModel)
+                val model = initialization.getOrNull()
+                val failure = initialization.exceptionOrNull()?.let(::startupFailureDetails)
+                    ?: model?.startupFailure
+                if (failure != null) {
+                    StartupFailureScreen(failure) {
+                        if (model == null) retryAttempt++ else model.refresh()
+                    }
+                } else if (model != null) {
+                    ComponentVaultApp(viewModel = model)
+                }
             }
         }
     }

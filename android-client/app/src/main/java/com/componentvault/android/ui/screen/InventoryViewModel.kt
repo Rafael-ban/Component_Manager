@@ -58,6 +58,9 @@ class InventoryViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
     private val repository = InventoryRepository(application)
+    var startupFailure by mutableStateOf<String?>(null)
+        private set
+    private var initialLoadComplete = false
     private var allComponentsCache: List<ComponentRecord> = emptyList()
     private var allMovementsCache: List<StockMovementRecord> = emptyList()
     private var issuedQuantitiesCache: Map<String, Long> = emptyMap()
@@ -85,12 +88,22 @@ class InventoryViewModel(
 
     init {
         refresh()
-        maybeAutoSyncOnLaunch()
     }
 
     fun refresh() {
         viewModelScope.launch {
-            reloadState(uiState.statusMessage.takeIf { it.isNotBlank() })
+            try {
+                reloadState(uiState.statusMessage.takeIf { it.isNotBlank() })
+                startupFailure = null
+                if (!initialLoadComplete) {
+                    initialLoadComplete = true
+                    maybeAutoSyncOnLaunch()
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                startupFailure = startupFailureDetails(error)
+            }
         }
     }
 

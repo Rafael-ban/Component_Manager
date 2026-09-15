@@ -493,4 +493,8 @@
     <string name="batch_pending_dialog">%1$d packages need review. They remain in the private draft.</string>
     <string name="batch_open_pending">Open pending</string>
     <string name="batch_retry_save">Retry saving draft</string>
+    <string name="startup_failure_title">Unable to open local inventory</string>
+    <string name="startup_failure_data_preserved">Your existing inventory has not been cleared. Please do not clear app data or uninstall the app. Retry, or copy these diagnostics and send them with your feedback.</string>
+    <string name="startup_failure_retry">Retry opening inventory</string>
+    <string name="startup_failure_copy">Copy startup diagnostics</string>
 </resources>

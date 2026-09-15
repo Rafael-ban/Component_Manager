@@ -475,5 +475,9 @@
     <string name="batch_pending_dialog">有 %1$d 个包装需要核对，记录已保留在私有草稿中。</string>
     <string name="batch_open_pending">前往待处理</string>
     <string name="batch_retry_save">重试保存草稿</string>
+    <string name="startup_failure_title">暂时无法打开本地库存</string>
+    <string name="startup_failure_data_preserved">原有库存没有被清除。请勿清理应用数据或卸载应用。可以重试，或复制以下诊断信息用于反馈。</string>
+    <string name="startup_failure_retry">重试打开库存</string>
+    <string name="startup_failure_copy">复制启动诊断</string>
 </resources>
 
