@@ -70,7 +70,15 @@ internal object ComponentImportParser {
         "quantity",
     )
 
-    fun parseJlcText(rawInput: String): ComponentImportCandidate = JlcImportParser.parseText(rawInput)
+    fun parseJlcText(rawInput: String): ComponentImportCandidate {
+        val trimmed = rawInput.trim()
+        val isQrPayload = Regex("(?i)(?:^|[,{}])\\s*pc\\s*:").containsMatchIn(trimmed)
+        return if (isQrPayload || LcscPublicCatalog.normalizeSku(trimmed) != null) {
+            JlcImportParser.parseQr(trimmed)
+        } else {
+            JlcImportParser.parseText(trimmed)
+        }
+    }
 
     fun parseScannedQr(rawInput: String): ComponentImportCandidate {
         return ComponentLabelCodec.parseScannedPayload(rawInput)

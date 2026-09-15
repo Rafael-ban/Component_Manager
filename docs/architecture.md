@@ -13,6 +13,15 @@
 
 ## Android Client
 
+Both native clients expose a Settings feedback surface. Reports are authored
+locally; diagnostic inclusion is opt-in and editable. A bounded process-local
+event log accepts fixed event types and numeric fields, never raw barcode
+payloads, credentials, inventory or arbitrary exception text. Reports can be
+copied/exported; the system browser opens a fixed GitHub new-issue URL for login
+and final submission. Long bodies use an explicit copy/paste path rather than
+silent truncation. No GitHub token, OAuth secret or feedback server is required.
+See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
+
 - Built with Jetpack Compose and Material 3.
 - Current implementation is a stable-mode local-first client backed by
   on-device SQLite and shared preferences.

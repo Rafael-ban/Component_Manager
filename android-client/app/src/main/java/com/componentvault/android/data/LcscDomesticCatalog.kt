@@ -64,6 +64,7 @@ internal object LcscDomesticCatalog {
             connection.setRequestProperty("Accept", "text/html,application/xhtml+xml")
             connection.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9")
             val status = connection.responseCode
+            AppDiagnostics.record("lookup_domestic", "http" to status)
             if (status !in 200..299) throw IOException("HTTP $status")
             return connection.inputStream.use { input ->
                 val output = ByteArrayOutputStream()

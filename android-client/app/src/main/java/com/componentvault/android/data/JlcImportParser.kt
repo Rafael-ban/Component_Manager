@@ -56,7 +56,7 @@ internal object JlcImportParser {
 
         val explicitSku = values["pc"].orEmpty()
         val sku = if (explicitSku.isNotBlank()) {
-            LcscPublicCatalog.normalizeSku(explicitSku) ?: explicitSku
+            LcscPublicCatalog.normalizeSku(explicitSku).orEmpty()
         } else {
             // Accept a bare SKU or a URL containing one unambiguous SKU; never infer
             // a C-number from the unrelated numeric product ID of a domestic URL.

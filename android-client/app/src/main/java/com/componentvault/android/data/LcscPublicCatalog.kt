@@ -110,8 +110,10 @@ internal object LcscPublicCatalog {
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("User-Agent", "ComponentVault-Android/0.3")
             connection.setRequestProperty("Accept", "text/html")
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                throw IOException("HTTP ${connection.responseCode}")
+            val status = connection.responseCode
+            AppDiagnostics.record("lookup_international", "http" to status)
+            if (status != HttpURLConnection.HTTP_OK) {
+                throw IOException("HTTP $status")
             }
             val maxBytes = 2 * 1024 * 1024
             val body = connection.inputStream.use { input ->
@@ -151,9 +153,11 @@ internal class LcscPublicLookup(
         val metadata = try {
             LcscPublicCatalog.parsePage(normalized, fetch(requireNotNull(LcscPublicCatalog.productUrl(normalized))))
         } catch (error: IOException) {
+            AppDiagnostics.record("lookup_international", "success" to false, "type" to error.javaClass)
             remember(normalized, Entry(timestamp, null))
             throw error
         }
+        AppDiagnostics.record("lookup_international", "success" to true)
         remember(normalized, Entry(timestamp, metadata))
         return metadata
     }
@@ -177,7 +181,9 @@ internal class LcscCombinedLookup(
                 normalized,
                 LcscDomesticCatalog.parseSearchPage(domesticFetch(normalized)),
             )?.metadata?.copy(matchedBy = "sku", confidence = "exact")
-        }.getOrNull()
+        }.onSuccess { AppDiagnostics.record("lookup_domestic", "success" to (it != null)) }
+            .onFailure { AppDiagnostics.record("lookup_domestic", "success" to false, "type" to it.javaClass) }
+            .getOrNull()
         return domestic ?: international.lookup(normalized)
     }
 }

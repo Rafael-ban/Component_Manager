@@ -412,5 +412,27 @@
     <string name="backup_counts">将新增 %1$d 个元器件、%2$d 个库位；跳过 %3$d 个已有 ID/SKU。</string>
     <string name="backup_merge_notice">恢复采用新增记录合并，不覆盖现有数据。</string>
     <string name="backup_confirm">确认恢复</string>
+    <string name="scanner_decoded_no_part">已解码二维码，但未找到可用料号。请对准料号二维码后重试。</string>
+    <string name="scanner_multiple_title">选择识别到的料号</string>
+    <string name="scanner_rescan">重新扫描</string>
+    <string name="feedback_title">问题反馈</string>
+    <string name="feedback_section_supporting">生成脱敏报告、导出文件，或打开预填的公开 GitHub Issue。</string>
+    <string name="feedback_public_notice">GitHub Issue 是公开内容。应用不会自动收集二维码、订单号、URL 或用户文件。</string>
+    <string name="feedback_issue_title">标题</string>
+    <string name="feedback_reproduction">复现描述</string>
+    <string name="feedback_attach_diagnostics">附带脱敏诊断（默认不附带）</string>
+    <string name="feedback_diagnostics_preview">可编辑诊断预览</string>
+    <string name="feedback_attach_device">附带应用版本、OS 与设备型号</string>
+    <string name="feedback_copy">复制完整报告</string>
+    <string name="feedback_export">导出 TXT</string>
+    <string name="feedback_open_github">前往 GitHub 提交</string>
+    <string name="feedback_clear">清除诊断</string>
+    <string name="feedback_copied">完整报告已复制。</string>
+    <string name="feedback_exported">报告已导出。</string>
+    <string name="feedback_export_failed">报告导出失败。</string>
+    <string name="feedback_cleared">本次进程诊断已清除。</string>
+    <string name="feedback_url_too_long">报告超过浏览器 URL 限制。已复制完整报告并打开不含正文的 GitHub 页面，请在页面中粘贴报告。</string>
+    <string name="feedback_browser_failed">无法打开浏览器，完整报告已复制。</string>
+    <string name="feedback_device_preview">可编辑的应用与设备信息</string>
 </resources>
 

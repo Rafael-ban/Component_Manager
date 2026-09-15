@@ -320,6 +320,27 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="12">
+                    <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="反馈与诊断" />
+                    <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Title="公开内容" Message="GitHub Issue 是公开内容。提交前请检查并删除不希望公开的信息；应用不会保存 GitHub 凭据或自动提交。" />
+                    <TextBox x:Name="FeedbackTitleBox" Header="标题" PlaceholderText="简要描述问题" />
+                    <TextBox x:Name="FeedbackReproductionBox" Header="复现步骤" AcceptsReturn="True" MinHeight="88" TextWrapping="Wrap" />
+                    <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <TextBox x:Name="FeedbackExpectedBox" Header="期待结果" AcceptsReturn="True" MinHeight="88" TextWrapping="Wrap" />
+                        <TextBox x:Name="FeedbackActualBox" Grid.Column="1" Header="实际结果" AcceptsReturn="True" MinHeight="88" TextWrapping="Wrap" />
+                    </Grid>
+                    <ToggleSwitch x:Name="FeedbackDiagnosticsToggle" Header="附加应用诊断" OffContent="默认关闭" OnContent="已附加" Toggled="OnFeedbackDiagnosticsToggled" />
+                    <TextBox x:Name="FeedbackDiagnosticsPreviewBox" Header="诊断预览（可编辑或删除）" AcceptsReturn="True" MinHeight="120" MaxHeight="280" TextWrapping="NoWrap" IsEnabled="False" />
+                    <TextBlock x:Name="FeedbackStatusText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Click="OnCopyFeedbackClicked" Content="复制完整报告" />
+                        <Button Click="OnExportFeedbackClicked" Content="导出 TXT" />
+                        <Button Click="OnOpenFeedbackClicked" Content="前往 GitHub 提交" Style="{StaticResource AccentButtonStyle}" />
+                        <Button Click="OnClearDiagnosticsClicked" Content="清除诊断" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
             <Border
                 Style="{StaticResource CardBorderStyle}">
                 <StackPanel

@@ -1052,6 +1052,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
                 }
             }
         }
+
+        SettingsSection.Feedback -> {
+            item { IssueFeedbackCard() }
+        }
     }
 }
 

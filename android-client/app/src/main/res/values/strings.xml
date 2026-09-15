@@ -430,4 +430,26 @@
     <string name="backup_counts">Add %1$d components and %2$d locations; skip %3$d existing IDs/SKUs.</string>
     <string name="backup_merge_notice">Restore adds new records only and does not overwrite existing data.</string>
     <string name="backup_confirm">Confirm restore</string>
+    <string name="scanner_decoded_no_part">A QR code was decoded, but no usable part number was found. Aim at the part-number QR code and try again.</string>
+    <string name="scanner_multiple_title">Choose a detected part number</string>
+    <string name="scanner_rescan">Scan again</string>
+    <string name="feedback_title">Report a problem</string>
+    <string name="feedback_section_supporting">Create a redacted report, export it, or open a prefilled public GitHub issue.</string>
+    <string name="feedback_public_notice">GitHub Issues are public. The app does not automatically collect QR contents, order numbers, URLs, or user files.</string>
+    <string name="feedback_issue_title">Title</string>
+    <string name="feedback_reproduction">Steps to reproduce</string>
+    <string name="feedback_attach_diagnostics">Attach redacted diagnostics (off by default)</string>
+    <string name="feedback_diagnostics_preview">Editable diagnostics preview</string>
+    <string name="feedback_attach_device">Attach app version, OS, and device model</string>
+    <string name="feedback_copy">Copy full report</string>
+    <string name="feedback_export">Export TXT</string>
+    <string name="feedback_open_github">Open GitHub issue</string>
+    <string name="feedback_clear">Clear diagnostics</string>
+    <string name="feedback_copied">Full report copied.</string>
+    <string name="feedback_exported">Report exported.</string>
+    <string name="feedback_export_failed">Report export failed.</string>
+    <string name="feedback_cleared">Diagnostics for this app session cleared.</string>
+    <string name="feedback_url_too_long">The report exceeds the browser URL limit. The full report was copied and GitHub was opened without the body. Paste the report there.</string>
+    <string name="feedback_browser_failed">Could not open a browser. The full report has been copied.</string>
+    <string name="feedback_device_preview">Editable app and device information</string>
 </resources>

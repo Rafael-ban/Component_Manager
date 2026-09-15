@@ -20,6 +20,7 @@
   <ItemGroup>
     <Compile Include="..\ComponentVault.WinUI\Localization\CategoryDisplay.cs" Link="Localization\CategoryDisplay.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\InventoryStore.cs" Link="Services\InventoryStore.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Services\AppDiagnostics.cs" Link="Services\AppDiagnostics.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\InventoryWorkbookBackup.cs" Link="Services\InventoryWorkbookBackup.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\SimpleXlsxImages.cs" Link="Services\SimpleXlsxImages.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\PrivateProductImageStore.cs" Link="Services\PrivateProductImageStore.cs" />

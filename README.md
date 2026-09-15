@@ -50,6 +50,10 @@ connects to it over HTTP.
   About displays author `Rafael-Ikaros`, installed version, project/license
   links, and GitHub Release update checks. See the
   [native UI layout contract and references](docs/native-ui-redesign.md).
+- Native Settings includes issue feedback with editable, opt-in diagnostic
+  reports, text export and GitHub browser sign-in for final submission. Scan
+  parsing and catalog network failures are diagnosed separately. See
+  [feedback and scan diagnostics](docs/feedback-and-scan-diagnostics.md).
 
 ## Sync reliability and direct LCSC lookup
 

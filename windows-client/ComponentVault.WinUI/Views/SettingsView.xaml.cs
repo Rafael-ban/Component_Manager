@@ -3,9 +3,12 @@ using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.ViewModels;
 using ComponentVault.WinUI.Services.Updates;
+using ComponentVault.WinUI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 
@@ -147,6 +150,43 @@ public sealed partial class SettingsView : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         var result = viewModel.ImportInventoryWorkbook(file.Path);
         await ShowMessageAsync(result.IsSuccess ? "迁入完成" : "迁入失败", result.Message);
+    }
+
+    private void OnFeedbackDiagnosticsToggled(object sender, RoutedEventArgs e)
+    {
+        FeedbackDiagnosticsPreviewBox.IsEnabled=FeedbackDiagnosticsToggle.IsOn;
+        if(FeedbackDiagnosticsToggle.IsOn&&string.IsNullOrWhiteSpace(FeedbackDiagnosticsPreviewBox.Text))FeedbackDiagnosticsPreviewBox.Text=
+            $"version={CurrentVersionText.Text}\nos={RuntimeInformation.OSDescription}\narchitecture={RuntimeInformation.OSArchitecture}\n{AppDiagnostics.Snapshot()}".TrimEnd();
+    }
+
+    private FeedbackReport CurrentFeedbackReport()=>FeedbackReportBuilder.Build(new FeedbackInput(
+        FeedbackTitleBox.Text,FeedbackReproductionBox.Text,FeedbackExpectedBox.Text,FeedbackActualBox.Text,
+        FeedbackDiagnosticsToggle.IsOn,FeedbackDiagnosticsPreviewBox.Text,CurrentVersionText.Text,
+        RuntimeInformation.OSDescription,RuntimeInformation.OSArchitecture.ToString()));
+
+    private void OnCopyFeedbackClicked(object sender,RoutedEventArgs e)
+    {
+        try{var report=CurrentFeedbackReport();var package=new DataPackage();package.SetText(report.FullText);Clipboard.SetContent(package);FeedbackStatusText.Text="完整报告已复制。";}
+        catch(Exception exception){FeedbackStatusText.Text=$"复制失败（{exception.GetType().Name}）。";}
+    }
+
+    private async void OnExportFeedbackClicked(object sender,RoutedEventArgs e)
+    {
+        try{var report=CurrentFeedbackReport();var picker=new FileSavePicker{SuggestedFileName=$"component-vault-feedback-{DateTime.Now:yyyyMMdd-HHmmss}"};picker.FileTypeChoices.Add("文本报告",new List<string>{".txt"});
+        InitializeWithWindow.Initialize(picker,WindowNative.GetWindowHandle(((App)Application.Current).Window));var file=await picker.PickSaveFileAsync();if(file is null)return;
+        await Windows.Storage.FileIO.WriteTextAsync(file,report.FullText);FeedbackStatusText.Text="完整报告已导出。";}
+        catch(Exception exception){FeedbackStatusText.Text=$"导出失败（{exception.GetType().Name}）。";}
+    }
+
+    private async void OnOpenFeedbackClicked(object sender,RoutedEventArgs e)
+    {
+        try{var report=CurrentFeedbackReport();FeedbackStatusText.Text=report.Notice;if(!await Windows.System.Launcher.LaunchUriAsync(report.GitHubUri))FeedbackStatusText.Text="无法打开默认浏览器。";}
+        catch(Exception exception){FeedbackStatusText.Text=$"打开 GitHub 失败（{exception.GetType().Name}）。";}
+    }
+
+    private void OnClearDiagnosticsClicked(object sender,RoutedEventArgs e)
+    {
+        AppDiagnostics.Clear();FeedbackDiagnosticsPreviewBox.Text=string.Empty;FeedbackStatusText.Text="本进程应用诊断已清除。";
     }
 
     private async Task ShowMessageAsync(string title, string message)

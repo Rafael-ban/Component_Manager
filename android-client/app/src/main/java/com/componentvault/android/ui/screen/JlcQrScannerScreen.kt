@@ -46,13 +46,16 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.componentvault.android.R
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -62,8 +65,12 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.ZoomSuggestionOptions
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.componentvault.android.data.AppDiagnostics
+import com.componentvault.android.data.BarcodeSelection
+import com.componentvault.android.data.ScannedBarcodeSelector
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 internal enum class JlcQrScannerUiState {
@@ -129,6 +136,11 @@ internal fun JlcQrScannerSurface(
     var scannerState by rememberSaveable { mutableStateOf(JlcQrScannerUiState.RequestingPermission) }
     var scannerError by rememberSaveable { mutableStateOf<String?>(null) }
     var sessionId by rememberSaveable { mutableIntStateOf(0) }
+    var decodedHint by remember { mutableStateOf<String?>(null) }
+    var pendingCandidates by remember { mutableStateOf<List<BarcodeSelection.Candidate>>(emptyList()) }
+    val decodedNoPartText = stringResource(R.string.scanner_decoded_no_part)
+    val multipleTitle = stringResource(R.string.scanner_multiple_title)
+    val rescanText = stringResource(R.string.scanner_rescan)
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -166,7 +178,7 @@ internal fun JlcQrScannerSurface(
         permissionDeniedTitle = permissionDeniedTitle,
         permissionDeniedDescription = permissionDeniedDescription,
         startingMessage = startingMessage,
-        scanningHint = scanningHint,
+        scanningHint = decodedHint ?: scanningHint,
         failedTitle = failedTitle,
         failedDescription = failedDescription,
         returnActionLabel = returnActionLabel,
@@ -198,11 +210,39 @@ internal fun JlcQrScannerSurface(
                         scannerError = throwable.message
                         scannerState = JlcQrScannerUiState.Failed
                     },
-                    onBarcodeScanned = onScanResult,
+                    onBarcodesDecoded = { values ->
+                        when (val selection = ScannedBarcodeSelector.importCandidates(values)) {
+                            BarcodeSelection.NoMatch -> {
+                                if (decodedHint != decodedNoPartText) {
+                                    decodedHint = decodedNoPartText
+                                    AppDiagnostics.record("scanner_choice", "decoded" to values.size, "valid" to 0)
+                                }
+                                false
+                            }
+                            is BarcodeSelection.Single -> {
+                                AppDiagnostics.record("scanner_choice", "decoded" to values.size, "valid" to 1)
+                                onScanResult(selection.rawValue); true
+                            }
+                            is BarcodeSelection.Multiple -> {
+                                pendingCandidates = selection.candidates
+                                AppDiagnostics.record("scanner_choice", "decoded" to values.size, "valid" to selection.candidates.size)
+                                true
+                            }
+                        }
+                    },
                 )
             }
         },
     )
+    if (pendingCandidates.isNotEmpty()) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingCandidates = emptyList(); decodedHint = decodedNoPartText; sessionId += 1 },
+            title = { Text(multipleTitle) },
+            text = { Column { pendingCandidates.forEach { candidate -> TextButton(onClick = { pendingCandidates = emptyList(); onScanResult(candidate.rawValue) }) { Text(candidate.sku + candidate.quantity?.let { " · ×$it" }.orEmpty()) } } } },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { pendingCandidates = emptyList(); sessionId += 1 }) { Text(rescanText) } },
+        )
+    }
 }
 
 @Composable
@@ -411,7 +451,7 @@ private fun JlcQrCameraPreview(
     scannerMode: JlcQrScannerMode,
     onScannerReady: () -> Unit,
     onScannerError: (Throwable) -> Unit,
-    onBarcodeScanned: (String) -> Unit,
+    onBarcodesDecoded: (List<String>) -> Boolean,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -424,12 +464,17 @@ private fun JlcQrCameraPreview(
     val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val scannerConfig = remember(scannerMode) { scannerMode.toConfig() }
+    val currentOnDecoded by rememberUpdatedState(onBarcodesDecoded)
+    val currentOnError by rememberUpdatedState(onScannerError)
 
     DisposableEffect(context, lifecycleOwner, previewView, scannerMode) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         val cameraRef = AtomicReference<Camera?>(null)
         val isProcessingFrame = AtomicBoolean(false)
         val hasCompleted = AtomicBoolean(false)
+        val consecutiveFailures = AtomicInteger(0)
+        val dimensionsLogged = AtomicBoolean(false)
+        AppDiagnostics.record("scanner_session", "mode" to scannerMode)
 
         val scannerOptionsBuilder = BarcodeScannerOptions.Builder()
             .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
@@ -470,7 +515,10 @@ private fun JlcQrCameraPreview(
                                 mainExecutor = mainExecutor,
                                 isProcessingFrame = isProcessingFrame,
                                 hasCompleted = hasCompleted,
-                                onBarcodeScanned = onBarcodeScanned,
+                                onBarcodesDecoded = currentOnDecoded,
+                                consecutiveFailures = consecutiveFailures,
+                                dimensionsLogged = dimensionsLogged,
+                                onScannerError = currentOnError,
                             )
                         }
                     }
@@ -542,7 +590,10 @@ private fun analyzeQrFrame(
     mainExecutor: java.util.concurrent.Executor,
     isProcessingFrame: AtomicBoolean,
     hasCompleted: AtomicBoolean,
-    onBarcodeScanned: (String) -> Unit,
+    onBarcodesDecoded: (List<String>) -> Boolean,
+    consecutiveFailures: AtomicInteger,
+    dimensionsLogged: AtomicBoolean,
+    onScannerError: (Throwable) -> Unit,
 ) {
     if (hasCompleted.get() || !isProcessingFrame.compareAndSet(false, true)) {
         imageProxy.close()
@@ -557,14 +608,17 @@ private fun analyzeQrFrame(
     }
 
     val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+    if (dimensionsLogged.compareAndSet(false, true)) AppDiagnostics.record("scanner_decode", "width" to imageProxy.width, "height" to imageProxy.height, "rotation" to imageProxy.imageInfo.rotationDegrees)
     barcodeScanner.process(image)
         .addOnSuccessListener(mainExecutor) { barcodes ->
-            val rawValue = barcodes.firstNotNullOfOrNull { barcode ->
-                barcode.rawValue?.takeIf { it.isNotBlank() }
-            }
-            if (rawValue != null && hasCompleted.compareAndSet(false, true)) {
-                onBarcodeScanned(rawValue)
-            }
+            consecutiveFailures.set(0)
+            val values = barcodes.mapNotNull { it.rawValue?.takeIf(String::isNotBlank) }
+            if (values.isNotEmpty() && onBarcodesDecoded(values)) hasCompleted.compareAndSet(false, true)
+        }
+        .addOnFailureListener(mainExecutor) { error ->
+            val count=consecutiveFailures.incrementAndGet()
+            if(count==1||count==3)AppDiagnostics.record("scanner_failure","count" to count,"type" to error.javaClass)
+            if(count==3)onScannerError(error)
         }
         .addOnCompleteListener(mainExecutor) {
             isProcessingFrame.set(false)

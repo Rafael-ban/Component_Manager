@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using ComponentVault.WinUI.Services;
 
 namespace ComponentVault.WinUI.Services.Catalog;
 
@@ -244,7 +245,12 @@ public sealed class LcscPublicLookup
     public async Task<IReadOnlyList<LcscProductMetadata>> SearchChinaAsync(string keyword, CancellationToken cancellationToken = default)
     {
         var uri = LcscPublicCatalog.ChinaSearchUri(keyword) ?? throw new ArgumentException("Search keyword is empty.", nameof(keyword));
-        var results = LcscPublicCatalog.ParseChinaSearchPage(await GetPageAsync(uri, cancellationToken));
+        AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Started);
+        IReadOnlyList<LcscProductMetadata> results;
+        try { results=LcscPublicCatalog.ParseChinaSearchPage(await GetPageAsync(uri,DiagnosticEvent.CatalogDomestic,cancellationToken)); }
+        catch(LcscDomesticBlockedException exception){AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Blocked,exceptionType:exception.GetType());throw;}
+        catch(InvalidDataException exception){AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Parser,exceptionType:exception.GetType());throw;}
+        AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Success);
         foreach (var item in results) LcscPublicCatalog.CacheImage(item.Sku, item.ImageUrl);
         return results;
     }
@@ -265,7 +271,11 @@ public sealed class LcscPublicLookup
         }
         var uri = LcscPublicCatalog.ProductUri(normalized)!;
         if (ExactCache.TryGetValue(normalized, out var cached) && DateTimeOffset.UtcNow - cached.At < (cached.Value is null ? TimeSpan.FromSeconds(30) : TimeSpan.FromDays(7))) return cached.Value;
-        var metadata = LcscPublicCatalog.ParsePage(normalized, await GetPageAsync(uri, cancellationToken));
+        AppDiagnostics.Record(DiagnosticEvent.CatalogInternational,DiagnosticOutcome.Started);
+        LcscProductMetadata? metadata;
+        try { metadata=LcscPublicCatalog.ParsePage(normalized,await GetPageAsync(uri,DiagnosticEvent.CatalogInternational,cancellationToken)); }
+        catch(InvalidDataException exception){AppDiagnostics.Record(DiagnosticEvent.CatalogInternational,DiagnosticOutcome.Parser,exceptionType:exception.GetType());throw;}
+        AppDiagnostics.Record(DiagnosticEvent.CatalogInternational,metadata is null?DiagnosticOutcome.Parser:DiagnosticOutcome.Success);
         if (metadata is null && domesticFailure is LcscDomesticBlockedException) throw domesticFailure;
         LcscPublicCatalog.CacheImage(normalized, metadata?.ImageUrl);
         ExactCache[normalized] = (DateTimeOffset.UtcNow, metadata);
@@ -273,12 +283,17 @@ public sealed class LcscPublicLookup
         return metadata;
     }
 
-    private async Task<string> GetPageAsync(Uri uri, CancellationToken cancellationToken)
+    private async Task<string> GetPageAsync(Uri uri,DiagnosticEvent activity,CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(8));
-        using var response = await _client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-        response.EnsureSuccessStatusCode();
+        HttpResponseMessage response;
+        try { response=await _client.GetAsync(uri,HttpCompletionOption.ResponseHeadersRead,timeout.Token); }
+        catch(TaskCanceledException exception){AppDiagnostics.Record(activity,DiagnosticOutcome.Timeout,exceptionType:exception.GetType());throw;}
+        catch(HttpRequestException exception) when(exception.InnerException is System.Net.Sockets.SocketException){AppDiagnostics.Record(activity,DiagnosticOutcome.Dns,exceptionType:exception.GetType());throw;}
+        catch(HttpRequestException exception) when(exception.InnerException is System.Security.Authentication.AuthenticationException){AppDiagnostics.Record(activity,DiagnosticOutcome.Tls,exceptionType:exception.GetType());throw;}
+        catch(HttpRequestException exception){AppDiagnostics.Record(activity,DiagnosticOutcome.Failed,exceptionType:exception.GetType());throw;}
+        using(response){if(!response.IsSuccessStatusCode){AppDiagnostics.Record(activity,DiagnosticOutcome.Http,(int)response.StatusCode);response.EnsureSuccessStatusCode();}
         if (response.Content.Headers.ContentLength is > MaxPageBytes) throw new InvalidDataException("商品页面超过 4 MiB 限制。");
         using var body = await response.Content.ReadAsStreamAsync(timeout.Token);
         using var output = new MemoryStream();
@@ -289,6 +304,6 @@ public sealed class LcscPublicLookup
             if (output.Length + count > MaxPageBytes) throw new InvalidDataException("商品页面超过 4 MiB 限制。");
             output.Write(buffer, 0, count);
         }
-        return Encoding.UTF8.GetString(output.ToArray());
+        return Encoding.UTF8.GetString(output.ToArray());}
     }
 }

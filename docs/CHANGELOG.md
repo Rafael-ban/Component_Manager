@@ -5,6 +5,20 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.4.2] - 2026-09-15
+
+<!-- Add unreleased notes below this line. -->
+
+- Unified JLC text/QR parsing and improved Android multi-code selection so
+  decoded packaging payloads are not rejected by the text-only entry point.
+- Added Android and Windows feedback forms with editable, opt-in diagnostic
+  reports, copy/text export and GitHub browser login for final Issue submission.
+- Added bounded process-local scan/catalog diagnostic events without raw
+  packaging payloads, order data, credentials or arbitrary exception messages.
+- Bluetooth printer integration remains deferred while scan reliability and
+  issue reporting are addressed.
+
+
 ## [0.4.1] - 2026-09-15
 
 <!-- Add unreleased notes below this line. -->

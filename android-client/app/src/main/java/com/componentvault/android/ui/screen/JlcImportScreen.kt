@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.ComponentImportParser
+import com.componentvault.android.data.AppDiagnostics
 import com.componentvault.android.data.InventoryRepository
 import com.componentvault.android.data.LcscDomesticBlockedException
 import com.componentvault.android.data.LcscDomesticCatalog
@@ -289,6 +290,7 @@ internal fun JlcImportSurface(
                     runCatching { ComponentImportParser.parseScannedQr(result) }
                         .onSuccess(::setBaseCandidate)
                         .onFailure {
+                            AppDiagnostics.record("scanner_choice", "valid" to false, "type" to it.javaClass)
                             rawInput = result
                             feedbackMessage = it.message ?: strings.importer.scannerFailedDescription
                         }
@@ -437,6 +439,7 @@ internal fun JlcImportSurface(
                                     )
                                 }
                             }.onSuccess { results ->
+                                AppDiagnostics.record("lookup_domestic", "success" to true, "count" to results.size)
                                 if (keyword != partNumberInput.trim()) return@onSuccess
                                 domesticSearchInProgress = false
                                 val normalized = LcscPublicCatalog.normalizeSku(keyword)
@@ -455,6 +458,7 @@ internal fun JlcImportSurface(
                                 }
                             }.onFailure { error ->
                                 if (error is CancellationException || keyword != partNumberInput.trim()) return@onFailure
+                                AppDiagnostics.record("lookup_domestic", "success" to false, "type" to error.javaClass)
                                 domesticSearchInProgress = false
                                 domesticSearchIsError = true
                                 domesticSearchMessage = if (error is LcscDomesticBlockedException) {
@@ -548,8 +552,8 @@ internal fun JlcImportSurface(
                 OutlinedButton(
                     onClick = {
                         runCatching { ComponentImportParser.parseJlcText(rawInput) }
-                            .onSuccess(::setBaseCandidate)
-                            .onFailure { feedbackMessage = it.message ?: strings.importer.parseFirstError }
+                            .onSuccess { candidate -> AppDiagnostics.record("scanner_choice", "valid" to true);setBaseCandidate(candidate) }
+                            .onFailure { AppDiagnostics.record("scanner_choice", "valid" to false, "type" to it.javaClass);feedbackMessage = it.message ?: strings.importer.parseFirstError }
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
