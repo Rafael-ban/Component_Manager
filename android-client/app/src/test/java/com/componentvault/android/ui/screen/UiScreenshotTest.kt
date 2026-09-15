@@ -32,7 +32,6 @@ class UiScreenshotTest {
     private val context: Application get() = RuntimeEnvironment.getApplication()
 
     @Test
-    @Config(qualifiers = "zh-rCN-w360dp-h640dp-normal-port-xhdpi")
     fun captureImportWorkflowChooserLight() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = false) {
@@ -41,7 +40,7 @@ class UiScreenshotTest {
         }
 
         saveScreenshot("import-workflow-chooser-light.png") {
-            captureView { compose.activity.window.decorView }
+            captureView(::latestDialogDecorView)
         }
     }
 

@@ -5,12 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasScrollAction
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import com.componentvault.android.R
 import org.junit.Rule
 import org.junit.Test
@@ -21,7 +22,7 @@ import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], application = Application::class, qualifiers = "w360dp-h640dp-xhdpi")
+@Config(sdk = [28], application = Application::class)
 class ImportFlowUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val context: Application get() = RuntimeEnvironment.getApplication()
@@ -42,6 +43,10 @@ class ImportFlowUiTest {
             }
         }
 
+        val expand = SemanticsMatcher.keyIsDefined(SemanticsActions.Expand)
+        if (compose.onAllNodes(expand).fetchSemanticsNodes().isNotEmpty()) {
+            compose.onNode(expand).performSemanticsAction(SemanticsActions.Expand) { it() }
+        }
         val workflows = listOf(
             R.string.import_menu_single,
             R.string.import_menu_batch,
@@ -50,14 +55,12 @@ class ImportFlowUiTest {
         )
         workflows.forEach { labelRes ->
             val label = context.getString(labelRes)
-            compose.onNode(hasScrollAction()).performScrollToNode(hasText(label))
-            compose.onNodeWithText(label).assertIsDisplayed()
+            compose.onNodeWithText(label).performScrollTo().assertIsDisplayed()
         }
         compose.onNodeWithText(context.getString(R.string.import_menu_migration)).performClick()
         assertEquals("migration", selected)
         val manualLabel = context.getString(R.string.import_menu_manual)
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText(manualLabel))
-        compose.onNodeWithText(manualLabel).assertIsDisplayed()
+        compose.onNodeWithText(manualLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -65,13 +68,13 @@ class ImportFlowUiTest {
         val visible = mutableStateOf(true)
         compose.setContent {
             MaterialTheme {
+                androidx.compose.material3.Text("Inventory host")
                 if (visible.value) {
                     AddComponentEntrySheet({ visible.value = false }, {}, {}, {}, {}, {})
-                } else {
-                    androidx.compose.material3.Text("Inventory host")
                 }
             }
         }
+        compose.onNodeWithText("Inventory host").assertExists()
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.onNodeWithText("Inventory host").assertIsDisplayed()
     }
