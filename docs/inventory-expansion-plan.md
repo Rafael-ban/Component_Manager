@@ -63,7 +63,9 @@ LCSC_android_erp 迁移使用其原始 camelCase 表头、epoch millis 时间，
 - [代码已完成] 多库位、转移、BOM 分配预览及协议 1；核对并修复上传期间本地修改的基线保护。
 - [代码已完成] 双端 Excel 备份、迁移、嵌入图片持久化与再导出；恢复默认为新记录合并。
 - [本地验证] 服务端 51 项相关测试通过；Windows CoreTests 59 项通过。Android 未进行本地 Gradle 构建，按用户要求交由 CI。
-- [待验证] GitHub CI 和 Release；尚未进行真机操作验证。
+- [CI 已通过] 提交 92e0b83 的 [CI 34960705646](https://github.com/Rafael-ban/Component_Manager/actions/runs/34960705646)：version-check、server-test、admin-web-build、android-check、windows-build 全部成功。覆盖 Android assembleDebug 与定向单测、Windows CoreTests / MSIX / portable 发布构建。
+- [发布准备] 版本文件同步为 0.4.0；Release 由主分支推送后自动生成，最终状态以 GitHub Release 为准。
+- [验证边界] 未使用真实库存进行恢复，没有手机相机、设备安装或原生界面真机验收；汉印 M1 蓝牙打印依用户要求留到最后。
 
 公开商城可能返回验证页，普通访问失败时给出浏览器入口，不伪造数据，不复制验证 Cookie 算法。
 
