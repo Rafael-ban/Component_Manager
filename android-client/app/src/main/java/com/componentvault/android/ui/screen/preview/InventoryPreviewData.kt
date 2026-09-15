@@ -28,6 +28,20 @@ import com.componentvault.android.model.SyncConfiguration
 import com.componentvault.android.model.toLabelSeed
 
 internal object InventoryPreviewData {
+    val compactLongNameCard = InventoryListItemUiState(
+        id = "cmp-msap3032",
+        name = "MSKSEMI MSAP3032KTR-G1 Step-down Power Converter",
+        sku = "C22391155",
+        category = "Power Management",
+        packageName = "SOT-23-6",
+        location = "A-12-08",
+        quantity = 14,
+        minStock = 6,
+        isLowStock = false,
+        updatedAt = "2026-09-15T08:36:00Z",
+        issuedQuantity = 1,
+    )
+
     private const val PreviewDeviceId = "android-preview-device"
     private const val DefaultServerUrl = "https://lab.example.net:8787"
     private const val DefaultLastSyncedAt = "2026-05-08T10:18:00Z"

@@ -20,8 +20,8 @@
   <data name="MainWindowMovementsItem.Content" xml:space="preserve"><value>出入库</value></data>
   <data name="MainWindowOverviewItem.Content" xml:space="preserve"><value>概览</value></data>
   <data name="MainWindowSettingsItem.Content" xml:space="preserve"><value>设置</value></data>
-  <data name="ComponentsViewPageTitle.Text" xml:space="preserve"><value>库存工作台</value></data>
-  <data name="ComponentsViewPageSubtitle.Text" xml:space="preserve"><value>搜索、筛选和连续列表优先；选中任一元器件后，在右侧查看库存、仓位和最近变动摘要。</value></data>
+  <data name="ComponentsViewPageTitle.Text" xml:space="preserve"><value>库存</value></data>
+  <data name="ComponentsViewPageSubtitle.Text" xml:space="preserve"><value>查找元器件、检查库存，并从详情中编辑或删除。</value></data>
   <data name="ComponentsViewAddButton.Label" xml:space="preserve"><value>新增元器件</value></data>
   <data name="ComponentsViewSearchBox.PlaceholderText" xml:space="preserve"><value>搜索 SKU、名称、分类或仓位</value></data>
   <data name="ComponentsViewLowStockToggle.Header" xml:space="preserve"><value>低库存</value></data>
@@ -30,21 +30,21 @@
   <data name="ComponentsViewSortCombo.Header" xml:space="preserve"><value>排序</value></data>
   <data name="ComponentsViewSkuCaption.Text" xml:space="preserve"><value>SKU</value></data>
   <data name="DashboardViewPageTitle.Text" xml:space="preserve"><value>概览</value></data>
-  <data name="DashboardViewPageSubtitle.Text" xml:space="preserve"><value>这里只保留库存规模、风险和同步状态摘要，日常操作请回到库存与出入库工作台。</value></data>
-  <data name="DashboardOpenInventoryButton.Content" xml:space="preserve"><value>打开库存工作台</value></data>
+  <data name="DashboardViewPageSubtitle.Text" xml:space="preserve"><value>库存规模、风险和最近作业一目了然。</value></data>
+  <data name="DashboardOpenInventoryButton.Content" xml:space="preserve"><value>打开库存</value></data>
   <data name="DashboardOpenMovementsButton.Content" xml:space="preserve"><value>打开出入库台账</value></data>
-  <data name="DashboardOpenSettingsButton.Content" xml:space="preserve"><value>打开同步设置</value></data>
+  <data name="DashboardOpenSettingsButton.Content" xml:space="preserve"><value>同步设置</value></data>
   <data name="DashboardTipsTitle.Text" xml:space="preserve"><value>使用建议</value></data>
   <data name="DashboardTipsBody.Text" xml:space="preserve"><value>常规作业优先进入“库存”页面进行搜索、筛选和编辑；记录到货、领用或盘点差异时，进入“出入库”页面。</value></data>
-  <data name="MovementsViewPageTitle.Text" xml:space="preserve"><value>出入库台账</value></data>
-  <data name="MovementsViewPageSubtitle.Text" xml:space="preserve"><value>记录到货、领用和盘点调整；左侧保持连续历史，右侧提供选中记录的审计详情。</value></data>
+  <data name="MovementsViewPageTitle.Text" xml:space="preserve"><value>出入库</value></data>
+  <data name="MovementsViewPageSubtitle.Text" xml:space="preserve"><value>记录到货、领用与盘点调整，并查看完整库存流水。</value></data>
   <data name="MovementsRecordButton.Label" xml:space="preserve"><value>记录变动</value></data>
   <data name="MovementsRefreshButton.Label" xml:space="preserve"><value>刷新台账</value></data>
   <data name="SettingsViewPageTitle.Text" xml:space="preserve"><value>设置</value></data>
-  <data name="SettingsViewPageSubtitle.Text" xml:space="preserve"><value>配置服务器地址、共享令牌和同步策略；所有写入仍然会先落到本地，再按需同步。</value></data>
+  <data name="SettingsViewPageSubtitle.Text" xml:space="preserve"><value>管理同步连接、应用偏好与版本信息。</value></data>
   <data name="SettingsSaveButton.Label" xml:space="preserve"><value>保存设置</value></data>
   <data name="SettingsTestButton.Label" xml:space="preserve"><value>测试连接</value></data>
-  <data name="SettingsSyncButton.Label" xml:space="preserve"><value>立即同步</value></data>
+  <data name="SettingsSyncButton.Content" xml:space="preserve"><value>立即同步</value></data>
   <data name="SettingsServerUrlLabel.Text" xml:space="preserve"><value>服务器地址</value></data>
   <data name="SettingsApiTokenLabel.Text" xml:space="preserve"><value>API 令牌</value></data>
   <data name="SettingsServerUrlTextBox.PlaceholderText" xml:space="preserve"><value>例如 https://example.com:8787</value></data>

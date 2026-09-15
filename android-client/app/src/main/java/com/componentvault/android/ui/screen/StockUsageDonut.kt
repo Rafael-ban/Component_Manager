@@ -47,9 +47,9 @@ internal fun StockUsageDonut(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-            Canvas(modifier = Modifier.size(52.dp)) {
-                val strokeWidth = 7.dp.toPx()
+        Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+            Canvas(modifier = Modifier.size(44.dp)) {
+                val strokeWidth = 6.dp.toPx()
                 val inset = strokeWidth / 2
                 val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
                 if (summary.total == 0L) {

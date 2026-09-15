@@ -2,12 +2,12 @@
     x:Class="ComponentVault.WinUI.Controls.InventoryUsageRing"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid Width="108" Height="76" RowSpacing="2">
+    <Grid Width="104" Height="66" RowSpacing="0">
         <Grid.RowDefinitions>
-            <RowDefinition Height="54" />
+            <RowDefinition Height="48" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <Grid Width="54" Height="54" HorizontalAlignment="Center">
+        <Grid Width="48" Height="48" HorizontalAlignment="Center">
             <Ellipse Margin="4" Stroke="{ThemeResource ControlStrokeColorDefaultBrush}" StrokeThickness="5" />
             <Ellipse x:Name="FullUsedRing" Margin="4" Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="5" Visibility="Collapsed" />
             <Path x:Name="UsedArc" Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />

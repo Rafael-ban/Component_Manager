@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="ComponentVault.WinUI.Views.DashboardView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -8,232 +8,249 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     d:DataContext="{d:DesignInstance Type=design:DesignMainViewModel, IsDesignTimeCreatable=True}"
     mc:Ignorable="d">
-
     <ScrollViewer>
-        <StackPanel Padding="24" Spacing="20">
-            <StackPanel Spacing="6">
-                <TextBlock x:Uid="DashboardViewPageTitle" Style="{StaticResource PageTitleTextStyle}" Text="概览" />
-                <TextBlock
-                    x:Uid="DashboardViewPageSubtitle"
-                    Style="{StaticResource PageSubtitleTextStyle}"
-                    Text="这里只保留库存规模、风险和同步状态摘要，日常操作请回到库存与出入库工作台。" />
-            </StackPanel>
-
-            <Border Style="{StaticResource CardBorderStyle}">
-                <StackPanel Spacing="16">
-                    <Grid ColumnSpacing="16" RowSpacing="16">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource MetricCardStyle}">
-                            <StackPanel Spacing="4">
-                                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="元器件总数" />
-                                <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding Dashboard.ComponentCount}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource MetricCardStyle}">
-                            <StackPanel Spacing="4">
-                                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="库存总量" />
-                                <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding Dashboard.TotalUnits}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource MetricCardStyle}">
-                            <StackPanel Spacing="4">
-                                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="低库存预警" />
-                                <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding Dashboard.LowStockCount}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricCardStyle}">
-                            <StackPanel Spacing="4">
-                                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="变动记录" />
-                                <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding Dashboard.MovementCount}" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-
-                    <TextBlock
-                        Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                        Text="{Binding OverviewSyncSummary}"
-                        TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-
-            <Grid ColumnSpacing="16">
+        <StackPanel
+            Padding="24"
+            Spacing="16">
+            <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2*" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="Auto" />
                 </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0" Spacing="16">
-                    <Border Style="{StaticResource CardBorderStyle}">
-                        <StackPanel Spacing="12">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="低库存关注" />
-                                    <TextBlock
-                                        Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                        Text="{Binding OverviewLowStockSummary}"
-                                        TextWrapping="Wrap" />
-                                </StackPanel>
-
-                                <Button
-                                    x:Uid="DashboardOpenInventoryButton"
-                                    Grid.Column="1"
-                                    Click="OnOpenInventoryClicked"
-                                    Content="打开库存工作台" />
-                            </Grid>
-
-                            <ItemsControl ItemsSource="{Binding OverviewLowStockComponents}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="models:ComponentRecord">
-                                        <Border
-                                            Margin="0,0,0,8"
-                                            Padding="12"
-                                            Background="{StaticResource VaultPanelBrush}"
-                                            BorderBrush="{StaticResource VaultBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="12">
-                                            <Grid ColumnSpacing="12">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="2*" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <StackPanel>
-                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
-                                                    <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding Sku}" />
-                                                </StackPanel>
-
-                                                <TextBlock
-                                                    Grid.Column="1"
-                                                    VerticalAlignment="Center"
-                                                    Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                                    Text="{Binding Location}" />
-
-                                                <StackPanel Grid.Column="2" HorizontalAlignment="Right">
-                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Quantity}" />
-                                                    <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding Status}" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource CardBorderStyle}">
-                        <StackPanel Spacing="12">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="最近活动" />
-                                    <TextBlock
-                                        Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                        Text="{Binding OverviewRecentMovementSummary}"
-                                        TextWrapping="Wrap" />
-                                </StackPanel>
-
-                                <Button
-                                    x:Uid="DashboardOpenMovementsButton"
-                                    Grid.Column="1"
-                                    Click="OnOpenMovementsClicked"
-                                    Content="打开出入库台账" />
-                            </Grid>
-
-                            <ItemsControl ItemsSource="{Binding OverviewRecentMovements}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="models:StockMovementRecord">
-                                        <Border
-                                            Margin="0,0,0,8"
-                                            Padding="12"
-                                            Background="{StaticResource VaultPanelBrush}"
-                                            BorderBrush="{StaticResource VaultBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="12">
-                                            <Grid ColumnSpacing="12">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="2*" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <StackPanel>
-                                                    <TextBlock FontWeight="SemiBold" Text="{Binding ComponentName}" />
-                                                    <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding ComponentSku}" />
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Column="1">
-                                                    <TextBlock Text="{Binding MovementTypeLabel}" />
-                                                    <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding Reason}" />
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Column="2" HorizontalAlignment="Right">
-                                                    <TextBlock FontWeight="SemiBold" Text="{Binding QuantityLabel}" />
-                                                    <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding HappenedAt}" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
+                <StackPanel
+                    Spacing="4">
+                    <TextBlock
+                        x:Uid="DashboardViewPageTitle"
+                        Style="{StaticResource PageTitleTextStyle}"
+                        Text="概览" />
+                    <TextBlock
+                        x:Uid="DashboardViewPageSubtitle"
+                        Style="{StaticResource PageSubtitleTextStyle}"
+                        Text="库存规模、风险和最近作业一目了然。" />
                 </StackPanel>
-
-                <StackPanel Grid.Column="1" Spacing="16">
-                    <Border Style="{StaticResource InsetPanelStyle}">
-                        <StackPanel Spacing="12">
-                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="同步状态" />
-                            <InfoBar
-                                IsOpen="True"
-                                IsClosable="False"
-                                Severity="{Binding SyncRiskSeverity}"
-                                Title="{Binding SyncRiskTitle}"
-                                Message="{Binding SyncRiskMessage}" />
-                            <TextBlock
-                                Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                Text="{Binding SyncConfigurationSummary}"
-                                TextWrapping="Wrap" />
-                            <TextBlock
-                                Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                Text="{Binding StatusMessage}"
-                                TextWrapping="Wrap" />
-                            <Button x:Uid="DashboardOpenSettingsButton" Click="OnOpenSettingsClicked" Content="打开同步设置" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource InsetPanelStyle}">
-                        <StackPanel Spacing="10">
-                            <TextBlock x:Uid="DashboardTipsTitle" Style="{StaticResource SectionTitleTextStyle}" Text="使用建议" />
-                            <TextBlock
-                                x:Uid="DashboardTipsBody"
-                                Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                Text="常规作业优先进入“库存”页面进行搜索、筛选和编辑；记录到货、领用或盘点差异时，进入“出入库”页面。"
-                                TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                <Button
+                    x:Uid="DashboardOpenInventoryButton"
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Click="OnOpenInventoryClicked"
+                    Content="打开库存"
+                    Style="{StaticResource AccentButtonStyle}" />
             </Grid>
+            <Grid
+                ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    Style="{StaticResource MetricCardStyle}">
+                    <StackPanel
+                        Spacing="3">
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="元器件" />
+                        <TextBlock
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="{Binding Dashboard.ComponentCount}" />
+                    </StackPanel>
+                </Border>
+                <Border
+                    Grid.Column="1"
+                    Style="{StaticResource MetricCardStyle}">
+                    <StackPanel
+                        Spacing="3">
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="库存总量" />
+                        <TextBlock
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="{Binding Dashboard.TotalUnits}" />
+                    </StackPanel>
+                </Border>
+                <Border
+                    Grid.Column="2"
+                    Style="{StaticResource MetricCardStyle}">
+                    <StackPanel
+                        Spacing="3">
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="低库存" />
+                        <TextBlock
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Foreground="{StaticResource VaultWarningBrush}"
+                            Text="{Binding Dashboard.LowStockCount}" />
+                    </StackPanel>
+                </Border>
+                <Border
+                    Grid.Column="3"
+                    Style="{StaticResource MetricCardStyle}">
+                    <StackPanel
+                        Spacing="3">
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="变动记录" />
+                        <TextBlock
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="{Binding Dashboard.MovementCount}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+            <Grid
+                ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    Style="{StaticResource CardBorderStyle}">
+                    <StackPanel
+                        Spacing="12">
+                        <Grid>
+                            <TextBlock
+                                Style="{StaticResource SectionTitleTextStyle}"
+                                Text="低库存关注" />
+                            <Button
+                                HorizontalAlignment="Right"
+                                Click="OnOpenInventoryClicked"
+                                Content="查看全部" />
+                        </Grid>
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="{Binding OverviewLowStockSummary}"
+                            TextWrapping="Wrap" />
+                        <ItemsControl
+                            ItemsSource="{Binding OverviewLowStockComponents}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate
+                                    x:DataType="models:ComponentRecord">
+                                    <Grid
+                                        Margin="0,6"
+                                        ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition
+                                                Width="*" />
+                                            <ColumnDefinition
+                                                Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock
+                                                FontWeight="SemiBold"
+                                                Text="{Binding Name}" />
+                                            <TextBlock
+                                                Style="{StaticResource CaptionTextStyle}"
+                                                Text="{Binding Sku}" />
+                                        </StackPanel>
+                                        <StackPanel
+                                            Grid.Column="1"
+                                            HorizontalAlignment="Right">
+                                            <TextBlock
+                                                FontWeight="SemiBold"
+                                                Text="{Binding Quantity}" />
+                                            <TextBlock
+                                                Style="{StaticResource CaptionTextStyle}"
+                                                Text="{Binding Location}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+                <Border
+                    Grid.Column="1"
+                    Style="{StaticResource CardBorderStyle}">
+                    <StackPanel
+                        Spacing="12">
+                        <Grid>
+                            <TextBlock
+                                Style="{StaticResource SectionTitleTextStyle}"
+                                Text="最近作业" />
+                            <Button
+                                HorizontalAlignment="Right"
+                                Click="OnOpenMovementsClicked"
+                                Content="查看台账" />
+                        </Grid>
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="{Binding OverviewRecentMovementSummary}"
+                            TextWrapping="Wrap" />
+                        <ItemsControl
+                            ItemsSource="{Binding OverviewRecentMovements}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate
+                                    x:DataType="models:StockMovementRecord">
+                                    <Grid
+                                        Margin="0,6"
+                                        ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition
+                                                Width="*" />
+                                            <ColumnDefinition
+                                                Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock
+                                                FontWeight="SemiBold"
+                                                Text="{Binding ComponentName}" />
+                                            <TextBlock
+                                                Style="{StaticResource CaptionTextStyle}"
+                                                Text="{Binding Reason}" />
+                                        </StackPanel>
+                                        <StackPanel
+                                            Grid.Column="1"
+                                            HorizontalAlignment="Right">
+                                            <TextBlock
+                                                FontWeight="SemiBold"
+                                                Text="{Binding QuantityLabel}" />
+                                            <TextBlock
+                                                Style="{StaticResource CaptionTextStyle}"
+                                                Text="{Binding MovementTypeLabel}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+            <Border
+                Style="{StaticResource InsetPanelStyle}">
+                <Grid
+                    ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition
+                            Width="*" />
+                        <ColumnDefinition
+                            Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel
+                        Spacing="3">
+                        <TextBlock
+                            FontWeight="SemiBold"
+                            Text="同步状态" />
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="{Binding OverviewSyncSummary}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button
+                        x:Uid="DashboardOpenSettingsButton"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Click="OnOpenSettingsClicked"
+                        Content="同步设置" />
+                </Grid>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </Page>

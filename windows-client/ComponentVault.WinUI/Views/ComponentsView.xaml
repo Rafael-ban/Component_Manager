@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="ComponentVault.WinUI.Views.ComponentsView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -10,154 +10,245 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     d:DataContext="{d:DesignInstance Type=design:DesignMainViewModel, IsDesignTimeCreatable=True}"
     mc:Ignorable="d">
-
     <Page.Resources>
-        <converters:CategoryDisplayConverter x:Key="CategoryDisplayConverter" />
-        <DataTemplate x:Key="CategoryOptionTemplate">
-            <TextBlock Text="{Binding Converter={StaticResource CategoryDisplayConverter}}" />
+        <converters:CategoryDisplayConverter
+            x:Key="CategoryDisplayConverter" />
+        <DataTemplate
+            x:Key="CategoryOptionTemplate">
+            <TextBlock
+                Text="{Binding Converter={StaticResource CategoryDisplayConverter}}" />
         </DataTemplate>
     </Page.Resources>
-
-    <Grid Padding="24" RowSpacing="20">
+    <Grid
+        Padding="24"
+        RowSpacing="12">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="ResponsiveStates">
+                <VisualState x:Name="Narrow">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="ComponentSearchBox.(Grid.ColumnSpan)" Value="5" />
+                        <Setter Target="LowStockOnlyToggle.(Grid.Row)" Value="1" />
+                        <Setter Target="LowStockOnlyToggle.(Grid.Column)" Value="0" />
+                        <Setter Target="CategoryFilter.(Grid.Row)" Value="1" />
+                        <Setter Target="CategoryFilter.(Grid.Column)" Value="1" />
+                        <Setter Target="LocationFilter.(Grid.Row)" Value="1" />
+                        <Setter Target="LocationFilter.(Grid.Column)" Value="2" />
+                        <Setter Target="SortFilter.(Grid.Row)" Value="1" />
+                        <Setter Target="SortFilter.(Grid.Column)" Value="3" />
+                        <Setter Target="SortFilter.(Grid.ColumnSpan)" Value="2" />
+                        <Setter Target="FilterSummary.(Grid.Row)" Value="2" />
+                        <Setter Target="WorkspaceSummary.(Grid.Row)" Value="2" />
+                        <Setter Target="InventoryDetailColumn.Width" Value="0" />
+                        <Setter Target="InventoryWorkspace.ColumnSpacing" Value="0" />
+                        <Setter Target="InventoryListRow.Height" Value="*" />
+                        <Setter Target="InventoryDetailRow.Height" Value="*" />
+                        <Setter Target="InventoryDetailPane.(Grid.Row)" Value="1" />
+                        <Setter Target="InventoryDetailPane.(Grid.Column)" Value="0" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="Wide">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="1000" />
+                    </VisualState.StateTriggers>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition
+                Height="Auto" />
+            <RowDefinition
+                Height="Auto" />
+            <RowDefinition
+                Height="*" />
         </Grid.RowDefinitions>
-
-        <StackPanel Grid.Row="0" Spacing="6">
-            <TextBlock x:Uid="ComponentsViewPageTitle" Style="{StaticResource PageTitleTextStyle}" Text="库存工作台" />
-            <TextBlock
-                x:Uid="ComponentsViewPageSubtitle"
-                Style="{StaticResource PageSubtitleTextStyle}"
-                Text="搜索、筛选和连续列表优先；选中任一元器件后，在右侧查看库存、仓位和最近变动摘要。" />
-        </StackPanel>
-
-        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}">
-            <StackPanel Spacing="14">
-                <CommandBar Background="Transparent" DefaultLabelPosition="Right">
-                    <AppBarButton x:Uid="ComponentsViewAddButton" Click="OnAddComponentClicked" Icon="Add" Label="新增元器件" />
-                    <AppBarButton Click="OnImportComponentHubClicked" Icon="Upload" Label="迁移 component-hub" />
-                </CommandBar>
-
-                <Grid ColumnSpacing="12" RowSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <AutoSuggestBox
-                        x:Uid="ComponentsViewSearchBox"
-                        x:Name="ComponentSearchBox"
-                        Grid.Column="0"
-                        PlaceholderText="搜索 SKU、名称、分类或仓位"
-                        QueryIcon="Find"
-                        Text="{Binding ComponentSearchText, Mode=TwoWay}"
-                        TextChanged="OnSearchTextChanged" />
-
-                    <ToggleSwitch
-                        x:Uid="ComponentsViewLowStockToggle"
-                        x:Name="LowStockOnlyToggle"
-                        Grid.Column="1"
-                        Header="低库存"
-                        IsOn="{Binding ShowLowStockOnly, Mode=TwoWay}"
-                        Toggled="OnLowStockOnlyToggled" />
-
-                    <ComboBox
-                        x:Uid="ComponentsViewCategoryCombo"
-                        Grid.Column="2"
-                        Header="分类"
-                        ItemTemplate="{StaticResource CategoryOptionTemplate}"
-                        ItemsSource="{Binding InventoryCategoryOptions}"
-                        SelectedItem="{Binding SelectedComponentCategoryFilter, Mode=TwoWay}" />
-
-                    <ComboBox
-                        x:Uid="ComponentsViewLocationCombo"
-                        Grid.Column="3"
-                        Header="仓位"
-                        ItemsSource="{Binding InventoryLocationOptions}"
-                        SelectedItem="{Binding SelectedComponentLocationFilter, Mode=TwoWay}" />
-
-                    <ComboBox
-                        x:Uid="ComponentsViewSortCombo"
-                        Grid.Column="4"
-                        Header="排序"
-                        ItemsSource="{Binding InventorySortOptions}"
-                        SelectedItem="{Binding SelectedComponentSortOption, Mode=TwoWay}" />
-                </Grid>
-
-                <Grid ColumnSpacing="20">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock
-                        Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                        Text="{Binding InventoryFilterSummary}"
-                        TextWrapping="Wrap" />
-
-                    <TextBlock
-                        Grid.Column="1"
-                        HorizontalAlignment="Right"
-                        Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                        Text="{Binding InventoryWorkspaceSummary}"
-                        TextWrapping="Wrap" />
-                </Grid>
-            </StackPanel>
-        </Border>
-
-        <Grid Grid.Row="2" ColumnSpacing="16">
+        <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2.3*" />
-                <ColumnDefinition Width="1.3*" />
+                <ColumnDefinition
+                    Width="*" />
+                <ColumnDefinition
+                    Width="Auto" />
             </Grid.ColumnDefinitions>
-
-            <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
-                <Grid RowSpacing="12">
+            <StackPanel
+                Spacing="4">
+                <TextBlock
+                    x:Uid="ComponentsViewPageTitle"
+                    Style="{StaticResource PageTitleTextStyle}"
+                    Text="库存" />
+                <TextBlock
+                    x:Uid="ComponentsViewPageSubtitle"
+                    Style="{StaticResource PageSubtitleTextStyle}"
+                    Text="查找元器件、检查库存，并从详情中编辑或删除。" />
+            </StackPanel>
+            <CommandBar
+                Grid.Column="1"
+                Background="Transparent"
+                DefaultLabelPosition="Right">
+                <AppBarButton
+                    Click="OnImportComponentHubClicked"
+                    Icon="Upload"
+                    Label="导入" />
+                <AppBarButton
+                    x:Uid="ComponentsViewAddButton"
+                    Click="OnAddComponentClicked"
+                    Icon="Add"
+                    Label="新增元器件" />
+            </CommandBar>
+        </Grid>
+        <Border
+            Grid.Row="1"
+            Style="{StaticResource CardBorderStyle}">
+            <Grid
+                ColumnSpacing="12"
+                RowSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition
+                        Width="2*" />
+                    <ColumnDefinition
+                        Width="Auto" />
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition
+                        Height="Auto" />
+                    <RowDefinition
+                        Height="Auto" />
+                    <RowDefinition
+                        Height="Auto" />
+                </Grid.RowDefinitions>
+                <AutoSuggestBox
+                    x:Uid="ComponentsViewSearchBox"
+                    x:Name="ComponentSearchBox"
+                    PlaceholderText="搜索 SKU、名称、分类或仓位"
+                    QueryIcon="Find"
+                    Text="{Binding ComponentSearchText, Mode=TwoWay}"
+                    TextChanged="OnSearchTextChanged" />
+                <ToggleSwitch
+                    x:Uid="ComponentsViewLowStockToggle"
+                    x:Name="LowStockOnlyToggle"
+                    Grid.Column="1"
+                    Header="低库存"
+                    IsOn="{Binding ShowLowStockOnly, Mode=TwoWay}"
+                    Toggled="OnLowStockOnlyToggled" />
+                <ComboBox
+                    x:Uid="ComponentsViewCategoryCombo"
+                    x:Name="CategoryFilter"
+                    Grid.Column="2"
+                    Header="分类"
+                    ItemTemplate="{StaticResource CategoryOptionTemplate}"
+                    ItemsSource="{Binding InventoryCategoryOptions}"
+                    SelectedItem="{Binding SelectedComponentCategoryFilter, Mode=TwoWay}" />
+                <ComboBox
+                    x:Uid="ComponentsViewLocationCombo"
+                    x:Name="LocationFilter"
+                    Grid.Column="3"
+                    Header="仓位"
+                    ItemsSource="{Binding InventoryLocationOptions}"
+                    SelectedItem="{Binding SelectedComponentLocationFilter, Mode=TwoWay}" />
+                <ComboBox
+                    x:Uid="ComponentsViewSortCombo"
+                    x:Name="SortFilter"
+                    Grid.Column="4"
+                    Header="排序"
+                    ItemsSource="{Binding InventorySortOptions}"
+                    SelectedItem="{Binding SelectedComponentSortOption, Mode=TwoWay}" />
+                <TextBlock
+                    x:Name="FilterSummary"
+                    Grid.Row="1"
+                    Grid.ColumnSpan="3"
+                    Style="{StaticResource CaptionTextStyle}"
+                    Text="{Binding InventoryFilterSummary}"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    x:Name="WorkspaceSummary"
+                    Grid.Row="1"
+                    Grid.Column="3"
+                    Grid.ColumnSpan="2"
+                    HorizontalAlignment="Right"
+                    Style="{StaticResource CaptionTextStyle}"
+                    Text="{Binding InventoryWorkspaceSummary}"
+                    TextWrapping="Wrap" />
+            </Grid>
+        </Border>
+        <Grid
+            x:Name="InventoryWorkspace"
+            Grid.Row="2"
+            ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition
+                    Width="2.15*" />
+                <ColumnDefinition
+                    x:Name="InventoryDetailColumn"
+                    Width="1.2*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition
+                    x:Name="InventoryListRow"
+                    Height="*" />
+                <RowDefinition
+                    x:Name="InventoryDetailRow"
+                    Height="0" />
+            </Grid.RowDefinitions>
+            <Border
+                x:Name="InventoryListPane"
+                Style="{StaticResource CardBorderStyle}">
+                <Grid
+                    RowSpacing="8">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
+                        <RowDefinition
+                            Height="Auto" />
+                        <RowDefinition
+                            Height="Auto" />
+                        <RowDefinition
+                            Height="*" />
                     </Grid.RowDefinitions>
-
-                    <StackPanel Grid.Row="0" Spacing="4">
-                        <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="库存列表" />
-                        <TextBlock
-                            Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                            Text="{Binding ComponentInventorySummary}"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
-
-                    <Border
+                    <TextBlock
+                        Style="{StaticResource CaptionTextStyle}"
+                        Text="{Binding ComponentInventorySummary}" />
+                    <Grid
                         Grid.Row="1"
-                        Padding="12,10"
-                        Background="{StaticResource VaultPanelBrush}"
-                        BorderBrush="{StaticResource VaultBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="12">
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="1.2*" />
-                                <ColumnDefinition Width="1.2*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="112" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="元器件" />
-                            <TextBlock Grid.Column="1" Style="{StaticResource CaptionTextStyle}" Text="分类 / 封装" />
-                            <TextBlock Grid.Column="2" Style="{StaticResource CaptionTextStyle}" Text="仓位" />
-                            <TextBlock Grid.Column="3" Style="{StaticResource CaptionTextStyle}" Text="库存" />
-                            <TextBlock Grid.Column="4" Style="{StaticResource CaptionTextStyle}" Text="状态" />
-                            <TextBlock Grid.Column="5" Style="{StaticResource CaptionTextStyle}" Text="出库比例" />
-                        </Grid>
-                    </Border>
-
+                        Padding="12,7"
+                        ColumnSpacing="10"
+                        Background="{StaticResource VaultPanelBrush}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition
+                                Width="2*" />
+                            <ColumnDefinition
+                                Width="1.2*" />
+                            <ColumnDefinition
+                                Width="1.1*" />
+                            <ColumnDefinition
+                                Width="70" />
+                            <ColumnDefinition
+                                Width="110" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="元器件" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="分类 / 封装" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="仓位" />
+                        <TextBlock
+                            Grid.Column="3"
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="库存" />
+                        <TextBlock
+                            Grid.Column="4"
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="使用 / 总量" />
+                    </Grid>
                     <ListView
                         x:Name="ComponentsListView"
                         Grid.Row="2"
@@ -166,242 +257,271 @@
                         SelectionChanged="OnComponentSelectionChanged"
                         SelectionMode="Single">
                         <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="models:ComponentRecord">
-                                <Border
-                                    Margin="0,0,0,8"
-                                    Padding="12,10"
-                                    Background="{StaticResource VaultSurfaceBrush}"
-                                    BorderBrush="{StaticResource VaultBorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="12">
-                                    <Grid ColumnSpacing="12">
+                            <DataTemplate
+                                x:DataType="models:ComponentRecord">
+                                <Grid
+                                    Padding="12,9"
+                                    ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition
+                                            Width="2*" />
+                                        <ColumnDefinition
+                                            Width="1.2*" />
+                                        <ColumnDefinition
+                                            Width="1.1*" />
+                                        <ColumnDefinition
+                                            Width="70" />
+                                        <ColumnDefinition
+                                            Width="110" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid
+                                        ColumnSpacing="8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="2*" />
-                                            <ColumnDefinition Width="1.2*" />
-                                            <ColumnDefinition Width="1.2*" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="112" />
+                                            <ColumnDefinition
+                                                Width="40" />
+                                            <ColumnDefinition
+                                                Width="*" />
                                         </Grid.ColumnDefinitions>
-
-                                        <StackPanel>
-                                            <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding Sku}" />
-                                        </StackPanel>
-
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="{Binding DisplayCategory}" />
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding PackageName}" />
-                                        </StackPanel>
-
-                                        <TextBlock
-                                            Grid.Column="2"
-                                            VerticalAlignment="Center"
-                                            Text="{Binding Location}" />
-
-                                        <StackPanel Grid.Column="3" HorizontalAlignment="Right">
-                                            <TextBlock FontWeight="SemiBold" Text="{Binding Quantity}" />
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding MinStock}" />
-                                        </StackPanel>
-
                                         <Border
-                                            Grid.Column="4"
-                                            Padding="10,4"
-                                            VerticalAlignment="Center"
-                                            Background="{StaticResource VaultAccentSoftBrush}"
-                                            CornerRadius="999">
-                                            <TextBlock Foreground="{StaticResource VaultAccentBrush}" Text="{Binding Status}" />
+                                            Width="40"
+                                            Height="40"
+                                            Background="{StaticResource VaultPanelBrush}"
+                                            CornerRadius="6">
+                                            <Grid>
+                                                <FontIcon
+                                                    Glyph=""
+                                                    FontSize="16"
+                                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                                <Image
+                                                    Source="{Binding ProductImageUrl}"
+                                                    Stretch="Uniform" />
+                                            </Grid>
                                         </Border>
-
-                                        <Border Grid.Column="5" Width="108" Height="76" Background="Transparent">
-                                            <controls:InventoryUsageRing CurrentQuantity="{Binding Quantity}" OutboundQuantity="{Binding CumulativeOutboundQuantity}" />
-                                        </Border>
+                                        <StackPanel
+                                            Grid.Column="1">
+                                            <TextBlock
+                                                FontWeight="SemiBold"
+                                                Text="{Binding Name}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <TextBlock
+                                                Style="{StaticResource CaptionTextStyle}"
+                                                Text="{Binding Sku}" />
+                                        </StackPanel>
                                     </Grid>
-                                </Border>
+                                    <StackPanel
+                                        Grid.Column="1">
+                                        <TextBlock
+                                            Text="{Binding DisplayCategory}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            Style="{StaticResource CaptionTextStyle}"
+                                            Text="{Binding PackageName}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        Text="{Binding Location}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Column="3"
+                                        VerticalAlignment="Center"
+                                        FontWeight="SemiBold"
+                                        Text="{Binding Quantity}" />
+                                    <StackPanel
+                                        Grid.Column="4"
+                                        HorizontalAlignment="Center"
+                                        Spacing="0">
+                                        <controls:InventoryUsageRing
+                                            CurrentQuantity="{Binding Quantity}"
+                                            OutboundQuantity="{Binding CumulativeOutboundQuantity}" />
+                                        <StackPanel
+                                            Margin="0,-8,0,0"
+                                            HorizontalAlignment="Center"
+                                            Orientation="Horizontal"
+                                            Spacing="3">
+                                            <TextBlock
+                                                Style="{StaticResource CaptionTextStyle}"
+                                                Text="总量" />
+                                            <TextBlock
+                                                Style="{StaticResource CaptionTextStyle}"
+                                                Text="{Binding StatisticalTotal}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
                 </Grid>
             </Border>
-
-            <Border Grid.Column="1" Style="{StaticResource InsetPanelStyle}">
+            <Border
+                x:Name="InventoryDetailPane"
+                Grid.Column="1"
+                Style="{StaticResource CardBorderStyle}">
                 <ScrollViewer>
-                    <StackPanel Spacing="16">
-                        <Grid>
+                    <StackPanel
+                        Spacing="14">
+                        <Grid
+                            ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition
+                                    Width="72" />
+                                <ColumnDefinition
+                                    Width="*" />
                             </Grid.ColumnDefinitions>
-
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="详情检查器" />
-                                <Border Width="120" Height="90" Margin="0,8,0,8" Background="{StaticResource VaultPanelBrush}" CornerRadius="8">
-                                    <Grid>
-                                        <FontIcon HorizontalAlignment="Center" VerticalAlignment="Center" Glyph="&#xE91B;" />
-                                        <Image Source="{Binding SelectedComponent.ProductImageUrl}" Stretch="Uniform" />
-                                    </Grid>
-                                </Border>
-                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding SelectedComponentName}" />
+                            <Border
+                                Width="72"
+                                Height="72"
+                                Background="{StaticResource VaultPanelBrush}"
+                                CornerRadius="8">
+                                <Grid>
+                                    <FontIcon
+                                        Glyph=""
+                                        FontSize="24"
+                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                    <Image
+                                        Source="{Binding SelectedComponent.ProductImageUrl}"
+                                        Stretch="Uniform" />
+                                </Grid>
+                            </Border>
+                            <StackPanel
+                                Grid.Column="1"
+                                Spacing="2">
                                 <TextBlock
-                                    Foreground="{StaticResource TextFillColorSecondaryBrush}"
+                                    Style="{StaticResource SectionTitleTextStyle}"
+                                    Text="{Binding SelectedComponentName}"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Style="{StaticResource CaptionTextStyle}"
                                     Text="{Binding SelectedComponentSubtitle}"
                                     TextWrapping="Wrap" />
                             </StackPanel>
-
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                <Button
-                                    Click="OnEditComponentClicked"
-                                    IsEnabled="{Binding CanEditSelectedComponent}"
-                                    Content="编辑" />
-                                <Button
-                                    Click="OnDeleteComponentClicked"
-                                    IsEnabled="{Binding CanDeleteSelectedComponent}"
-                                    Content="软删除" />
-                            </StackPanel>
                         </Grid>
-
+                        <Grid
+                            ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition
+                                    Width="*" />
+                                <ColumnDefinition
+                                    Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid
+                                RowSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition
+                                        Width="72" />
+                                    <ColumnDefinition
+                                        Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition
+                                        Height="Auto" />
+                                    <RowDefinition
+                                        Height="Auto" />
+                                    <RowDefinition
+                                        Height="Auto" />
+                                    <RowDefinition
+                                        Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    Text="现存" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    FontWeight="SemiBold"
+                                    Text="{Binding SelectedComponentQuantityText}" />
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    Text="最低库存" />
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Text="{Binding SelectedComponentMinStockText}" />
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    Text="仓位" />
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Grid.Column="1"
+                                    Text="{Binding SelectedComponentLocation}" />
+                                <TextBlock
+                                    Grid.Row="3"
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    Text="更新时间" />
+                                <TextBlock
+                                    Grid.Row="3"
+                                    Grid.Column="1"
+                                    Text="{Binding SelectedComponent.DisplayUpdatedAt}"
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                            <controls:InventoryUsageRing
+                                Grid.Column="1"
+                                CurrentQuantity="{Binding SelectedComponent.Quantity}"
+                                OutboundQuantity="{Binding SelectedComponent.CumulativeOutboundQuantity}" />
+                        </Grid>
                         <InfoBar
                             IsOpen="True"
                             IsClosable="False"
                             Severity="{Binding SelectedComponentStatusSeverity}"
                             Title="{Binding SelectedComponentStatusTitle}"
                             Message="{Binding SelectedComponentStatusMessage}" />
-
-                        <Border Style="{StaticResource CardBorderStyle}">
-                            <StackPanel Spacing="10">
-                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="基本信息" />
-                                <Grid ColumnSpacing="12" RowSpacing="10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="90" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-
-                                    <TextBlock Grid.Row="0" Style="{StaticResource CaptionTextStyle}" Text="SKU" />
-                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedComponentSubtitle}" TextWrapping="Wrap" />
-
-                                    <TextBlock Grid.Row="1" Style="{StaticResource CaptionTextStyle}" Text="仓位" />
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedComponentLocation}" TextWrapping="Wrap" />
-
-                                    <TextBlock Grid.Row="2" Style="{StaticResource CaptionTextStyle}" Text="更新" />
-                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedComponentUpdatedAt}" TextWrapping="Wrap" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource CardBorderStyle}">
-                            <StackPanel Spacing="10">
-                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="库存统计" />
-                                <Grid ColumnSpacing="10">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <StackPanel><TextBlock Style="{StaticResource CaptionTextStyle}" Text="现存"/><TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedComponentQuantityText}"/></StackPanel>
-                                    <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource CaptionTextStyle}" Text="累计已出库"/><TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedComponentOutboundQuantityText}"/></StackPanel>
-                                    <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource CaptionTextStyle}" Text="统计总量"/><TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedComponentStatisticalTotalText}"/></StackPanel>
-                                </Grid>
-                                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="统计总量 = 现存库存 + 全部有效已记录的出库流水；调整不计入累计已出库，缺失历史不会推算。" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource CardBorderStyle}">
-                            <StackPanel Spacing="12">
-                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="库存状态" />
-                                <Grid ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <Border Grid.Column="0" Style="{StaticResource MetricCardStyle}">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="当前库存" />
-                                            <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedComponentQuantityText}" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Column="1" Style="{StaticResource MetricCardStyle}">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="最低库存" />
-                                            <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedComponentMinStockText}" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Column="2" Style="{StaticResource MetricCardStyle}">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="安全余量" />
-                                            <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedComponentStockDeltaText}" />
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource CardBorderStyle}">
-                            <StackPanel Spacing="10">
-                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="描述 / 备注" />
-                                <TextBlock Text="{Binding SelectedComponentDescription}" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource CardBorderStyle}">
-                            <StackPanel Spacing="12">
-                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="最近变动摘要" />
-                                <TextBlock
-                                    Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                    Text="{Binding SelectedComponentMovementSummary}"
-                                    TextWrapping="Wrap" />
-
-                                <ItemsControl ItemsSource="{Binding SelectedComponentRecentMovements}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="models:StockMovementRecord">
-                                            <Border
-                                                Margin="0,0,0,8"
-                                                Padding="12"
-                                                Background="{StaticResource VaultPanelBrush}"
-                                                BorderBrush="{StaticResource VaultBorderBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="12">
-                                                <Grid ColumnSpacing="12">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <Border
-                                                        Padding="10,4"
-                                                        Background="{StaticResource VaultAccentSoftBrush}"
-                                                        CornerRadius="999">
-                                                        <TextBlock
-                                                            Foreground="{StaticResource VaultAccentBrush}"
-                                                            Text="{Binding MovementTypeLabel}" />
-                                                    </Border>
-
-                                                    <StackPanel Grid.Column="1">
-                                                        <TextBlock Text="{Binding Reason}" />
-                                                        <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding Note}" />
-                                                    </StackPanel>
-
-                                                    <StackPanel Grid.Column="2" HorizontalAlignment="Right">
-                                                        <TextBlock FontWeight="SemiBold" Text="{Binding QuantityLabel}" />
-                                                        <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding HappenedAt}" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
-
-                        <TextBlock
-                            Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                            Text="{Binding SelectedComponentActionHint}"
-                            TextWrapping="Wrap" />
+                        <StackPanel
+                            Spacing="4">
+                            <TextBlock
+                                FontWeight="SemiBold"
+                                Text="说明" />
+                            <TextBlock
+                                Text="{Binding SelectedComponentDescription}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel
+                            Spacing="6">
+                            <TextBlock
+                                FontWeight="SemiBold"
+                                Text="最近变动" />
+                            <TextBlock
+                                Style="{StaticResource CaptionTextStyle}"
+                                Text="{Binding SelectedComponentMovementSummary}" />
+                            <ItemsControl
+                                ItemsSource="{Binding SelectedComponentRecentMovements}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate
+                                        x:DataType="models:StockMovementRecord">
+                                        <Grid
+                                            Margin="0,3"
+                                            ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition
+                                                    Width="*" />
+                                                <ColumnDefinition
+                                                    Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                Text="{Binding Reason}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                FontWeight="SemiBold"
+                                                Text="{Binding QuantityLabel}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <Button
+                                Click="OnEditComponentClicked"
+                                Content="编辑"
+                                IsEnabled="{Binding CanEditSelectedComponent}" />
+                            <Button
+                                Click="OnDeleteComponentClicked"
+                                Content="删除"
+                                IsEnabled="{Binding CanDeleteSelectedComponent}" />
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Border>

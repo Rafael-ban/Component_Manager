@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="ComponentVault.WinUI.Views.SettingsView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -8,136 +8,146 @@
     d:DataContext="{d:DesignInstance Type=design:DesignMainViewModel, IsDesignTimeCreatable=True}"
     mc:Ignorable="d"
     Unloaded="OnPageUnloaded">
-
     <ScrollViewer>
-        <StackPanel Padding="24" Spacing="20">
-            <StackPanel Spacing="6">
-            <TextBlock x:Uid="SettingsViewPageTitle" Style="{StaticResource PageTitleTextStyle}" Text="设置" />
-            <TextBlock
-                x:Uid="SettingsViewPageSubtitle"
-                Style="{StaticResource PageSubtitleTextStyle}"
-                Text="配置服务器地址、共享令牌和同步策略；所有写入仍然会先落到本地，再按需同步。" />
-            </StackPanel>
-
-            <Border Style="{StaticResource CardBorderStyle}">
-                <StackPanel Spacing="16">
-                    <CommandBar Background="Transparent" DefaultLabelPosition="Right">
-                        <AppBarButton
-                            x:Uid="SettingsSaveButton"
-                            Click="OnSaveSettingsClicked"
-                            Icon="Save"
-                            IsEnabled="{Binding CanRunSyncActions}"
-                            Label="保存设置" />
-                        <AppBarButton
-                            x:Uid="SettingsTestButton"
-                            Click="OnTestConnectionClicked"
-                            Icon="World"
-                            IsEnabled="{Binding CanRunSyncActions}"
-                            Label="测试连接" />
-                        <AppBarButton
-                            x:Uid="SettingsSyncButton"
-                            Click="OnSyncNowClicked"
-                            Icon="Sync"
-                            IsEnabled="{Binding CanRunSyncActions}"
-                            Label="立即同步" />
-                    </CommandBar>
-
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <ProgressRing
-                            Width="24"
-                            Height="24"
-                            IsActive="{Binding IsBusy}" />
-                        <TextBlock
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                            Text="{Binding SyncActionHint}"
-                            TextWrapping="Wrap" />
-                    </Grid>
-
-                    <TextBlock
-                        Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                        Text="{Binding StatusMessage}"
-                        TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-
-            <Grid ColumnSpacing="16">
+        <StackPanel
+            Padding="24"
+            Spacing="16">
+            <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2*" />
-                    <ColumnDefinition Width="1.1*" />
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="Auto" />
                 </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0" Spacing="16">
-                    <Border Style="{StaticResource CardBorderStyle}">
-                        <StackPanel Spacing="14">
-                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="服务器连接" />
-                            <Grid ColumnSpacing="16" RowSpacing="14">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="140" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <TextBlock x:Uid="SettingsServerUrlLabel" Grid.Row="0" VerticalAlignment="Center" Text="服务器地址" />
-                                <TextBox
-                                    x:Uid="SettingsServerUrlTextBox"
-                                    x:Name="ServerUrlTextBox"
-                                    Grid.Row="0"
-                                    Grid.Column="1"
-                                    PlaceholderText="http://localhost:8787" />
-
-                                <TextBlock x:Uid="SettingsApiTokenLabel" Grid.Row="1" VerticalAlignment="Center" Text="API 令牌" />
-                                <PasswordBox
-                                    x:Name="ApiTokenBox"
-                                    Grid.Row="1"
-                                    Grid.Column="1" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource CardBorderStyle}">
-                        <StackPanel Spacing="14">
-                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="同步行为" />
+                <StackPanel
+                    Spacing="4">
+                    <TextBlock
+                        x:Uid="SettingsViewPageTitle"
+                        Style="{StaticResource PageTitleTextStyle}"
+                        Text="设置" />
+                    <TextBlock
+                        x:Uid="SettingsViewPageSubtitle"
+                        Style="{StaticResource PageSubtitleTextStyle}"
+                        Text="管理同步连接、应用偏好与版本信息。" />
+                </StackPanel>
+                <CommandBar
+                    Grid.Column="1"
+                    Background="Transparent"
+                    DefaultLabelPosition="Right">
+                    <AppBarButton
+                        x:Uid="SettingsTestButton"
+                        Click="OnTestConnectionClicked"
+                        Icon="World"
+                        IsEnabled="{Binding CanRunSyncActions}"
+                        Label="测试连接" />
+                    <AppBarButton
+                        x:Uid="SettingsSaveButton"
+                        Click="OnSaveSettingsClicked"
+                        Icon="Save"
+                        IsEnabled="{Binding CanRunSyncActions}"
+                        Label="保存设置" />
+                </CommandBar>
+            </Grid>
+            <Grid
+                ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition
+                        Width="1.55*" />
+                    <ColumnDefinition
+                        Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel
+                    Spacing="16">
+                    <Border
+                        Style="{StaticResource CardBorderStyle}">
+                        <StackPanel
+                            Spacing="14">
+                            <TextBlock
+                                Style="{StaticResource SectionTitleTextStyle}"
+                                Text="服务器连接" />
+                            <TextBox
+                                x:Uid="SettingsServerUrlTextBox"
+                                x:Name="ServerUrlTextBox"
+                                Header="服务器地址"
+                                PlaceholderText="http://localhost:8787" />
+                            <PasswordBox
+                                x:Name="ApiTokenBox"
+                                Header="API 令牌" />
                             <ToggleSwitch
                                 x:Name="AutoSyncToggle"
                                 Header="启用自动同步"
                                 IsOn="False" />
-
-                            <Grid ColumnSpacing="16" RowSpacing="14">
+                            <TextBlock
+                                Style="{StaticResource CaptionTextStyle}"
+                                Text="写入始终先保存到本地 SQLite，再按此配置同步。"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border
+                        Style="{StaticResource CardBorderStyle}">
+                        <StackPanel
+                            Spacing="12">
+                            <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="140" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition
+                                        Width="*" />
+                                    <ColumnDefinition
+                                        Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Style="{StaticResource SectionTitleTextStyle}"
+                                    Text="同步状态" />
+                                <Button
+                                    x:Uid="SettingsSyncButton"
+                                    Grid.Column="1"
+                                    Click="OnSyncNowClicked"
+                                    Content="立即同步"
+                                    IsEnabled="{Binding CanRunSyncActions}"
+                                    Style="{StaticResource AccentButtonStyle}" />
+                            </Grid>
+                            <InfoBar
+                                IsOpen="True"
+                                IsClosable="False"
+                                Severity="{Binding SyncRiskSeverity}"
+                                Title="{Binding SyncRiskTitle}"
+                                Message="{Binding SyncRiskMessage}" />
+                            <Grid
+                                ColumnSpacing="12"
+                                RowSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition
+                                        Width="88" />
+                                    <ColumnDefinition
+                                        Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition
+                                        Height="Auto" />
+                                    <RowDefinition
+                                        Height="Auto" />
+                                    <RowDefinition
+                                        Height="Auto" />
                                 </Grid.RowDefinitions>
-
-                                <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="设备 ID" />
+                                <TextBlock
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    Text="设备 ID" />
                                 <TextBox
                                     x:Name="DeviceIdTextBox"
-                                    Grid.Row="0"
                                     Grid.Column="1"
                                     IsReadOnly="True" />
-
-                                <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="最近同步" />
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    Text="最近同步" />
                                 <TextBox
                                     x:Name="LastSyncedTextBox"
                                     Grid.Row="1"
                                     Grid.Column="1"
                                     IsReadOnly="True" />
-
-                                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="最近结果" />
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    Text="最近结果" />
                                 <TextBox
                                     x:Name="LastResultTextBox"
                                     Grid.Row="2"
@@ -145,117 +155,272 @@
                                     IsReadOnly="True"
                                     TextWrapping="Wrap" />
                             </Grid>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <StackPanel Grid.Column="1" Spacing="16">
-                    <Border Style="{StaticResource InsetPanelStyle}">
-                        <StackPanel Spacing="12">
-                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="诊断" />
-                            <InfoBar
-                                IsOpen="True"
-                                IsClosable="False"
-                                Severity="{Binding SyncRiskSeverity}"
-                                Title="{Binding SyncRiskTitle}"
-                                Message="{Binding SyncRiskMessage}" />
-                            <TextBlock
-                                Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                Text="{Binding SyncConfigurationSummary}"
-                                TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource InsetPanelStyle}">
-                        <StackPanel Spacing="10">
-                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="当前配置摘要" />
-                            <Grid ColumnSpacing="12" RowSpacing="10">
+                            <Grid
+                                ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="90" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition
+                                        Width="Auto" />
+                                    <ColumnDefinition
+                                        Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <TextBlock Grid.Row="0" Style="{StaticResource CaptionTextStyle}" Text="地址" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SyncEndpointDisplay}" TextWrapping="Wrap" />
-
-                                <TextBlock Grid.Row="1" Style="{StaticResource CaptionTextStyle}" Text="令牌" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SyncTokenDisplay}" TextWrapping="Wrap" />
-
-                                <TextBlock Grid.Row="2" Style="{StaticResource CaptionTextStyle}" Text="自动同步" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SyncAutoSyncDisplay}" TextWrapping="Wrap" />
-
-                                <TextBlock Grid.Row="3" Style="{StaticResource CaptionTextStyle}" Text="状态" />
-                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ShellSyncSummary}" TextWrapping="Wrap" />
+                                <ProgressRing
+                                    Width="20"
+                                    Height="20"
+                                    IsActive="{Binding IsBusy}" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    Text="{Binding SyncActionHint}"
+                                    TextWrapping="Wrap" />
                             </Grid>
                         </StackPanel>
                     </Border>
-
-                    <Border Style="{StaticResource InsetPanelStyle}">
-                        <StackPanel Spacing="10">
-                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="使用说明" />
+                </StackPanel>
+                <StackPanel
+                    Grid.Column="1"
+                    Spacing="16">
+                    <Border
+                        Style="{StaticResource CardBorderStyle}">
+                        <StackPanel
+                            Spacing="10">
                             <TextBlock
-                                Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                Text="建议先保存设置，再执行连接测试。手动同步适合在补货、批量盘点或切换设备后立即对齐数据。"
+                                Style="{StaticResource SectionTitleTextStyle}"
+                                Text="外观" />
+                            <Grid
+                                ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition
+                                        Width="*" />
+                                    <ColumnDefinition
+                                        Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock
+                                        FontWeight="SemiBold"
+                                        Text="跟随 Windows" />
+                                    <TextBlock
+                                        Style="{StaticResource CaptionTextStyle}"
+                                        Text="自动适配系统的浅色、高对比度与缩放设置。"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <FontIcon
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Glyph=""
+                                    Foreground="{StaticResource VaultAccentBrush}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <Border
+                        Style="{StaticResource CardBorderStyle}">
+                        <StackPanel
+                            Spacing="10">
+                            <TextBlock
+                                Style="{StaticResource SectionTitleTextStyle}"
+                                Text="数据导入" />
+                            <TextBlock
+                                Text="旧版 component-hub 数据迁移入口位于“库存”页的导入操作中。"
                                 TextWrapping="Wrap" />
+                            <TextBlock
+                                Style="{StaticResource CaptionTextStyle}"
+                                Text="导入前会预览来源与记录数量；取消操作不会写入数据。"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border
+                        Style="{StaticResource CardBorderStyle}">
+                        <StackPanel
+                            Spacing="12">
+                            <Grid
+                                ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition
+                                        Width="*" />
+                                    <ColumnDefinition
+                                        Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel
+                                    Spacing="3">
+                                    <TextBlock
+                                        Style="{StaticResource SectionTitleTextStyle}"
+                                        Text="关于" />
+                                    <TextBlock
+                                        FontWeight="SemiBold"
+                                        Text="Component Vault" />
+                                    <TextBlock
+                                        Style="{StaticResource CaptionTextStyle}"
+                                        Text="本地优先的电子元器件库存与 BOM 工具" />
+                                </StackPanel>
+                                <StackPanel
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Right">
+                                    <TextBlock
+                                        Style="{StaticResource CaptionTextStyle}"
+                                        Text="当前版本" />
+                                    <TextBlock
+                                        x:Name="CurrentVersionText"
+                                        FontSize="18"
+                                        FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid
+                                ColumnSpacing="12"
+                                RowSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition
+                                        Width="72" />
+                                    <ColumnDefinition
+                                        Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition
+                                        Height="Auto" />
+                                    <RowDefinition
+                                        Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    Text="作者" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="Rafael-Ikaros" />
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    Text="许可证" />
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Text="GNU GPLv3" />
+                            </Grid>
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Spacing="4">
+                                <HyperlinkButton
+                                    Padding="0,4"
+                                    NavigateUri="https://github.com/Rafael-ban/Component_Manager"
+                                    Content="GitHub 项目" />
+                                <HyperlinkButton
+                                    NavigateUri="https://github.com/Rafael-ban/Component_Manager/blob/master/LICENSE.txt"
+                                    Content="查看许可证" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
             </Grid>
-
-            <Border Style="{StaticResource CardBorderStyle}">
-                <StackPanel Spacing="14">
-                    <Grid ColumnSpacing="16">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <StackPanel Spacing="4">
-                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="关于 Component Vault" />
-                            <TextBlock Text="本地优先的电子元器件库存、BOM 与可选自托管同步客户端。" TextWrapping="Wrap" />
-                            <TextBlock Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="开源项目：Rafael-ban/Component_Manager" />
+            <Border
+                Style="{StaticResource CardBorderStyle}">
+                <StackPanel
+                    Spacing="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition
+                                Width="*" />
+                            <ColumnDefinition
+                                Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel
+                            Spacing="3">
+                            <TextBlock
+                                Style="{StaticResource SectionTitleTextStyle}"
+                                Text="更新" />
+                            <TextBlock
+                                Style="{StaticResource CaptionTextStyle}"
+                                Text="手动读取公开 GitHub Release；不会发送同步令牌。" />
                         </StackPanel>
-                        <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="当前版本" />
-                            <TextBlock x:Name="CurrentVersionText" FontSize="20" FontWeight="SemiBold" />
+                        <StackPanel
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <ProgressRing
+                                x:Name="UpdateProgressRing"
+                                Width="20"
+                                Height="20"
+                                IsActive="False" />
+                            <Button
+                                x:Name="CheckUpdateButton"
+                                Click="OnCheckUpdateClicked"
+                                Content="检查更新" />
                         </StackPanel>
                     </Grid>
-
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Button x:Name="CheckUpdateButton" Click="OnCheckUpdateClicked" Content="手动检查更新" />
-                        <ProgressRing x:Name="UpdateProgressRing" Width="22" Height="22" IsActive="False" />
-                        <HyperlinkButton NavigateUri="https://github.com/Rafael-ban/Component_Manager" Content="项目与开源说明" />
-                        <HyperlinkButton NavigateUri="https://github.com/Rafael-ban/Component_Manager/blob/master/LICENSE.txt" Content="GPLv3 许可证" />
-                    </StackPanel>
-
-                    <InfoBar x:Name="UpdateInfoBar" IsOpen="True" IsClosable="False" Severity="Informational" Title="更新检查" Message="仅在你点击时读取公开 GitHub Release；不会发送同步令牌。" />
-
-                    <Grid ColumnSpacing="16" RowSpacing="8">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <TextBlock Style="{StaticResource CaptionTextStyle}" Text="最新版本" />
-                        <TextBlock x:Name="LatestVersionText" Grid.Column="1" Text="尚未检查" />
-                        <TextBlock Grid.Row="1" Style="{StaticResource CaptionTextStyle}" Text="发布日期" />
-                        <TextBlock x:Name="PublishedAtText" Grid.Row="1" Grid.Column="1" Text="—" />
+                    <InfoBar
+                        x:Name="UpdateInfoBar"
+                        IsOpen="True"
+                        IsClosable="False"
+                        Severity="Informational"
+                        Title="更新检查"
+                        Message="尚未检查。" />
+                    <Grid
+                        ColumnSpacing="12"
+                        RowSpacing="6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition
+                                Width="88" />
+                            <ColumnDefinition
+                                Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition
+                                Height="Auto" />
+                            <RowDefinition
+                                Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="最新版本" />
+                        <TextBlock
+                            x:Name="LatestVersionText"
+                            Grid.Column="1"
+                            Text="尚未检查" />
+                        <TextBlock
+                            Grid.Row="1"
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="发布日期" />
+                        <TextBlock
+                            x:Name="PublishedAtText"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Text="—" />
                     </Grid>
-
-                    <StackPanel Spacing="6">
-                        <TextBlock FontWeight="SemiBold" Text="更新日志" />
-                        <Border Padding="12" Background="{StaticResource VaultPanelBrush}" CornerRadius="8">
-                            <ScrollViewer MaxHeight="220">
-                                <TextBlock x:Name="ReleaseNotesText" Text="检查后显示 Release 正文。" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                    <Expander
+                        Header="更新日志">
+                        <Border
+                            Padding="12"
+                            Background="{StaticResource VaultPanelBrush}"
+                            CornerRadius="8">
+                            <ScrollViewer
+                                MaxHeight="180">
+                                <TextBlock
+                                    x:Name="ReleaseNotesText"
+                                    Text="检查后显示 Release 正文。"
+                                    TextWrapping="Wrap"
+                                    IsTextSelectionEnabled="True" />
                             </ScrollViewer>
                         </Border>
+                    </Expander>
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Button
+                            x:Name="DownloadMsixButton"
+                            Click="OnDownloadMsixClicked"
+                            Content="下载 MSIX"
+                            IsEnabled="False" />
+                        <Button
+                            x:Name="DownloadPortableButton"
+                            Click="OnDownloadPortableClicked"
+                            Content="下载便携版"
+                            IsEnabled="False" />
+                        <Button
+                            Click="OnOpenReleasesClicked"
+                            Content="打开发布页" />
                     </StackPanel>
-
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Button x:Name="DownloadMsixButton" Click="OnDownloadMsixClicked" Content="下载新版（MSIX）" IsEnabled="False" />
-                        <Button x:Name="DownloadPortableButton" Click="OnDownloadPortableClicked" Content="下载便携版" IsEnabled="False" />
-                        <Button Click="OnOpenReleasesClicked" Content="打开发布页" />
-                    </StackPanel>
-                    <TextBlock x:Name="UpdateAssetHint" Foreground="{StaticResource TextFillColorSecondaryBrush}" Text="应用不会自动下载、安装或添加签名证书。更新时请继续使用与当前相同的安装方式；数据保留情况取决于安装方式。" TextWrapping="Wrap" />
+                    <TextBlock
+                        x:Name="UpdateAssetHint"
+                        Style="{StaticResource CaptionTextStyle}"
+                        Text="应用不会自动下载、安装或添加签名证书。请继续使用与当前相同的安装方式。"
+                        TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
         </StackPanel>

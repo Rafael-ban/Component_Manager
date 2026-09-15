@@ -334,7 +334,7 @@ public sealed class MainViewModel : ObservableObject
         SelectedComponent?.Location ?? "尚未选择仓位。";
 
     public string SelectedComponentUpdatedAt =>
-        SelectedComponent?.UpdatedAt ?? "尚未选择";
+        SelectedComponent?.DisplayUpdatedAt ?? "尚未选择";
 
     public string SelectedComponentDescription =>
         string.IsNullOrWhiteSpace(SelectedComponent?.Description)
@@ -395,12 +395,12 @@ public sealed class MainViewModel : ObservableObject
             : SelectedMovement.Note;
 
     public string SelectedMovementUpdatedAt =>
-        SelectedMovement?.UpdatedAt ?? "尚未选择";
+        SelectedMovement?.DisplayUpdatedAt ?? "尚未选择";
 
     public string SelectedMovementTimeline =>
         SelectedMovement is null
             ? "尚未选择记录"
-            : $"{SelectedMovement.HappenedAt} · 更新于 {SelectedMovement.UpdatedAt}";
+            : SelectedMovement.DisplayTimeline;
 
     public string SelectedMovementStatusTitle =>
         SelectedMovement?.MovementTypeLabel ?? "审计详情";

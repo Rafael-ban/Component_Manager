@@ -7,10 +7,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -68,7 +71,7 @@ internal fun StatusBanner(
 
 @Composable
 internal fun SectionPane(
-    title: String,
+    title: String?,
     supporting: String? = null,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
@@ -76,7 +79,7 @@ internal fun SectionPane(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
     ) {
         Column(
             modifier = Modifier
@@ -84,18 +87,22 @@ internal fun SectionPane(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
+            if (!title.isNullOrBlank() || !supporting.isNullOrBlank()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!title.isNullOrBlank()) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
                 if (!supporting.isNullOrBlank()) {
                     Text(
                         text = supporting,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
                 }
             }
             content()
@@ -112,7 +119,7 @@ internal fun MetricTile(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -174,6 +181,7 @@ internal fun ValueBlock(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun InventoryListRow(
     item: InventoryListItemUiState,
@@ -196,18 +204,14 @@ internal fun InventoryListRow(
         },
         tonalElevation = if (selected) 2.dp else 0.dp,
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
-            ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
                         text = item.name,
@@ -230,34 +234,7 @@ internal fun InventoryListRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = item.quantity.toString(),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = strings.inventory.componentMinStock(item.minStock),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    ProductThumbnail(
-                        sku = item.sku,
-                        imageUrl = item.productImageUrl,
-                    )
-                }
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     InventoryTag(text = item.location)
                     InventoryTag(
                         text = if (item.isLowStock) {
@@ -278,18 +255,45 @@ internal fun InventoryListRow(
                     )
                 }
                 Text(
-                    text = item.updatedAt,
+                    text = formatShortLocalTimestamp(item.updatedAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                }
+                Column(
+                    modifier = Modifier.widthIn(max = 144.dp),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = item.quantity.toString(),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                text = strings.inventory.componentMinStock(item.minStock),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        ProductThumbnail(
+                            sku = item.sku,
+                            imageUrl = item.productImageUrl,
+                            imageSize = 52.dp,
+                        )
+                    }
                 StockUsageDonut(
                     summary = com.componentvault.android.model.StockUsageSummary(
                         remaining = item.quantity,
                         issued = item.issuedQuantity,
                     ),
-                    modifier = Modifier.align(Alignment.End),
                 )
             }
         }
@@ -404,7 +408,7 @@ internal fun MovementHistoryRow(
                 Column(horizontalAlignment = Alignment.End) {
                     MovementQuantityPill(movement)
                     Text(
-                        text = movement.happenedAt,
+                        text = formatShortLocalTimestamp(movement.happenedAt),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

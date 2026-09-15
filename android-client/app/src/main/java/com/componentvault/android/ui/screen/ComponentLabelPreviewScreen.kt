@@ -148,7 +148,7 @@ internal fun ComponentLabelPreviewSurface(
     ) {
         item {
             SectionPane(
-                title = strings.importer.labelPreviewTitle,
+                title = null,
                 supporting = strings.importer.labelPreviewSubtitle,
             ) {
                 Text(

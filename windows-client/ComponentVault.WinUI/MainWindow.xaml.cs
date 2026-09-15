@@ -16,7 +16,7 @@ public sealed partial class MainWindow : Window
             ((App)Application.Current).MainViewModel
             ?? throw new InvalidOperationException(AppStrings.Get("Windows_App_MainViewModelMissing"));
         AppNavigationView.DataContext = _viewModel;
-        NavigateTo("Inventory");
+        NavigateTo("Overview");
     }
 
     public void NavigateTo(string tag)

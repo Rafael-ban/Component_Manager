@@ -286,6 +286,7 @@ internal fun SettingsContent(
             ) {
                 settingsSectionDetailItems(
                     section = selectedSection ?: SettingsSection.Sync,
+                    showSectionHeading = true,
                     strings = strings,
                     serverUrl = serverUrl,
                     onServerUrlChange = { serverUrl = it },
@@ -368,6 +369,7 @@ internal fun SettingsContent(
         ) {
             settingsSectionDetailItems(
                 section = selectedSection,
+                showSectionHeading = false,
                 strings = strings,
                 serverUrl = serverUrl,
                 onServerUrlChange = { serverUrl = it },
@@ -447,11 +449,9 @@ private fun SettingsSectionList(
     selectedSection: SettingsSection?,
     onSelectSection: (SettingsSection) -> Unit,
 ) {
-    val strings = vaultStrings()
-
-    SectionPane(
-        title = strings.shell.settingsDestination,
-        supporting = strings.settings.summarySubtitle,
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SettingsSection.entries.forEach { section ->
             SettingsSectionCard(
@@ -514,7 +514,6 @@ private fun SettingsSummaryPane(
         title = strings.settings.summaryTitle,
         supporting = strings.settings.summarySubtitle,
     ) {
-        StatusBanner(message = statusMessage)
         ValueBlock(
             label = strings.settings.endpoint,
             value = syncConfiguration.serverBaseUrl.ifBlank { strings.common.labelNotConfigured },
@@ -555,7 +554,7 @@ private fun SettingsSummaryPane(
 }
 
 @Composable
-private fun SettingsAboutPane() {
+private fun SettingsAboutPane(showHeading: Boolean = true) {
     val strings = vaultStrings()
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
@@ -569,7 +568,7 @@ private fun SettingsAboutPane() {
     }
 
     SectionPane(
-        title = strings.settings.aboutTitle,
+        title = strings.settings.aboutTitle.takeIf { showHeading },
         supporting = strings.settings.aboutSubtitle,
     ) {
         ValueBlock(
@@ -583,6 +582,10 @@ private fun SettingsAboutPane() {
                 BuildConfig.VERSION_NAME,
                 BuildConfig.VERSION_CODE,
             ),
+        )
+        ValueBlock(
+            label = stringResource(R.string.settings_about_author),
+            value = "Rafael-Ikaros",
         )
         ValueBlock(
             label = strings.settings.localStorage,
@@ -613,6 +616,8 @@ private fun SettingsAboutPane() {
         ) {
             Text(stringResource(R.string.settings_about_open_source))
         }
+    }
+    SectionPane(title = stringResource(R.string.settings_update_title)) {
         Button(
             onClick = {
                 if (!isChecking) {
@@ -751,6 +756,7 @@ private const val RELEASES_URL = "https://github.com/Rafael-ban/Component_Manage
 
 private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetailItems(
     section: SettingsSection,
+    showSectionHeading: Boolean,
     strings: ComponentVaultStrings,
     serverUrl: String,
     onServerUrlChange: (String) -> Unit,
@@ -794,7 +800,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
         SettingsSection.Sync -> {
             item {
                 SectionPane(
-                    title = strings.settings.connectionTitle,
+                    title = strings.settings.connectionTitle.takeIf { showSectionHeading },
                     supporting = strings.settings.connectionSubtitle,
                 ) {
                     OutlinedTextField(
@@ -898,7 +904,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
         SettingsSection.ImportAndOcr -> {
             item {
                 SectionPane(
-                    title = strings.settings.importPreferencesTitle,
+                    title = strings.settings.importPreferencesTitle.takeIf { showSectionHeading },
                     supporting = strings.settings.importPreferencesSubtitle,
                 ) {
                     OutlinedTextField(
@@ -1006,7 +1012,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
         SettingsSection.App -> {
             item {
                 SectionPane(
-                    title = strings.settings.languageTitle,
+                    title = strings.settings.languageTitle.takeIf { showSectionHeading },
                     supporting = strings.settings.languageSubtitle,
                 ) {
                     SettingsChoiceRow(
@@ -1040,7 +1046,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
 
         SettingsSection.About -> {
             item {
-                SettingsAboutPane()
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SettingsAboutPane(showHeading = showSectionHeading)
+                }
             }
         }
     }

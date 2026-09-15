@@ -30,8 +30,8 @@ public sealed partial class InventoryUsageRing : UserControl
         UsedArc.Visibility = ratio > 0 && ratio < 0.999999 ? Visibility.Visible : Visibility.Collapsed;
         if (UsedArc.Visibility == Visibility.Visible)
         {
-            const double center = 27;
-            const double radius = 23;
+            const double center = 24;
+            const double radius = 20;
             var angle = ratio * Math.PI * 2 - Math.PI / 2;
             var end = new Windows.Foundation.Point(center + radius * Math.Cos(angle), center + radius * Math.Sin(angle));
             UsedArc.Data = new PathGeometry

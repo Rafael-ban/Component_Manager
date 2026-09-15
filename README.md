@@ -38,6 +38,11 @@ connects to it over HTTP.
   preview. See [BOM and migration guide](docs/bom-and-migration.md).
 - Active components enforce unique `sku`.
 - Component `quantity` and `min_stock` are non-negative.
+- Native layouts use a home summary, compact inventory cards with adjacent
+  images and usage rings, local display dates, and a single Settings entry.
+  About displays author `Rafael-Ikaros`, installed version, project/license
+  links, and GitHub Release update checks. See the
+  [native UI layout contract and references](docs/native-ui-redesign.md).
 
 ## Sync reliability and direct LCSC lookup
 
@@ -92,8 +97,8 @@ connects to it over HTTP.
 
 - Windows native client: local SQLite, component editing, movement recording,
   sync settings, server sync wiring, Chinese-first WinUI pages, and dual-mode
-  packaging are implemented; the Windows UI now follows an inventory-first
-  `NavigationView` shell with `Inventory`, `Movements`, `Overview`, `Project BOM`, and
+  packaging are implemented; the Windows UI follows a home-first
+  `NavigationView` shell with `Home`, `Inventory`, `Records`, `Project BOM`, and
   `Settings` destinations, dense list/detail workspaces, and updated XAML
   designer sample data; `dotnet build` verified successfully on `2026-05-09`,
   MSIX-oriented `dotnet publish` was verified successfully on `2026-05-07`,
@@ -103,8 +108,8 @@ connects to it over HTTP.
   JLC text and QR import, supplier packaging OCR import, physical label
   preview/export, expanded settings, server sync wiring, and Chinese-first
   Compose interface resources are implemented; the Android UI now follows an
-  inventory-first adaptive Compose shell with three top-level destinations
-  (`Inventory`, `Movements`, `Overview`) plus a secondary `Settings` route,
+  home-first adaptive Compose shell with four top-level destinations
+  (`Home`, `Inventory`, `Records`, `Settings`),
   official Material 3 adaptive shell and pane primitives
   (`NavigationSuiteScaffold`, window size classes,
   `NavigableListDetailPaneScaffold`), a search-first Inventory header, denser

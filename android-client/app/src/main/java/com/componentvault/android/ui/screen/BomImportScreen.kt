@@ -196,7 +196,7 @@ internal fun BomImportScreen(
             ) {
                 items(current.lines, key = { it.requirement.identity.canonicalKey }) { line ->
                     Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), Arrangement.spacedBy(4.dp)) {
+                        Column(Modifier.padding(16.dp), Arrangement.spacedBy(4.dp)) {
                             Text(line.requirement.sku ?: line.requirement.model ?: "未识别物料")
                             Text("需求 ${line.requirement.requiredQuantity} / 库存 ${line.availableQuantity}")
                             if (line.componentId == null) {
@@ -240,7 +240,7 @@ internal fun BomImportScreen(
             ) {
                 items(current.components, key = { it.sourceIndex }) { item ->
                     Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(10.dp)) {
+                        Column(Modifier.padding(16.dp)) {
                             Text("${item.sku} · ${item.name}")
                             Text("库存 ${item.quantity} · ${item.category}")
                         }

@@ -356,7 +356,6 @@ private fun MovementQuickEntryPane(
         title = strings.movements.recordTitle,
         supporting = strings.movements.recordSubtitle,
     ) {
-        StatusBanner(message = statusMessage)
         FilledTonalButton(
             onClick = onScanMovementLabel,
             modifier = Modifier.fillMaxWidth(),
@@ -671,7 +670,7 @@ private fun MovementDetailPane(
                 }
                 ValueBlock(
                     label = strings.movements.detailHappenedAt,
-                    value = movement.happenedAt,
+                    value = formatShortLocalTimestamp(movement.happenedAt),
                 )
                 ValueBlock(
                     label = strings.common.fieldReason,
@@ -682,7 +681,7 @@ private fun MovementDetailPane(
                     value = movement.note.ifBlank { strings.common.labelNoNote },
                 )
                 Text(
-                    text = strings.movements.updatedAt(movement.updatedAt),
+                    text = strings.movements.updatedAt(formatShortLocalTimestamp(movement.updatedAt)),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

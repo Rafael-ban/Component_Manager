@@ -335,7 +335,6 @@ private fun InventoryFilterHeader(
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        StatusBanner(message = statusMessage)
         SearchBar(
             modifier = Modifier.fillMaxWidth(),
             inputField = {
@@ -538,7 +537,7 @@ internal fun InventoryDetailPane(
                 ProductThumbnail(
                     sku = component.sku,
                     imageUrl = component.productImageUrl,
-                    imageSize = 180.dp,
+                    imageSize = 112.dp,
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                 )
                 StatusBanner(
@@ -633,7 +632,7 @@ internal fun InventoryDetailPane(
                 )
                 ValueBlock(
                     label = strings.common.labelUpdated,
-                    value = component.updatedAt,
+                    value = formatShortLocalTimestamp(component.updatedAt),
                 )
                 Text(
                     text = androidx.compose.ui.res.stringResource(
@@ -690,7 +689,7 @@ internal fun InventoryDetailPane(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
-                                text = movement.happenedAt,
+                                text = formatShortLocalTimestamp(movement.happenedAt),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

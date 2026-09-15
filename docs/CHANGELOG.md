@@ -5,6 +5,19 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.3.12] - 2026-09-15
+
+- Redesigned Android and Windows native navigation, home summaries, inventory
+  and movement workspaces, settings, and secondary editing/import surfaces.
+- Moved inventory usage rings into compact quantity/image columns, removed
+  duplicate settings headings and actions, and formatted display dates locally.
+- Reorganized native About pages with author Rafael-Ikaros, installed version,
+  project/license links, and the existing GitHub Release update workflow.
+- Documented the native layout contract and official reference projects.
+- Added CI coverage for local timestamp formatting and explicitly scoped
+  release publication to the current GitHub repository.
+
+
 ## [0.3.11] - 2026-09-15
 
 - Added native inventory donut indicators and detail statistics using current

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace ComponentVault.WinUI.Models;
 
 public sealed class StockMovementRecord
@@ -30,4 +32,28 @@ public sealed class StockMovementRecord
         "adjustment" => "调整",
         _ => MovementType,
     };
+
+    public string DisplayHappenedAt => FormatLocalDateTime(HappenedAt);
+
+    public string DisplayUpdatedAt => FormatLocalDateTime(UpdatedAt);
+
+    public string DisplayTimeline =>
+        $"{DisplayHappenedAt} · 更新于 {DisplayUpdatedAt}";
+
+    private static string FormatLocalDateTime(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "—";
+        }
+
+        return DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal,
+            out var timestamp
+        )
+            ? timestamp.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)
+            : value;
+    }
 }

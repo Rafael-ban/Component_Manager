@@ -8,17 +8,18 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.InventoryStockFilter
@@ -61,6 +62,10 @@ internal fun ComponentVaultAppShell(
     onOpenMovementDetail: (String) -> Unit,
     onOpenSettingsHome: () -> Unit,
     onOpenSyncSettings: () -> Unit,
+    selectedSettingsSection: SettingsSection?,
+    onBackFromSettingsSection: () -> Unit,
+    settingsContent: @Composable (PaddingValues) -> Unit,
+    snackbarHostState: SnackbarHostState,
 ) {
     ComponentVaultAppShellContent(
         uiState = uiState,
@@ -98,6 +103,10 @@ internal fun ComponentVaultAppShell(
         onOpenMovementDetail = onOpenMovementDetail,
         onOpenSettingsHome = onOpenSettingsHome,
         onOpenSyncSettings = onOpenSyncSettings,
+        selectedSettingsSection = selectedSettingsSection,
+        onBackFromSettingsSection = onBackFromSettingsSection,
+        settingsContent = settingsContent,
+        snackbarHostState = snackbarHostState,
     )
 }
 
@@ -139,13 +148,33 @@ internal fun ComponentVaultAppShellContent(
     onOpenMovementDetail: (String) -> Unit,
     onOpenSettingsHome: () -> Unit,
     onOpenSyncSettings: () -> Unit,
+    selectedSettingsSection: SettingsSection? = null,
+    onBackFromSettingsSection: () -> Unit = {},
+    settingsContent: @Composable (PaddingValues) -> Unit = {},
+    snackbarHostState: SnackbarHostState? = null,
 ) {
     val strings = vaultStrings()
-    val title = strings.shell.destinationLabel(destination)
+    val title = if (
+        destination == InventoryDestination.Settings &&
+        selectedSettingsSection != null &&
+        !layoutMode.showsListDetail
+    ) {
+        selectedSettingsSection.title(strings)
+    } else {
+        strings.shell.destinationLabel(destination)
+    }
+    val effectiveSnackbarHostState = snackbarHostState ?: remember { SnackbarHostState() }
 
     val topBar: @Composable () -> Unit = {
         TopAppBar(
             title = { Text(title) },
+            navigationIcon = {
+                if (destination == InventoryDestination.Settings && selectedSettingsSection != null && !layoutMode.showsListDetail) {
+                    androidx.compose.material3.TextButton(onClick = onBackFromSettingsSection) {
+                        Text(strings.common.actionBack)
+                    }
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.background,
             ),
@@ -156,12 +185,6 @@ internal fun ComponentVaultAppShellContent(
                             .padding(end = 8.dp)
                             .size(20.dp),
                         strokeWidth = 2.dp,
-                    )
-                }
-                IconButton(onClick = onOpenSettingsHome) {
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = strings.shell.settingsDestination,
                     )
                 }
             },
@@ -176,16 +199,6 @@ internal fun ComponentVaultAppShellContent(
                     text = { Text(strings.common.actionAdd) },
                     icon = { Icon(destination.icon, contentDescription = null) },
                 )
-            }
-
-            InventoryDestination.Movements -> {
-                if (uiState.availableComponents.isNotEmpty()) {
-                    ExtendedFloatingActionButton(
-                        onClick = onScanMovementLabel,
-                        text = { Text(strings.movements.quickScanAction) },
-                        icon = { Icon(destination.icon, contentDescription = null) },
-                    )
-                }
             }
 
             else -> Unit
@@ -210,6 +223,7 @@ internal fun ComponentVaultAppShellContent(
         Scaffold(
             topBar = topBar,
             floatingActionButton = floatingActionButton,
+            snackbarHost = { SnackbarHost(effectiveSnackbarHostState) },
             containerColor = MaterialTheme.colorScheme.background,
         ) { padding ->
             ShellContent(
@@ -247,6 +261,7 @@ internal fun ComponentVaultAppShellContent(
                 onOpenMovementDetail = onOpenMovementDetail,
                 onOpenSettings = onOpenSettingsHome,
                 onOpenSyncSettings = onOpenSyncSettings,
+                settingsContent = settingsContent,
             )
         }
     }
@@ -288,6 +303,7 @@ private fun ShellContent(
     onOpenMovementDetail: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSyncSettings: () -> Unit,
+    settingsContent: @Composable (PaddingValues) -> Unit,
 ) {
     when (destination) {
         InventoryDestination.Inventory -> InventoryContent(
@@ -343,5 +359,7 @@ private fun ShellContent(
             onOpenSettings = onOpenSettings,
             onOpenSyncSettings = onOpenSyncSettings,
         )
+
+        InventoryDestination.Settings -> settingsContent(contentPadding)
     }
 }

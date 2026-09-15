@@ -40,6 +40,7 @@ internal data class ShellStrings(
         InventoryDestination.Inventory -> inventoryDestination
         InventoryDestination.Movements -> movementsDestination
         InventoryDestination.Overview -> overviewDestination
+        InventoryDestination.Settings -> settingsDestination
     }
 }
 

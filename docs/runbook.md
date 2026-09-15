@@ -1,5 +1,12 @@
 # Runbook
 
+Native UI layout and navigation are documented in
+[native-ui-redesign.md](native-ui-redesign.md). Android and Windows About pages
+show author Rafael-Ikaros and read the existing repository's stable Releases.
+CI runs the native build checks, including UI timestamp regression coverage;
+the publication job identifies its repository through `GH_REPO` because its
+artifact-only workspace does not require a Git checkout.
+
 ## Local Backend Development
 
 Use the project-local virtual environment inside `server/.venv`.

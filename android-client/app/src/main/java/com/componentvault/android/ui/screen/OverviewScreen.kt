@@ -6,14 +6,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.model.OverviewUiState
 import com.componentvault.android.model.SyncConfiguration
@@ -68,27 +66,6 @@ internal fun OverviewContent(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            StatusBanner(message = statusMessage)
-        }
-        item {
-            SectionPane(
-                title = strings.overview.syncTitle,
-                supporting = strings.overview.syncSubtitle,
-            ) {
-                ValueBlock(
-                    label = strings.settings.endpoint,
-                    value = syncConfiguration.serverBaseUrl.ifBlank { strings.common.labelNotConfigured },
-                )
-                ValueBlock(
-                    label = strings.settings.lastSynced,
-                    value = syncConfiguration.lastSyncedAt,
-                )
-                TextButton(onClick = onOpenSyncSettings) {
-                    Text(strings.common.actionManageSync)
-                }
-            }
-        }
-        item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -130,7 +107,7 @@ internal fun OverviewContent(
                 if (uiState.lowStockItems.isEmpty()) {
                     EmptyPane(strings.common.emptyAllComponentsHealthy)
                 } else {
-                    uiState.lowStockItems.forEach { item ->
+                    uiState.lowStockItems.take(3).forEach { item ->
                         InventoryListRow(
                             item = item,
                             selected = false,
@@ -151,7 +128,7 @@ internal fun OverviewContent(
                 if (uiState.recentMovements.isEmpty()) {
                     EmptyPane(strings.common.emptyNoMovements)
                 } else {
-                    uiState.recentMovements.forEach { movement ->
+                    uiState.recentMovements.take(4).forEach { movement ->
                         MovementHistoryRow(
                             movement = movement,
                             selected = false,
@@ -163,15 +140,6 @@ internal fun OverviewContent(
                     Text(strings.common.actionViewMovements)
                 }
             }
-        }
-        item {
-            Text(
-                text = strings.overview.inventoryHint,
-                modifier = Modifier.padding(horizontal = 4.dp),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

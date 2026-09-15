@@ -22,11 +22,12 @@
   primary screens. Compose Preview uses injected `ComponentVaultStrings`
   sample bundles plus content-level preview composables so Preview rendering
   does not depend on Android Studio resolving the runtime `R.string` graph.
-- Navigation now centers on three adaptive top-level destinations:
-  `Inventory`, `Movements`, and `Overview`, plus a secondary `Settings` route
-  opened from the shell or overview actions. Inventory add/import actions also
-  open a secondary Project BOM / component-hub migration surface.
-- `Inventory` is the default high-frequency workflow and uses dense search,
+- Navigation centers on four adaptive top-level destinations: `Home`,
+  `Inventory`, `Records`, and `Settings`. Home presents the summary; settings
+  has one main entry with section drill-down and direct sync-section routing.
+  Inventory add/import actions open secondary Project BOM / component-hub
+  migration surfaces. See [native UI layout contract](native-ui-redesign.md).
+- `Inventory` is the high-frequency workflow and uses dense search,
   filter, and list-first layouts on phones, plus persistent list-detail panes
   on larger widths. The current shell is built on official Material 3 adaptive
   primitives: `NavigationSuiteScaffold` for top-level navigation,
@@ -83,8 +84,8 @@
   Component create/import forms stay open on save failure, surface repository
   errors inline, and reselect the saved component after a successful local
   reload so compact detail flows do not lose context.
-- `Overview` is now a summary surface that routes users back into inventory or
-  movement flows rather than acting as the primary editing page.
+- `Home` is the summary landing surface and routes users into inventory or
+  movement workflows. Transient action feedback uses a snackbar.
 - `Settings` is organized as grouped sync forms and status blocks instead of
   large summary-card stacks, with local-only import defaults and an About
   section. On compact widths it uses a summary/list home plus full-screen
@@ -155,16 +156,18 @@
   retaining Windows-native layout and interaction patterns.
 - Release distribution now supports both a test-signed MSIX install flow and a
   portable unpackaged publish that can be zipped and launched directly.
-- Navigation uses `NavigationView` with four top-level destinations:
-  `Inventory`, `Movements`, `Overview`, and `Settings`.
-- `Inventory` is the default landing page and uses a dense desktop workspace
+- Navigation uses `NavigationView` with `Home`, `Inventory`, `Records`, and
+  `Project BOM` in the main list and one `Settings` footer destination.
+- `Home` is the summary landing page. `Inventory` uses a dense desktop workspace
   with search, fixed filters, a continuous list, and a persistent inspector.
 - `Movements` is organized as a history-first ledger with compact metrics and a
   right-side audit inspector.
 - `Overview` is a summary surface with KPI blocks, low-stock watch entries,
   recent activity, and sync posture instead of acting as the primary edit page.
 - `Settings` is organized as grouped sync forms plus diagnostics rather than
-  mirrored summary cards.
+  mirrored summary cards. Native About pages identify the author as
+  `Rafael-Ikaros`, show installed versions and GPLv3, and retain GitHub Release
+  checks and platform download/fallback actions.
 - The implemented behavior matches Android at the business level and follows
   Windows-native layout conventions.
 - Startup diagnostics now log fatal launch/runtime exceptions under

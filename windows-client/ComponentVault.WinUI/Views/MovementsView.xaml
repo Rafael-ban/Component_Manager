@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="ComponentVault.WinUI.Views.MovementsView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -8,138 +8,177 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     d:DataContext="{d:DesignInstance Type=design:DesignMainViewModel, IsDesignTimeCreatable=True}"
     mc:Ignorable="d">
-
-    <Grid Padding="24" RowSpacing="20">
+    <Grid
+        Padding="24"
+        RowSpacing="12">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition
+                Height="Auto" />
+            <RowDefinition
+                Height="Auto" />
+            <RowDefinition
+                Height="*" />
         </Grid.RowDefinitions>
-
-        <StackPanel Grid.Row="0" Spacing="6">
-            <TextBlock x:Uid="MovementsViewPageTitle" Style="{StaticResource PageTitleTextStyle}" Text="出入库台账" />
-            <TextBlock
-                x:Uid="MovementsViewPageSubtitle"
-                Style="{StaticResource PageSubtitleTextStyle}"
-                Text="记录到货、领用和盘点调整；左侧保持连续历史，右侧提供选中记录的审计详情。" />
-        </StackPanel>
-
-        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}">
-            <StackPanel Spacing="16">
-                <CommandBar Background="Transparent" DefaultLabelPosition="Right">
-                    <AppBarButton
-                        x:Uid="MovementsRecordButton"
-                        Click="OnRecordMovementClicked"
-                        Icon="Add"
-                        IsEnabled="{Binding CanRecordMovement}"
-                        Label="记录变动" />
-                    <AppBarButton x:Uid="MovementsRefreshButton" Click="OnRefreshFeedClicked" Icon="Refresh" Label="刷新台账" />
-                </CommandBar>
-
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <Border Grid.Column="0" Style="{StaticResource MetricCardStyle}">
-                        <StackPanel Spacing="4">
-                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="入库" />
-                            <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding InboundMovementCount}" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="1" Style="{StaticResource MetricCardStyle}">
-                        <StackPanel Spacing="4">
-                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="出库" />
-                            <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding OutboundMovementCount}" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="2" Style="{StaticResource MetricCardStyle}">
-                        <StackPanel Spacing="4">
-                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="调整" />
-                            <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding AdjustmentMovementCount}" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="3" Style="{StaticResource MetricCardStyle}">
-                        <StackPanel Spacing="4">
-                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="净变化" />
-                            <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding MovementNetQuantityText}" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-
-                <Grid ColumnSpacing="20">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock
-                        Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                        Text="{Binding MovementFeedSummary}"
-                        TextWrapping="Wrap" />
-
-                    <TextBlock
-                        Grid.Column="1"
-                        HorizontalAlignment="Right"
-                        Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                        Text="{Binding MovementWorkspaceSummary}"
-                        TextWrapping="Wrap" />
-                </Grid>
-            </StackPanel>
-        </Border>
-
-        <Grid Grid.Row="2" ColumnSpacing="16">
+        <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2.2*" />
-                <ColumnDefinition Width="1.2*" />
+                <ColumnDefinition
+                    Width="*" />
+                <ColumnDefinition
+                    Width="Auto" />
             </Grid.ColumnDefinitions>
-
-            <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
-                <Grid RowSpacing="12">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <StackPanel Grid.Row="0" Spacing="4">
-                        <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="历史记录" />
+            <StackPanel
+                Spacing="4">
+                <TextBlock
+                    x:Uid="MovementsViewPageTitle"
+                    Style="{StaticResource PageTitleTextStyle}"
+                    Text="出入库" />
+                <TextBlock
+                    x:Uid="MovementsViewPageSubtitle"
+                    Style="{StaticResource PageSubtitleTextStyle}"
+                    Text="记录到货、领用与盘点调整，并查看完整库存流水。" />
+            </StackPanel>
+            <CommandBar
+                Grid.Column="1"
+                Background="Transparent"
+                DefaultLabelPosition="Right">
+                <AppBarButton
+                    x:Uid="MovementsRefreshButton"
+                    Click="OnRefreshFeedClicked"
+                    Icon="Refresh"
+                    Label="刷新" />
+                <AppBarButton
+                    x:Uid="MovementsRecordButton"
+                    Click="OnRecordMovementClicked"
+                    Icon="Add"
+                    IsEnabled="{Binding CanRecordMovement}"
+                    Label="记录变动" />
+            </CommandBar>
+        </Grid>
+        <Border
+            Grid.Row="1"
+            Style="{StaticResource CardBorderStyle}">
+            <Grid
+                ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="*" />
+                    <ColumnDefinition
+                        Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    Style="{StaticResource MetricCardStyle}">
+                    <StackPanel>
                         <TextBlock
-                            Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                            Text="{Binding StatusMessage}"
-                            TextWrapping="Wrap" />
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="入库" />
+                        <TextBlock
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="{Binding InboundMovementCount}" />
                     </StackPanel>
-
-                    <Border
+                </Border>
+                <Border
+                    Grid.Column="1"
+                    Style="{StaticResource MetricCardStyle}">
+                    <StackPanel>
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="出库" />
+                        <TextBlock
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="{Binding OutboundMovementCount}" />
+                    </StackPanel>
+                </Border>
+                <Border
+                    Grid.Column="2"
+                    Style="{StaticResource MetricCardStyle}">
+                    <StackPanel>
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="调整" />
+                        <TextBlock
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="{Binding AdjustmentMovementCount}" />
+                    </StackPanel>
+                </Border>
+                <Border
+                    Grid.Column="3"
+                    Style="{StaticResource MetricCardStyle}">
+                    <StackPanel>
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="净变化" />
+                        <TextBlock
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="{Binding MovementNetQuantityText}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+        <Grid
+            Grid.Row="2"
+            ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition
+                    Width="2.2*" />
+                <ColumnDefinition
+                    Width="1.1*" />
+            </Grid.ColumnDefinitions>
+            <Border
+                Style="{StaticResource CardBorderStyle}">
+                <Grid
+                    RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition
+                            Height="Auto" />
+                        <RowDefinition
+                            Height="Auto" />
+                        <RowDefinition
+                            Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        Style="{StaticResource CaptionTextStyle}"
+                        Text="{Binding MovementFeedSummary}" />
+                    <Grid
                         Grid.Row="1"
-                        Padding="12,10"
-                        Background="{StaticResource VaultPanelBrush}"
-                        BorderBrush="{StaticResource VaultBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="12">
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="1.4*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="元器件" />
-                            <TextBlock Grid.Column="1" Style="{StaticResource CaptionTextStyle}" Text="类型" />
-                            <TextBlock Grid.Column="2" Style="{StaticResource CaptionTextStyle}" Text="原因 / 备注" />
-                            <TextBlock Grid.Column="3" Style="{StaticResource CaptionTextStyle}" Text="时间" />
-                            <TextBlock Grid.Column="4" Style="{StaticResource CaptionTextStyle}" Text="数量" />
-                        </Grid>
-                    </Border>
-
+                        Padding="12,7"
+                        ColumnSpacing="10"
+                        Background="{StaticResource VaultPanelBrush}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition
+                                Width="2*" />
+                            <ColumnDefinition
+                                Width="70" />
+                            <ColumnDefinition
+                                Width="2*" />
+                            <ColumnDefinition
+                                Width="1.3*" />
+                            <ColumnDefinition
+                                Width="70" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="元器件" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="类型" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="原因 / 备注" />
+                        <TextBlock
+                            Grid.Column="3"
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="时间" />
+                        <TextBlock
+                            Grid.Column="4"
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="数量" />
+                    </Grid>
                     <ListView
                         x:Name="MovementsListView"
                         Grid.Row="2"
@@ -147,145 +186,161 @@
                         SelectedItem="{Binding SelectedMovement, Mode=TwoWay}"
                         SelectionChanged="OnMovementSelectionChanged">
                         <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="models:StockMovementRecord">
-                                <Border
-                                    Margin="0,0,0,8"
-                                    Padding="12,10"
-                                    Background="{StaticResource VaultSurfaceBrush}"
-                                    BorderBrush="{StaticResource VaultBorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="12">
-                                    <Grid ColumnSpacing="12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="2*" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="2*" />
-                                            <ColumnDefinition Width="1.4*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <StackPanel>
-                                            <TextBlock FontWeight="SemiBold" Text="{Binding ComponentName}" />
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding ComponentSku}" />
-                                        </StackPanel>
-
-                                        <Border
-                                            Grid.Column="1"
-                                            Padding="10,4"
-                                            VerticalAlignment="Center"
-                                            Background="{StaticResource VaultAccentSoftBrush}"
-                                            CornerRadius="999">
-                                            <TextBlock Foreground="{StaticResource VaultAccentBrush}" Text="{Binding MovementTypeLabel}" />
-                                        </Border>
-
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="{Binding Reason}" />
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding Note}" />
-                                        </StackPanel>
-
+                            <DataTemplate
+                                x:DataType="models:StockMovementRecord">
+                                <Grid
+                                    Padding="12,9"
+                                    ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition
+                                            Width="2*" />
+                                        <ColumnDefinition
+                                            Width="70" />
+                                        <ColumnDefinition
+                                            Width="2*" />
+                                        <ColumnDefinition
+                                            Width="1.3*" />
+                                        <ColumnDefinition
+                                            Width="70" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
                                         <TextBlock
-                                            Grid.Column="3"
-                                            VerticalAlignment="Center"
-                                            Text="{Binding HappenedAt}" />
-
-                                        <TextBlock
-                                            Grid.Column="4"
-                                            VerticalAlignment="Center"
                                             FontWeight="SemiBold"
-                                            Text="{Binding QuantityLabel}" />
-                                    </Grid>
-                                </Border>
+                                            Text="{Binding ComponentName}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            Style="{StaticResource CaptionTextStyle}"
+                                            Text="{Binding ComponentSku}" />
+                                    </StackPanel>
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Text="{Binding MovementTypeLabel}" />
+                                    <StackPanel
+                                        Grid.Column="2">
+                                        <TextBlock
+                                            Text="{Binding Reason}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            Style="{StaticResource CaptionTextStyle}"
+                                            Text="{Binding Note}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <TextBlock
+                                        Grid.Column="3"
+                                        VerticalAlignment="Center"
+                                        Text="{Binding DisplayHappenedAt}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Column="4"
+                                        VerticalAlignment="Center"
+                                        FontWeight="SemiBold"
+                                        Text="{Binding QuantityLabel}" />
+                                </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
                 </Grid>
             </Border>
-
-            <Border Grid.Column="1" Style="{StaticResource InsetPanelStyle}">
+            <Border
+                Grid.Column="1"
+                Style="{StaticResource CardBorderStyle}">
                 <ScrollViewer>
-                    <StackPanel Spacing="16">
-                        <StackPanel Spacing="4">
-                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="记录详情" />
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding SelectedMovementTitle}" />
+                    <StackPanel
+                        Spacing="14">
+                        <StackPanel
+                            Spacing="3">
                             <TextBlock
-                                Foreground="{StaticResource TextFillColorSecondaryBrush}"
+                                Style="{StaticResource SectionTitleTextStyle}"
+                                Text="{Binding SelectedMovementTitle}"
+                                TextWrapping="Wrap" />
+                            <TextBlock
+                                Style="{StaticResource CaptionTextStyle}"
                                 Text="{Binding SelectedMovementSubtitle}"
                                 TextWrapping="Wrap" />
                         </StackPanel>
-
                         <InfoBar
                             IsOpen="True"
                             IsClosable="False"
                             Severity="{Binding SelectedMovementStatusSeverity}"
                             Title="{Binding SelectedMovementStatusTitle}"
                             Message="{Binding SelectedMovementStatusMessage}" />
-
-                        <Border Style="{StaticResource CardBorderStyle}">
-                            <StackPanel Spacing="12">
-                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="数量与时间" />
-                                <Grid ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <Border Grid.Column="0" Style="{StaticResource MetricCardStyle}">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="数量变化" />
-                                            <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedMovementQuantityText}" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Column="1" Style="{StaticResource MetricCardStyle}">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="类型" />
-                                            <TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedMovementTypeText}" />
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-
-                                <TextBlock
-                                    Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                    Text="{Binding SelectedMovementTimeline}"
-                                    TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource CardBorderStyle}">
-                            <StackPanel Spacing="10">
-                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="原因与备注" />
-                                <Grid ColumnSpacing="12" RowSpacing="10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="80" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-
-                                    <TextBlock Grid.Row="0" Style="{StaticResource CaptionTextStyle}" Text="原因" />
-                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedMovementReason}" TextWrapping="Wrap" />
-
-                                    <TextBlock Grid.Row="1" Style="{StaticResource CaptionTextStyle}" Text="备注" />
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedMovementNote}" TextWrapping="Wrap" />
-
-                                    <TextBlock Grid.Row="2" Style="{StaticResource CaptionTextStyle}" Text="更新时间" />
-                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedMovementUpdatedAt}" TextWrapping="Wrap" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource CardBorderStyle}">
-                            <StackPanel Spacing="10">
-                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="操作提示" />
-                                <TextBlock
-                                    Foreground="{StaticResource TextFillColorSecondaryBrush}"
-                                    Text="{Binding SelectedMovementActionHint}"
-                                    TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
+                        <Grid
+                            ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition
+                                    Width="*" />
+                                <ColumnDefinition
+                                    Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border
+                                Style="{StaticResource MetricCardStyle}">
+                                <StackPanel>
+                                    <TextBlock
+                                        Style="{StaticResource CaptionTextStyle}"
+                                        Text="数量变化" />
+                                    <TextBlock
+                                        Style="{StaticResource MetricValueTextStyle}"
+                                        Text="{Binding SelectedMovementQuantityText}" />
+                                </StackPanel>
+                            </Border>
+                            <Border
+                                Grid.Column="1"
+                                Style="{StaticResource MetricCardStyle}">
+                                <StackPanel>
+                                    <TextBlock
+                                        Style="{StaticResource CaptionTextStyle}"
+                                        Text="类型" />
+                                    <TextBlock
+                                        FontSize="18"
+                                        FontWeight="SemiBold"
+                                        Text="{Binding SelectedMovementTypeText}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <Grid
+                            ColumnSpacing="12"
+                            RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition
+                                    Width="72" />
+                                <ColumnDefinition
+                                    Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition
+                                    Height="Auto" />
+                                <RowDefinition
+                                    Height="Auto" />
+                                <RowDefinition
+                                    Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock
+                                Style="{StaticResource CaptionTextStyle}"
+                                Text="原因" />
+                            <TextBlock
+                                Grid.Column="1"
+                                Text="{Binding SelectedMovementReason}"
+                                TextWrapping="Wrap" />
+                            <TextBlock
+                                Grid.Row="1"
+                                Style="{StaticResource CaptionTextStyle}"
+                                Text="备注" />
+                            <TextBlock
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                Text="{Binding SelectedMovementNote}"
+                                TextWrapping="Wrap" />
+                            <TextBlock
+                                Grid.Row="2"
+                                Style="{StaticResource CaptionTextStyle}"
+                                Text="时间" />
+                            <TextBlock
+                                Grid.Row="2"
+                                Grid.Column="1"
+                                Text="{Binding SelectedMovementTimeline}"
+                                TextWrapping="Wrap" />
+                        </Grid>
                     </StackPanel>
                 </ScrollViewer>
             </Border>

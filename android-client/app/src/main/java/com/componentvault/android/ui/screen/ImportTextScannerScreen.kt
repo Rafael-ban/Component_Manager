@@ -305,7 +305,7 @@ private fun SupplierTextScannerOverlay(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(horizontal = 20.dp, vertical = 20.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(16.dp),
             color = Color.Black.copy(alpha = 0.6f),
         ) {
             Text(

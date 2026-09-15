@@ -2,8 +2,8 @@
     <string name="app_name">元件仓库</string>
     <string name="top_bar_title">元件仓库</string>
     <string name="destination_inventory">库存</string>
-    <string name="destination_movements">变动</string>
-    <string name="destination_overview">概览</string>
+    <string name="destination_movements">记录</string>
+    <string name="destination_overview">首页</string>
     <string name="destination_settings">设置</string>
     <string name="action_add">新增</string>
     <string name="action_back">返回</string>
@@ -246,6 +246,7 @@
     <string name="settings_local_storage_value">SQLite + SharedPreferences</string>
     <string name="settings_about_body">库存数据会先写入本地 SQLite，再按需同步到服务端。</string>
     <string name="settings_about_app_name">应用名称</string>
+    <string name="settings_about_author">作者</string>
     <string name="settings_about_version_format">%1$s（版本代码 %2$d）</string>
     <string name="settings_about_project_address">项目地址</string>
     <string name="settings_about_open_project">在 GitHub 打开项目</string>
@@ -253,6 +254,7 @@
     <string name="settings_about_open_source_value">GNU 通用公共许可证 v3.0</string>
     <string name="settings_about_open_source">查看开源许可与说明</string>
     <string name="settings_update_check_action">手动检查更新</string>
+    <string name="settings_update_title">应用更新</string>
     <string name="settings_update_checking">正在检查…</string>
     <string name="settings_update_available">发现新版 %1$s · 发布于 %2$s</string>
     <string name="settings_update_up_to_date">当前已是最新版本（%1$s）。</string>

@@ -1,5 +1,6 @@
 using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Services.Catalog;
+using System.Globalization;
 
 namespace ComponentVault.WinUI.Models;
 
@@ -38,4 +39,23 @@ public sealed class ComponentRecord
             : LcscPublicCatalog.CachedImageUrl(Sku);
 
     public string DisplayCategory => CategoryDisplay.Localize(Category);
+
+    public string DisplayUpdatedAt => FormatLocalDateTime(UpdatedAt);
+
+    private static string FormatLocalDateTime(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "—";
+        }
+
+        return DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal,
+            out var timestamp
+        )
+            ? timestamp.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)
+            : value;
+    }
 }

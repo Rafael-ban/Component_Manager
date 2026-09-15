@@ -14,35 +14,36 @@
             IsBackButtonVisible="Collapsed"
             IsBackEnabled="False"
             IsSettingsVisible="False"
-            PaneDisplayMode="Left"
+            IsTitleBarAutoPaddingEnabled="True"
+            OpenPaneLength="224"
+            CompactPaneLength="48"
+            PaneDisplayMode="Auto"
             SelectionChanged="OnSelectionChanged">
             <NavigationView.Header>
-                <Grid Margin="0,4,0,8">
+                <Grid Margin="0,0,16,8" MinHeight="48">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Spacing="2">
-                        <TextBlock
-                            x:Uid="MainWindowHeaderTitle"
-                            FontSize="24"
-                            FontWeight="SemiBold"
-                            Text="库存工作台" />
-                        <TextBlock
-                            x:Uid="MainWindowHeaderSubtitle"
-                            Style="{StaticResource PageSubtitleTextStyle}"
-                            Text="本地优先 · 电子元器件库存与同步工作区" />
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE719;" FontSize="18" Foreground="{StaticResource VaultAccentBrush}" />
+                        <StackPanel Spacing="0">
+                            <TextBlock FontSize="15" FontWeight="SemiBold" Text="Component Vault" />
+                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="本地优先库存" />
+                        </StackPanel>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" Spacing="8">
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="10">
                         <TextBlock
-                            HorizontalAlignment="Right"
+                            MaxWidth="260"
+                            VerticalAlignment="Center"
+                            TextTrimming="CharacterEllipsis"
                             Foreground="{StaticResource TextFillColorSecondaryBrush}"
                             Text="{Binding ShellSyncSummary}" />
                         <Button
                             x:Uid="MainWindowSyncNowButton"
-                            HorizontalAlignment="Right"
+                            Style="{StaticResource AccentButtonStyle}"
                             Click="OnSyncNowClicked"
                             Content="立即同步" />
                     </StackPanel>
@@ -50,12 +51,15 @@
             </NavigationView.Header>
 
             <NavigationView.MenuItems>
+                <NavigationViewItem x:Name="OverviewItem" x:Uid="MainWindowOverviewItem" Content="首页" Tag="Overview">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="Home" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem x:Name="InventoryItem" x:Uid="MainWindowInventoryItem" Content="库存" Tag="Inventory">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Library" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="MovementsItem" x:Uid="MainWindowMovementsItem" Content="出入库" Tag="Movements">
+                <NavigationViewItem x:Name="MovementsItem" x:Uid="MainWindowMovementsItem" Content="记录" Tag="Movements">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Sort" />
                     </NavigationViewItem.Icon>
@@ -63,11 +67,6 @@
                 <NavigationViewItem x:Name="BomItem" Content="项目 BOM" Tag="Bom">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="OpenFile" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem x:Name="OverviewItem" x:Uid="MainWindowOverviewItem" Content="概览" Tag="Overview">
-                    <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Home" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
