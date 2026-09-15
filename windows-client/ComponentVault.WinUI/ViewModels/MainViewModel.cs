@@ -4,6 +4,7 @@ using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.Services;
 using ComponentVault.WinUI.Services.Bom;
+using ComponentVault.WinUI.Services.BatchInbound;
 using ComponentVault.WinUI.Services.Migration;
 using Microsoft.UI.Xaml.Controls;
 
@@ -557,6 +558,9 @@ public sealed class MainViewModel : ObservableObject
         if (result.IsSuccess) { Refresh(); ScheduleAutoSync(); }
         return result;
     }
+    public bool IsBatchReceiptCommitted(string receiptId)=>_store.IsBatchReceiptCommitted(receiptId);
+    public OperationResult CommitBatchInbound(BatchInboundCommitRequest request){var result=_store.CommitBatchInbound(request);if(result.IsSuccess){Refresh();ScheduleAutoSync();}return result;}
+    public OperationResult AppendCatalogInbound(string sku,int quantity,string location,string expectedUpdatedAt){var result=_store.AppendCatalogInbound(sku,quantity,location,expectedUpdatedAt);if(result.IsSuccess){Refresh();ScheduleAutoSync();}return result;}
 
     private InventoryRestorePreview? _approvedInventoryRestorePreview;
     public void ExportInventoryWorkbook(string path) => new InventoryWorkbookBackup(_store).Export(path);

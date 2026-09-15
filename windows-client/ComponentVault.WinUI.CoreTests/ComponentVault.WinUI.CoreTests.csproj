@@ -27,6 +27,7 @@
     <Compile Include="..\ComponentVault.WinUI\Services\ComponentUsageStatisticsCalculator.cs" Link="Services\ComponentUsageStatisticsCalculator.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\SyncApiModels.cs" Link="Services\SyncApiModels.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\Bom\*.cs" Link="Services\Bom\%(Filename)%(Extension)" />
+    <Compile Include="..\ComponentVault.WinUI\Services\BatchInbound\*.cs" Link="Services\BatchInbound\%(Filename)%(Extension)" />
     <Compile Include="..\ComponentVault.WinUI\Services\Migration\*.cs" Link="Services\Migration\%(Filename)%(Extension)" />
     <Compile Include="..\ComponentVault.WinUI\Services\Catalog\*.cs" Link="Services\Catalog\%(Filename)%(Extension)" />
     <Compile Include="..\ComponentVault.WinUI\Services\Updates\*.cs" Link="Services\Updates\%(Filename)%(Extension)" />

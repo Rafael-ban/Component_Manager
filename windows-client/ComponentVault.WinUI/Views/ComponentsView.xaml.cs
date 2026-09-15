@@ -17,6 +17,7 @@ public sealed partial class ComponentsView : Page
 {
     private readonly LcscPublicLookup _catalogLookup = new();
     private readonly HashSet<string> _lazyLookupAttempted = new(StringComparer.OrdinalIgnoreCase);
+    private bool _catalogAppendBusy;
     private MainViewModel? RuntimeViewModel => ViewModelResolver.GetRuntimeViewModel(DataContext);
 
     public ComponentsView()
@@ -67,6 +68,13 @@ public sealed partial class ComponentsView : Page
             return;
         }
 
+        var existing=viewModel.Components.FirstOrDefault(x=>!x.Deleted&&x.Sku.Equals(draft.Sku,StringComparison.OrdinalIgnoreCase));
+        if(existing is not null&&draft.Description.Contains("官方商品页：",StringComparison.Ordinal)&&draft.Quantity>0)
+        {
+            if(_catalogAppendBusy)return;int combined;try{combined=checked(existing.Quantity+draft.Quantity);}catch(OverflowException){await ShowMessageAsync("无法追加库存","追加后库存超过整数范围。");return;}
+            var dialog=new ContentDialog{Title="确认追加现有 SKU",Content=new TextBlock{Text=$"{existing.Sku}\n当前库存：{existing.Quantity}\n本次入库：{draft.Quantity}\n确认后合计：{combined}\n入库库位：{draft.Location}\n\n现有元件名称、分类、封装和说明将保留。",TextWrapping=TextWrapping.Wrap},PrimaryButtonText="确认追加",CloseButtonText=AppStrings.Get("Common_Cancel"),DefaultButton=ContentDialogButton.Close,XamlRoot=XamlRoot};if(await dialog.ShowAsync()!=ContentDialogResult.Primary)return;
+            _catalogAppendBusy=true;try{await ShowOperationResultAsync(viewModel.AppendCatalogInbound(existing.Sku,draft.Quantity,draft.Location,existing.UpdatedAt));}finally{_catalogAppendBusy=false;}return;
+        }
         await ShowOperationResultAsync(viewModel.SaveComponent(draft));
     }
 
@@ -168,6 +176,9 @@ public sealed partial class ComponentsView : Page
             await ShowMessageAsync("迁移文件读取失败", exception.Message);
         }
     }
+
+    private void OnBatchJlcInboundClicked(object sender,RoutedEventArgs e)
+    {if(Application.Current is App { Window: MainWindow window })window.NavigateTo("BatchInbound");}
 
     private async void OnEditComponentClicked(object sender, RoutedEventArgs e)
     {

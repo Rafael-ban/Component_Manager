@@ -21,7 +21,7 @@ class BatchJlcDatabaseTest {
 
     @Before
     fun setUp() = runBlocking {
-        context.deleteDatabase(InventoryDatabaseHelper.DATABASE_NAME)
+        InventoryDatabaseHelper(context).use { helper -> context.deleteDatabase(helper.databaseName) }
         repository = InventoryRepository(context)
         assertTrue(repository.saveStorageLocation("A", "A").isSuccess)
         assertTrue(repository.saveStorageLocation("B", "B").isSuccess)

@@ -24,6 +24,7 @@ public sealed partial class MainWindow : Window
         var targetPage = tag switch
         {
             "Inventory" => typeof(ComponentsView),
+            "BatchInbound" => typeof(BatchJlcInboundView),
             "Movements" => typeof(MovementsView),
             "Bom" => typeof(BomView),
             "Overview" => typeof(DashboardView),
@@ -39,6 +40,7 @@ public sealed partial class MainWindow : Window
         var targetItem = tag switch
         {
             "Inventory" => InventoryItem,
+            "BatchInbound" => InventoryItem,
             "Movements" => MovementsItem,
             "Bom" => BomItem,
             "Overview" => OverviewItem,

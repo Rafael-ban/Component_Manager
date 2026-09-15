@@ -90,6 +90,9 @@
                     Click="OnImportComponentHubClicked"
                     Icon="Upload"
                     Label="导入" />
+                <AppBarButton Click="OnBatchJlcInboundClicked" Label="嘉立创批量入库">
+                    <AppBarButton.Icon><FontIcon Glyph="&#xE8B7;" /></AppBarButton.Icon>
+                </AppBarButton>
                 <AppBarButton
                     Click="OnManageLocationsClicked"
                     Label="库位">
