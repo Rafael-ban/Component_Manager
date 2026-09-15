@@ -5,6 +5,18 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.5.1] - 2026-09-15
+
+<!-- Add unreleased notes below this line. -->
+
+- Fixed Android upgrades from existing databases failing before startup because
+  the pre-upgrade backup executed a result-returning PRAGMA with execSQL.
+- Added a data-preserving startup failure page with retry and redacted diagnostics;
+  inventory is never silently reset after an initialization failure.
+- Added SQLite/WAL migration coverage that verifies retained inventory and a
+  readable pre-upgrade backup, plus startup diagnostic privacy regression tests.
+
+
 ## [0.5.0] - 2026-09-15
 
 <!-- Add unreleased notes below this line. -->

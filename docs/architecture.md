@@ -13,6 +13,14 @@
 
 ## Android Client
 
+Database initialization failures are displayed before normal inventory controls
+are available. Initial inventory reload errors use the same recovery screen.
+Retry keeps the original database; diagnostic copy includes exception classes
+and relevant class/method/line references, excluding exception messages and file
+paths. Automatic startup sync begins only after the initial inventory load.
+Pre-upgrade snapshots copy the SQLite database and WAL/SHM under a write lock;
+failure stops the upgrade. Result-returning PRAGMAs use `rawQuery`, not `execSQL`.
+
 Both native clients expose a Settings feedback surface. Reports are authored
 locally; diagnostic inclusion is opt-in and editable. A bounded process-local
 event log accepts fixed event types and numeric fields, never raw barcode

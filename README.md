@@ -22,6 +22,10 @@ connects to it over HTTP.
 ## Key Behaviors
 
 - Local-first storage with SQLite on the client.
+- Android keeps a consistent private backup before a database schema upgrade.
+  If startup cannot open existing inventory, it shows retry and diagnostic-copy
+  actions without clearing data. Do not clear app storage to work around an
+  upgrade failure; install the fixed update over the existing installation.
 - Manual sync and optional auto sync.
 - Soft delete for synchronized entities.
 - Inventory history recorded as stock movements.
