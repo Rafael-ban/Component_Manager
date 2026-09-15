@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_sync_save_first">连接修改尚未保存。测试只使用当前输入；请先保存，再同步。</string>
+    <string name="settings_sync_test_draft">测试连接不会保存设置。立即同步使用已保存的连接。</string>
+</resources>

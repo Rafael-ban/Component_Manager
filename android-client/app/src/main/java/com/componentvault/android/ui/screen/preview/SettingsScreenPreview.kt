@@ -22,7 +22,7 @@ private fun SettingsPhonePreview() {
             onSelectSection = {},
             onSaveSyncSettings = { _, _, _ -> },
             onSaveAppPreferences = {},
-            onTestConnection = {},
+            onTestConnection = { _, _ -> },
             onSyncNow = {},
             onClearImportLearningMappings = {},
         )
@@ -47,7 +47,7 @@ private fun SettingsBusyPreview() {
             onSelectSection = {},
             onSaveSyncSettings = { _, _, _ -> },
             onSaveAppPreferences = {},
-            onTestConnection = {},
+            onTestConnection = { _, _ -> },
             onSyncNow = {},
             onClearImportLearningMappings = {},
         )

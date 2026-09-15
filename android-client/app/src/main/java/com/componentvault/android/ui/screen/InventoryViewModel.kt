@@ -594,10 +594,11 @@ class InventoryViewModel(
         )
     }
 
-    fun testConnection() {
+    fun testConnection(serverBaseUrl: String, apiToken: String) {
+        if (uiState.isBusy) return
         viewModelScope.launch {
             uiState = uiState.copy(isBusy = true)
-            val result = repository.testConnection()
+            val result = repository.testConnection(serverBaseUrl, apiToken)
             uiState = uiState.copy(
                 syncConfiguration = repository.loadSyncConfiguration(),
                 statusMessage = result.message,

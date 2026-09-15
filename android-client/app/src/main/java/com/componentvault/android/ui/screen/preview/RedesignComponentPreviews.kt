@@ -46,7 +46,7 @@ private fun AboutCompactPreview() {
             onSelectSection = {},
             onSaveSyncSettings = { _, _, _ -> },
             onSaveAppPreferences = {},
-            onTestConnection = {},
+            onTestConnection = { _, _ -> },
             onSyncNow = {},
             onClearImportLearningMappings = {},
         )
@@ -70,7 +70,7 @@ private fun AboutWidePreview() {
             onSelectSection = {},
             onSaveSyncSettings = { _, _, _ -> },
             onSaveAppPreferences = {},
-            onTestConnection = {},
+            onTestConnection = { _, _ -> },
             onSyncNow = {},
             onClearImportLearningMappings = {},
         )

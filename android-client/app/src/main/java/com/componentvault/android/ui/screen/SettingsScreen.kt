@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -67,7 +68,7 @@ internal fun SettingsRouteScreen(
     onDismiss: () -> Unit,
     onSaveSyncSettings: (String, String, Boolean) -> Unit,
     onSaveAppPreferences: (AppPreferences) -> Unit,
-    onTestConnection: () -> Unit,
+    onTestConnection: (String, String) -> Unit,
     onSyncNow: () -> Unit,
     onClearImportLearningMappings: () -> Unit,
 ) {
@@ -131,7 +132,7 @@ internal fun SettingsScreen(
     onSelectSection: (SettingsSection?) -> Unit,
     onSaveSyncSettings: (String, String, Boolean) -> Unit,
     onSaveAppPreferences: (AppPreferences) -> Unit,
-    onTestConnection: () -> Unit,
+    onTestConnection: (String, String) -> Unit,
     onSyncNow: () -> Unit,
     onClearImportLearningMappings: () -> Unit,
 ) {
@@ -166,7 +167,7 @@ internal fun SettingsContent(
     onSelectSection: (SettingsSection?) -> Unit,
     onSaveSyncSettings: (String, String, Boolean) -> Unit,
     onSaveAppPreferences: (AppPreferences) -> Unit,
-    onTestConnection: () -> Unit,
+    onTestConnection: (String, String) -> Unit,
     onSyncNow: () -> Unit,
     onClearImportLearningMappings: () -> Unit,
     onManageLocations: (() -> Unit)? = null,
@@ -218,6 +219,9 @@ internal fun SettingsContent(
     var showToken by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showClearLearningConfirmation by remember { mutableStateOf(false) }
+
+    val hasUnsavedConnection = serverUrl.trim().trimEnd('/') != syncConfiguration.serverBaseUrl ||
+        apiToken.trim() != syncConfiguration.apiToken || autoSyncEnabled != syncConfiguration.autoSyncEnabled
 
     val saveDraft: (Boolean) -> Boolean = { applyLocale ->
         val minStock = defaultImportMinStockText.toIntOrNull()
@@ -325,16 +329,13 @@ internal fun SettingsContent(
                     onToggleToken = { showToken = !showToken },
                     isBusy = isBusy,
                     errorMessage = errorMessage,
+                    hasUnsavedConnection = hasUnsavedConnection,
                     onSave = { saveDraft(true) },
                     onTestConnection = {
-                        if (saveDraft(false)) {
-                            onTestConnection()
-                        }
+                        onTestConnection(serverUrl, apiToken)
                     },
                     onSyncNow = {
-                        if (saveDraft(false)) {
-                            onSyncNow()
-                        }
+                        onSyncNow()
                     },
                     onClearImportLearningMappings = { showClearLearningConfirmation = true },
                 )
@@ -368,6 +369,7 @@ internal fun SettingsContent(
     } else {
         LazyColumn(
             modifier = Modifier
+                .testTag("settings_detail_list")
                 .fillMaxSize()
                 .consumeWindowInsets(contentPadding),
             contentPadding = rememberContentPadding(contentPadding, horizontal = 16.dp, vertical = 16.dp),
@@ -410,16 +412,13 @@ internal fun SettingsContent(
                 onToggleToken = { showToken = !showToken },
                 isBusy = isBusy,
                 errorMessage = errorMessage,
+                hasUnsavedConnection = hasUnsavedConnection,
                 onSave = { saveDraft(true) },
                 onTestConnection = {
-                    if (saveDraft(false)) {
-                        onTestConnection()
-                    }
+                    onTestConnection(serverUrl, apiToken)
                 },
                 onSyncNow = {
-                    if (saveDraft(false)) {
-                        onSyncNow()
-                    }
+                    onSyncNow()
                 },
                 onClearImportLearningMappings = { showClearLearningConfirmation = true },
             )
@@ -812,6 +811,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
     isBusy: Boolean,
     errorMessage: String?,
     onSave: () -> Boolean,
+    hasUnsavedConnection: Boolean,
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
     onClearImportLearningMappings: () -> Unit,
@@ -892,6 +892,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
+                    Text(
+                        stringResource(if (hasUnsavedConnection) R.string.settings_sync_save_first else R.string.settings_sync_test_draft),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -912,7 +916,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
                     }
                     OutlinedButton(
                         onClick = onSyncNow,
-                        enabled = !isBusy,
+                        enabled = !isBusy && !hasUnsavedConnection,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(strings.common.actionSyncNow)

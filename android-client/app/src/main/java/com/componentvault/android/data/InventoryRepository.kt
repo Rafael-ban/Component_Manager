@@ -1023,8 +1023,14 @@ class InventoryRepository(
         }
     }
 
-    suspend fun testConnection(): OperationResult = withContext(Dispatchers.IO) {
-        val settings = loadSyncConfiguration()
+    suspend fun testConnection(
+        serverBaseUrl: String,
+        apiToken: String,
+    ): OperationResult = withContext(Dispatchers.IO) {
+        val settings = loadSyncConfiguration().copy(
+            serverBaseUrl = serverBaseUrl.trim().trimEnd('/'),
+            apiToken = apiToken.trim(),
+        )
         if (settings.serverBaseUrl.isBlank()) {
             return@withContext OperationResult(false, text(R.string.sync_enter_server_url_first))
         }
@@ -1038,6 +1044,7 @@ class InventoryRepository(
                 method = "POST",
                 path = "/auth/ping",
                 body = null,
+                timeoutMillis = 15_000,
             )
             OperationResult(
                 isSuccess = true,
@@ -2383,8 +2390,11 @@ class InventoryRepository(
         method: String,
         path: String,
         body: JSONObject?,
+        timeoutMillis: Int = 0,
     ): JSONObject {
         val connection = URL("${settings.serverBaseUrl.trimEnd('/')}$path").openConnection() as HttpURLConnection
+        connection.connectTimeout = timeoutMillis
+        connection.readTimeout = timeoutMillis
         connection.requestMethod = method
         connection.setRequestProperty("Authorization", "Bearer ${settings.apiToken}")
         connection.setRequestProperty("Accept", "application/json")

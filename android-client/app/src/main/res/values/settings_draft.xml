@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_sync_save_first">Connection changes are not saved. Testing uses the current input; save before syncing.</string>
+    <string name="settings_sync_test_draft">Testing does not save settings. Sync uses your saved connection.</string>
+</resources>
