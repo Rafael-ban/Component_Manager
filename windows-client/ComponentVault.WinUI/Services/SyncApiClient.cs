@@ -64,7 +64,7 @@ public sealed class SyncApiClient
     public async Task<SyncRunResult> RunSyncAsync(
         SyncConfiguration settings,
         SyncPushRequest pushRequest,
-        string? since,
+        long? cursor,
         CancellationToken cancellationToken = default
     )
     {
@@ -86,7 +86,7 @@ public sealed class SyncApiClient
                 return pushResponse.Result;
             }
 
-            var pullResponse = await PullAsync(settings, since, cancellationToken);
+            var pullResponse = await PullAsync(settings, cursor, cancellationToken);
             if (pullResponse.Result is not null)
             {
                 return pullResponse.Result;
@@ -135,13 +135,13 @@ public sealed class SyncApiClient
 
     private async Task<(SyncPullResponse? Payload, SyncRunResult? Result)> PullAsync(
         SyncConfiguration settings,
-        string? since,
+        long? cursor,
         CancellationToken cancellationToken
     )
     {
-        var path = string.IsNullOrWhiteSpace(since)
+        var path = cursor is null
             ? "/sync/pull"
-            : $"/sync/pull?since={Uri.EscapeDataString(since)}";
+            : $"/sync/pull?cursor={cursor.Value}";
 
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
@@ -158,7 +158,13 @@ public sealed class SyncApiClient
             );
         }
 
-        return (await DeserializeAsync<SyncPullResponse>(response, cancellationToken), null);
+        var payload = await DeserializeAsync<SyncPullResponse>(response, cancellationToken);
+        if (payload.SyncCursor is < 0)
+        {
+            return (null, SyncRunResult.Failure("同步服务端返回了无效的同步游标。"));
+        }
+
+        return (payload, null);
     }
 
     private async Task<T> DeserializeAsync<T>(

@@ -119,6 +119,16 @@ jobs:
       - name: Build Android debug APK
         run: gradle -p android-client assembleDebug
 
+      - name: Run Android inventory regressions
+        run: >-
+          gradle -p android-client :app:testDebugUnitTest
+          --tests 'com.componentvault.android.data.SyncProtocolTest'
+          --tests 'com.componentvault.android.data.LcscPublicCatalogTest'
+          --tests 'com.componentvault.android.model.ComponentImportModelsTest'
+          --tests 'com.componentvault.android.model.StockMovementRecordTest'
+          --tests 'com.componentvault.android.model.OcrEngineModeTest'
+          --tests 'com.componentvault.android.data.bom.*'
+
   windows-build:
     runs-on: windows-latest
     env:
@@ -131,6 +141,9 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '9.0.x'
+
+      - name: Run Windows core sync regressions
+        run: dotnet test windows-client/ComponentVault.WinUI.CoreTests/ComponentVault.WinUI.CoreTests.csproj -c Release
 
       - name: Create temporary Windows signing certificate
         shell: pwsh

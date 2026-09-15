@@ -35,6 +35,8 @@ import com.componentvault.android.model.withRecognitionMetadata
 import com.componentvault.android.model.withLearningMapping
 import com.componentvault.android.model.withOfficialMetadata
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -52,10 +54,13 @@ class InventoryRepository(
     private val appContext = context.applicationContext
     private val databaseHelper = InventoryDatabaseHelper(appContext)
     private val localPartRecognitionEngine by lazy { LocalPartRecognitionEngine(appContext) }
+    private val publicCatalogLookup = LcscPublicLookup()
     private val preferences: SharedPreferences = appContext.getSharedPreferences(
         PREFS_NAME,
         Context.MODE_PRIVATE,
     )
+    private val syncMutex = Mutex()
+    private val syncConfigurationLock = Any()
 
     init {
         ensureDefaultSettings()
@@ -257,11 +262,8 @@ class InventoryRepository(
                 true,
             ),
             enableLocalImportLearning = preferences.getBoolean(KEY_ENABLE_LOCAL_IMPORT_LEARNING, true),
-            enableServerJlcLookup = if (preferences.contains(KEY_ENABLE_SERVER_JLC_LOOKUP)) {
-                preferences.getBoolean(KEY_ENABLE_SERVER_JLC_LOOKUP, false)
-            } else {
-                preferences.getBoolean(KEY_AUTO_ENRICH_JLC_IMPORTS, false)
-            },
+            enableServerJlcLookup = false,
+            enablePublicJlcLookup = preferences.getBoolean("enable_public_jlc_lookup", true),
             ocrEngineMode = OcrEngineMode.fromStorageValue(
                 preferences.getString(KEY_OCR_ENGINE_MODE, OcrEngineMode.Auto.storageValue),
             ),
@@ -277,11 +279,24 @@ class InventoryRepository(
         autoSyncEnabled: Boolean,
     ): OperationResult {
         ensureDefaultSettings()
-        preferences.edit()
-            .putString(KEY_SERVER_BASE_URL, serverBaseUrl.trim().trimEnd('/'))
-            .putString(KEY_API_TOKEN, apiToken.trim())
-            .putBoolean(KEY_AUTO_SYNC_ENABLED, autoSyncEnabled)
-            .apply()
+        val normalizedServerUrl = serverBaseUrl.trim().trimEnd('/')
+        synchronized(syncConfigurationLock) {
+            val serverChanged = normalizedServerUrl != preferences.getString(
+                KEY_SERVER_BASE_URL,
+                "",
+            ).orEmpty()
+            preferences.edit()
+                .putString(KEY_SERVER_BASE_URL, normalizedServerUrl)
+                .putString(KEY_API_TOKEN, apiToken.trim())
+                .putBoolean(KEY_AUTO_SYNC_ENABLED, autoSyncEnabled)
+                .apply {
+                    if (serverChanged) {
+                        remove(KEY_SYNC_CURSOR)
+                        remove(KEY_LAST_SYNCED_AT)
+                    }
+                }
+                .commit()
+        }
 
         return OperationResult(
             isSuccess = true,
@@ -305,6 +320,7 @@ class InventoryRepository(
             )
             .putBoolean(KEY_ENABLE_LOCAL_IMPORT_LEARNING, preferencesState.enableLocalImportLearning)
             .putBoolean(KEY_ENABLE_SERVER_JLC_LOOKUP, preferencesState.enableServerJlcLookup)
+            .putBoolean("enable_public_jlc_lookup", preferencesState.enablePublicJlcLookup)
             .putBoolean(KEY_AUTO_ENRICH_JLC_IMPORTS, preferencesState.enableServerJlcLookup)
             .putString(KEY_OCR_ENGINE_MODE, preferencesState.ocrEngineMode.storageValue)
             .putString(KEY_APP_LANGUAGE, preferencesState.appLanguage.storageValue)
@@ -363,24 +379,18 @@ class InventoryRepository(
             enrichedCandidate = enrichedCandidate.withLearningMapping(learningMatch)
         }
 
-        val officialLookupResult = if (appPreferences.enableServerJlcLookup) {
-            lookupPartMetadata(
-                syncConfiguration = syncConfiguration,
-                sku = enrichedCandidate.sku,
-                mpn = enrichedCandidate.model,
-                name = enrichedCandidate.name,
-                brand = enrichedCandidate.vendor ?: enrichedCandidate.brand,
-                packageHint = enrichedCandidate.normalizedPackageKey ?: enrichedCandidate.packageName,
-                sourceType = enrichedCandidate.sourceType.name,
-            ).also { lookupResult ->
-                if (lookupResult.outcome == ComponentOfficialLookupOutcome.Success) {
-                    lookupResult.metadata?.let { metadata ->
-                        enrichedCandidate = enrichedCandidate.withOfficialMetadata(metadata)
-                    }
-                }
+        val publicLookupResult = if (appPreferences.enablePublicJlcLookup &&
+            LcscPublicCatalog.normalizeSku(enrichedCandidate.sku) != null
+        ) {
+            lookupPublicPartMetadata(enrichedCandidate.sku)
+        } else null
+
+        val officialLookupResult = if (publicLookupResult?.outcome == ComponentOfficialLookupOutcome.Success) {
+            publicLookupResult.also { result ->
+                result.metadata?.let { enrichedCandidate = enrichedCandidate.withOfficialMetadata(it) }
             }
         } else {
-            null
+            publicLookupResult
         }
 
         ComponentImportResolution(
@@ -389,6 +399,44 @@ class InventoryRepository(
             officialLookupResult = officialLookupResult,
         )
     }
+
+    private suspend fun lookupPublicPartMetadata(sku: String): ComponentOfficialLookupResult =
+        withContext(Dispatchers.IO) {
+            readCachedLookup(sku, "")?.takeIf {
+                it.source == "lcsc_public_web" && it.sku.equals(sku, true)
+            }?.let {
+                return@withContext ComponentOfficialLookupResult(
+                    outcome = ComponentOfficialLookupOutcome.Success,
+                    metadata = it.copy(
+                        category = it.categoryPath?.takeIf(String::isNotBlank)
+                            ?.let(OfficialCategoryNormalizer::normalize) ?: it.category,
+                    ),
+                    fromCache = true,
+                    message = text(R.string.importer_lookup_cache_success),
+                )
+            }
+            try {
+                val metadata = publicCatalogLookup.lookup(sku)
+                if (metadata == null) {
+                    ComponentOfficialLookupResult(
+                        outcome = ComponentOfficialLookupOutcome.NoMatch,
+                        message = text(R.string.importer_public_lookup_unavailable),
+                    )
+                } else {
+                    cacheLookup(metadata)
+                    ComponentOfficialLookupResult(
+                        outcome = ComponentOfficialLookupOutcome.Success,
+                        metadata = metadata,
+                        message = text(R.string.importer_public_lookup_success),
+                    )
+                }
+            } catch (error: IOException) {
+                ComponentOfficialLookupResult(
+                    outcome = ComponentOfficialLookupOutcome.Failed,
+                    message = text(R.string.importer_public_lookup_unavailable),
+                )
+            }
+        }
 
     suspend fun lookupPartMetadata(
         syncConfiguration: SyncConfiguration,
@@ -738,82 +786,387 @@ class InventoryRepository(
         }
     }
 
-    suspend fun runSync(): OperationResult = withContext(Dispatchers.IO) {
-        val settings = loadSyncConfiguration()
-        if (settings.serverBaseUrl.isBlank()) {
-            return@withContext OperationResult(false, text(R.string.sync_enter_server_url_before_sync))
-        }
-        if (settings.apiToken.isBlank()) {
-            return@withContext OperationResult(false, text(R.string.sync_enter_api_token_before_sync))
-        }
-
-        try {
-            val pushPayload = buildPushPayload(settings.deviceId)
-            val pushResponse = callJson(
-                settings = settings,
-                method = "POST",
-                path = "/sync/push",
-                body = pushPayload.payload,
-            )
-            val since = readStoredLastSyncedAt()
-            val pullResponse = callJson(
-                settings = settings,
-                method = "GET",
-                path = if (since == null) {
-                    "/sync/pull"
-                } else {
-                    "/sync/pull?since=${java.net.URLEncoder.encode(since, Charsets.UTF_8.name())}"
-                },
-                body = null,
-            )
-
-            databaseHelper.writableDatabase.use { db ->
-                db.beginTransaction()
-                try {
-                    applyPullResponse(
-                        db = db,
-                        pullResponse = pullResponse,
-                        pushedEntities = pushPayload.queuedEntities,
-                    )
-                    db.setTransactionSuccessful()
-                } finally {
-                    db.endTransaction()
-                }
+    suspend fun runSync(): OperationResult = syncMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val settings = loadSyncConfiguration()
+            if (settings.serverBaseUrl.isBlank()) {
+                return@withContext OperationResult(
+                    false,
+                    text(R.string.sync_enter_server_url_before_sync),
+                )
+            }
+            if (settings.apiToken.isBlank()) {
+                return@withContext OperationResult(
+                    false,
+                    text(R.string.sync_enter_api_token_before_sync),
+                )
             }
 
-            val acceptedComponents = pushResponse.optInt("accepted_components")
-            val acceptedMovements = pushResponse.optInt("accepted_stock_movements")
-            val pulledComponents = pullResponse.optJSONArray("components")?.length() ?: 0
-            val pulledMovements = pullResponse.optJSONArray("stock_movements")?.length() ?: 0
-            val serverTime = pullResponse.optString("server_time")
-            val successMessage = text(
-                R.string.sync_complete_summary,
-                acceptedComponents,
-                acceptedMovements,
-                pulledComponents,
-                pulledMovements,
-            )
+            try {
+                val pushPayload = buildPushPayload(settings.deviceId)
+                val pushResponse = callJson(
+                    settings = settings,
+                    method = "POST",
+                    path = "/sync/push",
+                    body = pushPayload.payload,
+                )
+                val cursor = readStoredSyncCursor()
+                val pullResponse = callJson(
+                    settings = settings,
+                    method = "GET",
+                    path = SyncProtocol.pullPath(cursor),
+                    body = null,
+                )
+                val rawCursor = pullResponse.opt("sync_cursor")
+                val cursorDecision = SyncProtocol.cursorFromResponse(
+                    hasCursor = pullResponse.has("sync_cursor"),
+                    cursor = when (rawCursor) {
+                        is Int -> rawCursor.toLong()
+                        is Long -> rawCursor
+                        else -> null
+                    },
+                )
 
-            updateSyncStatus(
-                lastSyncedAt = serverTime,
-                message = successMessage,
-                preserveTimestamp = false,
-            )
+                synchronized(syncConfigurationLock) {
+                    checkSyncConfigurationUnchanged(settings)
+                    databaseHelper.writableDatabase.use { db ->
+                        db.beginTransaction()
+                        try {
+                            applyPullResponse(
+                                db = db,
+                                pullResponse = pullResponse,
+                                pushedEntities = pushPayload.queuedEntities,
+                            )
+                            db.setTransactionSuccessful()
+                        } finally {
+                            db.endTransaction()
+                        }
+                    }
+                    saveSyncCursor(cursorDecision)
+                }
 
-            OperationResult(
-                isSuccess = true,
-                message = successMessage,
+                val acceptedComponents = pushResponse.optInt("accepted_components")
+                val acceptedMovements = pushResponse.optInt("accepted_stock_movements")
+                val pulledComponents = pullResponse.optJSONArray("components")?.length() ?: 0
+                val pulledMovements = pullResponse.optJSONArray("stock_movements")?.length() ?: 0
+                val serverTime = pullResponse.optString("server_time")
+                val successMessage = text(
+                    R.string.sync_complete_summary,
+                    acceptedComponents,
+                    acceptedMovements,
+                    pulledComponents,
+                    pulledMovements,
+                )
+
+                synchronized(syncConfigurationLock) {
+                    checkSyncConfigurationUnchanged(settings)
+                    updateSyncStatus(
+                        lastSyncedAt = serverTime,
+                        message = successMessage,
+                        preserveTimestamp = false,
+                    )
+                }
+
+                OperationResult(
+                    isSuccess = true,
+                    message = successMessage,
+                )
+            } catch (exception: Exception) {
+                updateSyncStatus(
+                    lastSyncedAt = null,
+                    message = exception.message ?: text(R.string.sync_failed),
+                    preserveTimestamp = true,
+                )
+                OperationResult(
+                    isSuccess = false,
+                    message = exception.message ?: text(R.string.sync_failed),
+                )
+            }
+        }
+    }
+
+    suspend fun previewBomRelease(
+        parsed: com.componentvault.android.data.bom.BomParseResult,
+        selections: Map<String, String> = emptyMap(),
+    ): com.componentvault.android.data.bom.BomReleasePreview = withContext(Dispatchers.IO) {
+        val components = loadComponents()
+        val inventory = components.map { component ->
+            val parsedDescription = parseImportDescription(component.description)
+            com.componentvault.android.data.bom.InventoryMatchCandidate(
+                inventoryId = component.id,
+                sku = component.sku,
+                model = parsedDescription.model,
+                packageName = component.packageName,
+                displayName = component.name,
+                active = !component.deleted,
             )
-        } catch (exception: Exception) {
-            updateSyncStatus(
-                lastSyncedAt = null,
-                message = exception.message ?: text(R.string.sync_failed),
-                preserveTimestamp = true,
+        }
+        val matches = com.componentvault.android.data.bom.BomInventoryMatcher.match(
+            parsed.requirements,
+            inventory.filter { it.active },
+        )
+        val componentsById = components.associateBy { it.id }
+        val rawLines = matches.map { match ->
+            val selectedId = selections[match.requirement.identity.canonicalKey]
+                ?: match.selectedInventoryId
+            val component = selectedId?.let(componentsById::get)
+            com.componentvault.android.data.bom.BomReleaseLine(
+                requirement = match.requirement,
+                componentId = component?.id,
+                componentSku = component?.sku,
+                availableQuantity = component?.quantity ?: 0,
+                expectedUpdatedAt = component?.updatedAt,
+                candidates = match.candidates,
             )
-            OperationResult(
-                isSuccess = false,
-                message = exception.message ?: text(R.string.sync_failed),
+        }
+        val aggregated = rawLines.groupBy { line ->
+            line.componentId?.let { "component:$it" }
+                ?: "requirement:${line.requirement.identity.canonicalKey}"
+        }.map { (key, grouped) ->
+            val first = grouped.first()
+            if (grouped.size == 1) first else {
+                val quantityPerSet = grouped.sumOf { it.requirement.quantityPerSet.toLong() }
+                val requiredQuantity = grouped.sumOf { it.requirement.requiredQuantity.toLong() }
+                check(quantityPerSet <= Int.MAX_VALUE && requiredQuantity <= Int.MAX_VALUE) {
+                    "BOM 聚合数量超过整数范围。"
+                }
+                first.copy(
+                requirement = first.requirement.copy(
+                    identity = com.componentvault.android.data.bom.BomRequirementIdentity(key),
+                    quantityPerSet = quantityPerSet.toInt(),
+                    requiredQuantity = requiredQuantity.toInt(),
+                    sourceRows = grouped.flatMap { it.requirement.sourceRows },
+                ),
+                candidates = grouped.flatMap { it.candidates }.distinctBy { it.inventoryId },
+                )
+            }
+        }
+        com.componentvault.android.data.bom.BomReleasePreview(
+            parsed = parsed,
+            lines = aggregated,
+        )
+    }
+
+    suspend fun commitBomRelease(
+        preview: com.componentvault.android.data.bom.BomReleasePreview,
+        releaseId: String,
+        batchId: String,
+    ): com.componentvault.android.data.bom.BomReleaseResult = withContext(Dispatchers.IO) {
+        if (releaseId.isBlank() || batchId.isBlank() || !preview.canCommit) {
+            return@withContext com.componentvault.android.data.bom.BomReleaseResult(
+                com.componentvault.android.data.bom.BomReleaseOutcome.REJECTED,
+                "BOM 预览不完整，请先解决未匹配项和缺料问题。",
             )
+        }
+        databaseHelper.writableDatabase.use { db ->
+            db.beginTransaction()
+            try {
+                val alreadyApplied = db.rawQuery(
+                    "SELECT 1 FROM bom_releases WHERE release_id = ?",
+                    arrayOf(releaseId),
+                ).use { it.moveToFirst() }
+                if (alreadyApplied) {
+                    return@withContext com.componentvault.android.data.bom.BomReleaseResult(
+                        com.componentvault.android.data.bom.BomReleaseOutcome.ALREADY_APPLIED,
+                        "本批次已出库，没有重复扣减库存。",
+                    )
+                }
+                check(preview.lines.mapNotNull { it.componentId }.distinct().size == preview.lines.size) {
+                    "BOM 预览包含重复元件，请重新生成预览。"
+                }
+
+                val currentRows = preview.lines.map { line ->
+                    val componentId = requireNotNull(line.componentId)
+                    db.rawQuery(
+                        "SELECT sku, quantity, updated_at FROM components " +
+                            "WHERE id = ? AND deleted = 0",
+                        arrayOf(componentId),
+                    ).use { cursor ->
+                        check(cursor.moveToFirst()) { "选中的元器件已不存在，请刷新预览。" }
+                        val currentUpdatedAt = cursor.getString(2)
+                        check(
+                            line.expectedUpdatedAt != null &&
+                                SyncProtocol.timestampsEqual(currentUpdatedAt, line.expectedUpdatedAt),
+                        ) {
+                            "预览后库存已变化，请重新生成 BOM 预览。"
+                        }
+                        val available = cursor.getInt(1)
+                        check(available >= line.requirement.requiredQuantity) {
+                            "${cursor.getString(0)} 库存不足，整批尚未出库。"
+                        }
+                        Triple(componentId, available, cursor.getString(0))
+                    }
+                }
+
+                val now = utcNow()
+                preview.lines.zip(currentRows).forEach { (line, current) ->
+                    val required = line.requirement.requiredQuantity
+                    val values = ContentValues().apply {
+                        put("quantity", current.second - required)
+                        put("updated_at", now)
+                    }
+                    db.update("components", values, "id = ?", arrayOf(current.first))
+                    enqueueEntity(db, "component", current.first, now)
+                    val movementId = "mov-${randomId()}"
+                    db.insertOrThrow(
+                        "stock_movements",
+                        null,
+                        ContentValues().apply {
+                            put("id", movementId)
+                            put("component_id", current.first)
+                            put("movement_type", "outbound")
+                            put("quantity", required)
+                            put("reason", "BOM: ${preview.parsed.projectName}")
+                            put("note", "Batch $batchId; release $releaseId")
+                            put("happened_at", now)
+                            put("updated_at", now)
+                            put("deleted", 0)
+                        },
+                    )
+                    enqueueEntity(db, "stock_movement", movementId, now)
+                }
+                db.insertOrThrow(
+                    "bom_releases",
+                    null,
+                    ContentValues().apply {
+                        put("release_id", releaseId)
+                        put("batch_id", batchId)
+                        put("project_name", preview.parsed.projectName)
+                        put("production_runs", preview.parsed.productionSets)
+                        put("source_fingerprint", preview.parsed.fileSha256)
+                        put("source_sheet", preview.parsed.selectedSheet.name)
+                        put("created_at", now)
+                    },
+                )
+                db.setTransactionSuccessful()
+                com.componentvault.android.data.bom.BomReleaseResult(
+                    com.componentvault.android.data.bom.BomReleaseOutcome.APPLIED,
+                    "BOM 批量出库已完成。",
+                )
+            } catch (error: Exception) {
+                com.componentvault.android.data.bom.BomReleaseResult(
+                    com.componentvault.android.data.bom.BomReleaseOutcome.REJECTED,
+                    error.message ?: "BOM 出库失败，整批已回滚。",
+                )
+            } finally {
+                db.endTransaction()
+            }
+        }
+    }
+
+    suspend fun previewComponentHub(
+        bytes: ByteArray,
+        duplicatePolicy: com.componentvault.android.data.bom.ComponentHubDuplicatePolicy,
+    ): com.componentvault.android.data.bom.ComponentHubParseResult = withContext(Dispatchers.IO) {
+        val existingSkus = loadComponents().asSequence()
+            .filterNot { it.deleted }
+            .map { it.sku }
+            .toSet()
+        com.componentvault.android.data.bom.ComponentHubParser.parse(
+            bytes = bytes,
+            duplicatePolicy = duplicatePolicy,
+            existingSkus = existingSkus,
+        )
+    }
+
+    suspend fun importComponentHub(
+        preview: com.componentvault.android.data.bom.ComponentHubParseResult,
+    ): com.componentvault.android.data.bom.ComponentHubImportResult = withContext(Dispatchers.IO) {
+        if (!preview.canConfirm) {
+            return@withContext com.componentvault.android.data.bom.ComponentHubImportResult(
+                com.componentvault.android.data.bom.ComponentHubImportOutcome.REJECTED,
+                "迁移预览仍有冲突或无效记录，请先处理。",
+            )
+        }
+        databaseHelper.writableDatabase.use { db ->
+            db.beginTransaction()
+            try {
+                val alreadyImported = db.rawQuery(
+                    "SELECT 1 FROM component_hub_imports WHERE source_fingerprint = ?",
+                    arrayOf(preview.fileSha256),
+                ).use { it.moveToFirst() }
+                if (alreadyImported) {
+                    return@withContext com.componentvault.android.data.bom.ComponentHubImportResult(
+                        com.componentvault.android.data.bom.ComponentHubImportOutcome.ALREADY_APPLIED,
+                        "此 Component Hub 文件已经导入，未重复创建库存。",
+                    )
+                }
+                val existing = db.rawQuery(
+                    "SELECT sku FROM components WHERE deleted = 0",
+                    null,
+                ).use { cursor ->
+                    buildSet { while (cursor.moveToNext()) add(cursor.getString(0).trim().uppercase()) }
+                }
+                check(preview.components.none { it.sku.trim().uppercase() in existing }) {
+                    "预览后库存已变化，请重新核对重复 SKU。"
+                }
+
+                val now = utcNow()
+                preview.components.forEach { source ->
+                    val componentId = "cmp-${randomId()}"
+                    db.insertOrThrow(
+                        "components",
+                        null,
+                        ContentValues().apply {
+                            put("id", componentId)
+                            put("sku", source.sku.trim())
+                            put("name", source.name.trim())
+                            put("category", source.category.trim())
+                            put("package_name", source.packageName.trim())
+                            put("location", source.location.trim())
+                            put("description", source.notes.joinToString("\n"))
+                            put("quantity", source.quantity)
+                            put("min_stock", source.minStock)
+                            put("updated_at", now)
+                            put("deleted", 0)
+                        },
+                    )
+                    enqueueEntity(db, "component", componentId, now)
+                    if (source.quantity > 0) {
+                        val movementId = "mov-${randomId()}"
+                        db.insertOrThrow(
+                            "stock_movements",
+                            null,
+                            ContentValues().apply {
+                                put("id", movementId)
+                                put("component_id", componentId)
+                                put("movement_type", "inbound")
+                                put("quantity", source.quantity)
+                                put("reason", "Component Hub import")
+                                put("note", "Source ${preview.fileSha256}")
+                                put("happened_at", now)
+                                put("updated_at", now)
+                                put("deleted", 0)
+                            },
+                        )
+                        enqueueEntity(db, "stock_movement", movementId, now)
+                    }
+                }
+                db.insertOrThrow(
+                    "component_hub_imports",
+                    null,
+                    ContentValues().apply {
+                        put("source_fingerprint", preview.fileSha256)
+                        put("imported_count", preview.components.size)
+                        put("skipped_count", preview.skippedDuplicateCount)
+                        put("created_at", now)
+                    },
+                )
+                db.setTransactionSuccessful()
+                com.componentvault.android.data.bom.ComponentHubImportResult(
+                    com.componentvault.android.data.bom.ComponentHubImportOutcome.APPLIED,
+                    "Component Hub 迁移已完成。",
+                    preview.components.size,
+                    preview.skippedDuplicateCount,
+                )
+            } catch (error: Exception) {
+                com.componentvault.android.data.bom.ComponentHubImportResult(
+                    com.componentvault.android.data.bom.ComponentHubImportOutcome.REJECTED,
+                    error.message ?: "Component Hub 迁移失败，整批已回滚。",
+                )
+            } finally {
+                db.endTransaction()
+            }
         }
     }
 
@@ -1016,6 +1369,7 @@ class InventoryRepository(
                 modelFamily = payload.optString("model_family").blankToNull(),
                 categoryPath = payload.optString("category_path").blankToNull(),
                 officialUrl = payload.optString("official_url").blankToNull(),
+                imageUrl = payload.optString("image_url").blankToNull(),
                 matchedBy = payload.optString("matched_by").blankToNull(),
                 confidence = payload.optString("confidence").blankToNull(),
                 ruleVersion = payload.optString("rule_version").blankToNull(),
@@ -1038,6 +1392,7 @@ class InventoryRepository(
             put("model_family", metadata.modelFamily)
             put("category_path", metadata.categoryPath)
             put("official_url", metadata.officialUrl)
+            put("image_url", metadata.imageUrl)
             put("matched_by", metadata.matchedBy)
             put("confidence", metadata.confidence)
             put("rule_version", metadata.ruleVersion)
@@ -1686,10 +2041,11 @@ class InventoryRepository(
         }
 
         pushedEntities.forEach { entity ->
-            db.delete(
-                "sync_queue",
-                "entity_type = ? AND entity_id = ?",
-                arrayOf(entity.entityType, entity.entityId),
+            removeQueuedIfSuperseded(
+                db = db,
+                entityType = entity.entityType,
+                entityId = entity.entityId,
+                updatedAt = entity.entityUpdatedAt,
             )
         }
     }
@@ -1699,7 +2055,13 @@ class InventoryRepository(
         component: JSONObject,
     ) {
         val existing = getComponentById(db, component.getString("id"))
-        if (existing != null && existing.updatedAt > component.getString("updated_at")) {
+        if (
+            existing != null &&
+            !SyncProtocol.isRemoteAtLeastAsNew(
+                localUpdatedAt = existing.updatedAt,
+                remoteUpdatedAt = component.getString("updated_at"),
+            )
+        ) {
             return
         }
 
@@ -1734,7 +2096,12 @@ class InventoryRepository(
         ).use { cursor ->
             if (cursor.moveToFirst()) {
                 val existingUpdatedAt = cursor.getString(cursor.getColumnIndexOrThrow("updated_at"))
-                if (existingUpdatedAt > movement.getString("updated_at")) {
+                if (
+                    !SyncProtocol.isRemoteAtLeastAsNew(
+                        localUpdatedAt = existingUpdatedAt,
+                        remoteUpdatedAt = movement.getString("updated_at"),
+                    )
+                ) {
                     return
                 }
             }
@@ -1765,11 +2132,29 @@ class InventoryRepository(
         entityId: String,
         updatedAt: String,
     ) {
-        db.delete(
-            "sync_queue",
-            "entity_type = ? AND entity_id = ? AND entity_updated_at <= ?",
-            arrayOf(entityType, entityId, updatedAt),
-        )
+        db.rawQuery(
+            """
+            SELECT entity_updated_at
+            FROM sync_queue
+            WHERE entity_type = ? AND entity_id = ?
+            """.trimIndent(),
+            arrayOf(entityType, entityId),
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) {
+                return
+            }
+            val queuedUpdatedAt = cursor.getString(
+                cursor.getColumnIndexOrThrow("entity_updated_at"),
+            )
+            if (!SyncProtocol.shouldRemoveQueued(queuedUpdatedAt, updatedAt)) {
+                return
+            }
+            db.delete(
+                "sync_queue",
+                "entity_type = ? AND entity_id = ? AND entity_updated_at = ?",
+                arrayOf(entityType, entityId, queuedUpdatedAt),
+            )
+        }
     }
 
     private fun updateSyncStatus(
@@ -1782,15 +2167,6 @@ class InventoryRepository(
             editor.putString(KEY_LAST_SYNCED_AT, lastSyncedAt)
         }
         editor.apply()
-    }
-
-    private fun readStoredLastSyncedAt(): String? {
-        val value = preferences.getString(KEY_LAST_SYNCED_AT, null)
-        return if (value.isNullOrBlank() || value == text(R.string.sync_never)) {
-            null
-        } else {
-            value
-        }
     }
 
     private fun calculateQuantityDelta(
@@ -1857,6 +2233,32 @@ class InventoryRepository(
         return alphaNumericCount >= 5 && (hasSeparator || normalized.any(Char::isDigit))
     }
 
+    private fun readStoredSyncCursor(): Long? = if (preferences.contains(KEY_SYNC_CURSOR)) {
+        preferences.getLong(KEY_SYNC_CURSOR, 0L).coerceAtLeast(0L)
+    } else {
+        null
+    }
+
+    private fun saveSyncCursor(decision: CursorDecision) {
+        val editor = preferences.edit()
+        when (decision) {
+            is CursorDecision.Store -> editor.putLong(KEY_SYNC_CURSOR, decision.value)
+            CursorDecision.Clear -> editor.remove(KEY_SYNC_CURSOR)
+        }
+        check(editor.commit()) { "Unable to persist sync cursor" }
+    }
+
+    private fun checkSyncConfigurationUnchanged(settings: SyncConfiguration) {
+        val currentServerUrl = preferences.getString(KEY_SERVER_BASE_URL, "").orEmpty()
+        val currentApiToken = preferences.getString(KEY_API_TOKEN, "").orEmpty()
+        check(
+            currentServerUrl == settings.serverBaseUrl &&
+                currentApiToken == settings.apiToken,
+        ) {
+            "Sync configuration changed while synchronization was running. Please retry."
+        }
+    }
+
     private fun String.blankToNull(): String? = trim().takeIf { it.isNotBlank() }
 
     private data class SyncPayload(
@@ -1878,6 +2280,7 @@ class InventoryRepository(
         const val KEY_AUTO_SYNC_ENABLED = "auto_sync_enabled"
         const val KEY_LAST_SYNCED_AT = "last_synced_at"
         const val KEY_LAST_SYNC_MESSAGE = "last_sync_message"
+        const val KEY_SYNC_CURSOR = "sync_cursor"
         const val KEY_DEFAULT_IMPORT_LOCATION = "default_import_location"
         const val KEY_LAST_IMPORT_LOCATION = "last_import_location"
         const val KEY_DEFAULT_IMPORT_MIN_STOCK = "default_import_min_stock"

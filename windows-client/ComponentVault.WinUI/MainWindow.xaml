@@ -60,6 +60,11 @@
                         <SymbolIcon Symbol="Sort" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem x:Name="BomItem" Content="项目 BOM" Tag="Bom">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="OpenFile" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem x:Name="OverviewItem" x:Uid="MainWindowOverviewItem" Content="概览" Tag="Overview">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Home" />

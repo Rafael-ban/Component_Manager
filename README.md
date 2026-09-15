@@ -27,17 +27,41 @@ connects to it over HTTP.
 - Inventory history recorded as stock movements.
 - Self-hosted API secured by a shared API token.
 - Separated admin web console backed by token-protected `/admin-api/*`.
-- Android JLC imports are local-first: on-device parsing, bundled recognition
-  rules, and learned mappings work offline, while optional server-side part
-  lookup can fill missing fields through token-protected
-  `/admin-api/part-lookup`. Canonical component `name` stays blank until the
-  import source provides a real name, the user confirms one, or server
-  metadata resolves it.
-- Android supplier packaging OCR now uses a capture-first workflow that freezes
-  one preview frame, runs structured OCR locally, and then parses packaging
-  fields before the user confirms quantity and storage details.
+- JLC imports use local parsing and direct public product lookup without a
+  server or API key. Official category paths take precedence over local guesses;
+  product images appear on the right of inventory rows. User edits are preserved.
+- Android prioritizes QR scanning and direct C-number entry. Optional packaging
+  OCR uses a CameraX photo with sensor rotation and bundled ML Kit; it no longer
+  recognizes a screen-resolution preview or offers the unavailable Paddle engine.
+- Windows and Android support project BOM CSV/XLSX preview, stock matching and
+  transactional batch depletion, plus component-hub JSON migration with conflict
+  preview. See [BOM and migration guide](docs/bom-and-migration.md).
 - Active components enforce unique `sku`.
 - Component `quantity` and `min_stock` are non-negative.
+
+## Sync reliability and direct LCSC lookup
+
+- Updated native clients use the server-issued `sync_cursor` for incremental
+  downloads. `updated_at` remains the LWW conflict timestamp; `server_time` is
+  informational. The first upgraded sync is a full snapshot.
+- Pending changes are acknowledged against the uploaded queue version, so edits
+  made while a sync is running remain queued. Windows automatic sync now runs
+  after startup and successful local edits, with a short debounce.
+- Both native clients can look up an LCSC `C` number directly on the official public
+  product page, without a sync server or OpenAPI credentials. This is enabled by
+  default on Android and can be disabled under import settings. Windows provides
+  a lookup action in the editor. Only the SKU is sent.
+- Product JSON-LD must contain the exact scanned SKU. Product descriptions,
+  manufacturer model, brand, and package fill the import confirmation form;
+  supplier stock and prices never become local inventory quantities.
+- Successful lookups are cached for seven days. Public-page changes, verification
+  screens, and network failures leave manual entry and an open-product-page link
+  available. This is best-effort enrichment, not a guaranteed catalog service.
+- The implementation currently reads `www.lcsc.com` (LCSC's international
+  storefront). The domestic `item.szlcsc.com` numeric page ID must not be inferred
+  by removing the `C` prefix from the SKU.
+- See [component-hub comparison and BOM roadmap](docs/component-hub-comparison.md)
+  and [implementation plan](docs/sync-and-catalog-plan.md).
 
 ## Versioning
 
@@ -69,7 +93,7 @@ connects to it over HTTP.
 - Windows native client: local SQLite, component editing, movement recording,
   sync settings, server sync wiring, Chinese-first WinUI pages, and dual-mode
   packaging are implemented; the Windows UI now follows an inventory-first
-  `NavigationView` shell with `Inventory`, `Movements`, `Overview`, and
+  `NavigationView` shell with `Inventory`, `Movements`, `Overview`, `Project BOM`, and
   `Settings` destinations, dense list/detail workspaces, and updated XAML
   designer sample data; `dotnet build` verified successfully on `2026-05-09`,
   MSIX-oriented `dotnet publish` was verified successfully on `2026-05-07`,
@@ -91,11 +115,10 @@ connects to it over HTTP.
   label-sized PNG/PDF export, larger on-label typography, collision-safe text
   layout with a horizontal `30x40mm` QR-left details layout, physical-aspect
   preview rendering, local import learning backed by a device-only SQLite
-  mapping table, optional
-  server-assisted metadata lookup for filling missing JLC fields,
+  mapping table, direct public product lookup for filling JLC fields,
   capture-first supplier packaging OCR with structured line extraction,
   user-selectable OCR engine preference (`Auto`,
-  `ML Kit offline`, `Paddle experimental`), persisted in-app language
+  `ML Kit offline`), persisted in-app language
   switching with first-launch default `zh-CN`, stronger vendor-aware QR
   package/category inference, generated-label QR round-trip parsing for
   warehouse and JLC-compatible labels, scan-first stock movement entry with
@@ -235,13 +258,11 @@ preferences and supports:
 - bundled offline recognition rules for package normalization, model-family
   matching, vendor normalization, and category inference even when no server
   is deployed
-- optional server-assisted part enrichment for JLC text and QR imports via
-  `GET /admin-api/part-lookup`, with client-side cache reuse, missing-field-only
-  merge behavior, in-app toggles for local recognition aggressiveness vs
-  server lookup, canonical-name handling that no longer copies raw
-  `model` or `sku` values into the saved component `name`, vendor-to-brand
-  fallback during local parsing, and stronger preference for explicit or
-  server-resolved names over model-like tokens
+- direct LCSC lookup by scanned or manually entered C-number, official category
+  priority, product-image caching and editable confirmation; the server-assisted
+  recognition switch has been removed from the normal Android import flow
+- project BOM preview and batch depletion, plus component-hub JSON migration,
+  available from the inventory add/import actions; batch ledgers remain local
 - sync settings save/test/sync-now
 - separate sync-on-launch and sync-after-write behavior controls
 - import defaults, local-learning controls, OCR engine preference, and an

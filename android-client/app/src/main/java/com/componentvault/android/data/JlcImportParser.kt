@@ -54,7 +54,16 @@ internal object JlcImportParser {
 
         val values = parseQrKeyValues(normalizedInput)
 
-        val sku = values["pc"].orEmpty()
+        val explicitSku = values["pc"].orEmpty()
+        val sku = if (explicitSku.isNotBlank()) {
+            LcscPublicCatalog.normalizeSku(explicitSku) ?: explicitSku
+        } else {
+            // Accept a bare SKU or a URL containing one unambiguous SKU; never infer
+            // a C-number from the unrelated numeric product ID of a domestic URL.
+            Regex("""(?i)(?<![A-Z0-9])C\d{1,10}(?![A-Z0-9])""")
+                .findAll(normalizedInput).map { it.value.uppercase(java.util.Locale.ROOT) }
+                .distinct().toList().singleOrNull().orEmpty()
+        }
         val manufacturerCode = values["mc"].cleanNullable()
         val explicitName = values["nm"].cleanNullable()
         val brand = values["br"].cleanNullable()
@@ -121,7 +130,7 @@ internal object JlcImportParser {
                 val key = match.groupValues[1].trim()
                 val value = decodeQrValue(match.groupValues[2].trim())
                 if (key.isNotBlank()) {
-                    put(key, value)
+                    put(key.lowercase(java.util.Locale.ROOT), value)
                 }
             }
         }

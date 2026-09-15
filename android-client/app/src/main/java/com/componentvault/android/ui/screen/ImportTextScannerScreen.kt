@@ -3,11 +3,18 @@ package com.componentvault.android.ui.screen
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.util.Size
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
@@ -52,6 +59,9 @@ import com.componentvault.android.data.ocr.OcrResult
 import com.componentvault.android.data.ocr.normalizedText
 import com.componentvault.android.model.OcrEngineMode
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 internal enum class ImportTextScannerUiState {
     RequestingPermission,
@@ -84,7 +94,7 @@ internal fun ImportTextScannerSurface(
     var scannerError by rememberSaveable { mutableStateOf<String?>(null) }
     var sessionId by rememberSaveable { mutableIntStateOf(0) }
     var frozenFrame by remember { mutableStateOf<Bitmap?>(null) }
-    var captureFrame by remember { mutableStateOf<(() -> Bitmap?)?>(null) }
+    var captureFrame by remember { mutableStateOf<(suspend () -> Bitmap)?>(null) }
 
     fun restartScanner() {
         scannerError = null
@@ -99,19 +109,22 @@ internal fun ImportTextScannerSurface(
     }
 
     fun startRecognition() {
-        val bitmap = captureFrame?.invoke()
-        if (bitmap == null) {
+        val capture = captureFrame
+        if (capture == null) {
             scannerError = strings.importer.supplierScannerFrameUnavailable
             scannerState = ImportTextScannerUiState.Failed
             return
         }
 
-        frozenFrame = bitmap
         scannerError = null
         scannerState = ImportTextScannerUiState.Recognizing
 
         scope.launch {
-            runCatching { ocrEngine.recognize(bitmap) }
+            runCatching {
+                val bitmap = capture()
+                frozenFrame = bitmap
+                ocrEngine.recognize(bitmap)
+            }
                 .onSuccess { result ->
                     if (result.normalizedText().isBlank()) {
                         scannerError = strings.importer.supplierScanNoTextDescription
@@ -331,7 +344,7 @@ private fun SupplierTextScannerOverlay(
 private fun ImportTextCameraPreview(
     onScannerReady: () -> Unit,
     onScannerError: (Throwable) -> Unit,
-    onCaptureFrameReady: ((() -> Bitmap?) -> Unit),
+    onCaptureFrameReady: ((suspend () -> Bitmap) -> Unit),
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -345,26 +358,33 @@ private fun ImportTextCameraPreview(
 
     DisposableEffect(context, lifecycleOwner, previewView) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        var disposed = false
+        val preview = Preview.Builder().build()
+            .also { it.surfaceProvider = previewView.surfaceProvider }
+        val imageCapture = ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+            .setResolutionSelector(
+                ResolutionSelector.Builder().setResolutionStrategy(
+                    ResolutionStrategy(Size(2048, 1536), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
+                ).build(),
+            )
+            .build()
 
         val listener = Runnable {
+            if (disposed) return@Runnable
             try {
                 val cameraProvider = cameraProviderFuture.get()
-                val preview = Preview.Builder()
-                    .build()
-                    .also { it.surfaceProvider = previewView.surfaceProvider }
 
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     preview,
+                    imageCapture,
                 )
                 onCaptureFrameReady {
-                    val previewBitmap = previewView.bitmap ?: return@onCaptureFrameReady null
-                    previewBitmap.copy(
-                        previewBitmap.config ?: Bitmap.Config.ARGB_8888,
-                        false,
-                    )
+                    imageCapture.targetRotation = previewView.display?.rotation ?: android.view.Surface.ROTATION_0
+                    captureOcrPhoto(imageCapture, mainExecutor)
                 }
                 onScannerReady()
             } catch (throwable: Throwable) {
@@ -375,8 +395,9 @@ private fun ImportTextCameraPreview(
         cameraProviderFuture.addListener(listener, mainExecutor)
 
         onDispose {
+            disposed = true
             if (cameraProviderFuture.isDone) {
-                runCatching { cameraProviderFuture.get().unbindAll() }
+                runCatching { cameraProviderFuture.get().unbind(preview, imageCapture) }
             }
         }
     }
@@ -385,4 +406,33 @@ private fun ImportTextCameraPreview(
         factory = { previewView },
         modifier = Modifier.fillMaxSize(),
     )
+}
+
+/** Recognize a real photo with its sensor orientation, rather than a screen-resolution preview. */
+private suspend fun captureOcrPhoto(
+    capture: ImageCapture,
+    executor: java.util.concurrent.Executor,
+): Bitmap = suspendCancellableCoroutine { continuation ->
+    capture.takePicture(executor, object : ImageCapture.OnImageCapturedCallback() {
+        override fun onCaptureSuccess(image: ImageProxy) {
+            try {
+                if (!continuation.isActive) return
+                val original = image.toBitmap()
+                val rotation = image.imageInfo.rotationDegrees
+                val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+                val rotated = Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
+                if (rotated !== original) original.recycle()
+                if (continuation.isActive) continuation.resume(rotated)
+                else rotated.recycle()
+            } catch (error: Exception) {
+                if (continuation.isActive) continuation.resumeWithException(error)
+            } finally {
+                image.close()
+            }
+        }
+
+        override fun onError(exception: ImageCaptureException) {
+            if (continuation.isActive) continuation.resumeWithException(exception)
+        }
+    })
 }

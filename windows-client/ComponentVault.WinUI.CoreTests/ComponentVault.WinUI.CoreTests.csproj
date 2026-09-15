@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.10" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\ComponentVault.WinUI\Localization\CategoryDisplay.cs" Link="Localization\CategoryDisplay.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Services\InventoryStore.cs" Link="Services\InventoryStore.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Services\SyncApiModels.cs" Link="Services\SyncApiModels.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Services\Bom\*.cs" Link="Services\Bom\%(Filename)%(Extension)" />
+    <Compile Include="..\ComponentVault.WinUI\Services\Migration\*.cs" Link="Services\Migration\%(Filename)%(Extension)" />
+    <Compile Include="..\ComponentVault.WinUI\Services\Catalog\*.cs" Link="Services\Catalog\%(Filename)%(Extension)" />
+    <Compile Include="..\ComponentVault.WinUI\Models\ComponentDraft.cs" Link="Models\ComponentDraft.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Models\ComponentRecord.cs" Link="Models\ComponentRecord.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Models\DashboardSnapshot.cs" Link="Models\DashboardSnapshot.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Models\MovementEntryDraft.cs" Link="Models\MovementEntryDraft.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Models\OperationResult.cs" Link="Models\OperationResult.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Models\StockMovementRecord.cs" Link="Models\StockMovementRecord.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Models\SyncConfiguration.cs" Link="Models\SyncConfiguration.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Models\SyncRunResult.cs" Link="Models\SyncRunResult.cs" />
+  </ItemGroup>
+</Project>

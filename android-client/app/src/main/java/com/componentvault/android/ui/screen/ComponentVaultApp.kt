@@ -45,6 +45,7 @@ fun ComponentVaultApp(
     var movementEditorInitialType by rememberSaveable { mutableStateOf<String?>(null) }
     var movementEditorAllowManualSelection by rememberSaveable { mutableStateOf(true) }
     var importSurfaceVisible by rememberSaveable { mutableStateOf(false) }
+    var bomImportVisible by rememberSaveable { mutableStateOf(false) }
     var showDeleteConfirmation by rememberSaveable { mutableStateOf(false) }
     var showAddEntrySheet by rememberSaveable { mutableStateOf(false) }
     var componentEditorInitialDraft by remember { mutableStateOf<ComponentDraft?>(null) }
@@ -303,6 +304,13 @@ fun ComponentVaultApp(
                 )
             }
 
+            bomImportVisible -> {
+                BomImportScreen(
+                    viewModel = viewModel,
+                    onDismiss = { bomImportVisible = false },
+                )
+            }
+
             labelPreviewSeed != null && !layoutMode.prefersDialogForms -> {
                 ComponentLabelPreviewSurface(
                     seed = requireNotNull(labelPreviewSeed),
@@ -549,6 +557,10 @@ fun ComponentVaultApp(
                     showAddEntrySheet = false
                     openComponentEditor(null)
                 },
+                onImportBom = {
+                    showAddEntrySheet = false
+                    bomImportVisible = true
+                },
             )
         }
 
@@ -571,6 +583,7 @@ private fun AddComponentEntrySheet(
     onDismiss: () -> Unit,
     onImportComponent: () -> Unit,
     onAddComponent: () -> Unit,
+    onImportBom: () -> Unit,
 ) {
     val strings = vaultStrings()
 
@@ -586,6 +599,12 @@ private fun AddComponentEntrySheet(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(strings.common.actionImport)
+            }
+            OutlinedButton(
+                onClick = onImportBom,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("BOM / Component Hub")
             }
             OutlinedButton(
                 onClick = onAddComponent,

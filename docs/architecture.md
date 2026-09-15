@@ -24,7 +24,8 @@
   does not depend on Android Studio resolving the runtime `R.string` graph.
 - Navigation now centers on three adaptive top-level destinations:
   `Inventory`, `Movements`, and `Overview`, plus a secondary `Settings` route
-  opened from the shell or overview actions.
+  opened from the shell or overview actions. Inventory add/import actions also
+  open a secondary Project BOM / component-hub migration surface.
 - `Inventory` is the default high-frequency workflow and uses dense search,
   filter, and list-first layouts on phones, plus persistent list-detail panes
   on larger widths. The current shell is built on official Material 3 adaptive
@@ -41,15 +42,13 @@
   Play services downloading an external scanner module.
 - Supplier text recognition runs through an in-app CameraX surface backed by
   bundled ML Kit Chinese text recognition. The current Android flow now asks
-  the user to align packaging text, capture one preview frame, build a
+  the user to align packaging text, capture a photo with ImageCapture, build a
   structured OCR result with ordered text lines, and only then parse packaging
   fields into the quantity-first import confirmation form.
 - Android OCR now goes through a dedicated engine abstraction with local
   preference storage. `Auto` currently resolves to the bundled ML Kit engine,
-  `ML Kit` forces the same offline recognizer explicitly, and
-  `Paddle experimental` remains an honest compile-safe placeholder for a
-  future native model bundle rather than pretending to be active in the
-  current codebase.
+  `ML Kit` forces the same offline recognizer explicitly. The unavailable
+  `Paddle experimental` choice is hidden and old preferences fall back to Auto.
 - Label generation is client-owned and stays schema-compatible: JLC-sourced
   items generate JLC-compatible QR payloads with app extension fields, while
   non-JLC items generate an app-specific warehouse QR payload. Both paths can
@@ -101,18 +100,18 @@
   fallback reuse.
 - JLC text and QR imports are seeded by parser output, then enriched by
   bundled offline recognition rules, device-only learned mappings, and finally
-  optional server-side `GET /admin-api/part-lookup` metadata. The local rule
+  optional direct LCSC public product metadata. The local rule
   pack now also recognizes more vendor numbering schemes so package and
   category inference can come from model families instead of only raw
   keywords. Canonical component names now stay blank until explicit source
-  text, learned mappings, or server metadata confirms them, so raw model codes
+  text, learned mappings, or public product metadata confirms them, so raw model codes
   are no longer written into the saved `name` field by fallback. Local parsing
   now also treats supplier `vendor` fields as a `brand` fallback and rejects
   model-like tokens when persisting learned names. User edits in the import
   confirmation form remain authoritative.
-- Android still keeps a local cache for repeated server-assisted lookups, while
-  `/admin-api/lcsc/lookup` now sits behind the newer hybrid recognition flow as
-  a direct compatibility endpoint when official LCSC credentials are available.
+- Android keeps a local cache for repeated public lookups. Server lookup routes
+  remain compatibility endpoints for older clients when credentials are available;
+  they are no longer part of the normal Android import flow.
 - Android build verification completed successfully on `2026-05-08` on the
   current host machine after local SDK and JDK configuration. The current
   Android build baseline is AGP `8.10.1`, Gradle wrapper `8.11.1`, Java 17
@@ -197,8 +196,9 @@
 
 - Local-only queue of entities pending upload.
 - Stores `entity_type`, `entity_id`, `entity_updated_at`, and `created_at`.
-- Cleared after a successful push or when a remote update supersedes a pending
-  local queue item.
+- Acknowledged only against the uploaded entity version, or when a remote
+  update supersedes that version. New local edits made during network requests
+  remain queued.
 
 ## Server
 
@@ -310,3 +310,75 @@ The Android client also persists local-only app behavior settings:
 - `enable_server_jlc_lookup`
 - `ocr_engine_mode`
 - `app_language`
+
+## Cursor sync and direct catalog enrichment (2026-09-15)
+
+The server adds `sync_revision` to each synchronized entity table and maintains
+one global counter in `sync_state`. Startup migrates and backfills existing
+rows in a transaction without deleting data. Existing orphan movement rows are
+retained during migration; all newly opened connections enforce foreign keys.
+Push acquires a write transaction before the LWW read/check/write and commits
+both entity families and revision allocation atomically. Pull reads the counter
+and both families within a single SQLite snapshot. Timestamps use parsed UTC
+instants; client modification time is not the replication cursor.
+
+Windows stores nullable `last_sync_cursor` in `sync_settings` in the same
+transaction as applied data. Android stores `sync_cursor` in preferences after
+its data transaction: interruption before cursor persistence may repeat a pull
+but cannot skip unapplied data. Both clients start with a full pull, discard
+cursors on server changes, and use full pulls with old servers lacking cursors.
+A server switch while a request is pending prevents the old response from
+applying. Restoring or replacing a database is outside the cursor's identity
+boundary; reset clients to a full pull after such maintenance.
+
+Windows automatic sync debounces startup/local edits and serializes execution
+with manual sync. New edits can request one later run; failed requests do not
+schedule an unbounded retry loop.
+
+Android `LcscPublicCatalog` extracts exact-SKU Product JSON-LD from a fixed
+HTTPS LCSC product URL; it does not execute page JavaScript. `LcscPublicLookup`
+provides bounded per-importer caching/backoff, and `InventoryRepository` retains
+successful metadata for seven days in its existing local cache. Local parser,
+rules, and learned mappings remain usable offline. The public lookup preserves
+user overrides and never copies offers,
+prices, or supplier stock into the local stock model. Direct query preference
+is independent of synchronization and defaults to enabled.
+
+## Project BOM and component-hub migration (2026-09-15)
+
+Both native clients provide bounded CSV/XLSX readers, exact-SKU and
+model/package matching, preview, explicit confirmation and transactional stock
+depletion. Duplicate demands are aggregated by final component ID. Each commit
+rechecks the previewed version and available quantity before writing any rows;
+stock movements, components, pending sync queue entries and the release marker
+commit together. Windows uses `bom_consumption_batches`; Android schema version
+3 adds `bom_releases`. Both add `component_hub_imports` for local file-fingerprint
+idempotency. Android SQLiteOpenHelper upgrades these tables without replacing
+existing components or history.
+
+Release and migration markers are device-local. Only the existing component
+and movement entities synchronize; no project/BOM object was added to the wire
+protocol. The existing LWW stock snapshot protocol does not merge concurrent
+offline decrements from multiple devices. A production batch should be released
+on one device and synchronized before using another device for the same stock.
+
+Migration accepts the upstream `{components: [...]}` backup envelope, maps
+`productCode`, `stock`, `threshold`, `encapStandard`, category and location, and
+preserves source metadata in descriptions. It generates fresh local IDs;
+positive starting stock also receives an inbound movement. Duplicates block by
+default or are explicitly skipped. Input files and existing components are not
+overwritten. See [BOM and migration guide](bom-and-migration.md) for supported
+columns, file limits, unavailable XLS support and migration scope.
+
+Both clients use exact-SKU Product JSON-LD and trusted image hosts for catalog
+enrichment. Official classifications precede heuristic guesses; recognized
+English paths have Chinese display mappings and the original category path is
+retained. Images use the portable `商品图片：URL` description convention. Lazy
+image lookup changes presentation caches only, never component stock snapshots.
+Normal Android imports no longer call the server recognition endpoint; old
+server routes remain for older clients. OCR captures ImageCapture photos with
+sensor orientation; the unavailable Paddle choice is no longer exposed.
+
+Movement quantities remain stored as magnitudes for inbound/outbound and signed
+deltas for adjustments. UI `quantityChange` / `QuantityChange` derives the sign
+from the movement type, fixing outbound history without rewriting stored data.

@@ -208,7 +208,7 @@ internal data class MovementsStrings(
         else -> typeAdjustment
     }
 
-    fun movementQuantity(quantity: Int): String = if (quantity > 0) {
+    fun movementQuantity(quantity: Long): String = if (quantity > 0) {
         formatPattern(positiveQuantityPattern, quantity)
     } else {
         quantity.toString()
@@ -449,6 +449,7 @@ internal data class ImportStrings(
             ComponentImportFieldOrigin.Rule -> fieldOriginRule
             ComponentImportFieldOrigin.Learned -> fieldOriginLearned
             ComponentImportFieldOrigin.Server -> fieldOriginServer
+            ComponentImportFieldOrigin.PublicWeb -> "LCSC"
             ComponentImportFieldOrigin.User -> fieldOriginUser
         },
     )

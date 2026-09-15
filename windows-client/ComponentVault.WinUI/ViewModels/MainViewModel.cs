@@ -3,6 +3,8 @@ using System.Linq;
 using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.Services;
+using ComponentVault.WinUI.Services.Bom;
+using ComponentVault.WinUI.Services.Migration;
 using Microsoft.UI.Xaml.Controls;
 
 namespace ComponentVault.WinUI.ViewModels;
@@ -15,9 +17,14 @@ public sealed class MainViewModel : ObservableObject
     private const string SortNameAscOption = "名称 A-Z";
     private const string SortLowStockFirstOption = "库存紧张优先";
     private const string SortQuantityDescOption = "库存数量";
+    private static readonly TimeSpan AutoSyncDelay = TimeSpan.FromMilliseconds(750);
 
     private readonly InventoryStore _store;
     private readonly InventorySyncService _syncService;
+    private readonly BomPlanningService _bomPlanningService = new();
+    private readonly SemaphoreSlim _syncGate = new(1, 1);
+    private readonly object _autoSyncLock = new();
+    private CancellationTokenSource? _autoSyncDelayCancellation;
 
     private DashboardSnapshot _dashboard;
     private SyncConfiguration _syncConfiguration;
@@ -66,6 +73,7 @@ public sealed class MainViewModel : ObservableObject
         );
 
         Refresh();
+        ScheduleAutoSync();
     }
 
     public DashboardSnapshot Dashboard
@@ -274,7 +282,7 @@ public sealed class MainViewModel : ObservableObject
         Movements.Count(movement => movement.MovementType == "adjustment").ToString();
 
     public string MovementNetQuantityText =>
-        Movements.Sum(movement => movement.Quantity).ToString("+#,0;-#,0;0");
+        Movements.Sum(movement => movement.QuantityChange).ToString("+#,0;-#,0;0");
 
     public string OverviewLowStockSummary =>
         OverviewLowStockComponents.Count == 0
@@ -499,6 +507,7 @@ public sealed class MainViewModel : ObservableObject
             var savedComponent = _store.SaveComponent(draft);
             Refresh();
             SelectedComponent = Components.FirstOrDefault(component => component.Id == savedComponent.Id);
+            ScheduleAutoSync();
             return OperationResult.Success(
                 draft.Id is null ? "元器件已新增。" : "元器件已更新。"
             );
@@ -518,6 +527,10 @@ public sealed class MainViewModel : ObservableObject
 
         var result = _store.SoftDeleteComponent(SelectedComponent.Id);
         Refresh();
+        if (result.IsSuccess)
+        {
+            ScheduleAutoSync();
+        }
         return result;
     }
 
@@ -529,6 +542,10 @@ public sealed class MainViewModel : ObservableObject
             Refresh();
             SelectedComponent = Components.FirstOrDefault(component => component.Id == draft.ComponentId);
             SelectedMovement = Movements.FirstOrDefault(movement => movement.ComponentId == draft.ComponentId);
+            if (result.IsSuccess)
+            {
+                ScheduleAutoSync();
+            }
             return result;
         }
         catch (Exception exception)
@@ -545,6 +562,43 @@ public sealed class MainViewModel : ObservableObject
     {
         var result = _store.SaveSyncConfiguration(serverBaseUrl, apiToken, autoSyncEnabled);
         Refresh();
+        ScheduleAutoSync();
+        return result;
+    }
+
+    public BomPreview CreateBomPreview(
+        BomDocument document,
+        string projectName,
+        int batchQuantity,
+        IReadOnlyDictionary<int, string>? selectedComponentIds = null
+    ) => _bomPlanningService.CreatePreview(
+        document,
+        new BomImportOptions(projectName, batchQuantity),
+        _store.GetComponents(),
+        selectedComponentIds
+    );
+
+    public BomConfirmResult ConfirmBomConsumption(BomConfirmRequest request)
+    {
+        var result = _store.ConfirmBomConsumption(request);
+        Refresh();
+        if (result.IsSuccess && !result.AlreadyApplied)
+        {
+            ScheduleAutoSync();
+        }
+        return result;
+    }
+
+    public ComponentHubPreview PreviewComponentHubMigration(
+        string filePath,
+        DuplicateSkuPolicy duplicatePolicy
+    ) => new ComponentHubMigrationReader().Read(filePath, _store.GetComponents(), duplicatePolicy);
+
+    public OperationResult ImportComponentHub(ComponentHubImportRequest request)
+    {
+        var result = _store.ImportComponentHub(request);
+        Refresh();
+        if (result.IsSuccess) ScheduleAutoSync();
         return result;
     }
 
@@ -563,11 +617,14 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public async Task<SyncRunResult> RunSyncAsync()
+    public Task<SyncRunResult> RunSyncAsync() => RunSyncAsync(CancellationToken.None);
+
+    private async Task<SyncRunResult> RunSyncAsync(CancellationToken gateCancellationToken)
     {
-        IsBusy = true;
+        await _syncGate.WaitAsync(gateCancellationToken);
         try
         {
+            IsBusy = true;
             var result = await _syncService.RunSyncAsync();
             Refresh();
             StatusMessage = result.IsSuccess ? SyncConfiguration.LastSyncMessage : result.Message;
@@ -576,6 +633,59 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            _syncGate.Release();
+        }
+    }
+
+    private void ScheduleAutoSync()
+    {
+        if (!SyncConfiguration.AutoSyncEnabled)
+        {
+            lock (_autoSyncLock)
+            {
+                _autoSyncDelayCancellation?.Cancel();
+                _autoSyncDelayCancellation?.Dispose();
+                _autoSyncDelayCancellation = null;
+            }
+            return;
+        }
+
+        CancellationTokenSource cancellation;
+        lock (_autoSyncLock)
+        {
+            _autoSyncDelayCancellation?.Cancel();
+            _autoSyncDelayCancellation?.Dispose();
+            cancellation = new CancellationTokenSource();
+            _autoSyncDelayCancellation = cancellation;
+        }
+
+        _ = RunScheduledAutoSyncAsync(cancellation);
+    }
+
+    private async Task RunScheduledAutoSyncAsync(CancellationTokenSource cancellation)
+    {
+        try
+        {
+            await Task.Delay(AutoSyncDelay, cancellation.Token);
+            await RunSyncAsync(cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = $"自动同步失败：{exception.Message}";
+        }
+        finally
+        {
+            lock (_autoSyncLock)
+            {
+                if (ReferenceEquals(_autoSyncDelayCancellation, cancellation))
+                {
+                    _autoSyncDelayCancellation = null;
+                    cancellation.Dispose();
+                }
+            }
         }
     }
 

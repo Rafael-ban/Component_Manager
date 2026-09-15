@@ -10,6 +10,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.componentvault.android.R
 import com.componentvault.android.data.InventoryRepository
+import com.componentvault.android.data.bom.BomParseResult
+import com.componentvault.android.data.bom.BomParser
+import com.componentvault.android.data.bom.BomReleasePreview
+import com.componentvault.android.data.bom.BomReleaseResult
+import com.componentvault.android.data.bom.BomSheet
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentImportCandidate
@@ -36,6 +41,8 @@ import com.componentvault.android.model.OverviewUiState
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.SyncConfiguration
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class InventoryViewModel(
     application: Application,
@@ -728,6 +735,7 @@ class InventoryViewModel(
             minStock = component.minStock,
             isLowStock = component.isLowStock,
             updatedAt = component.updatedAt,
+            productImageUrl = component.productImageUrl,
         )
     }
 
@@ -935,6 +943,85 @@ class InventoryViewModel(
         val session: MovementBatchSessionUiState,
         val message: String,
     )
+
+    fun listBomSheets(bytes: ByteArray, onComplete: (Result<List<BomSheet>>) -> Unit) {
+        viewModelScope.launch {
+            onComplete(runCatching { withContext(Dispatchers.Default) { BomParser.listXlsxSheets(bytes) } })
+        }
+    }
+
+    fun previewBom(
+        bytes: ByteArray,
+        fileName: String,
+        projectName: String,
+        productionSets: Int,
+        sheetName: String?,
+        selections: Map<String, String> = emptyMap(),
+        onComplete: (Result<BomReleasePreview>) -> Unit,
+    ) {
+        viewModelScope.launch {
+            onComplete(runCatching {
+                val parsed: BomParseResult = withContext(Dispatchers.Default) { if (fileName.endsWith(".xlsx", true)) {
+                    BomParser.parseXlsx(bytes, projectName, productionSets, sheetName)
+                } else {
+                    require(fileName.endsWith(".csv", true)) { "仅支持 CSV 或 XLSX BOM。" }
+                    BomParser.parseCsv(bytes, projectName, productionSets)
+                } }
+                repository.previewBomRelease(parsed, selections)
+            })
+        }
+    }
+
+    fun commitBomRelease(
+        preview: BomReleasePreview,
+        releaseId: String,
+        batchId: String,
+        onComplete: (BomReleaseResult) -> Unit,
+    ) {
+        viewModelScope.launch {
+            uiState = uiState.copy(isBusy = true)
+            val result = repository.commitBomRelease(preview, releaseId, batchId)
+            reloadState(result.message)
+            if (result.outcome == com.componentvault.android.data.bom.BomReleaseOutcome.APPLIED) {
+                if (uiState.appPreferences.syncAfterLocalChanges) runSyncInternal()
+            }
+            onComplete(result)
+        }
+    }
+
+    fun previewComponentHub(
+        bytes: ByteArray,
+        skipDuplicates: Boolean,
+        onComplete: (Result<com.componentvault.android.data.bom.ComponentHubParseResult>) -> Unit,
+    ) {
+        viewModelScope.launch {
+            onComplete(runCatching {
+                repository.previewComponentHub(
+                    bytes,
+                    if (skipDuplicates) {
+                        com.componentvault.android.data.bom.ComponentHubDuplicatePolicy.SKIP
+                    } else {
+                        com.componentvault.android.data.bom.ComponentHubDuplicatePolicy.BLOCK
+                    },
+                )
+            })
+        }
+    }
+
+    fun importComponentHub(
+        preview: com.componentvault.android.data.bom.ComponentHubParseResult,
+        onComplete: (com.componentvault.android.data.bom.ComponentHubImportResult) -> Unit,
+    ) {
+        viewModelScope.launch {
+            uiState = uiState.copy(isBusy = true)
+            val result = repository.importComponentHub(preview)
+            reloadState(result.message)
+            if (result.outcome == com.componentvault.android.data.bom.ComponentHubImportOutcome.APPLIED) {
+                if (uiState.appPreferences.syncAfterLocalChanges) runSyncInternal()
+            }
+            onComplete(result)
+        }
+    }
 
     companion object {
         fun factory(application: Application): ViewModelProvider.Factory =

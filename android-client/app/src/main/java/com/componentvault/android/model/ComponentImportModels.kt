@@ -1,5 +1,8 @@
 package com.componentvault.android.model
 
+import java.net.URI
+import java.util.Locale
+
 enum class ComponentImportSourceType {
     JlcText,
     JlcQr,
@@ -12,6 +15,7 @@ enum class ComponentImportFieldOrigin {
     Rule,
     Learned,
     Server,
+    PublicWeb,
     User,
 }
 
@@ -127,6 +131,7 @@ data class ComponentOfficialMetadata(
     val modelFamily: String? = null,
     val categoryPath: String? = null,
     val officialUrl: String? = null,
+    val imageUrl: String? = null,
     val matchedBy: String? = null,
     val confidence: String? = null,
     val ruleVersion: String? = null,
@@ -291,6 +296,9 @@ fun ComponentImportCandidate.withRecognitionMetadata(
 fun ComponentImportCandidate.withOfficialMetadata(
     metadata: ComponentOfficialMetadata,
 ): ComponentImportCandidate {
+    val metadataOrigin = if (metadata.source == "lcsc_public_web") {
+        ComponentImportFieldOrigin.PublicWeb
+    } else ComponentImportFieldOrigin.Server
     val resolvedName = when {
         metadata.name.isNullOrBlank() -> name
         name.isBlank() -> metadata.name
@@ -311,6 +319,7 @@ fun ComponentImportCandidate.withOfficialMetadata(
 
     val resolvedCategory = when {
         category.isBlank() && !metadata.category.isNullOrBlank() -> metadata.category
+        !metadata.categoryPath.isNullOrBlank() && !metadata.category.isNullOrBlank() -> metadata.category
         category.equals("General", ignoreCase = true) && !metadata.category.isNullOrBlank() -> metadata.category
         !metadata.category.isNullOrBlank() && category.count { it == '/' } < metadata.category.count { it == '/' } ->
             metadata.category
@@ -327,6 +336,7 @@ fun ComponentImportCandidate.withOfficialMetadata(
         metadata.matchedBy?.let { addIfMissing("官方查询：匹配方式 ${it.uppercase()}") }
         metadata.categoryPath?.let { addIfMissing("官方分类路径：$it") }
         metadata.officialUrl?.let { addIfMissing("官方链接：$it") }
+        trustedProductImageUrl(metadata.imageUrl)?.let { addIfMissing("商品图片：$it") }
         metadata.ruleVersion?.let { addIfMissing("识别规则版本：$it") }
     }
 
@@ -353,32 +363,32 @@ fun ComponentImportCandidate.withOfficialMetadata(
         notes = mergedNotes,
         fieldOrigins = fieldOrigins.copy(
             sku = if (sku.isBlank() && !metadata.sku.isNullOrBlank()) {
-                ComponentImportFieldOrigin.Server
+                metadataOrigin
             } else {
                 fieldOrigins.sku
             },
             name = if (resolvedName != name && !metadata.name.isNullOrBlank()) {
-                ComponentImportFieldOrigin.Server
+                metadataOrigin
             } else {
                 fieldOrigins.name
             },
             category = if (resolvedCategory != category && !metadata.category.isNullOrBlank()) {
-                ComponentImportFieldOrigin.Server
+                metadataOrigin
             } else {
                 fieldOrigins.category
             },
             packageName = if (resolvedPackageName != packageName && !metadata.packageName.isNullOrBlank()) {
-                ComponentImportFieldOrigin.Server
+                metadataOrigin
             } else {
                 fieldOrigins.packageName
             },
             model = if (model.isNullOrBlank() && !metadata.model.isNullOrBlank()) {
-                ComponentImportFieldOrigin.Server
+                metadataOrigin
             } else {
                 fieldOrigins.model
             },
             brand = if (brand.isNullOrBlank() && !resolvedBrand.isNullOrBlank()) {
-                ComponentImportFieldOrigin.Server
+                metadataOrigin
             } else {
                 fieldOrigins.brand
             },
@@ -393,6 +403,27 @@ data class ParsedImportDescription(
     val rawPayload: String? = null,
     val notes: List<String> = emptyList(),
 )
+
+fun trustedProductImageUrl(value: String?): String? {
+    val normalized = value?.trim()?.takeIf(String::isNotEmpty) ?: return null
+    val uri = runCatching { URI(normalized) }.getOrNull() ?: return null
+    val host = uri.host?.lowercase(Locale.ROOT) ?: return null
+    return normalized.takeIf {
+        uri.scheme.equals("https", ignoreCase = true) &&
+            uri.userInfo == null &&
+            uri.port == -1 &&
+            host in setOf("assets.lcsc.com", "www.lcsc.com")
+    }
+}
+
+fun productImageUrlFromDescription(description: String): String? =
+    parseImportDescription(description).notes.firstNotNullOfOrNull { note ->
+        when {
+            note.startsWith("商品图片：") -> note.removePrefix("商品图片：").trim()
+            note.startsWith("Product image: ") -> note.removePrefix("Product image: ").trim()
+            else -> null
+        }?.let(::trustedProductImageUrl)
+    }
 
 data class ComponentLabelSeed(
     val sku: String,

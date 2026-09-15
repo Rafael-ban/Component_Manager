@@ -36,6 +36,7 @@
             <StackPanel Spacing="14">
                 <CommandBar Background="Transparent" DefaultLabelPosition="Right">
                     <AppBarButton x:Uid="ComponentsViewAddButton" Click="OnAddComponentClicked" Icon="Add" Label="新增元器件" />
+                    <AppBarButton Click="OnImportComponentHubClicked" Icon="Upload" Label="迁移 component-hub" />
                 </CommandBar>
 
                 <Grid ColumnSpacing="12" RowSpacing="12">
@@ -144,6 +145,7 @@
                                 <ColumnDefinition Width="1.2*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="64" />
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Style="{StaticResource CaptionTextStyle}" Text="元器件" />
@@ -151,6 +153,7 @@
                             <TextBlock Grid.Column="2" Style="{StaticResource CaptionTextStyle}" Text="仓位" />
                             <TextBlock Grid.Column="3" Style="{StaticResource CaptionTextStyle}" Text="库存" />
                             <TextBlock Grid.Column="4" Style="{StaticResource CaptionTextStyle}" Text="状态" />
+                            <TextBlock Grid.Column="5" Style="{StaticResource CaptionTextStyle}" Text="图片" />
                         </Grid>
                     </Border>
 
@@ -177,6 +180,7 @@
                                             <ColumnDefinition Width="1.2*" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="64" />
                                         </Grid.ColumnDefinitions>
 
                                         <StackPanel>
@@ -207,6 +211,13 @@
                                             CornerRadius="999">
                                             <TextBlock Foreground="{StaticResource VaultAccentBrush}" Text="{Binding Status}" />
                                         </Border>
+
+                                        <Border Grid.Column="5" Width="52" Height="42" Background="{StaticResource VaultPanelBrush}" CornerRadius="6">
+                                            <Grid>
+                                                <FontIcon HorizontalAlignment="Center" VerticalAlignment="Center" Glyph="&#xE91B;" FontSize="14" />
+                                                <Image Source="{Binding ProductImageUrl}" Stretch="Uniform" />
+                                            </Grid>
+                                        </Border>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -226,6 +237,12 @@
 
                             <StackPanel>
                                 <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="详情检查器" />
+                                <Border Width="120" Height="90" Margin="0,8,0,8" Background="{StaticResource VaultPanelBrush}" CornerRadius="8">
+                                    <Grid>
+                                        <FontIcon HorizontalAlignment="Center" VerticalAlignment="Center" Glyph="&#xE91B;" />
+                                        <Image Source="{Binding SelectedComponent.ProductImageUrl}" Stretch="Uniform" />
+                                    </Grid>
+                                </Border>
                                 <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding SelectedComponentName}" />
                                 <TextBlock
                                     Foreground="{StaticResource TextFillColorSecondaryBrush}"

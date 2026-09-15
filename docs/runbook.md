@@ -231,10 +231,10 @@ Implemented client behaviors:
 - component create/edit/soft delete
 - movement entry and quantity recalculation
 - manual sync, connection test, and optional auto sync
-- JLC text/QR import with bundled offline recognition rules, device-only import
-  learning, and optional server-assisted enrichment through
-  `GET /admin-api/part-lookup`, while keeping unresolved canonical names blank
-  until the user or server confirms them
+- JLC text/QR and direct C-number import with bundled offline recognition rules,
+  device-only learning and public product lookup; no recognition server is needed
+- BOM CSV/XLSX preview and transactional batch release, component-hub JSON
+  migration, and official product images; see [BOM and migration](bom-and-migration.md)
 - supplier packaging OCR import plus generated JLC-compatible or warehouse QR
   labels
 - official adaptive Compose shell and Inventory flow built on
@@ -530,3 +530,27 @@ curl -X POST http://localhost:8787/auth/ping `
 - Symptom: recording a movement fails locally.
 - Cause: an outbound or adjustment movement would drive stock below zero.
 - Fix: correct the quantity or record an inbound adjustment first.
+
+### Upgrading cursor synchronization
+
+Stop the API and back up its SQLite database before deploying the updated
+service. Startup adds revision metadata in a transaction; no inventory rows are
+deleted. Upgrade clients to use `sync_cursor`; the first upgraded client sync
+is full. Older clients using `since` continue to operate with the old late-write
+limitation. Newly detected orphan references cause an atomic HTTP 409 instead
+of partially applying a push.
+
+Cursors belong to the current server database history. After restoring an older
+backup or replacing the database, reset client synchronization to a full pull
+before resuming incremental use. Do not copy a cursor from another database.
+Changing the saved server URL clears the client cursor.
+
+### Android direct LCSC lookup unavailable
+
+The import preference for direct public lookup needs no API token or backend.
+It reads the LCSC international public product page and accepts only an exact
+SKU match. If the provider returns a verification screen, changes its structured
+markup, or cannot be reached, open the product link or complete the form manually.
+The application does not attempt to bypass verification. Turning off the import
+preference stops automatic direct queries. Existing backend lookup settings are
+separate and remain optional.

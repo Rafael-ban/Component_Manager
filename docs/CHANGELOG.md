@@ -5,6 +5,35 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.3.10] - 2026-09-15
+
+- Added Android and Windows project BOM CSV/XLSX preview, exact inventory matching,
+  shortage checks and transactional batch depletion with local retry idempotency.
+- Added component-hub JSON migration with source metadata, Chinese category
+  mapping, duplicate preview/explicit skip and atomic initial-stock movements.
+- Added trusted product images on native inventory rows, Windows direct C-number
+  lookup, official-category priority and Chinese domestic-store links.
+- Fixed outbound movement signs in native lists/details without changing stored
+  magnitudes; Android now captures OCR photos with rotation instead of preview
+  screenshots, prioritizes direct C-number entry, and hides server recognition
+  and the unavailable Paddle option.
+
+- Added service-issued sync cursors and legacy database migration to deliver
+  late offline changes; fixed timestamp comparisons, foreign-key enforcement,
+  and atomic push rollback.
+- Preserved native-client queue edits made during sync, reset cursors on server
+  changes, and implemented debounced Windows automatic synchronization.
+- Added Android direct LCSC public product lookup from scanned C-numbers without
+  server/API-key configuration, with exact SKU checks, local caching, import
+  preference, and manual/product-page fallback.
+- Added synchronization, public-catalog, BOM and migration regression tests,
+  plus a sourced component-hub comparison and migration guide.
+- CI now runs Android inventory regressions (sync, catalog, BOM, migration,
+  movement signs and OCR preferences) and Windows core tests.
+- Excluded local screenshot attachments and temporary Gradle verification files
+  from version control.
+
+
 ## [0.3.9] - 2026-05-19
 
 - Reworked Android stock movements into a scan-then-review batch workflow:

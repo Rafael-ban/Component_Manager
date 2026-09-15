@@ -15,5 +15,7 @@ data class ComponentRecord(
 ) {
     val isLowStock: Boolean
         get() = !deleted && quantity <= minStock
-}
 
+    val productImageUrl: String?
+        get() = productImageUrlFromDescription(description)
+}

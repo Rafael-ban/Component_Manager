@@ -9,6 +9,8 @@
 .gradle-home/
 .gradle-user-home-*/
 .gradle-codex-verify/
+.tmp-gradle-bom/
+.codex-remote-attachments/
 
 client/.dart_tool/
 client/.flutter-plugins

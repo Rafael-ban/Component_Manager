@@ -56,6 +56,7 @@ class PushResponse(BaseModel):
 
 class PullResponse(BaseModel):
     server_time: datetime
+    sync_cursor: int = Field(ge=0)
     components: list[ComponentPayload] = Field(default_factory=list)
     stock_movements: list[StockMovementPayload] = Field(default_factory=list)
 

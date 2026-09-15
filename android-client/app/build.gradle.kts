@@ -26,8 +26,8 @@ android {
         applicationId = "com.componentvault.android"
         minSdk = 28
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.3.9"
+        versionCode = 10
+        versionName = "0.3.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -116,6 +116,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     testImplementation(kotlin("test"))
+    testImplementation("org.json:json:20240303")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

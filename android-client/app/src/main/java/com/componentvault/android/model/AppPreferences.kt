@@ -10,6 +10,7 @@ data class AppPreferences(
     val preferAggressiveAutoRecognition: Boolean = true,
     val enableLocalImportLearning: Boolean = true,
     val enableServerJlcLookup: Boolean = false,
+    val enablePublicJlcLookup: Boolean = true,
     val ocrEngineMode: OcrEngineMode = OcrEngineMode.Auto,
     val appLanguage: AppLanguage = AppLanguage.ZhCn,
 ) {

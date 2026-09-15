@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.ComponentImportParser
 import com.componentvault.android.data.InventoryRepository
+import com.componentvault.android.data.LcscPublicCatalog
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentImportCandidate
@@ -51,8 +53,10 @@ internal fun JlcImportSurface(
     val context = LocalContext.current
     val repository = remember(context) { InventoryRepository(context) }
     val strings = vaultStrings()
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
     var rawInput by remember { mutableStateOf("") }
+    var partNumberInput by rememberSaveable { mutableStateOf("") }
     var baseCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
     var displayedCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
     var scannerMode by rememberSaveable { mutableStateOf<ImportScannerMode?>(null) }
@@ -277,18 +281,21 @@ internal fun JlcImportSurface(
         appPreferences.enableLocalAutoRecognition,
         appPreferences.preferAggressiveAutoRecognition,
         appPreferences.enableLocalImportLearning,
-        appPreferences.enableServerJlcLookup,
-        syncConfiguration.serverBaseUrl,
-        syncConfiguration.apiToken,
+        appPreferences.enablePublicJlcLookup,
     ) {
         val candidate = baseCandidate ?: return@LaunchedEffect
         lookupInProgress = candidate.sourceType != com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel &&
-            appPreferences.enableServerJlcLookup
+            appPreferences.enablePublicJlcLookup && LcscPublicCatalog.normalizeSku(candidate.sku) != null
         val resolution = repository.enrichImportCandidate(
             candidate = candidate,
             appPreferences = appPreferences,
             syncConfiguration = syncConfiguration,
         )
+        // A response for the scanned SKU must not enrich a different user-entered SKU.
+        if (skuEdited && !sku.trim().equals(candidate.sku, ignoreCase = true)) {
+            lookupInProgress = false
+            return@LaunchedEffect
+        }
         learningMatchType = resolution.learningMatch?.matchedBy
         applyDisplayedCandidate(
             candidate = resolution.candidate,
@@ -357,6 +364,33 @@ internal fun JlcImportSurface(
                 ) {
                     Text(strings.importer.actionScanQr)
                 }
+                OutlinedTextField(
+                    value = partNumberInput,
+                    onValueChange = { partNumberInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_part_number_label)) },
+                    placeholder = { Text("C70565") },
+                )
+                FilledTonalButton(
+                    onClick = {
+                        val normalized = LcscPublicCatalog.normalizeSku(partNumberInput)
+                        if (normalized == null) {
+                            feedbackMessage = context.getString(com.componentvault.android.R.string.import_part_number_invalid)
+                        } else {
+                            runCatching { ComponentImportParser.parseScannedQr(normalized) }
+                                .onSuccess(::setBaseCandidate)
+                                .onFailure { feedbackMessage = it.message }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_part_number_lookup))
+                }
+                Text(
+                    androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_ocr_secondary_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 OutlinedButton(
                     onClick = { scannerMode = ImportScannerMode.SupplierText },
                     modifier = Modifier.fillMaxWidth(),
@@ -428,7 +462,8 @@ internal fun JlcImportSurface(
                     if (candidate.sourceType != com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel) {
                         val serverMessage = when {
                             lookupInProgress -> strings.importer.lookupLoading
-                            appPreferences.enableServerJlcLookup -> lookupMessage ?: strings.importer.lookupOnlyFillsMissing
+                            appPreferences.enablePublicJlcLookup ->
+                                lookupMessage ?: strings.importer.lookupOnlyFillsMissing
                             else -> strings.importer.serverLookupDisabled
                         }
                         Text(
@@ -440,6 +475,22 @@ internal fun JlcImportSurface(
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
                         )
+                        LcscPublicCatalog.domesticSearchUrl(sku)?.let { domesticUrl ->
+                            TextButton(onClick = {
+                                runCatching { uriHandler.openUri(domesticUrl) }
+                                    .onFailure { feedbackMessage = it.message }
+                            }) {
+                                Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.importer_open_domestic_product))
+                            }
+                        }
+                        LcscPublicCatalog.productUrl(sku)?.let { productUrl ->
+                            TextButton(onClick = {
+                                runCatching { uriHandler.openUri(productUrl) }
+                                    .onFailure { feedbackMessage = it.message }
+                            }) {
+                                Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.importer_open_public_product))
+                            }
+                        }
                     }
                 }
             }

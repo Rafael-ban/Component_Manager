@@ -45,6 +45,7 @@ public sealed class SyncPushResponse
 public sealed class SyncPullResponse
 {
     public required string ServerTime { get; init; }
+    public long? SyncCursor { get; init; }
     public IReadOnlyList<SyncComponentDto> Components { get; init; } = [];
     public IReadOnlyList<SyncStockMovementDto> StockMovements { get; init; } = [];
 }

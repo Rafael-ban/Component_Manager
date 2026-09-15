@@ -238,7 +238,7 @@
     <string name="settings_server_jlc_lookup_description">Optionally fill missing part fields through the server. Requires server configuration.</string>
     <string name="settings_ocr_engine_label">Packaging OCR engine</string>
     <string name="settings_ocr_engine_auto">Auto</string>
-    <string name="settings_ocr_engine_auto_description">Recommended. Uses the bundled ML Kit engine in this build and keeps the future Paddle path open.</string>
+    <string name="settings_ocr_engine_auto_description">Uses bundled ML Kit offline. Text recognition is a fallback; verify the result before saving.</string>
     <string name="settings_ocr_engine_mlkit">ML Kit offline</string>
     <string name="settings_ocr_engine_mlkit_description">Stable offline OCR using the bundled Chinese text recognizer.</string>
     <string name="settings_ocr_engine_paddle">Paddle experimental</string>
@@ -257,7 +257,7 @@
     <string name="importer_subtitle">Use JLC text, QR labels, supplier packaging OCR, or manual refinement before saving.</string>
     <string name="importer_supported_format_hint">Supported: JLC copied text, JLC-compatible QR payloads, warehouse labels, and supplier packaging OCR text.</string>
     <string name="importer_enrichment_title">Auto recognition</string>
-    <string name="importer_enrichment_subtitle">Local parsing runs first. Learned mappings and vendor-to-brand fallback come next. Server lookup can replace model-like names and fill missing fields.</string>
+    <string name="importer_enrichment_subtitle">Local parsing and learned mappings run first; online lookup fills product details while preserving your edits.</string>
     <string name="importer_raw_input_label">Raw import payload</string>
     <string name="importer_raw_input_placeholder">Paste JLC text, a QR payload, or supplier packaging text here.</string>
     <string name="importer_action_parse_text">Parse import text</string>
@@ -291,7 +291,7 @@
     <string name="importer_scanner_failed_title">Scanner unavailable</string>
     <string name="importer_scanner_failed_description">The in-app camera scanner could not start.</string>
     <string name="importer_supplier_scanner_starting">Starting text scanner...</string>
-    <string name="importer_supplier_scanner_hint">Align supplier package text inside the frame.</string>
+    <string name="importer_supplier_scanner_hint">Keep the label close, sharp and free of glare. Capture a photo when the text is in focus.</string>
     <string name="importer_supplier_scanner_capture_hint">Hold steady, then capture one frame for OCR and field extraction.</string>
     <string name="importer_supplier_scanner_recognizing">Recognizing captured text...</string>
     <string name="importer_supplier_scanner_failed_title">Text scanner unavailable</string>
@@ -307,9 +307,9 @@
     <string name="importer_name_confirmation_hint">Quick save still requires a confirmed component name. Model and brand stay separate, so confirm the name before saving.</string>
     <string name="importer_learning_match_sku">Local learning matched by SKU.</string>
     <string name="importer_learning_match_mpn">Local learning matched by model.</string>
-    <string name="importer_server_lookup_disabled">Server lookup is off. Local parsing and learned mappings stay active.</string>
-    <string name="importer_lookup_only_fills_missing">Server lookup only fills missing fields.</string>
-    <string name="importer_lookup_loading">Looking up server-assisted part metadata...</string>
+    <string name="importer_server_lookup_disabled">Online lookup is off. Local parsing and learned mappings remain available.</string>
+    <string name="importer_lookup_only_fills_missing">Online lookup fills product details. You confirm the quantity and storage location.</string>
+    <string name="importer_lookup_loading">Looking up product details…</string>
     <string name="importer_lookup_success">Server-assisted part metadata matched and merged.</string>
     <string name="importer_lookup_cache_success">Server-assisted part metadata loaded from cache.</string>
     <string name="importer_lookup_no_match">No server-assisted match found.</string>
@@ -358,4 +358,14 @@
     <string name="importer_export_pdf_success">PDF export completed.</string>
     <string name="importer_export_generic_error">Unable to export the label.</string>
     <string name="importer_export_failed_pattern">Export failed: %1$s</string>
+    <string name="settings_public_jlc_lookup">Look up LCSC products directly</string>
+    <string name="settings_public_jlc_lookup_description">Use the scanned C-number to read LCSC public product pages without a server or key. Only the product code is sent; manual entry works offline.</string>
+    <string name="importer_public_lookup_success">Product details loaded from LCSC. Review them before saving.</string>
+    <string name="importer_public_lookup_unavailable">Matching product details are unavailable. Open the product page or fill in the fields manually.</string>
+    <string name="importer_open_public_product">Open LCSC product page</string>
+    <string name="import_part_number_label">LCSC part number</string>
+    <string name="import_part_number_lookup">Use part number and look up product</string>
+    <string name="import_part_number_invalid">Enter a complete LCSC part number, for example C70565.</string>
+    <string name="import_ocr_secondary_hint">Scan the QR code or enter the C-number first. Use text recognition when no code is available, then verify the extracted fields.</string>
+    <string name="importer_open_domestic_product">Open Chinese LCSC store</string>
 </resources>

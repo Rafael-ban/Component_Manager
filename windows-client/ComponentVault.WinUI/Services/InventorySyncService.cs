@@ -24,13 +24,25 @@ public sealed class InventorySyncService
         var result = await _apiClient.RunSyncAsync(
             envelope.Settings,
             envelope.PushRequest,
-            envelope.Since,
+            envelope.Cursor,
             cancellationToken
         );
 
         if (result.IsSuccess)
         {
-            _store.ApplySyncResult(result, envelope.QueuedEntities);
+            if (
+                !_store.ApplySyncResult(
+                    result,
+                    envelope.QueuedEntities,
+                    envelope.Settings.ServerBaseUrl
+                )
+            )
+            {
+                result = SyncRunResult.Failure(
+                    "同步期间服务器配置已变化，本次旧服务器结果未应用。"
+                );
+                _store.UpdateSyncStatus(result.Message);
+            }
         }
         else
         {

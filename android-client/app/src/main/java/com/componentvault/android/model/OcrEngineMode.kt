@@ -12,7 +12,7 @@ enum class OcrEngineMode(
         fun fromStorageValue(value: String?): OcrEngineMode {
             return entries.firstOrNull { mode ->
                 mode.storageValue.equals(value?.trim(), ignoreCase = true)
-            } ?: Auto
+            }?.takeUnless { it == PaddleExperimental } ?: Auto
         }
     }
 }

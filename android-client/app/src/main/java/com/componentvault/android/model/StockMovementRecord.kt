@@ -12,4 +12,12 @@ data class StockMovementRecord(
     val happenedAt: String,
     val updatedAt: String,
     val deleted: Boolean,
-)
+) {
+    /** Stored inbound/outbound quantities are magnitudes; adjustment quantities are signed. */
+    val quantityChange: Long
+        get() = when (movementType.lowercase(java.util.Locale.ROOT)) {
+            "inbound" -> kotlin.math.abs(quantity.toLong())
+            "outbound" -> -kotlin.math.abs(quantity.toLong())
+            else -> quantity.toLong()
+        }
+}

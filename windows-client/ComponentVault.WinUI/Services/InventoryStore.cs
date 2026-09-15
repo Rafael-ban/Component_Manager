@@ -1,5 +1,7 @@
 using System.Globalization;
 using ComponentVault.WinUI.Models;
+using ComponentVault.WinUI.Services.Bom;
+using ComponentVault.WinUI.Services.Migration;
 using Microsoft.Data.Sqlite;
 
 namespace ComponentVault.WinUI.Services;
@@ -9,13 +11,24 @@ public sealed class InventoryStore
     private readonly string _databasePath;
 
     public InventoryStore()
+        : this(
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ComponentVault",
+                "component-vault.db"
+            )
+        )
     {
-        var root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "ComponentVault"
-        );
-        Directory.CreateDirectory(root);
-        _databasePath = Path.Combine(root, "component-vault.db");
+    }
+
+    internal InventoryStore(string databasePath)
+    {
+        var root = Path.GetDirectoryName(databasePath);
+        if (!string.IsNullOrWhiteSpace(root))
+        {
+            Directory.CreateDirectory(root);
+        }
+        _databasePath = databasePath;
     }
 
     public void Initialize()
@@ -198,7 +211,11 @@ public sealed class InventoryStore
             SET
                 server_base_url = $server_base_url,
                 api_token = $api_token,
-                auto_sync_enabled = $auto_sync_enabled
+                auto_sync_enabled = $auto_sync_enabled,
+                last_sync_cursor = CASE
+                    WHEN server_base_url = $server_base_url THEN last_sync_cursor
+                    ELSE NULL
+                END
             WHERE id = 1
             """;
         command.Parameters.AddWithValue("$server_base_url", normalizedUrl);
@@ -388,6 +405,205 @@ public sealed class InventoryStore
         return OperationResult.Success("库存变动已记录到本机。");
     }
 
+    public BomConfirmResult ConfirmBomConsumption(BomConfirmRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ReleaseId) || string.IsNullOrWhiteSpace(request.BatchId))
+        {
+            return BomConfirmResult.Failure("发行 ID 与批次 ID 不能为空。");
+        }
+        if (string.IsNullOrWhiteSpace(request.ProjectName) || request.BatchQuantity <= 0 || request.Lines.Count == 0)
+        {
+            return BomConfirmResult.Failure("BOM 确认参数无效。");
+        }
+        if (request.Lines.Select(line => line.ComponentId).Distinct(StringComparer.Ordinal).Count() != request.Lines.Count)
+        {
+            return BomConfirmResult.Failure("BOM 确认行包含重复库存项。");
+        }
+
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        if (BomReleaseExists(connection, request.ReleaseId))
+        {
+            transaction.Rollback();
+            return BomConfirmResult.Duplicate("该发行已经扣减，无需重复处理。");
+        }
+        if (BomBatchExists(connection, request.BatchId))
+        {
+            transaction.Rollback();
+            return BomConfirmResult.Failure("批次 ID 已被其他发行使用。");
+        }
+
+        var current = new Dictionary<string, ComponentRecord>(StringComparer.Ordinal);
+        foreach (var line in request.Lines)
+        {
+            var component = GetComponentById(connection, line.ComponentId);
+            if (component is null || component.Deleted)
+            {
+                transaction.Rollback();
+                return BomConfirmResult.Failure($"{line.ComponentSku} 已不存在或已删除，请重新预览。");
+            }
+            if (!TryCompareInstants(component.UpdatedAt, line.ExpectedUpdatedAt, out var comparison) || comparison != 0)
+            {
+                transaction.Rollback();
+                return BomConfirmResult.Failure($"{line.ComponentSku} 在预览后发生变化，请重新预览。");
+            }
+            if (line.RequiredQuantity <= 0 || component.Quantity < line.RequiredQuantity)
+            {
+                transaction.Rollback();
+                return BomConfirmResult.Failure($"{line.ComponentSku} 库存不足，请重新预览。");
+            }
+            current[line.ComponentId] = component;
+        }
+
+        var happenedAt = UtcNow();
+        foreach (var line in request.Lines)
+        {
+            var movementId = $"mov-{Guid.NewGuid():N}";
+            using var update = connection.CreateCommand();
+            update.CommandText = "UPDATE components SET quantity = $quantity, updated_at = $updated_at WHERE id = $id";
+            update.Parameters.AddWithValue("$quantity", current[line.ComponentId].Quantity - line.RequiredQuantity);
+            update.Parameters.AddWithValue("$updated_at", happenedAt);
+            update.Parameters.AddWithValue("$id", line.ComponentId);
+            update.ExecuteNonQuery();
+
+            using var movement = connection.CreateCommand();
+            movement.CommandText =
+                """
+                INSERT INTO stock_movements (
+                    id, component_id, movement_type, quantity, reason, note,
+                    happened_at, updated_at, deleted
+                ) VALUES (
+                    $id, $component_id, 'outbound', $quantity, 'BOM production', $note,
+                    $happened_at, $updated_at, 0
+                )
+                """;
+            movement.Parameters.AddWithValue("$id", movementId);
+            movement.Parameters.AddWithValue("$component_id", line.ComponentId);
+            movement.Parameters.AddWithValue("$quantity", line.RequiredQuantity);
+            movement.Parameters.AddWithValue("$note", $"项目：{request.ProjectName}；批次：{request.BatchId}");
+            movement.Parameters.AddWithValue("$happened_at", happenedAt);
+            movement.Parameters.AddWithValue("$updated_at", happenedAt);
+            movement.ExecuteNonQuery();
+
+            EnqueueEntity(connection, "component", line.ComponentId, happenedAt);
+            EnqueueEntity(connection, "stock_movement", movementId, happenedAt);
+        }
+
+        using (var batch = connection.CreateCommand())
+        {
+            batch.CommandText =
+                """
+                INSERT INTO bom_consumption_batches (
+                    batch_id, release_id, project_name, batch_quantity, source_fingerprint, created_at
+                ) VALUES ($batch_id, $release_id, $project_name, $batch_quantity, $source_fingerprint, $created_at)
+                """;
+            batch.Parameters.AddWithValue("$batch_id", request.BatchId.Trim());
+            batch.Parameters.AddWithValue("$release_id", request.ReleaseId.Trim());
+            batch.Parameters.AddWithValue("$project_name", request.ProjectName.Trim());
+            batch.Parameters.AddWithValue("$batch_quantity", request.BatchQuantity);
+            batch.Parameters.AddWithValue("$source_fingerprint", request.SourceFingerprint.Trim());
+            batch.Parameters.AddWithValue("$created_at", happenedAt);
+            batch.ExecuteNonQuery();
+        }
+        transaction.Commit();
+        return BomConfirmResult.Success("BOM 批次已原子扣减并写入出库记录。");
+    }
+
+    public OperationResult ImportComponentHub(ComponentHubImportRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Fingerprint) || request.Items.Count == 0)
+            return OperationResult.Failure("迁移预览为空或缺少文件指纹。");
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        using (var duplicateFile = connection.CreateCommand())
+        {
+            duplicateFile.CommandText = "SELECT COUNT(*) FROM component_hub_imports WHERE fingerprint = $fingerprint";
+            duplicateFile.Parameters.AddWithValue("$fingerprint", request.Fingerprint);
+            if (Convert.ToInt32(duplicateFile.ExecuteScalar(), CultureInfo.InvariantCulture) > 0)
+            {
+                transaction.Rollback();
+                return OperationResult.Failure("该 component-hub 文件已导入，未重复写入。");
+            }
+        }
+
+        var imported = 0;
+        foreach (var item in request.Items)
+        {
+            if (item.Quantity < 0 || item.MinStock < 0 || string.IsNullOrWhiteSpace(item.Sku))
+            {
+                transaction.Rollback();
+                return OperationResult.Failure($"第 {item.Index} 条迁移数据无效。");
+            }
+            using var exists = connection.CreateCommand();
+            exists.CommandText = "SELECT COUNT(*) FROM components WHERE sku = $sku AND deleted = 0";
+            exists.Parameters.AddWithValue("$sku", item.Sku);
+            if (Convert.ToInt32(exists.ExecuteScalar(), CultureInfo.InvariantCulture) > 0)
+            {
+                if (request.DuplicatePolicy == DuplicateSkuPolicy.Skip) continue;
+                transaction.Rollback();
+                return OperationResult.Failure($"SKU {item.Sku} 已存在，迁移已全部回滚。");
+            }
+
+            var componentId = $"cmp-{Guid.NewGuid():N}";
+            var updatedAt = UtcNow();
+            using var component = connection.CreateCommand();
+            component.CommandText =
+                """
+                INSERT INTO components (
+                    id, sku, name, category, package_name, location, description,
+                    quantity, min_stock, updated_at, deleted
+                ) VALUES (
+                    $id, $sku, $name, $category, $package_name, $location, $description,
+                    $quantity, $min_stock, $updated_at, 0
+                )
+                """;
+            component.Parameters.AddWithValue("$id", componentId);
+            component.Parameters.AddWithValue("$sku", item.Sku);
+            component.Parameters.AddWithValue("$name", item.Name);
+            component.Parameters.AddWithValue("$category", item.Category);
+            component.Parameters.AddWithValue("$package_name", item.PackageName);
+            component.Parameters.AddWithValue("$location", item.Location);
+            component.Parameters.AddWithValue("$description", item.Description);
+            component.Parameters.AddWithValue("$quantity", item.Quantity);
+            component.Parameters.AddWithValue("$min_stock", item.MinStock);
+            component.Parameters.AddWithValue("$updated_at", updatedAt);
+            component.ExecuteNonQuery();
+            EnqueueEntity(connection, "component", componentId, updatedAt);
+
+            if (item.Quantity > 0)
+            {
+                var movementId = $"mov-{Guid.NewGuid():N}";
+                using var movement = connection.CreateCommand();
+                movement.CommandText =
+                    """
+                    INSERT INTO stock_movements (
+                        id, component_id, movement_type, quantity, reason, note,
+                        happened_at, updated_at, deleted
+                    ) VALUES (
+                        $id, $component_id, 'inbound', $quantity, 'component-hub migration',
+                        'component-hub JSON 导入初始库存', $updated_at, $updated_at, 0
+                    )
+                    """;
+                movement.Parameters.AddWithValue("$id", movementId);
+                movement.Parameters.AddWithValue("$component_id", componentId);
+                movement.Parameters.AddWithValue("$quantity", item.Quantity);
+                movement.Parameters.AddWithValue("$updated_at", updatedAt);
+                movement.ExecuteNonQuery();
+                EnqueueEntity(connection, "stock_movement", movementId, updatedAt);
+            }
+            imported++;
+        }
+
+        using var marker = connection.CreateCommand();
+        marker.CommandText = "INSERT INTO component_hub_imports (fingerprint, imported_count, created_at) VALUES ($fingerprint, $count, $created_at)";
+        marker.Parameters.AddWithValue("$fingerprint", request.Fingerprint);
+        marker.Parameters.AddWithValue("$count", imported);
+        marker.Parameters.AddWithValue("$created_at", UtcNow());
+        marker.ExecuteNonQuery();
+        transaction.Commit();
+        return OperationResult.Success($"component-hub 迁移完成，新增 {imported} 个元器件。");
+    }
+
     public SyncEnvelope CreateSyncEnvelope()
     {
         using var connection = OpenConnection();
@@ -420,7 +636,7 @@ public sealed class InventoryStore
         return new SyncEnvelope
         {
             Settings = settings,
-            Since = GetStoredLastSyncedAt(connection),
+            Cursor = GetStoredSyncCursor(connection),
             QueuedEntities = queuedEntities,
             PushRequest = new SyncPushRequest
             {
@@ -431,7 +647,11 @@ public sealed class InventoryStore
         };
     }
 
-    public void ApplySyncResult(SyncRunResult result, IReadOnlyList<SyncEntityReference> pushedEntities)
+    public bool ApplySyncResult(
+        SyncRunResult result,
+        IReadOnlyList<SyncEntityReference> pushedEntities,
+        string expectedServerBaseUrl
+    )
     {
         if (result.PullResponse is null)
         {
@@ -440,6 +660,12 @@ public sealed class InventoryStore
 
         using var connection = OpenConnection();
         using var transaction = connection.BeginTransaction();
+
+        if (!StoredServerMatches(connection, expectedServerBaseUrl))
+        {
+            transaction.Rollback();
+            return false;
+        }
 
         foreach (var component in result.PullResponse.Components)
         {
@@ -460,8 +686,10 @@ public sealed class InventoryStore
 
         foreach (var pushedEntity in pushedEntities)
         {
-            RemoveQueuedEntity(connection, pushedEntity.EntityType, pushedEntity.EntityId);
+            RemoveQueuedEntityIfSnapshotMatches(connection, pushedEntity);
         }
+
+        UpdateStoredSyncCursor(connection, result.PullResponse.SyncCursor);
 
         UpdateStoredSyncStatus(
             connection,
@@ -471,6 +699,7 @@ public sealed class InventoryStore
         );
 
         transaction.Commit();
+        return true;
     }
 
     public void UpdateSyncStatus(string message)
@@ -545,8 +774,26 @@ public sealed class InventoryStore
                 server_base_url TEXT NOT NULL DEFAULT '',
                 api_token TEXT NOT NULL DEFAULT '',
                 auto_sync_enabled INTEGER NOT NULL DEFAULT 0,
+                last_sync_cursor INTEGER,
                 last_synced_at TEXT,
                 last_sync_message TEXT NOT NULL DEFAULT '尚未同步。'
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS bom_consumption_batches (
+                batch_id TEXT PRIMARY KEY,
+                release_id TEXT NOT NULL UNIQUE,
+                project_name TEXT NOT NULL,
+                batch_quantity INTEGER NOT NULL CHECK (batch_quantity > 0),
+                source_fingerprint TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS component_hub_imports (
+                fingerprint TEXT PRIMARY KEY,
+                imported_count INTEGER NOT NULL CHECK (imported_count >= 0),
+                created_at TEXT NOT NULL
             )
             """,
         };
@@ -557,6 +804,32 @@ public sealed class InventoryStore
             command.CommandText = statement;
             command.ExecuteNonQuery();
         }
+
+        EnsureColumnExists(connection, "sync_settings", "last_sync_cursor", "INTEGER");
+    }
+
+    private static void EnsureColumnExists(
+        SqliteConnection connection,
+        string tableName,
+        string columnName,
+        string columnType
+    )
+    {
+        using var inspect = connection.CreateCommand();
+        inspect.CommandText = $"PRAGMA table_info({tableName})";
+        using var reader = inspect.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
+        reader.Close();
+        using var alter = connection.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnType}";
+        alter.ExecuteNonQuery();
     }
 
     private static void EnsureDefaultSettings(SqliteConnection connection)
@@ -597,6 +870,22 @@ public sealed class InventoryStore
         command.CommandText =
             "SELECT COUNT(*) FROM stock_movements WHERE deleted = 0";
         return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    private static bool BomReleaseExists(SqliteConnection connection, string releaseId)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM bom_consumption_batches WHERE release_id = $release_id";
+        command.Parameters.AddWithValue("$release_id", releaseId.Trim());
+        return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
+    }
+
+    private static bool BomBatchExists(SqliteConnection connection, string batchId)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM bom_consumption_batches WHERE batch_id = $batch_id";
+        command.Parameters.AddWithValue("$batch_id", batchId.Trim());
+        return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
     }
 
     private static IReadOnlyList<ComponentRecord> ReadComponents(SqliteDataReader reader)
@@ -849,13 +1138,28 @@ public sealed class InventoryStore
         return entities;
     }
 
-    private static string? GetStoredLastSyncedAt(SqliteConnection connection)
+    private static long? GetStoredSyncCursor(SqliteConnection connection)
     {
         using var command = connection.CreateCommand();
         command.CommandText =
-            "SELECT last_synced_at FROM sync_settings WHERE id = 1";
-        var value = command.ExecuteScalar() as string;
-        return string.IsNullOrWhiteSpace(value) ? null : value;
+            "SELECT last_sync_cursor FROM sync_settings WHERE id = 1";
+        var value = command.ExecuteScalar();
+        return value is null or DBNull ? null : Convert.ToInt64(value, CultureInfo.InvariantCulture);
+    }
+
+    private static bool StoredServerMatches(
+        SqliteConnection connection,
+        string expectedServerBaseUrl
+    )
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT server_base_url FROM sync_settings WHERE id = 1";
+        var currentServerBaseUrl = command.ExecuteScalar() as string ?? string.Empty;
+        return string.Equals(
+            NormalizeServerBaseUrl(currentServerBaseUrl),
+            NormalizeServerBaseUrl(expectedServerBaseUrl),
+            StringComparison.Ordinal
+        );
     }
 
     private static SyncComponentDto? GetComponentDtoById(
@@ -955,22 +1259,43 @@ public sealed class InventoryStore
         string remoteUpdatedAt
     )
     {
-        using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            DELETE FROM sync_queue
-            WHERE
-                entity_type = $entity_type
-                AND entity_id = $entity_id
-                AND entity_updated_at <= $entity_updated_at
-            """;
-        command.Parameters.AddWithValue("$entity_type", entityType);
-        command.Parameters.AddWithValue("$entity_id", entityId);
-        command.Parameters.AddWithValue("$entity_updated_at", remoteUpdatedAt);
-        command.ExecuteNonQuery();
+        var queuedUpdatedAt = GetQueuedEntityUpdatedAt(connection, entityType, entityId);
+        if (
+            queuedUpdatedAt is not null
+            && TryCompareInstants(queuedUpdatedAt, remoteUpdatedAt, out var comparison)
+            && comparison <= 0
+        )
+        {
+            RemoveQueuedEntity(connection, entityType, entityId, queuedUpdatedAt);
+        }
     }
 
-    private static void RemoveQueuedEntity(
+    private static void RemoveQueuedEntityIfSnapshotMatches(
+        SqliteConnection connection,
+        SyncEntityReference snapshot
+    )
+    {
+        var queuedUpdatedAt = GetQueuedEntityUpdatedAt(
+            connection,
+            snapshot.EntityType,
+            snapshot.EntityId
+        );
+        if (
+            queuedUpdatedAt is not null
+            && TryCompareInstants(queuedUpdatedAt, snapshot.EntityUpdatedAt, out var comparison)
+            && comparison == 0
+        )
+        {
+            RemoveQueuedEntity(
+                connection,
+                snapshot.EntityType,
+                snapshot.EntityId,
+                queuedUpdatedAt
+            );
+        }
+    }
+
+    private static string? GetQueuedEntityUpdatedAt(
         SqliteConnection connection,
         string entityType,
         string entityId
@@ -978,12 +1303,68 @@ public sealed class InventoryStore
     {
         using var command = connection.CreateCommand();
         command.CommandText =
+            "SELECT entity_updated_at FROM sync_queue WHERE entity_type = $entity_type AND entity_id = $entity_id";
+        command.Parameters.AddWithValue("$entity_type", entityType);
+        command.Parameters.AddWithValue("$entity_id", entityId);
+        return command.ExecuteScalar() as string;
+    }
+
+    private static void RemoveQueuedEntity(
+        SqliteConnection connection,
+        string entityType,
+        string entityId,
+        string expectedUpdatedAt
+    )
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText =
             """
             DELETE FROM sync_queue
-            WHERE entity_type = $entity_type AND entity_id = $entity_id
+            WHERE entity_type = $entity_type
+              AND entity_id = $entity_id
+              AND entity_updated_at = $entity_updated_at
             """;
         command.Parameters.AddWithValue("$entity_type", entityType);
         command.Parameters.AddWithValue("$entity_id", entityId);
+        command.Parameters.AddWithValue("$entity_updated_at", expectedUpdatedAt);
+        command.ExecuteNonQuery();
+    }
+
+    private static bool TryCompareInstants(string left, string right, out int comparison)
+    {
+        if (
+            DateTimeOffset.TryParse(
+                left,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var leftInstant
+            )
+            && DateTimeOffset.TryParse(
+                right,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var rightInstant
+            )
+        )
+        {
+            comparison = leftInstant.UtcTicks.CompareTo(rightInstant.UtcTicks);
+            return true;
+        }
+
+        comparison = 0;
+        return false;
+    }
+
+    private static void UpdateStoredSyncCursor(SqliteConnection connection, long? syncCursor)
+    {
+        if (syncCursor is < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(syncCursor));
+        }
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE sync_settings SET last_sync_cursor = $cursor WHERE id = 1";
+        command.Parameters.AddWithValue("$cursor", syncCursor is null ? DBNull.Value : syncCursor.Value);
         command.ExecuteNonQuery();
     }
 
@@ -1159,7 +1540,7 @@ public sealed class SyncEnvelope
 {
     public required SyncConfiguration Settings { get; init; }
     public required SyncPushRequest PushRequest { get; init; }
-    public string? Since { get; init; }
+    public long? Cursor { get; init; }
     public required IReadOnlyList<SyncEntityReference> QueuedEntities { get; init; }
 }
 

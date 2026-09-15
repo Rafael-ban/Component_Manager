@@ -2,15 +2,21 @@ using ComponentVault.WinUI.Design;
 using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.ViewModels;
+using ComponentVault.WinUI.Services.Migration;
+using ComponentVault.WinUI.Services.Catalog;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
+using Windows.Storage.Pickers;
+using WinRT.Interop;
 
 namespace ComponentVault.WinUI.Views;
 
 public sealed partial class ComponentsView : Page
 {
+    private readonly LcscPublicLookup _catalogLookup = new();
+    private readonly HashSet<string> _lazyLookupAttempted = new(StringComparer.OrdinalIgnoreCase);
     private MainViewModel? RuntimeViewModel => ViewModelResolver.GetRuntimeViewModel(DataContext);
 
     public ComponentsView()
@@ -43,6 +49,7 @@ public sealed partial class ComponentsView : Page
         if (RuntimeViewModel is { } viewModel)
         {
             viewModel.SelectedComponent = ComponentsListView.SelectedItem as ComponentRecord;
+            _ = TryLazyImageLookupAsync(viewModel.SelectedComponent);
         }
     }
 
@@ -61,6 +68,63 @@ public sealed partial class ComponentsView : Page
         }
 
         await ShowOperationResultAsync(viewModel.SaveComponent(draft));
+    }
+
+    private async void OnImportComponentHubClicked(object sender, RoutedEventArgs e)
+    {
+        var viewModel = RuntimeViewModel;
+        if (viewModel is null) return;
+        var picker = new FileOpenPicker();
+        picker.FileTypeFilter.Add(".json");
+        InitializeWithWindow.Initialize(
+            picker,
+            WindowNative.GetWindowHandle(((App)Application.Current).Window)
+        );
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return;
+
+        var skipToggle = new ToggleSwitch
+        {
+            Header = "重复 SKU",
+            OffContent = "阻止整个导入（默认）",
+            OnContent = "明确跳过重复项",
+        };
+        var policyDialog = new ContentDialog
+        {
+            Title = "component-hub 迁移策略",
+            Content = skipToggle,
+            PrimaryButtonText = "生成预览",
+            CloseButtonText = "取消",
+            XamlRoot = XamlRoot,
+        };
+        if (await policyDialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var policy = skipToggle.IsOn ? DuplicateSkuPolicy.Skip : DuplicateSkuPolicy.Block;
+        try
+        {
+            var preview = viewModel.PreviewComponentHubMigration(file.Path, policy);
+            var text = string.Join(
+                "\n",
+                new[] { $"可导入：{preview.Items.Count}；跳过重复：{preview.SkippedDuplicates}" }
+                    .Concat(preview.Items.Take(12).Select(item => $"{item.Sku} · {item.Name} · 库存 {item.Quantity}"))
+                    .Concat(preview.Issues.Select(issue => $"阻止：{issue}"))
+            );
+            var previewDialog = new ContentDialog
+            {
+                Title = "确认 component-hub 迁移",
+                Content = new ScrollViewer { Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap }, MaxHeight = 520 },
+                PrimaryButtonText = "确认导入",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
+                IsPrimaryButtonEnabled = preview.CanConfirm,
+                XamlRoot = XamlRoot,
+            };
+            if (await previewDialog.ShowAsync() != ContentDialogResult.Primary) return;
+            await ShowOperationResultAsync(viewModel.ImportComponentHub(new(preview.Fingerprint, policy, preview.Items)));
+        }
+        catch (Exception exception)
+        {
+            await ShowMessageAsync("迁移文件读取失败", exception.Message);
+        }
     }
 
     private async void OnEditComponentClicked(object sender, RoutedEventArgs e)
@@ -173,7 +237,15 @@ public sealed partial class ComponentsView : Page
             Width = 520,
         };
         panel.Children.Add(CreateSectionHeader("基本信息", "名称、SKU、分类与封装。"));
-        panel.Children.Add(CreateField("SKU", skuBox));
+        var skuActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var lookupButton = new Button { Content = "按 C 编号联网补全" };
+        var chinaSearchButton = new Button { Content = "打开国内商城搜索" };
+        skuActions.Children.Add(lookupButton);
+        skuActions.Children.Add(chinaSearchButton);
+        var skuPanel = new StackPanel { Spacing = 6 };
+        skuPanel.Children.Add(skuBox);
+        skuPanel.Children.Add(skuActions);
+        panel.Children.Add(CreateField("SKU / 立创 C 编号", skuPanel));
         panel.Children.Add(CreateField("名称", nameBox));
         panel.Children.Add(CreateField("分类", categoryBox));
         panel.Children.Add(CreateField("封装", packageBox));
@@ -186,6 +258,46 @@ public sealed partial class ComponentsView : Page
         panel.Children.Add(CreateSectionHeader("备注", "填写用途、风险或替代料信息。"));
         panel.Children.Add(CreateField("描述 / 备注", descriptionBox));
         panel.Children.Add(errorText);
+
+        lookupButton.Click += async (_, _) =>
+        {
+            var normalized = LcscPublicCatalog.NormalizeSku(skuBox.Text);
+            if (normalized is null)
+            {
+                errorText.Text = "请输入 C 开头、后接 1–10 位数字的立创编号。";
+                return;
+            }
+            lookupButton.IsEnabled = false;
+            errorText.Text = "正在读取 LCSC 公共商品页…";
+            try
+            {
+                var metadata = await _catalogLookup.LookupAsync(normalized);
+                if (!string.Equals(LcscPublicCatalog.NormalizeSku(skuBox.Text), normalized, StringComparison.Ordinal))
+                {
+                    errorText.Text = "编号已更改，请按新编号重新查询。";
+                    return;
+                }
+                if (metadata is null)
+                {
+                    errorText.Text = "公共商品页没有返回与该 C 编号精确一致的 Product 数据。";
+                    return;
+                }
+                skuBox.Text = metadata.Sku;
+                if (string.IsNullOrWhiteSpace(nameBox.Text)) nameBox.Text = metadata.Name;
+                if (string.IsNullOrWhiteSpace(categoryBox.Text)) categoryBox.Text = metadata.Category;
+                if (string.IsNullOrWhiteSpace(packageBox.Text) && !string.IsNullOrWhiteSpace(metadata.PackageName)) packageBox.Text = metadata.PackageName;
+                descriptionBox.Text = AppendOfficialNotes(descriptionBox.Text, metadata);
+                errorText.Text = "已按精确 C 编号补全空白字段；原有手工字段未覆盖。";
+            }
+            catch (Exception exception) { errorText.Text = $"公共商品查询失败：{exception.Message}"; }
+            finally { lookupButton.IsEnabled = true; }
+        };
+        chinaSearchButton.Click += async (_, _) =>
+        {
+            var uri = LcscPublicCatalog.ChinaSearchUri(skuBox.Text);
+            if (uri is null) { errorText.Text = "请输入有效 C 编号后再打开搜索。"; return; }
+            await Windows.System.Launcher.LaunchUriAsync(uri);
+        };
 
         ComponentDraft? draft = null;
         var dialog = new ContentDialog
@@ -235,6 +347,40 @@ public sealed partial class ComponentsView : Page
 
         var result = await dialog.ShowAsync();
         return result == ContentDialogResult.Primary ? draft : null;
+    }
+
+    private async Task TryLazyImageLookupAsync(ComponentRecord? component)
+    {
+        if (component is null || component.ProductImageUrl is not null) return;
+        var sku = LcscPublicCatalog.NormalizeSku(component.Sku);
+        if (sku is null || !_lazyLookupAttempted.Add(sku)) return;
+        try
+        {
+            var metadata = await _catalogLookup.LookupAsync(sku);
+            if (metadata?.ImageUrl is null || RuntimeViewModel is not { } viewModel) return;
+            viewModel.Refresh();
+        }
+        catch { }
+    }
+
+    private static string AppendOfficialNotes(string description, LcscProductMetadata metadata)
+    {
+        var notes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(description))
+            notes.AddRange(description.Split(['\n', '；'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(note => note.Trim())
+                .Where(note => metadata.ImageUrl is null || !note.StartsWith("商品图片：", StringComparison.Ordinal)));
+        AddUnique(notes, metadata.Model is null ? null : $"型号：{metadata.Model}");
+        AddUnique(notes, metadata.Brand is null ? null : $"品牌：{metadata.Brand}");
+        AddUnique(notes, $"官方商品页：{metadata.OfficialUrl}");
+        AddUnique(notes, metadata.CategoryPath is null ? null : $"官方分类路径：{metadata.CategoryPath}");
+        AddUnique(notes, metadata.ImageUrl is null ? null : $"商品图片：{metadata.ImageUrl}");
+        return string.Join("\n", notes);
+    }
+
+    private static void AddUnique(List<string> notes, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && !notes.Any(note => note.Contains(value, StringComparison.Ordinal))) notes.Add(value);
     }
 
     private async Task ShowOperationResultAsync(OperationResult result)

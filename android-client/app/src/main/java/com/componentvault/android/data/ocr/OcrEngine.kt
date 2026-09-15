@@ -21,7 +21,8 @@ internal object OcrEngineFactory {
             OcrEngineMode.MlKit,
             -> MlKitOcrEngine()
 
-            OcrEngineMode.PaddleExperimental -> PaddleOcrEngine()
+            // Older preferences may still request the never-bundled experimental engine.
+            OcrEngineMode.PaddleExperimental -> MlKitOcrEngine()
         }
     }
 }

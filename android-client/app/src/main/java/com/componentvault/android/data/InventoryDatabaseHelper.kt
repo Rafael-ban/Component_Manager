@@ -62,11 +62,15 @@ class InventoryDatabaseHelper(context: Context) : SQLiteOpenHelper(
             """.trimIndent(),
         )
         createImportLearningTables(db)
+        createBatchOperationTables(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             createImportLearningTables(db)
+        }
+        if (oldVersion < 3) {
+            createBatchOperationTables(db)
         }
     }
 
@@ -107,8 +111,40 @@ class InventoryDatabaseHelper(context: Context) : SQLiteOpenHelper(
         )
     }
 
+    private fun createBatchOperationTables(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS bom_releases (
+                release_id TEXT PRIMARY KEY,
+                batch_id TEXT NOT NULL,
+                project_name TEXT NOT NULL,
+                production_runs INTEGER NOT NULL CHECK (production_runs > 0),
+                source_fingerprint TEXT NOT NULL,
+                source_sheet TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_bom_releases_batch_id
+            ON bom_releases(batch_id)
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS component_hub_imports (
+                source_fingerprint TEXT PRIMARY KEY,
+                imported_count INTEGER NOT NULL CHECK (imported_count >= 0),
+                skipped_count INTEGER NOT NULL CHECK (skipped_count >= 0),
+                created_at TEXT NOT NULL
+            )
+            """.trimIndent(),
+        )
+    }
+
     private companion object {
         const val DATABASE_NAME = "component-vault.db"
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
     }
 }

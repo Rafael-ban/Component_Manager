@@ -100,13 +100,31 @@ Success response:
 }
 ```
 
+A push is atomic across components and stock movements. Duplicate active SKU or
+missing component references return HTTP 409 and roll back the entire batch.
+LWW compares UTC instants rather than timestamp text. Equal-timestamp arrivals
+retain the existing last-arrival policy; retrying an identical payload does not
+create duplicate entities, although the sync revision may advance.
+
 ### `GET /sync/pull`
 
-Downloads all remote changes after the provided timestamp. Omit `since` for a
-full snapshot.
+Use `cursor=0` for the first full snapshot, then send the previous response's
+`sync_cursor`. The non-negative integer cursor is issued by the server; never
+convert a timestamp into it. `cursor` takes precedence over legacy `since`.
+
+The response includes `server_time`, `sync_cursor`, `components`, and
+`stock_movements`. Both collections and `sync_cursor` are read from one database
+snapshot. Changes accepted after that snapshot are returned by the next pull,
+even if their client `updated_at` is old because the device was offline.
+
+Omitting both parameters also returns a full snapshot. Legacy `since` is still
+accepted and compares UTC instants, but its timestamp semantics cannot discover
+all late offline writes. Updated native clients fall back to full pulls when an
+older server omits `sync_cursor`. Apply all returned entities successfully before
+persisting the new cursor; clear it when changing servers.
 
 ```powershell
-curl "http://localhost:8787/sync/pull?since=2026-05-07T00:00:00Z" `
+curl "http://localhost:8787/sync/pull?cursor=0" `
   -H "Authorization: Bearer change-me"
 ```
 
@@ -292,3 +310,26 @@ Failure behavior:
 - `502 Bad Gateway`: upstream supplier lookup or rule-refresh fetch failed.
 - `503 Service Unavailable`: LCSC credentials are not configured for the
   compatibility lookup path.
+
+## Android direct public lookup
+
+The import UI can resolve a scanned `C70565` by reading
+`https://www.lcsc.com/product-detail/C70565.html` directly. It sends neither the
+raw packaging QR payload nor the user's server token. It requires no server
+endpoint or OpenAPI credentials. The normal Android import flow no longer calls
+the server-assisted recognizer; the legacy server route is retained for older
+clients. Windows uses the same public page and exact-SKU rule.
+
+Only matching `Product` JSON-LD is accepted; unrelated recommendations and page
+titles alone are insufficient. Manual SKU changes invalidate a pending result
+for a different SKU. User-edited fields are preserved, and packaging quantity
+is independent of supplier stock. Disable direct lookups in import settings for
+an offline-only workflow. Cached results expire after seven days; repeated
+failed lookups in the current importer back off for thirty seconds.
+
+Product image URLs use the existing component description field via
+`商品图片：<trusted HTTPS URL>`; original category paths are also retained there.
+BOM depletion and component-hub migration produce ordinary component and
+stock-movement sync entities. Their batch/file idempotency markers are local
+only, not new sync objects. See [BOM and migration](bom-and-migration.md) for
+formats and the limits of cross-device concurrent stock operations.

@@ -25,6 +25,7 @@ public sealed partial class MainWindow : Window
         {
             "Inventory" => typeof(ComponentsView),
             "Movements" => typeof(MovementsView),
+            "Bom" => typeof(BomView),
             "Overview" => typeof(DashboardView),
             "Settings" => typeof(SettingsView),
             _ => null,
@@ -39,6 +40,7 @@ public sealed partial class MainWindow : Window
         {
             "Inventory" => InventoryItem,
             "Movements" => MovementsItem,
+            "Bom" => BomItem,
             "Overview" => OverviewItem,
             "Settings" => SettingsItem,
             _ => null,

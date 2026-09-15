@@ -13,10 +13,8 @@ from .auth import require_token
 from .config import get_settings
 from .database import get_db, init_db
 from .repositories import (
-    pull_components,
-    pull_stock_movements,
-    save_components,
-    save_stock_movements,
+    pull_sync_snapshot,
+    save_sync_payload,
 )
 from .schemas import (
     HealthResponse,
@@ -67,10 +65,8 @@ def create_app() -> FastAPI:
         connection: sqlite3.Connection = Depends(get_db),
     ) -> PushResponse:
         try:
-            accepted_components = save_components(connection, payload.components)
-            accepted_stock_movements = save_stock_movements(
-                connection,
-                payload.stock_movements,
+            accepted_components, accepted_stock_movements = save_sync_payload(
+                connection, payload
             )
         except ValueError as error:
             raise HTTPException(
@@ -90,12 +86,19 @@ def create_app() -> FastAPI:
     )
     def sync_pull(
         since: Annotated[datetime | None, Query()] = None,
+        cursor: Annotated[int | None, Query(ge=0)] = None,
         connection: sqlite3.Connection = Depends(get_db),
     ) -> PullResponse:
+        sync_cursor, components, stock_movements = pull_sync_snapshot(
+            connection,
+            cursor=cursor,
+            since=since,
+        )
         return PullResponse(
             server_time=_utc_now(),
-            components=pull_components(connection, since),
-            stock_movements=pull_stock_movements(connection, since),
+            sync_cursor=sync_cursor,
+            components=components,
+            stock_movements=stock_movements,
         )
 
     return app

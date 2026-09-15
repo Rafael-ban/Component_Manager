@@ -221,7 +221,7 @@
     <string name="settings_server_jlc_lookup_description">通过服务端补全缺失的物料字段，需要服务端预先配置。</string>
     <string name="settings_ocr_engine_label">包装 OCR 引擎</string>
     <string name="settings_ocr_engine_auto">自动</string>
-    <string name="settings_ocr_engine_auto_description">推荐。当前构建优先使用内置 ML Kit，同时为后续 Paddle 保留入口。</string>
+    <string name="settings_ocr_engine_auto_description">使用内置 ML Kit 离线识别。文字识别作为补充，保存前请核对结果。</string>
     <string name="settings_ocr_engine_mlkit">ML Kit 离线</string>
     <string name="settings_ocr_engine_mlkit_description">使用内置中文文字识别模块进行离线 OCR。</string>
     <string name="settings_ocr_engine_paddle">Paddle 实验</string>
@@ -239,7 +239,7 @@
     <string name="importer_subtitle">支持 JLC 文本、二维码标签、供应商包装 OCR，以及保存前的手工修正。</string>
     <string name="importer_supported_format_hint">支持：JLC 复制文本、兼容 JLC 的二维码载荷、仓库标签和供应商包装 OCR 文本。</string>
     <string name="importer_enrichment_title">自动识别</string>
-    <string name="importer_enrichment_subtitle">先用本地解析，再套用学习映射和厂商到品牌回填；服务端可替换明显像型号的名称并补全缺失字段。</string>
+    <string name="importer_enrichment_subtitle">先使用本地解析和学习映射，再通过联网查询补全商品信息；你修改的字段会保留。</string>
     <string name="importer_raw_input_label">原始导入内容</string>
     <string name="importer_raw_input_placeholder">在这里粘贴 JLC 文本、二维码载荷或供应商包装文字。</string>
     <string name="importer_action_parse_text">解析导入文本</string>
@@ -273,7 +273,7 @@
     <string name="importer_scanner_failed_title">扫码不可用</string>
     <string name="importer_scanner_failed_description">应用内相机扫码未能正常启动。</string>
     <string name="importer_supplier_scanner_starting">正在启动文字扫描...</string>
-    <string name="importer_supplier_scanner_hint">将供应商包装文字对准取景框。</string>
+    <string name="importer_supplier_scanner_hint">靠近标签，避开反光，等文字对焦清晰后拍照识别。</string>
     <string name="importer_supplier_scanner_capture_hint">保持稳定，拍下单帧后再进行 OCR 和字段提取。</string>
     <string name="importer_supplier_scanner_recognizing">正在识别已拍摄的文字...</string>
     <string name="importer_supplier_scanner_failed_title">文字扫描不可用</string>
@@ -289,9 +289,9 @@
     <string name="importer_name_confirmation_hint">快速保存仍需要确认后的元件名称。名称、型号和品牌会分开保留，保存前请确认名称字段。</string>
     <string name="importer_learning_match_sku">已按 SKU 命中本地学习映射。</string>
     <string name="importer_learning_match_mpn">已按型号命中本地学习映射。</string>
-    <string name="importer_server_lookup_disabled">服务端补全已关闭，仍会继续使用本地解析和学习映射。</string>
-    <string name="importer_lookup_only_fills_missing">服务端只用于补全缺失字段。</string>
-    <string name="importer_lookup_loading">正在查询服务端辅助元数据...</string>
+    <string name="importer_server_lookup_disabled">联网补全已关闭，仍可使用本地解析和学习映射。</string>
+    <string name="importer_lookup_only_fills_missing">联网查询用于补全商品信息，入库数量和仓位由你确认。</string>
+    <string name="importer_lookup_loading">正在查询商品信息…</string>
     <string name="importer_lookup_success">服务端辅助元数据已匹配并合并。</string>
     <string name="importer_lookup_cache_success">已从本地缓存加载服务端辅助元数据。</string>
     <string name="importer_lookup_no_match">未找到对应的服务端辅助匹配项。</string>
@@ -340,5 +340,15 @@
     <string name="importer_export_pdf_success">PDF 导出完成。</string>
     <string name="importer_export_generic_error">无法导出标签。</string>
     <string name="importer_export_failed_pattern">导出失败：%1$s</string>
+    <string name="settings_public_jlc_lookup">直接查询立创商品</string>
+    <string name="settings_public_jlc_lookup_description">扫描后用 C 编号查询 LCSC 官方公开页面，无需服务器或密钥。仅发送商品编号；离线时仍可手动录入。</string>
+    <string name="importer_public_lookup_success">已从 LCSC 公开商品页补全信息，请核对后入库。</string>
+    <string name="importer_public_lookup_unavailable">暂未取得匹配的商品信息。可以打开商品页查看，或手动补全后入库。</string>
+    <string name="importer_open_public_product">打开 LCSC 商品页</string>
+    <string name="import_part_number_label">立创编号</string>
+    <string name="import_part_number_lookup">使用编号并查询商品</string>
+    <string name="import_part_number_invalid">请输入完整立创编号，例如 C70565。</string>
+    <string name="import_ocr_secondary_hint">优先扫码或输入 C 编号。没有二维码时再用文字识别，并核对识别结果。</string>
+    <string name="importer_open_domestic_product">打开中文版立创商城</string>
 </resources>
 

@@ -197,6 +197,9 @@ internal fun SettingsContent(
     var enableServerJlcLookup by remember(appPreferences.enableServerJlcLookup) {
         mutableStateOf(appPreferences.enableServerJlcLookup)
     }
+    var enablePublicJlcLookup by remember(appPreferences.enablePublicJlcLookup) {
+        mutableStateOf(appPreferences.enablePublicJlcLookup)
+    }
     var ocrEngineMode by remember(appPreferences.ocrEngineMode) {
         mutableStateOf(appPreferences.ocrEngineMode)
     }
@@ -226,6 +229,7 @@ internal fun SettingsContent(
                     preferAggressiveAutoRecognition = preferAggressiveAutoRecognition,
                     enableLocalImportLearning = enableLocalImportLearning,
                     enableServerJlcLookup = enableServerJlcLookup,
+                    enablePublicJlcLookup = enablePublicJlcLookup,
                     ocrEngineMode = ocrEngineMode,
                     appLanguage = appLanguage,
                 ),
@@ -298,6 +302,8 @@ internal fun SettingsContent(
                     onEnableLocalImportLearningChange = { enableLocalImportLearning = it },
                     enableServerJlcLookup = enableServerJlcLookup,
                     onEnableServerJlcLookupChange = { enableServerJlcLookup = it },
+                    enablePublicJlcLookup = enablePublicJlcLookup,
+                    onEnablePublicJlcLookupChange = { enablePublicJlcLookup = it },
                     ocrEngineMode = ocrEngineMode,
                     onOcrEngineModeChange = { ocrEngineMode = it },
                     appLanguage = appLanguage,
@@ -378,6 +384,8 @@ internal fun SettingsContent(
                 onEnableLocalImportLearningChange = { enableLocalImportLearning = it },
                 enableServerJlcLookup = enableServerJlcLookup,
                 onEnableServerJlcLookupChange = { enableServerJlcLookup = it },
+                enablePublicJlcLookup = enablePublicJlcLookup,
+                onEnablePublicJlcLookupChange = { enablePublicJlcLookup = it },
                 ocrEngineMode = ocrEngineMode,
                 onOcrEngineModeChange = { ocrEngineMode = it },
                 appLanguage = appLanguage,
@@ -588,6 +596,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
     onEnableLocalImportLearningChange: (Boolean) -> Unit,
     enableServerJlcLookup: Boolean,
     onEnableServerJlcLookupChange: (Boolean) -> Unit,
+    enablePublicJlcLookup: Boolean,
+    onEnablePublicJlcLookupChange: (Boolean) -> Unit,
     ocrEngineMode: OcrEngineMode,
     onOcrEngineModeChange: (OcrEngineMode) -> Unit,
     appLanguage: AppLanguage,
@@ -752,10 +762,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
                         onCheckedChange = onEnableLocalImportLearningChange,
                     )
                     SettingsToggleRow(
-                        title = strings.settings.serverJlcLookup,
-                        subtitle = strings.settings.serverJlcLookupDescription,
-                        checked = enableServerJlcLookup,
-                        onCheckedChange = onEnableServerJlcLookupChange,
+                        title = androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.settings_public_jlc_lookup),
+                        subtitle = androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.settings_public_jlc_lookup_description),
+                        checked = enablePublicJlcLookup,
+                        onCheckedChange = onEnablePublicJlcLookupChange,
                     )
                 }
             }
@@ -775,12 +785,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
                         subtitle = strings.settings.ocrEngineMlKitDescription,
                         selected = ocrEngineMode == OcrEngineMode.MlKit,
                         onClick = { onOcrEngineModeChange(OcrEngineMode.MlKit) },
-                    )
-                    SettingsChoiceRow(
-                        title = strings.settings.ocrEnginePaddle,
-                        subtitle = strings.settings.ocrEnginePaddleDescription,
-                        selected = ocrEngineMode == OcrEngineMode.PaddleExperimental,
-                        onClick = { onOcrEngineModeChange(OcrEngineMode.PaddleExperimental) },
                     )
                 }
             }

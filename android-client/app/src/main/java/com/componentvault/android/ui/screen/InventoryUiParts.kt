@@ -2,6 +2,7 @@ package com.componentvault.android.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,12 +19,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.componentvault.android.data.PublicProductImageStore
 import com.componentvault.android.model.InventoryListItemUiState
 import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.StockMovementRecord
@@ -220,16 +230,25 @@ internal fun InventoryListRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = item.quantity.toString(),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = strings.inventory.componentMinStock(item.minStock),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = item.quantity.toString(),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = strings.inventory.componentMinStock(item.minStock),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    ProductThumbnail(
+                        sku = item.sku,
+                        imageUrl = item.productImageUrl,
                     )
                 }
             }
@@ -263,6 +282,47 @@ internal fun InventoryListRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ProductThumbnail(
+    sku: String,
+    imageUrl: String?,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val imageStore = remember(context) { PublicProductImageStore.get(context) }
+    var bitmap by remember(sku, imageUrl) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var loading by remember(sku, imageUrl) { mutableStateOf(true) }
+    LaunchedEffect(sku, imageUrl) {
+        loading = true
+        bitmap = runCatching { imageStore.load(sku, imageUrl) }.getOrNull()
+        loading = false
+    }
+
+    Surface(
+        modifier = modifier.size(60.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        val loadedBitmap = bitmap
+        if (loadedBitmap != null) {
+            Image(
+                bitmap = loadedBitmap.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.padding(4.dp),
+                contentScale = ContentScale.Fit,
+            )
+        } else {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = if (loading) "…" else "—",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -398,7 +458,7 @@ internal fun MovementTypePill(movementType: String) {
 
 @Composable
 internal fun MovementQuantityPill(movement: StockMovementRecord) {
-    val text = formatMovementQuantity(movement.quantity)
+    val text = formatMovementQuantity(movement.quantityChange)
     val colors = when (movement.movementType.lowercase()) {
         "inbound" -> androidx.compose.material3.AssistChipDefaults.assistChipColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -439,5 +499,5 @@ internal fun inventorySortLabel(sort: InventorySortOption): String =
     vaultStrings().inventory.sortLabel(sort)
 
 @Composable
-internal fun formatMovementQuantity(quantity: Int): String =
+internal fun formatMovementQuantity(quantity: Long): String =
     vaultStrings().movements.movementQuantity(quantity)

@@ -14,7 +14,14 @@ public sealed class StockMovementRecord
     public required string UpdatedAt { get; init; }
     public required bool Deleted { get; init; }
 
-    public string QuantityLabel => Quantity > 0 ? $"+{Quantity}" : Quantity.ToString();
+    public long QuantityChange => MovementType.Trim().ToLowerInvariant() switch
+    {
+        "outbound" => -Math.Abs((long)Quantity),
+        "inbound" => Math.Abs((long)Quantity),
+        _ => Quantity,
+    };
+
+    public string QuantityLabel => QuantityChange.ToString("+#,0;-#,0;0");
 
     public string MovementTypeLabel => MovementType.Trim().ToLowerInvariant() switch
     {

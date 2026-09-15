@@ -1,4 +1,5 @@
 using ComponentVault.WinUI.Localization;
+using ComponentVault.WinUI.Services.Catalog;
 
 namespace ComponentVault.WinUI.Models;
 
@@ -19,6 +20,15 @@ public sealed class ComponentRecord
     public bool IsLowStock => !Deleted && Quantity <= MinStock;
 
     public string Status => IsLowStock ? "低库存" : "库存正常";
+
+    public string? ProductImageUrl => Description
+        .Split(['；', ';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+        .Select(note => note.Trim())
+        .FirstOrDefault(note => note.StartsWith("商品图片：", StringComparison.Ordinal))
+        ?.Substring("商品图片：".Length)
+        .Trim() is { } value
+            ? LcscPublicCatalog.TrustedImageUrl(value) ?? LcscPublicCatalog.CachedImageUrl(Sku)
+            : LcscPublicCatalog.CachedImageUrl(Sku);
 
     public string DisplayCategory => CategoryDisplay.Localize(Category);
 }

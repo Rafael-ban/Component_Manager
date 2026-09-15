@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import sqlite3
 
-from .schemas import ComponentPayload, StockMovementPayload
+from .schemas import ComponentPayload, PushRequest, StockMovementPayload
 
 
 def save_components(
@@ -18,7 +18,6 @@ def save_components(
             raise ValueError(
                 'An active component with the same SKU already exists.',
             ) from error
-    connection.commit()
     return accepted
 
 
@@ -29,38 +28,74 @@ def save_stock_movements(
     accepted = 0
     for stock_movement in stock_movements:
         accepted += int(_upsert_stock_movement(connection, stock_movement))
-    connection.commit()
     return accepted
 
 
-def pull_components(
+def save_sync_payload(
     connection: sqlite3.Connection,
-    since: datetime | None,
-) -> list[ComponentPayload]:
-    parameters: tuple[object, ...] = ()
-    query = "SELECT * FROM components"
-    if since is not None:
-        query += " WHERE updated_at > ?"
-        parameters = (_to_storage_time(since),)
-    query += " ORDER BY updated_at ASC"
+    payload: PushRequest,
+) -> tuple[int, int]:
+    """Save an entire push in one transaction so retries see no partial state."""
+    try:
+        with connection:
+            # Serialize the LWW read/check/write as well as revision allocation.
+            connection.execute("BEGIN IMMEDIATE")
+            accepted_components = save_components(connection, payload.components)
+            accepted_stock_movements = save_stock_movements(
+                connection,
+                payload.stock_movements,
+            )
+    except sqlite3.IntegrityError as error:
+        raise ValueError(_integrity_error_message(error)) from error
+    return accepted_components, accepted_stock_movements
 
-    rows = connection.execute(query, parameters).fetchall()
-    return [_row_to_component(row) for row in rows]
 
-
-def pull_stock_movements(
+def pull_sync_snapshot(
     connection: sqlite3.Connection,
+    *,
+    cursor: int | None,
     since: datetime | None,
-) -> list[StockMovementPayload]:
-    parameters: tuple[object, ...] = ()
-    query = "SELECT * FROM stock_movements"
-    if since is not None:
-        query += " WHERE updated_at > ?"
-        parameters = (_to_storage_time(since),)
-    query += " ORDER BY updated_at ASC"
+) -> tuple[int, list[ComponentPayload], list[StockMovementPayload]]:
+    """Read both entity types and the returned cursor from one DB snapshot."""
+    connection.execute("BEGIN")
+    try:
+        sync_cursor = int(
+            connection.execute(
+                "SELECT current_revision FROM sync_state WHERE id = 1"
+            ).fetchone()[0]
+        )
+        if cursor is not None:
+            component_rows = connection.execute(
+                "SELECT * FROM components "
+                "WHERE sync_revision > ? AND sync_revision <= ? "
+                "ORDER BY sync_revision ASC",
+                (cursor, sync_cursor),
+            ).fetchall()
+            movement_rows = connection.execute(
+                "SELECT * FROM stock_movements "
+                "WHERE sync_revision > ? AND sync_revision <= ? "
+                "ORDER BY sync_revision ASC",
+                (cursor, sync_cursor),
+            ).fetchall()
+        else:
+            component_rows = connection.execute("SELECT * FROM components").fetchall()
+            movement_rows = connection.execute(
+                "SELECT * FROM stock_movements"
+            ).fetchall()
+    finally:
+        connection.rollback()
 
-    rows = connection.execute(query, parameters).fetchall()
-    return [_row_to_stock_movement(row) for row in rows]
+    components = [_row_to_component(row) for row in component_rows]
+    movements = [_row_to_stock_movement(row) for row in movement_rows]
+    if cursor is None and since is not None:
+        since_utc = _as_utc(since)
+        components = [
+            item for item in components if _as_utc(item.updated_at) > since_utc
+        ]
+        movements = [
+            item for item in movements if _as_utc(item.updated_at) > since_utc
+        ]
+    return sync_cursor, components, movements
 
 
 def _upsert_component(
@@ -72,8 +107,12 @@ def _upsert_component(
         "SELECT updated_at FROM components WHERE id = ?",
         (component.id,),
     ).fetchone()
-    if existing and existing["updated_at"] > new_updated_at:
+    if existing and _parse_storage_time(existing["updated_at"]) > _as_utc(
+        component.updated_at
+    ):
         return False
+
+    sync_revision = _next_sync_revision(connection)
 
     connection.execute(
         """
@@ -88,8 +127,9 @@ def _upsert_component(
             quantity,
             min_stock,
             updated_at,
-            deleted
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            deleted,
+            sync_revision
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             sku = excluded.sku,
             name = excluded.name,
@@ -100,7 +140,8 @@ def _upsert_component(
             quantity = excluded.quantity,
             min_stock = excluded.min_stock,
             updated_at = excluded.updated_at,
-            deleted = excluded.deleted
+            deleted = excluded.deleted,
+            sync_revision = excluded.sync_revision
         """,
         (
             component.id,
@@ -114,6 +155,7 @@ def _upsert_component(
             component.min_stock,
             new_updated_at,
             int(component.deleted),
+            sync_revision,
         ),
     )
     return True
@@ -128,8 +170,12 @@ def _upsert_stock_movement(
         "SELECT updated_at FROM stock_movements WHERE id = ?",
         (stock_movement.id,),
     ).fetchone()
-    if existing and existing["updated_at"] > new_updated_at:
+    if existing and _parse_storage_time(existing["updated_at"]) > _as_utc(
+        stock_movement.updated_at
+    ):
         return False
+
+    sync_revision = _next_sync_revision(connection)
 
     connection.execute(
         """
@@ -142,8 +188,9 @@ def _upsert_stock_movement(
             note,
             happened_at,
             updated_at,
-            deleted
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            deleted,
+            sync_revision
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             component_id = excluded.component_id,
             movement_type = excluded.movement_type,
@@ -152,7 +199,8 @@ def _upsert_stock_movement(
             note = excluded.note,
             happened_at = excluded.happened_at,
             updated_at = excluded.updated_at,
-            deleted = excluded.deleted
+            deleted = excluded.deleted,
+            sync_revision = excluded.sync_revision
         """,
         (
             stock_movement.id,
@@ -164,6 +212,7 @@ def _upsert_stock_movement(
             _to_storage_time(stock_movement.happened_at),
             new_updated_at,
             int(stock_movement.deleted),
+            sync_revision,
         ),
     )
     return True
@@ -204,4 +253,34 @@ def _row_to_stock_movement(row: sqlite3.Row) -> StockMovementPayload:
 
 
 def _to_storage_time(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return _as_utc(value).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _parse_storage_time(value: str) -> datetime:
+    return _as_utc(datetime.fromisoformat(value.replace("Z", "+00:00")))
+
+
+def _next_sync_revision(connection: sqlite3.Connection) -> int:
+    connection.execute(
+        "UPDATE sync_state SET current_revision = current_revision + 1 WHERE id = 1"
+    )
+    return int(
+        connection.execute(
+            "SELECT current_revision FROM sync_state WHERE id = 1"
+        ).fetchone()[0]
+    )
+
+
+def _integrity_error_message(error: sqlite3.IntegrityError) -> str:
+    message = str(error).lower()
+    if "foreign key" in message:
+        return "A stock movement references a component that does not exist."
+    if "sku" in message or "unique" in message:
+        return "An active component with the same SKU already exists."
+    return "The sync payload violates a database constraint."

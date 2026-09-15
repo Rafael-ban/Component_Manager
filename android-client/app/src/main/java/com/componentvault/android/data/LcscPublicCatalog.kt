@@ -1,0 +1,166 @@
+package com.componentvault.android.data
+
+import com.componentvault.android.model.ComponentOfficialMetadata
+import com.componentvault.android.model.trustedProductImageUrl
+import org.json.JSONArray
+import org.json.JSONObject
+import org.json.JSONTokener
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.Locale
+
+/** Reads public product metadata only; never imports marketplace stock or prices. */
+internal object LcscPublicCatalog {
+    private val skuPattern = Regex("C[0-9]{1,10}")
+    private val scriptPattern = Regex(
+        """<script\b[^>]*\btype\s*=\s*["']application/ld\+json["'][^>]*>(.*?)</script\s*>""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+    )
+
+    fun normalizeSku(value: String): String? = value.trim().uppercase(Locale.ROOT)
+        .takeIf { skuPattern.matches(it) }
+
+    fun productUrl(sku: String): String? = normalizeSku(sku)?.let {
+        "https://www.lcsc.com/product-detail/$it.html"
+    }
+
+    fun domesticSearchUrl(sku: String): String? = normalizeSku(sku)?.let {
+        "https://so.szlcsc.com/global.html?k=$it"
+    }
+
+    fun parsePage(sku: String, html: String): ComponentOfficialMetadata? {
+        val expectedSku = normalizeSku(sku) ?: return null
+        for (script in scriptPattern.findAll(html)) {
+            val json = runCatching { JSONTokener(script.groupValues[1]).nextValue() }.getOrNull()
+            val product = products(json).firstOrNull {
+                normalizeSku(it.text("sku").orEmpty()) == expectedSku
+            } ?: continue
+            val model = product.text("mpn")
+            val name = product.text("description") ?: product.text("name")
+            if (name.isNullOrBlank() || name.equals(expectedSku, true) || name.equals(model, true)) continue
+            val brand = product.optJSONObject("brand")?.text("name") ?: product.text("brand")
+            val categoryPath = product.text("category")
+            val properties = product.optJSONArray("additionalProperty")
+            val packageName = (0 until (properties?.length() ?: 0)).asSequence()
+                .mapNotNull { properties?.optJSONObject(it) }
+                .firstOrNull { it.text("name").equals("Package", true) }
+                ?.text("value")
+            val imageUrl = productImageUrl(product.opt("image"))
+            return ComponentOfficialMetadata(
+                source = "lcsc_public_web",
+                sku = expectedSku,
+                name = name,
+                model = model,
+                brand = brand,
+                vendor = brand,
+                packageName = packageName,
+                category = categoryPath?.let(OfficialCategoryNormalizer::normalize)
+                    ?: ComponentCategoryInferencer.infer(
+                        name,
+                        packageName,
+                        model,
+                        brand,
+                    ),
+                categoryPath = categoryPath,
+                officialUrl = productUrl(expectedSku),
+                imageUrl = imageUrl,
+                matchedBy = "sku",
+                confidence = "exact",
+            )
+        }
+        return null
+    }
+
+    private fun products(value: Any?): Sequence<JSONObject> = sequence {
+        when (value) {
+            is JSONArray -> for (index in 0 until value.length()) yieldAll(products(value.opt(index)))
+            is JSONObject -> {
+                val types = value.opt("@type")
+                if (types == "Product" || types is JSONArray &&
+                    (0 until types.length()).any { types.optString(it) == "Product" }
+                ) yield(value)
+                yieldAll(products(value.opt("@graph")))
+            }
+        }
+    }
+
+    private fun JSONObject.text(key: String): String? = (opt(key) as? String)
+        ?.trim()?.takeIf { it.isNotEmpty() }
+
+    fun trustedImageUrl(value: String?): String? = trustedProductImageUrl(value)
+
+    private fun productImageUrl(value: Any?): String? = when (value) {
+        is String -> trustedImageUrl(value)
+        is JSONArray -> (0 until value.length()).asSequence()
+            .mapNotNull { productImageUrl(value.opt(it)) }
+            .firstOrNull()
+        is JSONObject -> trustedImageUrl(value.text("contentUrl"))
+            ?: trustedImageUrl(value.text("url"))
+        else -> null
+    }
+
+    fun fetchPage(url: String): String {
+        // URL comes exclusively from productUrl, never from the QR payload or HTML.
+        val connection = URL(url).openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 6_000
+            connection.readTimeout = 6_000
+            connection.instanceFollowRedirects = false
+            connection.setRequestProperty("User-Agent", "ComponentVault-Android/0.3")
+            connection.setRequestProperty("Accept", "text/html")
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                throw IOException("HTTP ${connection.responseCode}")
+            }
+            val maxBytes = 2 * 1024 * 1024
+            val body = connection.inputStream.use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    if (output.size() + count > maxBytes) throw IOException("Product page too large")
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            }
+            return body.toString(Charsets.UTF_8)
+        } finally {
+            connection.disconnect()
+        }
+    }
+}
+
+/** Bounded cache also backs off repeated failures from scans of the same package. */
+internal class LcscPublicLookup(
+    private val fetch: (String) -> String = LcscPublicCatalog::fetchPage,
+    private val now: () -> Long = System::currentTimeMillis,
+) {
+    private data class Entry(val at: Long, val metadata: ComponentOfficialMetadata?)
+    private val cache = linkedMapOf<String, Entry>()
+
+    @Synchronized
+    fun lookup(sku: String): ComponentOfficialMetadata? {
+        val normalized = LcscPublicCatalog.normalizeSku(sku) ?: return null
+        val timestamp = now()
+        cache[normalized]?.let { entry ->
+            val ttl = if (entry.metadata == null) 30_000L else 7 * 24 * 60 * 60 * 1000L
+            if (timestamp - entry.at in 0 until ttl) return entry.metadata
+        }
+        val metadata = try {
+            LcscPublicCatalog.parsePage(normalized, fetch(requireNotNull(LcscPublicCatalog.productUrl(normalized))))
+        } catch (error: IOException) {
+            remember(normalized, Entry(timestamp, null))
+            throw error
+        }
+        remember(normalized, Entry(timestamp, metadata))
+        return metadata
+    }
+
+    private fun remember(sku: String, entry: Entry) {
+        cache.remove(sku)
+        cache[sku] = entry
+        if (cache.size > 64) cache.remove(cache.keys.first())
+    }
+}
