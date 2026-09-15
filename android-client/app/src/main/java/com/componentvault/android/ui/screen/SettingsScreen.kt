@@ -169,6 +169,8 @@ internal fun SettingsContent(
     onTestConnection: () -> Unit,
     onSyncNow: () -> Unit,
     onClearImportLearningMappings: () -> Unit,
+    onManageLocations: (() -> Unit)? = null,
+    onBackupRestore: (() -> Unit)? = null,
 ) {
     val strings = vaultStrings()
     var serverUrl by remember(syncConfiguration.serverBaseUrl) {
@@ -274,6 +276,8 @@ internal fun SettingsContent(
                     SettingsSectionList(
                         selectedSection = selectedSection ?: SettingsSection.Sync,
                         onSelectSection = onSelectSection,
+                        onManageLocations = onManageLocations,
+                        onBackupRestore = onBackupRestore,
                     )
                 }
             }
@@ -356,6 +360,8 @@ internal fun SettingsContent(
                 SettingsSectionList(
                     selectedSection = null,
                     onSelectSection = onSelectSection,
+                    onManageLocations = onManageLocations,
+                    onBackupRestore = onBackupRestore,
                 )
             }
         }
@@ -448,12 +454,25 @@ internal fun SettingsContent(
 private fun SettingsSectionList(
     selectedSection: SettingsSection?,
     onSelectSection: (SettingsSection) -> Unit,
+    onManageLocations: (() -> Unit)? = null,
+    onBackupRestore: (() -> Unit)? = null,
 ) {
     val strings = vaultStrings()
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (onManageLocations != null || onBackupRestore != null) {
+            Text(stringResource(R.string.settings_inventory_data), style = MaterialTheme.typography.titleSmall)
+            onManageLocations?.let { action ->
+                SettingsSectionCard(stringResource(R.string.settings_locations_title),
+                    stringResource(R.string.settings_locations_hint), false, action)
+            }
+            onBackupRestore?.let { action ->
+                SettingsSectionCard(stringResource(R.string.backup_title),
+                    stringResource(R.string.settings_backup_hint), false, action)
+            }
+        }
         SettingsSection.entries.forEach { section ->
             SettingsSectionCard(
                 title = section.title(strings),

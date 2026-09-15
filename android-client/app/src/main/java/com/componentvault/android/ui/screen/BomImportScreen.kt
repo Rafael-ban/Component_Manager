@@ -48,6 +48,7 @@ internal fun BomImportScreen(
     onDismiss: () -> Unit,
 ) {
     BackHandler(onBack = onDismiss)
+    BackHandler(onBack = onDismiss)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var fileBytes by remember { mutableStateOf<ByteArray?>(null) }

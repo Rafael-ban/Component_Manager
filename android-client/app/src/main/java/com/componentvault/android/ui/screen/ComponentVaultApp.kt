@@ -1,9 +1,17 @@
 package com.componentvault.android.ui.screen
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.res.stringResource
+import com.componentvault.android.R
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -518,6 +526,8 @@ fun ComponentVaultApp(
                             onTestConnection = viewModel::testConnection,
                             onSyncNow = viewModel::runSync,
                             onClearImportLearningMappings = viewModel::clearImportLearningMappings,
+                            onManageLocations = { storageLocationsVisible = true },
+                            onBackupRestore = { inventoryBackupVisible = true },
                         )
                     },
                     snackbarHostState = snackbarHostState,
@@ -623,14 +633,6 @@ fun ComponentVaultApp(
                     showAddEntrySheet = false
                     bomImportVisible = true
                 },
-                onManageLocations = {
-                    showAddEntrySheet = false
-                    storageLocationsVisible = true
-                },
-                onBackupRestore = {
-                    showAddEntrySheet = false
-                    inventoryBackupVisible = true
-                },
                 onBatchJlc = { showAddEntrySheet=false;batchJlcVisible=true },
             )
         }
@@ -672,55 +674,31 @@ fun ComponentVaultApp(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddComponentEntrySheet(
+internal fun AddComponentEntrySheet(
     onDismiss: () -> Unit,
     onImportComponent: () -> Unit,
     onAddComponent: () -> Unit,
     onImportBom: () -> Unit,
-    onManageLocations: () -> Unit,
-    onBackupRestore: () -> Unit,
     onBatchJlc: () -> Unit,
 ) {
-    val strings = vaultStrings()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-    ) {
-        SectionPane(
-            title = strings.common.actionAdd,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-        ) {
-            FilledTonalButton(
-                onClick = onImportComponent,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(strings.common.actionImport)
-            }
-            OutlinedButton(
-                onClick = onImportBom,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("BOM / Component Hub")
-            }
-            OutlinedButton(
-                onClick = onAddComponent,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(strings.forms.addComponentTitle)
-            }
-            OutlinedButton(onClick = onManageLocations, modifier = Modifier.fillMaxWidth()) {
-                Text("管理库位")
-            }
-            OutlinedButton(onClick = onBackupRestore, modifier = Modifier.fillMaxWidth()) {
-                Text("Excel 备份与恢复")
-            }
-            OutlinedButton(onClick = onBatchJlc, modifier = Modifier.fillMaxWidth()) { Text("批量嘉立创入库") }
-            OutlinedButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(strings.common.actionCancel)
-            }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            Text(stringResource(R.string.import_menu_title),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
+            ImportMenuRow(R.string.import_menu_single, R.string.import_menu_single_hint, onImportComponent)
+            ImportMenuRow(R.string.import_menu_batch, R.string.import_menu_batch_hint, onBatchJlc)
+            ImportMenuRow(R.string.import_menu_bom, R.string.import_menu_bom_hint, onImportBom)
+            ImportMenuRow(R.string.import_menu_manual, R.string.import_menu_manual_hint, onAddComponent)
         }
     }
+}
+
+@Composable
+private fun ImportMenuRow(title: Int, description: Int, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(stringResource(title)) },
+        supportingContent = { Text(stringResource(description)) },
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+    )
 }

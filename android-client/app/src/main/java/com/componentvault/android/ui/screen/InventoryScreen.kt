@@ -229,7 +229,7 @@ internal fun InventoryDetailRoute(
                 },
                 actions = {
                     TextButton(onClick = onAddComponent) {
-                        Text(strings.common.actionAdd)
+                        Text(strings.common.actionImport)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

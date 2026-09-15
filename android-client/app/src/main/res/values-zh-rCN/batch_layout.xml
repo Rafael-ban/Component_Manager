@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="batch_layout_summary_count">%1$d 个包装 · %2$d 个料号</string>
+    <string name="batch_layout_summary_expand">展开入库汇总</string>
+    <string name="batch_layout_summary_collapse">收起入库汇总</string>
+</resources>

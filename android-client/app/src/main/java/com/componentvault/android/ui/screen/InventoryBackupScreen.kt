@@ -1,5 +1,7 @@
 package com.componentvault.android.ui.screen
 
+import androidx.activity.compose.BackHandler
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +20,7 @@ import com.componentvault.android.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun InventoryBackupScreen(viewModel: InventoryViewModel, onDismiss: () -> Unit) {
+    BackHandler(onBack = onDismiss)
     val state = viewModel.backupUiState
     val create = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),

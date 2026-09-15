@@ -1,5 +1,7 @@
 package com.componentvault.android.ui.screen
 
+import androidx.activity.compose.BackHandler
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +32,7 @@ internal fun StorageLocationsScreen(
     onSave: (String, String, (OperationResult) -> Unit) -> Unit,
     onDelete: (String, (OperationResult) -> Unit) -> Unit,
 ) {
+    BackHandler(onBack = onDismiss)
     var code by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="batch_layout_summary_count">%1$d packages · %2$d part numbers</string>
+    <string name="batch_layout_summary_expand">Show inbound summary</string>
+    <string name="batch_layout_summary_collapse">Hide inbound summary</string>
+</resources>

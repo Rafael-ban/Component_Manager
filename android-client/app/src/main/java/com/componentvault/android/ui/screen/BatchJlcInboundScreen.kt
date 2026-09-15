@@ -7,8 +7,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -18,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -37,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.R
 import com.componentvault.android.data.BatchJlcCommitPlanner
@@ -101,6 +109,9 @@ internal fun BatchJlcInboundScreen(
     var confirmClear by remember { mutableStateOf(false) }
     var generation by remember { mutableStateOf(0) }
     var globalLocation by rememberSaveable { mutableStateOf(defaultLocation) }
+    var processedCount by remember { mutableStateOf(0) }
+    var processTotal by remember { mutableStateOf(0) }
+    var summaryExpanded by rememberSaveable { mutableStateOf(false) }
 
     fun save(value: BatchJlcDraft) {
         draft = value
@@ -152,6 +163,8 @@ internal fun BatchJlcInboundScreen(
             val target = draft.rows.filter {
                 it.status == if (processScope == ProcessScope.Captured) BatchJlcStatus.Captured else BatchJlcStatus.Pending
             }
+            processTotal = target.size
+            processedCount = 0
             for (original in target) {
                 if (expectedGeneration != generation) return
                 val manualSku = LcscPublicCatalog.normalizeSku(original.sku)
@@ -166,6 +179,7 @@ internal fun BatchJlcInboundScreen(
                     ComponentImportParser.parseScannedQr(original.raw)
                 } catch (error: Exception) {
                     update(original.copy(status = BatchJlcStatus.Pending, error = error.message ?: context.getString(R.string.batch_parse_failed)))
+                    processedCount++
                     continue
                 }
                 val sku = (manualSku ?: parsed.sku).uppercase()
@@ -180,6 +194,7 @@ internal fun BatchJlcInboundScreen(
                         quantityText = quantity, location = location,
                         error = if (quantity.isBlank()) context.getString(R.string.batch_positive_quantity) else "",
                     ))
+                    processedCount++
                     continue
                 }
                 val request = parsed.copy(sku = sku)
@@ -209,6 +224,7 @@ internal fun BatchJlcInboundScreen(
                         else -> ""
                     },
                 ))
+                processedCount++
             }
             page = if (draft.rows.any { it.status == BatchJlcStatus.Ready }) BatchPage.Review else BatchPage.Pending
             val pendingCount = draft.rows.count { it.status == BatchJlcStatus.Pending }
@@ -247,100 +263,155 @@ internal fun BatchJlcInboundScreen(
         )
         return
     }
-    BackHandler(enabled = !processing && !committing && !loadFailed, onBack = ::requestDismiss)
+    BackHandler {
+        if (!processing && !committing) requestDismiss()
+    }
 
     val selectedReady = draft.rows.filter { it.status == BatchJlcStatus.Ready && it.selected }
     val planResult = remember(selectedReady) { runCatching { BatchJlcCommitPlanner.plan(selectedReady, emptySet()) } }
+    val visibleRows = draft.rows.filter {
+        it.status == if (page == BatchPage.Review) BatchJlcStatus.Ready else BatchJlcStatus.Pending
+    }
+    val reviewSummary = planResult.getOrNull()?.groupBy { it.sku to it.location }.orEmpty()
+    val reviewSkuCount = reviewSummary.keys.map { it.first }.distinct().size
+
+    fun retryPending() {
+        val token = generation
+        processJob = scope.launch { processRows(ProcessScope.Pending, token) }
+    }
+    fun commitSelected() {
+        if (committing) return
+        committing = true
+        scope.launch {
+            try {
+                val result = repository.commitBatchJlc(draft.sessionId, selectedReady)
+                message = result.message
+                if (!result.isSuccess) dialogMessage = result.message
+                if (result.isSuccess) {
+                    val receipts = repository.loadBatchJlcReceipts(draft.sessionId)
+                    save(draft.copy(rows = draft.rows.map {
+                        if (it.id in receipts) it.copy(status = BatchJlcStatus.Committed) else it
+                    }))
+                    onCommitted()
+                }
+            } finally { committing = false }
+        }
+    }
+
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.batch_title)) }, navigationIcon = {
-        TextButton(onClick = ::requestDismiss, enabled = !processing && !committing && !loadFailed) { Text(stringResource(R.string.action_back)) }
-    }) }) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BatchPage.entries.forEach { candidate ->
-                    val count = draft.rows.count { it.status == when (candidate) {
-                        BatchPage.Capture -> BatchJlcStatus.Captured
-                        BatchPage.Review -> BatchJlcStatus.Ready
-                        BatchPage.Pending -> BatchJlcStatus.Pending
-                    } }
-                    FilterChip(selected = page == candidate, onClick = { page = candidate }, enabled = !busy,
-                        label = { Text(stringResource(candidate.labelRes(), count)) })
+        TextButton(onClick = ::requestDismiss, enabled = !processing && !committing) { Text(stringResource(R.string.action_back)) }
+    }) }, bottomBar = {
+        Column(
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            when (page) {
+                BatchPage.Pending -> OutlinedButton(
+                    onClick = ::retryPending,
+                    enabled = visibleRows.isNotEmpty() && !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.batch_retry_pending)) }
+                BatchPage.Review -> Button(
+                    onClick = ::commitSelected,
+                    enabled = selectedReady.isNotEmpty() && planResult.isSuccess && !busy && !saveFailed,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.batch_commit)) }
+                BatchPage.Capture -> Unit
+            }
+            TextButton(onClick = { confirmClear = true }, enabled = !processing && !committing,
+                modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_clear)) }
+            if (saveFailed) OutlinedButton(onClick = { save(draft) }, enabled = !saving,
+                modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_retry_save)) }
+        }
+    }) { padding ->
+        LazyColumn(
+            Modifier.fillMaxSize().padding(padding).testTag("batch_inbound_list"),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BatchPage.entries.forEach { candidate ->
+                        item(key = candidate.name) {
+                            val count = draft.rows.count { it.status == when (candidate) {
+                                BatchPage.Capture -> BatchJlcStatus.Captured
+                                BatchPage.Review -> BatchJlcStatus.Ready
+                                BatchPage.Pending -> BatchJlcStatus.Pending
+                            } }
+                            FilterChip(selected = page == candidate, onClick = { page = candidate }, enabled = !busy,
+                                label = { Text(stringResource(candidate.labelRes(), count)) })
+                        }
+                    }
                 }
             }
-            if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.primary)
-            if (busy) {
-                Text(stringResource(if (committing) R.string.batch_committing else R.string.batch_processing))
-                OutlinedButton(onClick = { processJob?.cancel() }, enabled = processing) {
-                    Text(stringResource(R.string.action_cancel))
+            if (message.isNotBlank()) item { Text(message, color = MaterialTheme.colorScheme.primary) }
+            if (processing || committing) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(if (committing) R.string.batch_committing else R.string.batch_processing))
+                        if (processing && processTotal > 0) {
+                            LinearProgressIndicator(
+                                progress = { processedCount.toFloat() / processTotal },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text("$processedCount / $processTotal", style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                        }
+                        if (processing) OutlinedButton(onClick = { processJob?.cancel() }) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    }
                 }
             }
-            LocationSelector(locations, globalLocation, !busy) { globalLocation = it }
+            item { LocationSelector(locations, globalLocation, !busy) { globalLocation = it } }
             when (page) {
                 BatchPage.Capture -> {
-                    Button(onClick = { scanner = true }, enabled = loaded && !busy, modifier = Modifier.fillMaxWidth()) {
+                    item { Button(onClick = { scanner = true }, enabled = loaded && !busy, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.batch_scan))
-                    }
-                    OutlinedButton(onClick = {
+                    } }
+                    item { OutlinedButton(onClick = {
                         val token = generation
                         processJob = scope.launch { processRows(ProcessScope.Captured, token) }
                     }, enabled = draft.rows.any { it.status == BatchJlcStatus.Captured } && !busy,
-                        modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_finish_capture)) }
-                    Text(stringResource(R.string.batch_saved_count, draft.rows.size))
+                        modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_finish_capture)) } }
+                    item { Text(stringResource(R.string.batch_saved_count, draft.rows.size)) }
                 }
                 BatchPage.Review, BatchPage.Pending -> {
-                    val visibleRows = draft.rows.filter {
-                        it.status == if (page == BatchPage.Review) BatchJlcStatus.Ready else BatchJlcStatus.Pending
-                    }
                     if (page == BatchPage.Review) {
-                        planResult.getOrNull()?.groupBy { it.sku to it.location }?.forEach { (key, group) ->
-                            val sum = group.fold(0) { total, item -> Math.addExact(total, item.quantity) }
-                            Text("${key.first} · ${key.second}: +$sum")
-                        }
-                        planResult.exceptionOrNull()?.let { Text(stringResource(R.string.batch_invalid_selection), color = MaterialTheme.colorScheme.error) }
-                    }
-                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(visibleRows, key = { it.id }) { row ->
-                            BatchRowCard(row, page == BatchPage.Review, locations, !busy, { changed ->
-                                generation++
-                                update(changed)
-                            }) {
-                                generation++
-                                save(draft.copy(rows = draft.rows.filterNot { it.id == row.id }))
+                        item(key = "review-summary-control") {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(stringResource(R.string.batch_layout_summary_count, selectedReady.size, reviewSkuCount))
+                                TextButton(onClick = { summaryExpanded = !summaryExpanded }) {
+                                    Text(stringResource(
+                                        if (summaryExpanded) R.string.batch_layout_summary_collapse
+                                        else R.string.batch_layout_summary_expand,
+                                    ))
+                                }
                             }
                         }
-                    }
-                    if (page == BatchPage.Pending) {
-                        OutlinedButton(onClick = {
-                            val token = generation
-                            processJob = scope.launch { processRows(ProcessScope.Pending, token) }
-                        }, enabled = visibleRows.isNotEmpty() && !busy, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.batch_retry_pending))
-                        }
-                    } else {
-                        Button(onClick = {
-                            if (committing) return@Button
-                            committing = true
-                            scope.launch {
-                                try {
-                                    val result = repository.commitBatchJlc(draft.sessionId, selectedReady)
-                                    message = result.message
-                                    if (!result.isSuccess) dialogMessage = result.message
-                                    if (result.isSuccess) {
-                                        val receipts = repository.loadBatchJlcReceipts(draft.sessionId)
-                                        save(draft.copy(rows = draft.rows.map {
-                                            if (it.id in receipts) it.copy(status = BatchJlcStatus.Committed) else it
-                                        }))
-                                        onCommitted()
-                                    }
-                                } finally { committing = false }
+                        if (summaryExpanded) {
+                            reviewSummary.forEach { (key, group) ->
+                                val sum = group.fold(0) { total, item -> Math.addExact(total, item.quantity) }
+                                item(key = "summary-${key.first}-${key.second}") {
+                                    Text("${key.first} · ${key.second}: +$sum")
+                                }
                             }
-                        }, enabled = selectedReady.isNotEmpty() && planResult.isSuccess && !busy && !saveFailed,
-                            modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_commit)) }
+                        }
+                        planResult.exceptionOrNull()?.let {
+                            item { Text(stringResource(R.string.batch_invalid_selection), color = MaterialTheme.colorScheme.error) }
+                        }
+                    }
+                    items(visibleRows, key = { it.id }) { row ->
+                        BatchRowCard(row, page == BatchPage.Review, locations, !busy, { changed ->
+                            generation++
+                            update(changed)
+                        }) {
+                            generation++
+                            save(draft.copy(rows = draft.rows.filterNot { it.id == row.id }))
+                        }
                     }
                 }
-            }
-            TextButton(onClick = { confirmClear = true }, enabled = !processing && !committing) { Text(stringResource(R.string.batch_clear)) }
-            if (saveFailed) OutlinedButton(onClick = { save(draft) }, enabled = !saving) {
-                Text(stringResource(R.string.batch_retry_save))
             }
         }
     }
@@ -403,8 +474,18 @@ private fun BatchRowCard(row: BatchJlcRow, ready: Boolean, locations: List<Stora
             Text(row.sku.ifBlank { stringResource(R.string.batch_unrecognized) }, style = MaterialTheme.typography.titleMedium) }
         Text(stringResource(R.string.batch_row_summary, row.quantityText, row.location))
         if (row.error.isNotBlank()) Text(row.error, color = MaterialTheme.colorScheme.error)
-        Row { TextButton(onClick = { editing = true }, enabled = enabled) { Text(stringResource(R.string.action_edit)) }
-            TextButton(onClick = onRemove, enabled = enabled) { Text(stringResource(R.string.movements_batch_remove_action)) } }
+        Row(Modifier.fillMaxWidth()) {
+            TextButton(
+                onClick = { editing = true },
+                enabled = enabled,
+                modifier = Modifier.weight(1f).testTag("batch_edit_${row.id}"),
+            ) {
+                Text(stringResource(R.string.action_edit))
+            }
+            TextButton(onClick = onRemove, enabled = enabled, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.movements_batch_remove_action))
+            }
+        }
     } }
     if (editing) BatchEditDialog(row, locations, onDismiss = { editing = false }) { changed -> onUpdate(changed); editing = false }
 }
@@ -418,13 +499,17 @@ private fun BatchEditDialog(row: BatchJlcRow, locations: List<StorageLocationRec
     val valid = LcscPublicCatalog.normalizeSku(sku) != null && quantity.toIntOrNull()?.let { it > 0 } == true &&
         location.isNotBlank() && name.isNotBlank() && category.isNotBlank() && packageName.isNotBlank()
     AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.batch_edit_title)) }, text = {
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedTextField(sku, { sku = it.uppercase() }, label = { Text(stringResource(R.string.batch_sku)) })
-            OutlinedTextField(quantity, { quantity = it }, label = { Text(stringResource(R.string.batch_quantity)) })
+        Column(
+            Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState())
+                .imePadding().testTag("batch_edit_fields"),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(sku, { sku = it.uppercase() }, label = { Text(stringResource(R.string.batch_sku)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(quantity, { quantity = it }, label = { Text(stringResource(R.string.batch_quantity)) }, modifier = Modifier.fillMaxWidth())
             LocationSelector(locations, location, true) { location = it }
-            OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.field_name)) })
-            OutlinedTextField(category, { category = it }, label = { Text(stringResource(R.string.field_category)) })
-            OutlinedTextField(packageName, { packageName = it }, label = { Text(stringResource(R.string.field_package)) })
+            OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.field_name)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(category, { category = it }, label = { Text(stringResource(R.string.field_category)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(packageName, { packageName = it }, label = { Text(stringResource(R.string.field_package)) }, modifier = Modifier.fillMaxWidth())
         }
     }, confirmButton = { Button(onClick = {
         val skuChanged = !sku.equals(row.sku, true)

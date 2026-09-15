@@ -196,7 +196,7 @@ internal fun ComponentVaultAppShellContent(
             InventoryDestination.Inventory -> {
                 ExtendedFloatingActionButton(
                     onClick = onAddComponent,
-                    text = { Text(strings.common.actionAdd) },
+                    text = { Text(strings.common.actionImport) },
                     icon = { Icon(destination.icon, contentDescription = null) },
                 )
             }

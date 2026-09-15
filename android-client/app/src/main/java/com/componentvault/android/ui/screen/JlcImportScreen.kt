@@ -1,11 +1,15 @@
 package com.componentvault.android.ui.screen
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -22,7 +26,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.ComponentImportParser
@@ -108,6 +116,7 @@ internal fun JlcImportSurface(
         feedbackMessage?.takeIf { it.isNotBlank() }?.let { errorDialogMessage = it }
     }
     var lookupInProgress by remember { mutableStateOf(false) }
+    var showLookupProgress by remember { mutableStateOf(false) }
     var lookupGeneration by remember { mutableIntStateOf(0) }
     var learningMatchType by remember { mutableStateOf<ComponentImportLearningMatchType?>(null) }
     var skuEdited by remember { mutableStateOf(false) }
@@ -122,6 +131,14 @@ internal fun JlcImportSurface(
     var packageOrigin by remember { mutableStateOf(ComponentImportFieldOrigin.Parsed) }
     var modelOrigin by remember { mutableStateOf(ComponentImportFieldOrigin.Parsed) }
     var brandOrigin by remember { mutableStateOf(ComponentImportFieldOrigin.Parsed) }
+
+    LaunchedEffect(lookupInProgress) {
+        showLookupProgress = false
+        if (lookupInProgress) {
+            delay(300)
+            showLookupProgress = true
+        }
+    }
 
     fun applyDisplayedCandidate(
         candidate: ComponentImportCandidate,
@@ -437,7 +454,20 @@ internal fun JlcImportSurface(
                 ) {
                     Text(strings.importer.actionScanQr)
                 }
-                lookupMessage?.let { message ->
+                if (showLookupProgress) {
+                    Row(
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Text(
+                            text = strings.importer.lookupLoading,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                } else if (!lookupInProgress) lookupMessage?.let { message ->
                     Text(
                         text = message,
                         style = MaterialTheme.typography.bodyMedium,
@@ -446,7 +476,12 @@ internal fun JlcImportSurface(
                 }
                 OutlinedTextField(
                     value = partNumberInput,
-                    onValueChange = { domesticSearchJob?.cancel(); partNumberInput = it },
+                    onValueChange = {
+                        domesticSearchJob?.cancel()
+                        domesticSearchJob = null
+                        domesticSearchInProgress = false
+                        partNumberInput = it
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     label = { Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_search_label)) },
@@ -511,13 +546,22 @@ internal fun JlcImportSurface(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !domesticSearchInProgress,
                 ) {
-                    Text(
+                    Row(
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         if (domesticSearchInProgress) {
-                            androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_searching)
-                        } else {
-                            androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_search_action)
-                        },
-                    )
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        }
+                        Text(
+                            if (domesticSearchInProgress) {
+                                androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_searching)
+                            } else {
+                                androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_search_action)
+                            },
+                        )
+                    }
                 }
                 domesticSearchMessage?.let { message ->
                     Text(
@@ -640,20 +684,22 @@ internal fun JlcImportSurface(
                     )
                     if (candidate.sourceType != com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel) {
                         val serverMessage = when {
-                            lookupInProgress -> strings.importer.lookupLoading
+                            lookupInProgress -> null
                             appPreferences.enablePublicJlcLookup ->
                                 lookupMessage ?: strings.importer.lookupOnlyFillsMissing
                             else -> strings.importer.serverLookupDisabled
                         }
-                        Text(
-                            text = serverMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (lookupIsError) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
+                        serverMessage?.let { message ->
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (lookupIsError) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
                         LcscPublicCatalog.domesticSearchUrl(sku)?.let { domesticUrl ->
                             TextButton(onClick = {
                                 runCatching { uriHandler.openUri(domesticUrl) }
