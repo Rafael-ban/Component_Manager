@@ -179,14 +179,14 @@ internal fun StorageLocationsScreen(
     }
 }
 
-private data class LocationEditor(
+internal data class LocationEditor(
     val code: String = "",
     val name: String = "",
     val isEditing: Boolean = false,
 )
 
 @Composable
-private fun LocationEditorDialog(
+internal fun LocationEditorDialog(
     initial: LocationEditor,
     busy: Boolean,
     onDismiss: () -> Unit,

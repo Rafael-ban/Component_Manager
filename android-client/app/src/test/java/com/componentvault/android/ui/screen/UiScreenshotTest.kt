@@ -8,9 +8,6 @@ import androidx.activity.ComponentActivity
 import androidx.test.platform.app.InstrumentationRegistry
 import com.componentvault.android.ui.theme.ComponentVaultTheme
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performSemanticsAction
-import androidx.compose.ui.semantics.SemanticsActions
 import com.componentvault.android.model.StorageLocationRecord
 import java.io.File
 import java.io.FileOutputStream
@@ -108,11 +105,9 @@ class UiScreenshotTest {
     fun captureStorageLocationCreateDialogLight() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = false) {
-                StorageLocationsScreen(sampleLocations, {}, { _, _, _ -> }, { _, _ -> })
+                LocationEditorDialog(LocationEditor(), false, {}, { _, _, _ -> })
             }
         }
-        compose.onNodeWithTag("locations_add").performSemanticsAction(SemanticsActions.OnClick) { it() }
-        compose.mainClock.advanceTimeBy(32)
 
         saveScreenshot("storage-locations-create-dialog-light.png") {
             captureView(::latestDialogDecorView)
@@ -123,11 +118,12 @@ class UiScreenshotTest {
     fun captureStorageLocationEditDialogLight() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = false) {
-                StorageLocationsScreen(sampleLocations, {}, { _, _, _ -> }, { _, _ -> })
+                LocationEditorDialog(
+                    LocationEditor("BIN-A01", "常用元件抽屉", isEditing = true),
+                    false, {}, { _, _, _ -> },
+                )
             }
         }
-        compose.onNodeWithTag("locations_edit_BIN-A01").performSemanticsAction(SemanticsActions.OnClick) { it() }
-        compose.mainClock.advanceTimeBy(32)
 
         saveScreenshot("storage-locations-edit-dialog-light.png") {
             captureView(::latestDialogDecorView)
