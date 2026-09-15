@@ -22,7 +22,8 @@ class BatchJlcDatabaseTest {
 
     @Before
     fun setUp() = runBlocking {
-        InventoryDatabaseHelper(context).use { helper -> context.deleteDatabase(helper.databaseName) }
+        val helper = InventoryDatabaseHelper(context)
+        try { context.deleteDatabase(helper.databaseName) } finally { helper.close() }
         repository = InventoryRepository(context)
         assertTrue(repository.saveStorageLocation("A", "A").isSuccess)
         assertTrue(repository.saveStorageLocation("B", "B").isSuccess)
@@ -134,10 +135,13 @@ class BatchJlcDatabaseTest {
         quantityText = quantity, location = location,
     )
 
-    private fun number(sql: String): Int = InventoryDatabaseHelper(context).use { helper ->
-        helper.readableDatabase.use { db -> db.rawQuery(sql, null).use { cursor ->
-            check(cursor.moveToFirst())
-            cursor.getInt(0)
-        } }
+    private fun number(sql: String): Int {
+        val helper = InventoryDatabaseHelper(context)
+        try {
+            return helper.readableDatabase.rawQuery(sql, null).use { cursor ->
+                check(cursor.moveToFirst())
+                cursor.getInt(0)
+            }
+        } finally { helper.close() }
     }
 }

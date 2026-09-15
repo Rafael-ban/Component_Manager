@@ -141,6 +141,7 @@ jobs:
           --tests 'com.componentvault.android.model.StockUsageSummaryTest'
           --tests 'com.componentvault.android.model.OcrEngineModeTest'
           --tests 'com.componentvault.android.ui.screen.UiDateTimeFormatterTest'
+          --tests 'com.componentvault.android.ui.screen.StartupFailureDetailsTest'
           --tests 'com.componentvault.android.data.bom.*'
 
   windows-build:
