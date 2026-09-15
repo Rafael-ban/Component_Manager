@@ -42,8 +42,14 @@ See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
 - Navigation centers on four adaptive top-level destinations: `Home`,
   `Inventory`, `Records`, and `Settings`. Home presents the summary; settings
   has one main entry with section drill-down and direct sync-section routing.
-  Inventory add/import actions open secondary Project BOM / component-hub
-  migration surfaces. See [native UI layout contract](native-ui-redesign.md).
+  Inventory's Import and scan sheet groups single-item lookup, batch JLC inbound,
+  Project BOM / component-hub migration, and manual entry. Settings > Inventory
+  and data owns location management and Excel backup/restore. These secondary
+  routes consume system Back and return to their parent. Batch review uses a
+  bounded LazyColumn with collapsible summaries and fixed confirmation actions;
+  editor fields scroll independently inside their dialog. See the
+  [native UI layout contract](native-ui-redesign.md) and
+  [cross-platform UI audit and phased plan](ui-ux-audit-2026-09-16.md).
 - `Inventory` is the high-frequency workflow and uses dense search,
   filter, and list-first layouts on phones, plus persistent list-detail panes
   on larger widths. The current shell is built on official Material 3 adaptive

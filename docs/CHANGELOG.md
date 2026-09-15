@@ -5,6 +5,22 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.5.2] - 2026-09-16
+
+<!-- Add unreleased notes below this line. -->
+
+- Simplified Android inventory actions into an Import and scan menu, with batch
+  JLC inbound grouped there and location management / Excel backup moved to Settings.
+- Fixed long batch inbound review and edit layouts with scrollable content,
+  collapsible summaries and fixed confirmation actions.
+- Added visible lookup/search progress and restored system Back behavior on
+  backup, location and BOM secondary pages without exiting the app.
+- Added Compose interaction regressions for import entry grouping, secondary-page
+  Back and editing the last entry in a 100-package batch draft.
+- Documented a full Android, Windows and admin-web UI audit with prioritized
+  follow-up work; Windows/admin-web redesign recommendations remain planned.
+
+
 ## [0.5.1] - 2026-09-15
 
 <!-- Add unreleased notes below this line. -->

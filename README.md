@@ -200,6 +200,11 @@ user's local app data directory and supports:
 - an inventory-first desktop shell:
   `Inventory`, `Movements`, `Overview`, `Settings`
 - component create/edit/soft delete
+- one `Import and scan` entry for single-item lookup, batch JLC inbound,
+  project BOM / migration, and manual entry; location management and Excel
+  backup/restore are under Settings > Inventory and data
+- scrollable batch review with a collapsible summary, fixed confirmation actions,
+  editable long drafts, lookup progress, and parent-preserving secondary-page Back
 - inventory movement entry
 - sync settings save/test/sync-now
 - push/pull against the FastAPI sync service
@@ -301,9 +306,7 @@ preferences and supports:
 - Chinese-first UI resources for the primary screens, with a matching
   Simplified Chinese (`zh-CN`) resource set and an in-app `中文` / `English`
   switch backed by Android per-app locales
-- an inventory-first adaptive shell:
-  top-level `Inventory`, `Movements`, `Overview`, plus a secondary
-  `Settings` route
+- an adaptive shell with top-level `Home`, `Inventory`, `Records`, and `Settings`
 - official adaptive Compose layout primitives for the shell and Inventory:
   `NavigationSuiteScaffold`, window size classes,
   `NavigableListDetailPaneScaffold`, and a `SearchBar`-first filter header
@@ -311,6 +314,10 @@ preferences and supports:
   detail, settings, or form routes
 - tablet layouts that keep persistent list-detail panes for inventory and
   movement history while keeping settings as a sectioned secondary route
+
+The [cross-platform UI audit](docs/ui-ux-audit-2026-09-16.md) records implemented
+Android navigation fixes and a separate, prioritized Windows/admin-web design
+plan. Windows and admin-web recommendations are not yet implemented.
 
 Android visual editing is based on Compose Preview in Android Studio. Open
 the files under
