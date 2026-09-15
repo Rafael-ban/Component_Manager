@@ -17,7 +17,7 @@ import kotlin.test.assertTrue
 @Config(sdk = [28], application = Application::class)
 class BatchJlcDatabaseTest {
     private lateinit var repository: InventoryRepository
-    private val context get() = RuntimeEnvironment.getApplication()
+    private val context: Application get() = RuntimeEnvironment.getApplication<Application>()
 
     @Before
     fun setUp() = runBlocking {
