@@ -94,6 +94,8 @@ class InventoryViewModel(
         }
     }
 
+    fun onBatchJlcCommitted(){viewModelScope.launch{reloadState("批量入库已完成。");if(uiState.appPreferences.syncAfterLocalChanges)runSyncInternal()}}
+
     fun updateComponentQuery(query: String) {
         updateInventoryFilters(uiState.inventory.filters.copy(query = query))
     }
@@ -203,6 +205,33 @@ class InventoryViewModel(
             if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
                 runSyncInternal()
             }
+        }
+    }
+
+    internal fun findExistingImportTarget(
+        sku: String,
+        onError: (OperationResult) -> Unit,
+        onComplete: (com.componentvault.android.data.ExistingImportTarget?) -> Unit,
+    ) {
+        viewModelScope.launch {
+            runCatching { repository.findExistingImportTarget(sku) }
+                .onSuccess(onComplete)
+                .onFailure { onError(OperationResult(false, it.message ?: "无法检查已有料号。")) }
+        }
+    }
+
+    internal fun appendImportedStock(
+        target: com.componentvault.android.data.ExistingImportTarget,
+        quantity: Int,
+        locationId: String,
+        onComplete: (OperationResult) -> Unit,
+    ) {
+        viewModelScope.launch {
+            uiState = uiState.copy(isBusy = true)
+            val result = repository.appendImportedStock(target, quantity, locationId)
+            reloadState(statusMessage = result.message, preferredSelectedComponentId = result.entityId)
+            onComplete(result)
+            if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) runSyncInternal()
         }
     }
 

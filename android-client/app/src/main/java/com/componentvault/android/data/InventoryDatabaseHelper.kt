@@ -73,6 +73,7 @@ class InventoryDatabaseHelper(private val appContext: Context) : SQLiteOpenHelpe
         createBatchOperationTables(db)
         createMultiLocationTables(db)
         createBackupTables(db)
+        createBatchJlcTables(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -107,6 +108,7 @@ class InventoryDatabaseHelper(private val appContext: Context) : SQLiteOpenHelpe
             db.execSQL("UPDATE components SET base_updated_at = updated_at")
         }
         createBackupTables(db)
+        if (oldVersion < 5) createBatchJlcTables(db)
     }
 
     private fun createImportLearningTables(db: SQLiteDatabase) {
@@ -208,6 +210,13 @@ class InventoryDatabaseHelper(private val appContext: Context) : SQLiteOpenHelpe
         db.execSQL("CREATE TABLE IF NOT EXISTS inventory_backup_imports (fingerprint TEXT PRIMARY KEY, source TEXT NOT NULL, imported_at TEXT NOT NULL)")
     }
 
+    private fun createBatchJlcTables(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE IF NOT EXISTS batch_jlc_receipts (
+            row_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, component_id TEXT NOT NULL,
+            movement_id TEXT NOT NULL, committed_at TEXT NOT NULL)""")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_batch_jlc_receipts_session ON batch_jlc_receipts(session_id)")
+    }
+
     private fun createPreUpgradeSnapshotIfNeeded() {
         val databaseFile = appContext.getDatabasePath(DATABASE_NAME)
         if (!databaseFile.isFile) return
@@ -244,6 +253,6 @@ class InventoryDatabaseHelper(private val appContext: Context) : SQLiteOpenHelpe
 
     private companion object {
         const val DATABASE_NAME = "component-vault.db"
-        const val DATABASE_VERSION = 4
+        const val DATABASE_VERSION = 5
     }
 }

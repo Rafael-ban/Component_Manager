@@ -43,5 +43,10 @@ GitHub 登录与最终提交在系统浏览器中完成；应用不索取密码�
 商城验证页、空结果、响应结构变化和联网失败属于查询阶段，应与本地解析失败分别处理。
 浏览器与应用的会话、Cookie 和连接环境可能不同，浏览器可访问并不保证应用请求成功。
 
+0.4.2 的 `lookup_international success=true` 只说明解析未抛异常，可能仍未找到商品。
+后续版本以 `matched=true/false` 区分实际匹配，并以 `cache=true/false` 标明缓存。
+重复解析相同二维码也会重新触发受控查询，同时保留已补全信息和用户修改；旧请求
+不能覆盖后来的输入。具体案例与批量流程见 [连续扫码入库](batch-jlc-inbound.md)。
+
 GitHub URL 预填依据：[Creating an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-an-issue#creating-an-issue-from-a-url-query)。
 完全在应用内提交需另行配置 GitHub OAuth/GitHub App，本版本不引入该授权流程。

@@ -148,16 +148,19 @@ internal class LcscPublicLookup(
         val timestamp = now()
         cache[normalized]?.let { entry ->
             val ttl = if (entry.metadata == null) 30_000L else 7 * 24 * 60 * 60 * 1000L
-            if (timestamp - entry.at in 0 until ttl) return entry.metadata
+            if (timestamp - entry.at in 0 until ttl) {
+                AppDiagnostics.record("lookup_international", "cache" to true, "matched" to (entry.metadata != null))
+                return entry.metadata
+            }
         }
         val metadata = try {
             LcscPublicCatalog.parsePage(normalized, fetch(requireNotNull(LcscPublicCatalog.productUrl(normalized))))
         } catch (error: IOException) {
-            AppDiagnostics.record("lookup_international", "success" to false, "type" to error.javaClass)
+            AppDiagnostics.record("lookup_international", "cache" to false, "matched" to false, "type" to error.javaClass)
             remember(normalized, Entry(timestamp, null))
             throw error
         }
-        AppDiagnostics.record("lookup_international", "success" to true)
+        AppDiagnostics.record("lookup_international", "cache" to false, "matched" to (metadata != null))
         remember(normalized, Entry(timestamp, metadata))
         return metadata
     }
@@ -181,8 +184,8 @@ internal class LcscCombinedLookup(
                 normalized,
                 LcscDomesticCatalog.parseSearchPage(domesticFetch(normalized)),
             )?.metadata?.copy(matchedBy = "sku", confidence = "exact")
-        }.onSuccess { AppDiagnostics.record("lookup_domestic", "success" to (it != null)) }
-            .onFailure { AppDiagnostics.record("lookup_domestic", "success" to false, "type" to it.javaClass) }
+        }.onSuccess { AppDiagnostics.record("lookup_domestic", "matched" to (it != null)) }
+            .onFailure { AppDiagnostics.record("lookup_domestic", "matched" to false, "type" to it.javaClass) }
             .getOrNull()
         return domestic ?: international.lookup(normalized)
     }

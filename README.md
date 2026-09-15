@@ -54,6 +54,11 @@ connects to it over HTTP.
   reports, text export and GitHub browser sign-in for final submission. Scan
   parsing and catalog network failures are diagnosed separately. See
   [feedback and scan diagnostics](docs/feedback-and-scan-diagnostics.md).
+- JLC batch inbound collects packaging codes before lookup: Android supports
+  continuous camera scanning, Windows supports scanner input and pasted lines.
+  Private drafts survive restarts, failures have a separate pending page, and
+  reviewed receipts add stock atomically with local replay protection. See
+  [batch JLC inbound](docs/batch-jlc-inbound.md).
 
 ## Sync reliability and direct LCSC lookup
 

@@ -26,8 +26,8 @@ android {
         applicationId = "com.componentvault.android"
         minSdk = 28
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.4.2"
+        versionCode = 17
+        versionName = "0.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -78,6 +78,10 @@ android {
     lint {
         disable += "NullSafeMutableLiveData"
     }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 kotlin {
@@ -117,6 +121,7 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation("org.json:json:20240303")
+    testImplementation("org.robolectric:robolectric:4.17")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

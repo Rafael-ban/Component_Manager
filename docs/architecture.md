@@ -194,6 +194,18 @@ See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
 
 ## Target Client Persistence
 
+Native batch JLC inbound uses private atomic JSON drafts with stable package-row
+IDs and exact trimmed-payload deduplication. Capture does not perform network
+lookup. Existing active SKUs reuse local metadata; new SKUs use bounded serial
+catalog lookup. A separate pending screen retains failed or incomplete rows.
+Reviewed rows commit component totals, allocations, inbound movements, sync
+queue entries and local row receipts in one SQLite transaction. Android uses
+`batch_jlc_receipts` (database v5), Windows uses `batch_inbound_receipts`.
+Receipts reconcile drafts after interrupted commits and prevent local replay;
+they do not synchronize between devices. Draft payloads and receipts are absent
+from server/MQTT payloads and inventory Excel exports. See
+[batch inbound contract](batch-jlc-inbound.md).
+
 ### components
 
 - Primary inventory entity rendered by overview summaries and inventory lists.

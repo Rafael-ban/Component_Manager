@@ -764,6 +764,98 @@ class InventoryRepository(
         }
     }
 
+    internal suspend fun findExistingImportTarget(sku: String): ExistingImportTarget? = withContext(Dispatchers.IO) {
+        val normalized = LcscPublicCatalog.normalizeSku(sku) ?: return@withContext null
+        databaseHelper.readableDatabase.use { db ->
+            db.rawQuery(
+                "SELECT id,sku,quantity,updated_at,location FROM components WHERE UPPER(sku)=? AND deleted=0 LIMIT 2",
+                arrayOf(normalized),
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val target = ExistingImportTarget(
+                    cursor.getString(0), cursor.getString(1), cursor.getInt(2), cursor.getString(3), cursor.getString(4),
+                )
+                check(!cursor.moveToNext()) { "存在多个大小写不同但料号相同的活跃元器件，请先合并冲突记录。" }
+                target
+            }
+        }
+    }
+
+    internal suspend fun appendImportedStock(
+        target: ExistingImportTarget,
+        quantity: Int,
+        locationId: String,
+    ): OperationResult = withContext(Dispatchers.IO) {
+        runCatching {
+            require(quantity > 0) { "入库数量必须为正整数。" }
+            val location = locationId.trim()
+            require(location.isNotBlank()) { "请选择入库库位。" }
+            var newTotal = 0
+            databaseHelper.writableDatabase.use { db ->
+                db.beginTransaction()
+                try {
+                    val current = db.rawQuery(
+                        "SELECT quantity,updated_at FROM components WHERE id=? AND deleted=0",
+                        arrayOf(target.componentId),
+                    ).use { cursor ->
+                        check(cursor.moveToFirst()) { "元器件已不存在，请重新核对。" }
+                        cursor.getInt(0) to cursor.getString(1)
+                    }
+                    check(current.second == target.updatedAt) { "库存已发生变化，请重新核对后再确认。" }
+                    check(db.rawQuery("SELECT 1 FROM storage_locations WHERE id=? AND deleted=0", arrayOf(location)).use { it.moveToFirst() }) {
+                        "库位不存在或已删除。"
+                    }
+                    newTotal = Math.addExact(current.first, quantity)
+                    val newAllocation = Math.addExact(allocationQuantity(db, target.componentId, location), quantity)
+                    val now = utcNow()
+                    db.update("components", ContentValues().apply {
+                        put("quantity", newTotal); put("location", location); put("updated_at", now)
+                    }, "id=?", arrayOf(target.componentId))
+                    setAllocationQuantity(db, target.componentId, location, newAllocation)
+                    verifyAllocationTotal(db, target.componentId, newTotal)
+                    val movementId = "mov-" + randomId()
+                    db.insertOrThrow("stock_movements", null, ContentValues().apply {
+                        put("id", movementId); put("component_id", target.componentId); put("movement_type", "inbound")
+                        put("quantity", quantity); put("reason", "JLC single import inbound"); put("note", "")
+                        put("happened_at", now); put("updated_at", now); put("deleted", 0); put("location_id", location)
+                    })
+                    enqueueEntity(db, "component", target.componentId, now)
+                    enqueueEntity(db, "stock_movement", movementId, now)
+                    db.setTransactionSuccessful()
+                } finally { db.endTransaction() }
+            }
+            OperationResult(true, "已追加 $quantity 个，当前库存 $newTotal。", target.componentId)
+        }.getOrElse { OperationResult(false, it.message ?: "追加库存失败。") }
+    }
+
+    internal suspend fun loadBatchJlcReceipts(sessionId:String):Set<String> = withContext(Dispatchers.IO){
+        databaseHelper.readableDatabase.use{db->db.rawQuery("SELECT row_id FROM batch_jlc_receipts WHERE session_id = ?",arrayOf(sessionId)).use{c->buildSet{while(c.moveToNext())add(c.getString(0))}}}
+    }
+
+    internal suspend fun commitBatchJlc(sessionId:String,rows:List<BatchJlcRow>):OperationResult=withContext(Dispatchers.IO){
+        runCatching{
+            require(rows.isNotEmpty()){ "没有可提交的包装。" }
+            var committedCount = 0
+            var skippedCount = 0
+            databaseHelper.writableDatabase.use{db->db.beginTransaction();try{
+                val already=db.rawQuery("SELECT row_id FROM batch_jlc_receipts WHERE session_id = ?",arrayOf(sessionId)).use{c->buildSet{while(c.moveToNext())add(c.getString(0))}}
+                skippedCount = rows.count { it.selected && it.status == BatchJlcStatus.Ready && it.id in already }
+                val parsed=BatchJlcCommitPlanner.plan(rows,already);val now=utcNow()
+                parsed.forEach{item->val row=item.row;val sku=item.sku;val quantity=item.quantity
+                    val component=db.rawQuery("SELECT id,quantity FROM components WHERE UPPER(sku)=? AND deleted=0 LIMIT 2",arrayOf(sku)).use{c->if(!c.moveToFirst())null else {(c.getString(0) to c.getInt(1)).also{check(!c.moveToNext()){ "存在多个大小写不同但料号相同的活跃元器件，请先合并冲突记录。" }}}}
+                    val componentId=component?.first?:"cmp-"+randomId();val oldTotal=component?.second?:0
+                    val activeLocation=db.rawQuery("SELECT 1 FROM storage_locations WHERE id=? AND deleted=0",arrayOf(row.location.trim())).use{it.moveToFirst()};check(activeLocation){"库位 ${row.location} 不存在或已删除。"}
+                    if(component==null){require(row.name.isNotBlank()&&row.category.isNotBlank()&&row.packageName.isNotBlank()){"新料号 $sku 缺少名称、分类或封装。"};db.insertOrThrow("components",null,ContentValues().apply{put("id",componentId);put("sku",sku);put("name",row.name.trim());put("category",row.category.trim());put("package_name",row.packageName.trim());put("location",row.location.trim());put("description",row.description.trim());put("quantity",0);put("min_stock",0);put("updated_at",now);putNull("base_updated_at")});setAllocationQuantity(db,componentId,row.location.trim(),0)}
+                    val oldAllocation=allocationQuantity(db,componentId,row.location.trim());val newTotal=Math.addExact(oldTotal,quantity);val newAllocation=Math.addExact(oldAllocation,quantity)
+                    db.update("components",ContentValues().apply{put("quantity",newTotal);put("location",row.location.trim());put("updated_at",now)},"id=?",arrayOf(componentId));setAllocationQuantity(db,componentId,row.location.trim(),newAllocation);verifyAllocationTotal(db,componentId,newTotal)
+                    val movementId="mov-"+randomId();db.insertOrThrow("stock_movements",null,ContentValues().apply{put("id",movementId);put("component_id",componentId);put("movement_type","inbound");put("quantity",quantity);put("reason","JLC batch inbound");put("note","");put("happened_at",now);put("updated_at",now);put("deleted",0);put("location_id",row.location.trim())})
+                    enqueueEntity(db,"component",componentId,now);enqueueEntity(db,"stock_movement",movementId,now);db.insertOrThrow("batch_jlc_receipts",null,ContentValues().apply{put("row_id",row.id);put("session_id",sessionId);put("component_id",componentId);put("movement_id",movementId);put("committed_at",now)})
+                };committedCount = parsed.size;db.setTransactionSuccessful()
+            }finally{db.endTransaction()}}
+            OperationResult(true,"已批量入库 $committedCount 个包装；跳过已提交 $skippedCount 个。")
+        }.getOrElse{OperationResult(false,it.message?:"批量入库失败。")}
+    }
+
     internal suspend fun exportInventoryWorkbook():ByteArray=withContext(Dispatchers.IO){
         databaseHelper.readableDatabase.use{db->
             db.beginTransaction()

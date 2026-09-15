@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -15,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.ComponentImportParser
 import com.componentvault.android.data.AppDiagnostics
 import com.componentvault.android.data.InventoryRepository
+import com.componentvault.android.data.ImportLookupRequestGate
 import com.componentvault.android.data.LcscDomesticBlockedException
 import com.componentvault.android.data.LcscDomesticCatalog
 import com.componentvault.android.data.LcscDomesticProduct
@@ -44,8 +47,11 @@ import com.componentvault.android.model.withOfficialMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private enum class ImportScannerMode {
     Qr,
@@ -66,6 +72,8 @@ internal fun JlcImportSurface(
     val strings = vaultStrings()
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
+    val lookupGate = remember { ImportLookupRequestGate() }
+    val lookupMutex = remember { Mutex() }
 
     var rawInput by remember { mutableStateOf("") }
     var partNumberInput by rememberSaveable { mutableStateOf("") }
@@ -92,9 +100,15 @@ internal fun JlcImportSurface(
         mutableStateOf(appPreferences.defaultImportMinStock.toString())
     }
     var feedbackMessage by remember { mutableStateOf<String?>(null) }
+    var errorDialogMessage by remember { mutableStateOf<String?>(null) }
     var lookupMessage by remember { mutableStateOf<String?>(null) }
     var lookupIsError by remember { mutableStateOf(false) }
+
+    LaunchedEffect(feedbackMessage) {
+        feedbackMessage?.takeIf { it.isNotBlank() }?.let { errorDialogMessage = it }
+    }
     var lookupInProgress by remember { mutableStateOf(false) }
+    var lookupGeneration by remember { mutableIntStateOf(0) }
     var learningMatchType by remember { mutableStateOf<ComponentImportLearningMatchType?>(null) }
     var skuEdited by remember { mutableStateOf(false) }
     var nameEdited by remember { mutableStateOf(false) }
@@ -174,18 +188,24 @@ internal fun JlcImportSurface(
     fun setBaseCandidate(candidate: ComponentImportCandidate) {
         domesticSearchJob?.cancel()
         selectedDomesticSku = null
+        val attempt = lookupGate.begin(candidate.rawPayload, displayedCandidate != null)
+        lookupGeneration = attempt.generation
         baseCandidate = candidate
-        learningMatchType = null
-        lookupMessage = null
+        if (attempt.replaceDisplayedCandidate) learningMatchType = null
+        val willLookup = candidate.sourceType != com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel &&
+            appPreferences.enablePublicJlcLookup && LcscPublicCatalog.normalizeSku(candidate.sku) != null
+        lookupMessage = if (willLookup) strings.importer.lookupLoading else context.getString(com.componentvault.android.R.string.importer_scan_recognized)
         lookupIsError = false
-        lookupInProgress = false
-        applyDisplayedCandidate(candidate, preserveUserEdits = false)
+        lookupInProgress = willLookup
+        if (attempt.replaceDisplayedCandidate) applyDisplayedCandidate(candidate, preserveUserEdits = false)
+        else feedbackMessage = null
     }
 
     fun applyDomesticProduct(product: LcscDomesticProduct) {
         val currentQuantity = quantityText
         val candidate = ComponentImportParser.parseScannedQr(requireNotNull(product.metadata.sku))
             .withOfficialMetadata(product.metadata)
+        lookupGeneration = lookupGate.begin(candidate.rawPayload, displayedCandidate != null).generation
         baseCandidate = candidate
         selectedDomesticSku = product.metadata.sku
         applyDisplayedCandidate(candidate, preserveUserEdits = displayedCandidate != null)
@@ -199,9 +219,7 @@ internal fun JlcImportSurface(
     fun applyInternationalFallback(skuValue: String) {
         val currentQuantity = quantityText
         val candidate = ComponentImportParser.parseScannedQr(skuValue)
-        selectedDomesticSku = null
-        baseCandidate = candidate
-        applyDisplayedCandidate(candidate, preserveUserEdits = displayedCandidate != null)
+        setBaseCandidate(candidate)
         quantityText = currentQuantity
     }
 
@@ -322,20 +340,28 @@ internal fun JlcImportSurface(
 
     LaunchedEffect(
         baseCandidate?.rawPayload,
+        lookupGeneration,
         appPreferences.enableLocalAutoRecognition,
         appPreferences.preferAggressiveAutoRecognition,
         appPreferences.enableLocalImportLearning,
         appPreferences.enablePublicJlcLookup,
     ) {
-        val candidate = baseCandidate ?: return@LaunchedEffect
+        val base = baseCandidate ?: return@LaunchedEffect
+        val candidate = lookupGate.candidateForLookup(base, displayedCandidate)
+        val generation = lookupGeneration
         if (candidate.sku.equals(selectedDomesticSku, ignoreCase = true)) return@LaunchedEffect
+        delay(250)
+        if (!lookupGate.isCurrent(generation)) return@LaunchedEffect
         lookupInProgress = candidate.sourceType != com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel &&
             appPreferences.enablePublicJlcLookup && LcscPublicCatalog.normalizeSku(candidate.sku) != null
-        val resolution = repository.enrichImportCandidate(
-            candidate = candidate,
-            appPreferences = appPreferences,
-            syncConfiguration = syncConfiguration,
-        )
+        val resolution = lookupMutex.withLock {
+            if (!lookupGate.isCurrent(generation)) null else repository.enrichImportCandidate(
+                candidate = candidate,
+                appPreferences = appPreferences,
+                syncConfiguration = syncConfiguration,
+            )
+        } ?: return@LaunchedEffect
+        if (!lookupGate.isCurrent(generation)) return@LaunchedEffect
         // A response for the scanned SKU must not enrich a different user-entered SKU.
         if (skuEdited && !sku.trim().equals(candidate.sku, ignoreCase = true)) {
             lookupInProgress = false
@@ -351,7 +377,7 @@ internal fun JlcImportSurface(
         if (lookupResult == null) {
             lookupInProgress = false
             lookupIsError = false
-            lookupMessage = null
+            lookupMessage = context.getString(com.componentvault.android.R.string.importer_scan_recognized)
             return@LaunchedEffect
         }
 
@@ -366,6 +392,7 @@ internal fun JlcImportSurface(
                 lookupInProgress = false
                 lookupIsError = false
                 lookupMessage = lookupResult.message ?: strings.importer.lookupNoMatch
+                errorDialogMessage = lookupMessage
             }
 
             ComponentOfficialLookupOutcome.NotConfigured -> {
@@ -378,6 +405,7 @@ internal fun JlcImportSurface(
                 lookupInProgress = false
                 lookupIsError = true
                 lookupMessage = lookupResult.message ?: strings.importer.lookupFailed(strings.importer.exportGenericError)
+                errorDialogMessage = lookupMessage
             }
         }
     }
@@ -408,6 +436,13 @@ internal fun JlcImportSurface(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(strings.importer.actionScanQr)
+                }
+                lookupMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (lookupIsError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    )
                 }
                 OutlinedTextField(
                     value = partNumberInput,
@@ -797,6 +832,16 @@ internal fun JlcImportSurface(
                 )
             }
         }
+    }
+    errorDialogMessage?.let { error ->
+        AlertDialog(
+            onDismissRequest = { errorDialogMessage = null },
+            title = { Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_error_title)) },
+            text = { Text(error) },
+            confirmButton = { Button(onClick = { errorDialogMessage = null }) {
+                Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.action_close))
+            } },
+        )
     }
 }
 

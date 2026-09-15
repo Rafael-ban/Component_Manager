@@ -5,6 +5,25 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.5.0] - 2026-09-15
+
+<!-- Add unreleased notes below this line. -->
+
+- Added visible import error dialogs and explicit duplicate-SKU inbound
+  confirmation showing current quantity, added quantity and resulting total,
+  while preserving existing component metadata and ordinary edit semantics.
+
+- Added Android continuous JLC QR capture and Windows scanner/text batch
+  collection, private resumable drafts, package-level deduplication, reviewed
+  inbound totals and a separate pending page for failures/manual correction.
+- Added atomic batch inbound with location allocation updates, movement history,
+  sync queue writes and local receipts preventing repeated submissions.
+- Fixed repeated parsing of the same QR resetting enriched fields without
+  restarting lookup; retained edits, debounced retries and rejected stale results.
+- Corrected international lookup diagnostics to distinguish matched products,
+  empty results and cache hits instead of reporting every parsed response as success.
+
+
 ## [0.4.2] - 2026-09-15
 
 <!-- Add unreleased notes below this line. -->

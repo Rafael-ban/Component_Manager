@@ -84,7 +84,10 @@ internal enum class JlcQrScannerUiState {
 internal enum class JlcQrScannerMode {
     ImportQr,
     MovementSmallLabel,
+    BatchContinuous,
 }
+
+internal data class ContinuousCaptureAck(val actualCount: Int, val duplicateCount: Int)
 
 private data class JlcQrScannerConfig(
     val analysisTargetResolution: Size,
@@ -107,6 +110,7 @@ private fun JlcQrScannerMode.toConfig(): JlcQrScannerConfig = when (this) {
         enablePotentialBarcodeDetection = true,
         enableZoomSuggestions = true,
     )
+    JlcQrScannerMode.BatchContinuous -> JlcQrScannerConfig(Size(1280,720),260,true,true)
 }
 
 @Composable
@@ -125,6 +129,8 @@ internal fun JlcQrScannerSurface(
     failedDescription: String? = null,
     returnActionLabel: String? = null,
     scannerMode: JlcQrScannerMode = JlcQrScannerMode.ImportQr,
+    onContinuousResults: ((List<String>) -> ContinuousCaptureAck)? = null,
+    continuousInitialCount: Int = 0,
 ) {
     val context = LocalContext.current
     val cameraPermissionGranted = remember(context) {
@@ -137,10 +143,12 @@ internal fun JlcQrScannerSurface(
     var scannerError by rememberSaveable { mutableStateOf<String?>(null) }
     var sessionId by rememberSaveable { mutableIntStateOf(0) }
     var decodedHint by remember { mutableStateOf<String?>(null) }
+    var continuousCount by remember(scanSessionToken) { mutableIntStateOf(continuousInitialCount) }
     var pendingCandidates by remember { mutableStateOf<List<BarcodeSelection.Candidate>>(emptyList()) }
     val decodedNoPartText = stringResource(R.string.scanner_decoded_no_part)
     val multipleTitle = stringResource(R.string.scanner_multiple_title)
     val rescanText = stringResource(R.string.scanner_rescan)
+    val continuousSeen = remember(scanSessionToken) { mutableSetOf<String>() }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -211,6 +219,23 @@ internal fun JlcQrScannerSurface(
                         scannerState = JlcQrScannerUiState.Failed
                     },
                     onBarcodesDecoded = { values ->
+                        if(scannerMode==JlcQrScannerMode.BatchContinuous){
+                            val normalized=values.map(String::trim).filter(String::isNotBlank).distinct()
+                            val fresh=normalized.filter(continuousSeen::add)
+                            var acknowledgedDuplicates = normalized.size - fresh.size
+                            if(fresh.isNotEmpty()){
+                                onContinuousResults?.invoke(fresh)?.let { ack ->
+                                    continuousCount = ack.actualCount
+                                    acknowledgedDuplicates += ack.duplicateCount
+                                }
+                            }
+                            decodedHint = if (acknowledgedDuplicates > 0) {
+                                "已采集 $continuousCount 条；已忽略重复包装"
+                            } else {
+                                "已采集 $continuousCount 条"
+                            }
+                            false
+                        } else
                         when (val selection = ScannedBarcodeSelector.importCandidates(values)) {
                             BarcodeSelection.NoMatch -> {
                                 if (decodedHint != decodedNoPartText) {

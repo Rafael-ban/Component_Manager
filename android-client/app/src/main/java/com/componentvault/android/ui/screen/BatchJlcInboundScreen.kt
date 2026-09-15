@@ -1,0 +1,442 @@
+package com.componentvault.android.ui.screen
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.componentvault.android.R
+import com.componentvault.android.data.BatchJlcCommitPlanner
+import com.componentvault.android.data.BatchJlcDraft
+import com.componentvault.android.data.BatchJlcDraftCodec
+import com.componentvault.android.data.BatchJlcDraftStore
+import com.componentvault.android.data.BatchJlcRow
+import com.componentvault.android.data.BatchJlcStatus
+import com.componentvault.android.data.InventoryRepository
+import com.componentvault.android.data.LcscPublicCatalog
+import com.componentvault.android.data.ComponentImportParser
+import com.componentvault.android.data.toBatchDescription
+import com.componentvault.android.model.AppPreferences
+import com.componentvault.android.model.ComponentImportCandidate
+import com.componentvault.android.model.ComponentImportSourceType
+import com.componentvault.android.model.ComponentOfficialLookupOutcome
+import com.componentvault.android.model.ComponentOfficialMetadata
+import com.componentvault.android.model.StorageLocationRecord
+import com.componentvault.android.model.SyncConfiguration
+import com.componentvault.android.model.withOfficialMetadata
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicLong
+
+private enum class BatchPage { Capture, Review, Pending }
+private enum class ProcessScope { Captured, Pending }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun BatchJlcInboundScreen(
+    appPreferences: AppPreferences,
+    syncConfiguration: SyncConfiguration,
+    defaultLocation: String,
+    onDismiss: () -> Unit,
+    onCommitted: () -> Unit,
+) {
+    val context = LocalContext.current
+    val repository = remember(context) { InventoryRepository(context) }
+    val store = remember(context) { BatchJlcDraftStore(context) }
+    val scope = rememberCoroutineScope()
+    val saveMutex = remember { Mutex() }
+    val saveRevision = remember { AtomicLong() }
+    var draft by remember { mutableStateOf(BatchJlcDraft()) }
+    var loaded by remember { mutableStateOf(false) }
+    var loadFailed by remember { mutableStateOf(false) }
+    var locations by remember { mutableStateOf<List<StorageLocationRecord>>(emptyList()) }
+    var page by rememberSaveable { mutableStateOf(BatchPage.Capture) }
+    var scanner by rememberSaveable { mutableStateOf(false) }
+    var message by rememberSaveable { mutableStateOf("") }
+    var dialogMessage by remember { mutableStateOf<String?>(null) }
+    var processing by remember { mutableStateOf(false) }
+    var committing by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var saveFailed by remember { mutableStateOf(false) }
+    var pendingSave by remember { mutableStateOf<Job?>(null) }
+    var processJob by remember { mutableStateOf<Job?>(null) }
+    var confirmClear by remember { mutableStateOf(false) }
+    var generation by remember { mutableStateOf(0) }
+    var globalLocation by rememberSaveable { mutableStateOf(defaultLocation) }
+
+    fun save(value: BatchJlcDraft) {
+        draft = value
+        val revision = saveRevision.incrementAndGet()
+        saving = true
+        saveFailed = false
+        pendingSave = scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    saveMutex.withLock {
+                        if (revision == saveRevision.get()) store.save(value)
+                    }
+                }
+            } catch (_: Exception) {
+                if (revision == saveRevision.get()) {
+                    saveFailed = true
+                    scanner = false
+                    dialogMessage = context.getString(R.string.batch_save_failed)
+                }
+            } finally {
+                if (revision == saveRevision.get()) saving = false
+            }
+        }
+    }
+    fun update(row: BatchJlcRow) = save(draft.copy(rows = draft.rows.map { if (it.id == row.id) row else it }))
+
+    LaunchedEffect(Unit) {
+        try {
+            draft = withContext(Dispatchers.IO) { store.loadOrThrow() }
+            loaded = true
+        } catch (_: Exception) {
+            loadFailed = true
+            message = context.getString(R.string.batch_load_failed)
+        }
+        locations = repository.loadStorageLocations()
+        if (!loadFailed) {
+            val receipts = repository.loadBatchJlcReceipts(draft.sessionId)
+            if (receipts.isNotEmpty()) {
+                save(draft.copy(rows = draft.rows.map { if (it.id in receipts) it.copy(status = BatchJlcStatus.Committed) else it }))
+            }
+        }
+    }
+
+    suspend fun processRows(processScope: ProcessScope, expectedGeneration: Int) {
+        processing = true
+        try {
+            val existing = repository.loadComponents().filterNot { it.deleted }.associateBy { it.sku.uppercase() }
+            val metadataCache = mutableMapOf<String, ComponentOfficialMetadata?>()
+            val target = draft.rows.filter {
+                it.status == if (processScope == ProcessScope.Captured) BatchJlcStatus.Captured else BatchJlcStatus.Pending
+            }
+            for (original in target) {
+                if (expectedGeneration != generation) return
+                val manualSku = LcscPublicCatalog.normalizeSku(original.sku)
+                val parsed = if (manualSku != null) {
+                    ComponentImportCandidate(
+                        sourceType = ComponentImportSourceType.JlcText,
+                        rawPayload = "",
+                        sourceLabel = "manual_batch",
+                        sku = manualSku,
+                    )
+                } else try {
+                    ComponentImportParser.parseScannedQr(original.raw)
+                } catch (error: Exception) {
+                    update(original.copy(status = BatchJlcStatus.Pending, error = error.message ?: context.getString(R.string.batch_parse_failed)))
+                    continue
+                }
+                val sku = (manualSku ?: parsed.sku).uppercase()
+                val quantity = original.quantityText.takeIf { it.toIntOrNull()?.let { value -> value > 0 } == true }
+                    ?: parsed.suggestedQuantity?.takeIf { it > 0 }?.toString().orEmpty()
+                val location = original.location.ifBlank { globalLocation.ifBlank { defaultLocation } }
+                val local = existing[sku]
+                if (local != null) {
+                    update(original.copy(
+                        status = if (quantity.isNotBlank() && location.isNotBlank()) BatchJlcStatus.Ready else BatchJlcStatus.Pending,
+                        sku = sku, name = local.name, category = local.category, packageName = local.packageName,
+                        quantityText = quantity, location = location,
+                        error = if (quantity.isBlank()) context.getString(R.string.batch_positive_quantity) else "",
+                    ))
+                    continue
+                }
+                val request = parsed.copy(sku = sku)
+                val metadata = if (metadataCache.containsKey(sku)) metadataCache[sku] else {
+                    val result = repository.enrichImportCandidate(request, appPreferences, syncConfiguration)
+                    val value = result.officialLookupResult
+                        ?.takeIf { it.outcome == ComponentOfficialLookupOutcome.Success }?.metadata
+                    metadataCache[sku] = value
+                    value
+                }
+                if (expectedGeneration != generation) return
+                val candidate = metadata?.let(request::withOfficialMetadata) ?: request
+                val name = original.name.ifBlank { candidate.name }
+                val category = original.category.ifBlank { candidate.category }
+                val packageName = original.packageName.ifBlank { candidate.packageName }
+                val complete = quantity.isNotBlank() && location.isNotBlank() && name.isNotBlank() &&
+                    category.isNotBlank() && packageName.isNotBlank()
+                val ready = complete && metadata != null
+                update(original.copy(
+                    status = if (ready) BatchJlcStatus.Ready else BatchJlcStatus.Pending,
+                    sku = sku, name = name, category = category, packageName = packageName,
+                    description = metadata?.toBatchDescription().orEmpty(), quantityText = quantity,
+                    location = location,
+                    error = when {
+                        !complete -> context.getString(R.string.batch_complete_required)
+                        metadata == null -> context.getString(R.string.batch_catalog_review)
+                        else -> ""
+                    },
+                ))
+            }
+            page = if (draft.rows.any { it.status == BatchJlcStatus.Ready }) BatchPage.Review else BatchPage.Pending
+            val pendingCount = draft.rows.count { it.status == BatchJlcStatus.Pending }
+            if (pendingCount > 0) dialogMessage = context.getString(R.string.batch_pending_dialog, pendingCount)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            message = context.getString(R.string.batch_process_failed)
+        } finally {
+            processing = false
+        }
+    }
+
+    val busy = processing || committing || saving || loadFailed
+    fun requestDismiss() {
+        scope.launch {
+            pendingSave?.join()
+            if (!saveFailed) onDismiss() else dialogMessage = context.getString(R.string.batch_save_failed)
+        }
+    }
+    if (scanner && loaded && !loadFailed) {
+        JlcQrScannerSurface(
+            onDismiss = { scanner = false }, onScanResult = {},
+            scannerMode = JlcQrScannerMode.BatchContinuous,
+            continuousInitialCount = draft.rows.size,
+            onContinuousResults = { values ->
+                var ack = ContinuousCaptureAck(draft.rows.size, 0)
+                runCatching { BatchJlcDraftCodec.add(draft, values) }
+                    .onSuccess { (next, duplicates) ->
+                        save(next)
+                        ack = ContinuousCaptureAck(next.rows.size, duplicates)
+                        message = context.getString(R.string.batch_collected, next.rows.size, duplicates)
+                    }.onFailure { message = it.message.orEmpty() }
+                ack
+            },
+        )
+        return
+    }
+    BackHandler(enabled = !processing && !committing && !loadFailed, onBack = ::requestDismiss)
+
+    val selectedReady = draft.rows.filter { it.status == BatchJlcStatus.Ready && it.selected }
+    val planResult = remember(selectedReady) { runCatching { BatchJlcCommitPlanner.plan(selectedReady, emptySet()) } }
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.batch_title)) }, navigationIcon = {
+        TextButton(onClick = ::requestDismiss, enabled = !processing && !committing && !loadFailed) { Text(stringResource(R.string.action_back)) }
+    }) }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BatchPage.entries.forEach { candidate ->
+                    val count = draft.rows.count { it.status == when (candidate) {
+                        BatchPage.Capture -> BatchJlcStatus.Captured
+                        BatchPage.Review -> BatchJlcStatus.Ready
+                        BatchPage.Pending -> BatchJlcStatus.Pending
+                    } }
+                    FilterChip(selected = page == candidate, onClick = { page = candidate }, enabled = !busy,
+                        label = { Text(stringResource(candidate.labelRes(), count)) })
+                }
+            }
+            if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.primary)
+            if (busy) {
+                Text(stringResource(if (committing) R.string.batch_committing else R.string.batch_processing))
+                OutlinedButton(onClick = { processJob?.cancel() }, enabled = processing) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+            LocationSelector(locations, globalLocation, !busy) { globalLocation = it }
+            when (page) {
+                BatchPage.Capture -> {
+                    Button(onClick = { scanner = true }, enabled = loaded && !busy, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.batch_scan))
+                    }
+                    OutlinedButton(onClick = {
+                        val token = generation
+                        processJob = scope.launch { processRows(ProcessScope.Captured, token) }
+                    }, enabled = draft.rows.any { it.status == BatchJlcStatus.Captured } && !busy,
+                        modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_finish_capture)) }
+                    Text(stringResource(R.string.batch_saved_count, draft.rows.size))
+                }
+                BatchPage.Review, BatchPage.Pending -> {
+                    val visibleRows = draft.rows.filter {
+                        it.status == if (page == BatchPage.Review) BatchJlcStatus.Ready else BatchJlcStatus.Pending
+                    }
+                    if (page == BatchPage.Review) {
+                        planResult.getOrNull()?.groupBy { it.sku to it.location }?.forEach { (key, group) ->
+                            val sum = group.fold(0) { total, item -> Math.addExact(total, item.quantity) }
+                            Text("${key.first} · ${key.second}: +$sum")
+                        }
+                        planResult.exceptionOrNull()?.let { Text(stringResource(R.string.batch_invalid_selection), color = MaterialTheme.colorScheme.error) }
+                    }
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(visibleRows, key = { it.id }) { row ->
+                            BatchRowCard(row, page == BatchPage.Review, locations, !busy, { changed ->
+                                generation++
+                                update(changed)
+                            }) {
+                                generation++
+                                save(draft.copy(rows = draft.rows.filterNot { it.id == row.id }))
+                            }
+                        }
+                    }
+                    if (page == BatchPage.Pending) {
+                        OutlinedButton(onClick = {
+                            val token = generation
+                            processJob = scope.launch { processRows(ProcessScope.Pending, token) }
+                        }, enabled = visibleRows.isNotEmpty() && !busy, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.batch_retry_pending))
+                        }
+                    } else {
+                        Button(onClick = {
+                            if (committing) return@Button
+                            committing = true
+                            scope.launch {
+                                try {
+                                    val result = repository.commitBatchJlc(draft.sessionId, selectedReady)
+                                    message = result.message
+                                    if (!result.isSuccess) dialogMessage = result.message
+                                    if (result.isSuccess) {
+                                        val receipts = repository.loadBatchJlcReceipts(draft.sessionId)
+                                        save(draft.copy(rows = draft.rows.map {
+                                            if (it.id in receipts) it.copy(status = BatchJlcStatus.Committed) else it
+                                        }))
+                                        onCommitted()
+                                    }
+                                } finally { committing = false }
+                            }
+                        }, enabled = selectedReady.isNotEmpty() && planResult.isSuccess && !busy && !saveFailed,
+                            modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_commit)) }
+                    }
+                }
+            }
+            TextButton(onClick = { confirmClear = true }, enabled = !processing && !committing) { Text(stringResource(R.string.batch_clear)) }
+            if (saveFailed) OutlinedButton(onClick = { save(draft) }, enabled = !saving) {
+                Text(stringResource(R.string.batch_retry_save))
+            }
+        }
+    }
+    if (confirmClear) AlertDialog(
+        onDismissRequest = { confirmClear = false }, title = { Text(stringResource(R.string.batch_clear_title)) },
+        text = { Text(stringResource(R.string.batch_clear_detail)) },
+        confirmButton = { Button(onClick = {
+            generation++
+            val fresh = BatchJlcDraft()
+            draft = fresh; loadFailed = false; loaded = true; saveRevision.incrementAndGet()
+            saving = true
+            pendingSave = scope.launch {
+                try { withContext(Dispatchers.IO) { saveMutex.withLock { store.clear(); store.save(fresh) } } }
+                catch (_: Exception) { saveFailed = true; dialogMessage = context.getString(R.string.batch_save_failed) }
+                finally { saving = false }
+            }
+            confirmClear = false; page = BatchPage.Capture
+        }) { Text(stringResource(R.string.batch_clear_confirm)) } },
+        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.action_cancel)) } },
+    )
+    dialogMessage?.let { detail -> AlertDialog(
+        onDismissRequest = { dialogMessage = null },
+        title = { Text(stringResource(R.string.batch_attention_title)) }, text = { Text(detail) },
+        confirmButton = { Button(onClick = { dialogMessage = null; page = BatchPage.Pending }) {
+            Text(stringResource(R.string.batch_open_pending))
+        } },
+        dismissButton = { TextButton(onClick = { dialogMessage = null }) { Text(stringResource(R.string.action_close)) } },
+    ) }
+}
+
+private fun BatchPage.labelRes() = when (this) {
+    BatchPage.Capture -> R.string.batch_tab_capture
+    BatchPage.Review -> R.string.batch_tab_review
+    BatchPage.Pending -> R.string.batch_tab_pending
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocationSelector(locations: List<StorageLocationRecord>, value: String, enabled: Boolean, onChange: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded, { expanded = it && enabled }) {
+        OutlinedTextField(value, {}, readOnly = true, enabled = enabled,
+            label = { Text(stringResource(R.string.batch_default_location)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth())
+        ExposedDropdownMenu(expanded, { expanded = false }) {
+            locations.forEach { location -> DropdownMenuItem(
+                text = { Text(location.name) }, onClick = { onChange(location.id); expanded = false },
+            ) }
+        }
+    }
+}
+
+@Composable
+private fun BatchRowCard(row: BatchJlcRow, ready: Boolean, locations: List<StorageLocationRecord>, enabled: Boolean,
+    onUpdate: (BatchJlcRow) -> Unit, onRemove: () -> Unit) {
+    var editing by remember { mutableStateOf(false) }
+    Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row { Checkbox(row.selected, { onUpdate(row.copy(selected = it)) }, enabled = ready && enabled)
+            Text(row.sku.ifBlank { stringResource(R.string.batch_unrecognized) }, style = MaterialTheme.typography.titleMedium) }
+        Text(stringResource(R.string.batch_row_summary, row.quantityText, row.location))
+        if (row.error.isNotBlank()) Text(row.error, color = MaterialTheme.colorScheme.error)
+        Row { TextButton(onClick = { editing = true }, enabled = enabled) { Text(stringResource(R.string.action_edit)) }
+            TextButton(onClick = onRemove, enabled = enabled) { Text(stringResource(R.string.movements_batch_remove_action)) } }
+    } }
+    if (editing) BatchEditDialog(row, locations, onDismiss = { editing = false }) { changed -> onUpdate(changed); editing = false }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BatchEditDialog(row: BatchJlcRow, locations: List<StorageLocationRecord>, onDismiss: () -> Unit, onSave: (BatchJlcRow) -> Unit) {
+    var sku by rememberSaveable(row.id) { mutableStateOf(row.sku) }; var quantity by rememberSaveable(row.id) { mutableStateOf(row.quantityText) }
+    var location by rememberSaveable(row.id) { mutableStateOf(row.location) }; var name by rememberSaveable(row.id) { mutableStateOf(row.name) }
+    var category by rememberSaveable(row.id) { mutableStateOf(row.category) }; var packageName by rememberSaveable(row.id) { mutableStateOf(row.packageName) }
+    val valid = LcscPublicCatalog.normalizeSku(sku) != null && quantity.toIntOrNull()?.let { it > 0 } == true &&
+        location.isNotBlank() && name.isNotBlank() && category.isNotBlank() && packageName.isNotBlank()
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.batch_edit_title)) }, text = {
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(sku, { sku = it.uppercase() }, label = { Text(stringResource(R.string.batch_sku)) })
+            OutlinedTextField(quantity, { quantity = it }, label = { Text(stringResource(R.string.batch_quantity)) })
+            LocationSelector(locations, location, true) { location = it }
+            OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.field_name)) })
+            OutlinedTextField(category, { category = it }, label = { Text(stringResource(R.string.field_category)) })
+            OutlinedTextField(packageName, { packageName = it }, label = { Text(stringResource(R.string.field_package)) })
+        }
+    }, confirmButton = { Button(onClick = {
+        val skuChanged = !sku.equals(row.sku, true)
+        val savedName = if (skuChanged && name == row.name) "" else name
+        val savedCategory = if (skuChanged && category == row.category) "" else category
+        val savedPackage = if (skuChanged && packageName == row.packageName) "" else packageName
+        val savedValid = !skuChanged && valid
+        onSave(row.copy(sku = sku, quantityText = quantity, location = location,
+            name = savedName, category = savedCategory, packageName = savedPackage,
+            description = if (skuChanged) "" else row.description,
+            status = if (savedValid) BatchJlcStatus.Ready else BatchJlcStatus.Pending,
+            error = ""))
+    }) { Text(stringResource(R.string.action_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } })
+}

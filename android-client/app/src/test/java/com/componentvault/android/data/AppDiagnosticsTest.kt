@@ -13,4 +13,14 @@ class AppDiagnosticsTest {
         assertTrue(report.lines().size<=100);assertTrue(report.length<=16*1024)
         assertFalse(report.contains("secret-order-url"));assertFalse(report.contains("not_allowed"))
     }
+
+    @Test fun emptyInternationalMetadataIsLoggedAsUnmatchedAndCacheHitIsExplicit(){
+        AppDiagnostics.clear()
+        val lookup=LcscPublicLookup(fetch={"<html></html>"},now={1_000L})
+        lookup.lookup("C70565");lookup.lookup("C70565")
+        val report=AppDiagnostics.report()
+        assertTrue(report.contains("cache=false matched=false"))
+        assertTrue(report.contains("cache=true matched=false"))
+        assertFalse(report.contains("success=true"))
+    }
 }
