@@ -178,7 +178,11 @@ internal fun BomImportScreen(
     }
 
     SecondaryPageScaffold(
-        title = stringResource(R.string.bom_import_title),
+        title = stringResource(when (selectedMode) {
+            BomImportMode.Bom -> R.string.bom_task_bom
+            BomImportMode.Migration -> R.string.bom_task_migration
+            null -> R.string.bom_workflow_title
+        }),
         onBack = {
             when {
                 preview != null || hubPreview != null -> {
@@ -224,18 +228,6 @@ internal fun BomImportScreen(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BomImportMode.entries.forEach { mode ->
-                            FilterChip(
-                                selected = selectedMode == mode,
-                                onClick = { if (fileBytes == null && !busy) selectedMode = mode },
-                                enabled = fileBytes == null && !busy,
-                                label = { Text(stringResource(if (mode == BomImportMode.Bom) R.string.bom_task_bom else R.string.bom_task_migration)) },
-                            )
-                        }
-                    }
-                }
                 if (fileBytes == null) item {
                     Text(
                         stringResource(if (selectedMode == BomImportMode.Bom) R.string.bom_task_bom_description else R.string.bom_task_migration_description),

@@ -1,4 +1,5 @@
 <resources>
+    <string name="bom_workflow_title">项目与迁移</string>
     <string name="import_menu_description">请选择与当前任务相符的流程。每个流程都有独立的核对与确认步骤。</string>
     <string name="import_menu_migration">数据迁移</string>
     <string name="import_menu_migration_hint">预览 Component Hub JSON 导出，核对冲突后再导入确认记录</string>

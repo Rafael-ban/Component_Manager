@@ -1,4 +1,5 @@
 <resources>
+    <string name="bom_workflow_title">Project and migration</string>
     <string name="import_menu_description">Choose the workflow that matches this task. Each workflow keeps its own review and confirmation steps.</string>
     <string name="import_menu_migration">Data migration</string>
     <string name="import_menu_migration_hint">Preview a Component Hub JSON export, review conflicts, then import confirmed records</string>

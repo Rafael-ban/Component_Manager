@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.View
 import androidx.activity.ComponentActivity
+import androidx.test.platform.app.InstrumentationRegistry
 import com.componentvault.android.ui.theme.ComponentVaultTheme
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -12,8 +13,6 @@ import androidx.compose.ui.test.performClick
 import com.componentvault.android.model.StorageLocationRecord
 import java.io.File
 import java.io.FileOutputStream
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,7 +20,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import org.robolectric.shadows.ShadowDialog
 import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
@@ -29,7 +27,7 @@ import kotlin.test.assertTrue
 @Config(
     sdk = [28],
     application = Application::class,
-    qualifiers = "zh-rCN-w360dp-h640dp-xhdpi",
+    qualifiers = "zh-rCN-w360dp-h640dp-normal-port-xhdpi",
 )
 class UiScreenshotTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
@@ -108,9 +106,10 @@ class UiScreenshotTest {
             }
         }
         compose.onNodeWithTag("locations_add").performClick()
+        compose.mainClock.advanceTimeBy(32)
 
         saveScreenshot("storage-locations-create-dialog-light.png") {
-            captureView { requireNotNull(ShadowDialog.getLatestDialog()).window!!.decorView }
+            captureView(::latestDialogDecorView)
         }
     }
 
@@ -122,9 +121,10 @@ class UiScreenshotTest {
             }
         }
         compose.onNodeWithTag("locations_edit_BIN-A01").performClick()
+        compose.mainClock.advanceTimeBy(32)
 
         saveScreenshot("storage-locations-edit-dialog-light.png") {
-            captureView { requireNotNull(ShadowDialog.getLatestDialog()).window!!.decorView }
+            captureView(::latestDialogDecorView)
         }
     }
 
@@ -142,10 +142,9 @@ class UiScreenshotTest {
     }
 
     private fun captureView(viewProvider: () -> View): Bitmap {
-        val completed = CountDownLatch(1)
         var captured: Bitmap? = null
         var failure: Throwable? = null
-        compose.activity.runOnUiThread {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
             try {
                 val view = viewProvider()
                 check(view.width > 0 && view.height > 0) {
@@ -156,13 +155,22 @@ class UiScreenshotTest {
                 }
             } catch (error: Throwable) {
                 failure = error
-            } finally {
-                completed.countDown()
             }
         }
-        check(completed.await(10, TimeUnit.SECONDS)) { "Timed out drawing the screenshot on the main thread." }
         failure?.let { throw it }
         return requireNotNull(captured)
+    }
+
+    private fun latestDialogDecorView(): View {
+        val managerClass = Class.forName("android.view.WindowManagerGlobal")
+        val manager = managerClass.getDeclaredMethod("getInstance").invoke(null)
+        val viewsField = managerClass.getDeclaredField("mViews").apply { isAccessible = true }
+        val activityDecor = compose.activity.window.decorView
+        return (viewsField.get(manager) as? List<*>)
+            .orEmpty()
+            .filterIsInstance<View>()
+            .lastOrNull { it !== activityDecor }
+            ?: error("No dialog window was attached to WindowManagerGlobal.")
     }
 
     private fun saveScreenshot(fileName: String, capture: () -> Bitmap) {
