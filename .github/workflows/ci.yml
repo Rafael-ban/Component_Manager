@@ -145,8 +145,20 @@ jobs:
           --tests 'com.componentvault.android.ui.screen.InventoryNavigationUiTest'
           --tests 'com.componentvault.android.ui.screen.SettingsDraftUiTest'
           --tests 'com.componentvault.android.ui.screen.LocationManagementUiTest'
+          --tests 'com.componentvault.android.ui.screen.UiScreenshotTest'
           --tests 'com.componentvault.android.data.SettingsConnectionTest'
           --tests 'com.componentvault.android.data.bom.*'
+
+      - name: Upload Android UI review and test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-ui-review
+          path: |
+            android-client/app/build/reports/ui-screenshots/
+            android-client/app/build/reports/tests/testDebugUnitTest/
+            android-client/app/build/test-results/testDebugUnitTest/
+          if-no-files-found: warn
 
   windows-build:
     runs-on: windows-latest
