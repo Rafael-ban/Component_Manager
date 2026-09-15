@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { LockKeyhole, Server } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -19,14 +19,18 @@ const DEFAULT_API_BASE_URL =
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, session } = useAuth();
   const [apiBaseUrl, setApiBaseUrl] = useState(session?.apiBaseUrl ?? DEFAULT_API_BASE_URL);
   const [token, setToken] = useState(session?.token ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const routeState = location.state as { from?: unknown; reason?: unknown } | null;
+  const returnTo = safeReturnTo(routeState?.from);
+  const sessionReason = typeof routeState?.reason === "string" ? routeState.reason : null;
 
   if (session) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={returnTo} replace />;
   }
 
   return (
@@ -34,28 +38,27 @@ export function LoginPage() {
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr,0.9fr]">
         <Card className="border-white/70 bg-white/85 backdrop-blur">
           <CardHeader>
-            <CardTitle className="text-3xl">Component Vault Admin</CardTitle>
+            <CardTitle className="text-3xl">Component Vault 管理台</CardTitle>
             <CardDescription className="max-w-xl text-base">
-              Connect the separated web admin to your self-hosted FastAPI sync
-              service. It provides read-only inventory monitoring and MQTT
-              configuration using the same shared bearer token as the sync API.
+              连接自托管 FastAPI 同步服务，使用与同步 API 相同的 Bearer
+              令牌进行只读库存核对与 MQTT 配置。
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 text-sm text-slate-600">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-              <p className="font-medium text-slate-900">What this console shows</p>
+              <p className="font-medium text-slate-900">管理台提供的功能</p>
               <ul className="mt-3 space-y-2">
-                <li>Server-side inventory metrics and low-stock watchlists</li>
-                <li>Recent synchronized components and stock movements</li>
-                <li>Runtime configuration and deployment posture</li>
-                <li>Saved MQTT broker configuration for the next service restart</li>
+                <li>服务端库存统计与低库存提醒</li>
+                <li>完整库存检索与同步记录核对</li>
+                <li>运行配置与部署状态</li>
+                <li>供下次服务重启使用的 MQTT Broker 配置</li>
               </ul>
             </div>
             <div className="rounded-2xl border border-sky-100 bg-sky-50/80 p-4">
-              <p className="font-medium text-sky-950">Recommended local setup</p>
+              <p className="font-medium text-sky-950">推荐的本地配置</p>
               <p className="mt-2">
-                Run the API on <code>http://localhost:8787</code> and the admin
-                web app on <code>http://localhost:5173</code> during development.
+                开发时可在 <code>http://localhost:8787</code> 运行 API，并在
+                <code>http://localhost:5173</code> 运行管理台。
               </p>
             </div>
           </CardContent>
@@ -63,10 +66,9 @@ export function LoginPage() {
 
         <Card className="border-white/70 bg-white/92">
           <CardHeader>
-            <CardTitle>Connect to API</CardTitle>
+            <CardTitle>连接 API</CardTitle>
             <CardDescription>
-              The token is verified with <code>/auth/ping</code> before the
-              dashboard unlocks.
+              进入管理台前，将通过 <code>/auth/ping</code> 验证令牌。
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -78,22 +80,28 @@ export function LoginPage() {
                 setError(null);
                 try {
                   await login(apiBaseUrl, token);
-                  navigate("/dashboard", { replace: true });
+                  navigate(returnTo, { replace: true });
                 } catch (loginError) {
                   setError(
                     loginError instanceof Error
                       ? loginError.message
-                      : "Unable to sign in.",
+                      : "无法登录管理台。",
                   );
                 } finally {
                   setIsSubmitting(false);
                 }
               }}
             >
+              {sessionReason ? (
+                <Alert>
+                  <AlertTitle>需要重新登录</AlertTitle>
+                  <AlertDescription>{sessionReason}</AlertDescription>
+                </Alert>
+              ) : null}
               <label className="block space-y-2">
                 <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
                   <Server className="h-4 w-4" />
-                  API base URL
+                  API 地址
                 </span>
                 <Input
                   autoComplete="url"
@@ -106,7 +114,7 @@ export function LoginPage() {
               <label className="block space-y-2">
                 <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
                   <LockKeyhole className="h-4 w-4" />
-                  Bearer token
+                  Bearer 令牌
                 </span>
                 <Input
                   type="password"
@@ -119,13 +127,13 @@ export function LoginPage() {
 
               {error ? (
                 <Alert variant="destructive">
-                  <AlertTitle>Connection failed</AlertTitle>
+                  <AlertTitle>连接失败</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               ) : null}
 
               <Button className="w-full" disabled={isSubmitting} type="submit">
-                {isSubmitting ? "Validating token..." : "Enter admin console"}
+                {isSubmitting ? "正在验证令牌…" : "进入管理台"}
               </Button>
             </form>
           </CardContent>
@@ -133,4 +141,14 @@ export function LoginPage() {
       </div>
     </div>
   );
+}
+
+function safeReturnTo(value: unknown) {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+    return "/dashboard";
+  }
+  const parsed = new URL(value, "https://component-vault.local");
+  return ["/dashboard", "/inventory", "/sync", "/settings"].includes(parsed.pathname)
+    ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+    : "/dashboard";
 }

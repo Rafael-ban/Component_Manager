@@ -22,7 +22,7 @@ export async function pingAuth(apiBaseUrl: string, token: string) {
   });
 
   if (!response.ok) {
-    const message = response.status === 401 ? "Token validation failed." : "Unable to reach the API.";
+    const message = response.status === 401 ? "令牌验证失败。" : "无法连接 API。";
     throw new ApiError(response.status, message);
   }
 }
@@ -37,8 +37,8 @@ export async function requestJson<T>(session: AdminSession, path: string): Promi
   if (!response.ok) {
     const message =
       response.status === 401
-        ? "Session is no longer valid."
-        : `Request failed with status ${response.status}.`;
+        ? "登录会话已失效。"
+        : `请求失败，状态码 ${response.status}。`;
     throw new ApiError(response.status, message);
   }
 
@@ -58,7 +58,7 @@ export async function postJson<T>(session: AdminSession, path: string, body: unk
   if (!response.ok) {
     throw new ApiError(
       response.status,
-      response.status === 401 ? "Session is no longer valid." : `Request failed with status ${response.status}.`,
+      response.status === 401 ? "登录会话已失效。" : `请求失败，状态码 ${response.status}。`,
     );
   }
   return (await response.json()) as T;

@@ -12,6 +12,8 @@ from ..part_lookup import (
     refresh_recognition_rules,
 )
 from ..schemas import (
+    AdminComponentDetail,
+    AdminComponentListResponse,
     AdminDashboardResponse,
     AdminInventoryResponse,
     AdminKeyValueItem,
@@ -22,7 +24,12 @@ from ..schemas import (
     PartLookupResponse,
     RecognitionRulesMetaResponse,
 )
-from .data import AdminSnapshot, load_admin_snapshot
+from .data import (
+    AdminSnapshot,
+    load_admin_component,
+    load_admin_components,
+    load_admin_snapshot,
+)
 
 router = APIRouter(
     prefix="/admin-api",
@@ -71,6 +78,45 @@ def get_inventory(
             ),
         ],
     )
+
+
+@router.get("/components", response_model=AdminComponentListResponse)
+def get_components(
+    q: str | None = Query(default=None, max_length=200),
+    low_stock: bool | None = Query(default=None),
+    page: int = Query(default=1, ge=1, le=1_000_000),
+    page_size: int = Query(default=25, ge=1, le=100),
+    settings: Settings = Depends(get_settings),
+) -> AdminComponentListResponse:
+    result = load_admin_components(
+        settings,
+        query=q,
+        low_stock=low_stock,
+        page=page,
+        page_size=page_size,
+    )
+    page_count = (result.total + result.page_size - 1) // result.page_size
+    return AdminComponentListResponse(
+        items=result.items,
+        page=result.page,
+        page_size=result.page_size,
+        total=result.total,
+        page_count=page_count,
+    )
+
+
+@router.get("/components/{component_id}", response_model=AdminComponentDetail)
+def get_component_detail(
+    component_id: str,
+    settings: Settings = Depends(get_settings),
+) -> AdminComponentDetail:
+    component = load_admin_component(settings, component_id)
+    if component is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Component not found.",
+        )
+    return AdminComponentDetail.model_validate(component)
 
 
 @router.get("/sync", response_model=AdminSyncResponse)

@@ -1,181 +1,208 @@
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent,
+} from "react";
+import { useSearchParams } from "react-router-dom";
+
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useAdminResource } from "@/hooks/use-admin-resource";
 import { formatDateTime } from "@/lib/format";
-import type { AdminInventoryResponse } from "@/lib/types";
-import { StatCard } from "@/components/layout/stat-card";
+import type {
+  AdminComponentDetail,
+  AdminComponentListResponse,
+} from "@/lib/types";
 
 export function InventoryPage() {
-  const { data, error, loading, reload } = useAdminResource<AdminInventoryResponse>(
-    "/admin-api/inventory",
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get("q") ?? "";
+  const requestedFilter = searchParams.get("stock") ?? "all";
+  const stockFilter = ["all", "low", "healthy"].includes(requestedFilter)
+    ? requestedFilter
+    : "all";
+  const requestedPage = Number.parseInt(searchParams.get("page") ?? "1", 10);
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const [input, setInput] = useState(query);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const detailHeading = useRef<HTMLHeadingElement>(null);
+  const detailTrigger = useRef<HTMLButtonElement | null>(null);
+  const path = useMemo(() => {
+    const params = new URLSearchParams({ page: String(page), page_size: "20" });
+    if (query) params.set("q", query);
+    if (stockFilter !== "all") params.set("low_stock", String(stockFilter === "low"));
+    return `/admin-api/components?${params.toString()}`;
+  }, [page, query, stockFilter]);
+  const { data, error, loading, reload } =
+    useAdminResource<AdminComponentListResponse>(path);
+  const detail = useAdminResource<AdminComponentDetail>(
+    selectedId ? `/admin-api/components/${encodeURIComponent(selectedId)}` : null,
   );
 
+  useEffect(() => setInput(query), [query]);
+  useEffect(() => {
+    if (!detail.data) return;
+    detailHeading.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    detailHeading.current?.focus({ preventScroll: true });
+  }, [detail.data]);
+
+  function selectComponent(event: MouseEvent<HTMLButtonElement>, id: string) {
+    detailTrigger.current = event.currentTarget;
+    setSelectedId(id);
+  }
+
+  function closeDetail() {
+    setSelectedId(null);
+    requestAnimationFrame(() => detailTrigger.current?.focus());
+  }
+
+  function submitSearch(event: FormEvent) {
+    event.preventDefault();
+    setSelectedId(null);
+    setSearchParams(buildPageParams(input.trim(), stockFilter, 1));
+  }
+
   return (
-    <section className="space-y-6">
+    <section className="space-y-6" aria-busy={loading}>
       <header className="space-y-2">
-        <h2 className="text-3xl font-semibold tracking-tight">Inventory</h2>
+        <h2 className="text-3xl font-semibold tracking-tight">库存核对</h2>
         <p className="max-w-3xl text-sm text-slate-600">
-          Low-stock watchlists and recent server-side inventory snapshots.
+          搜索服务器上的全部有效元器件，并查看只读详情。库存写入仍由客户端完成。
         </p>
       </header>
 
+      <Card className="bg-white/90">
+        <CardContent className="pt-6">
+          <form className="grid gap-3 md:grid-cols-[minmax(0,1fr),180px,auto]" onSubmit={submitSearch}>
+            <label className="space-y-2">
+              <span className="text-sm font-medium">料号、名称、分类或库位</span>
+              <Input value={input} onChange={(event) => setInput(event.target.value)} placeholder="例如 C30926、连接器或 A-01" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium">库存状态</span>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={stockFilter}
+                onChange={(event) => {
+                  setSelectedId(null);
+                  setSearchParams(buildPageParams(query, event.target.value, 1));
+                }}
+              >
+                <option value="all">全部</option>
+                <option value="low">低库存</option>
+                <option value="healthy">库存充足</option>
+              </select>
+            </label>
+            <Button className="self-end" type="submit">搜索</Button>
+          </form>
+        </CardContent>
+      </Card>
+
       {error ? (
         <Alert variant="destructive">
-          <AlertTitle>Inventory view unavailable</AlertTitle>
-          <AlertDescription className="flex items-center justify-between gap-4">
+          <AlertTitle>无法读取库存</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
             <span>{error}</span>
-            <Button onClick={() => void reload()} size="sm" variant="outline">
-              Retry
-            </Button>
+            <Button size="sm" variant="outline" onClick={() => void reload()}>重试</Button>
           </AlertDescription>
         </Alert>
       ) : null}
 
-      {data ? (
-        <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              title="Active components"
-              value={data.metrics.component_count}
-              subtitle="Tracked server-side component records"
-            />
-            <StatCard
-              title="Low stock"
-              value={data.metrics.low_stock_count}
-              subtitle="Rows at or below min_stock"
-            />
-            <StatCard
-              title="Healthy stock"
-              value={Math.max(data.metrics.component_count - data.metrics.low_stock_count, 0)}
-              subtitle="Active rows above the threshold"
-            />
-            <StatCard
-              title="Units on hand"
-              value={data.metrics.total_units}
-              subtitle="Current summed quantity on the server"
-            />
-          </div>
+      <Card className="bg-white/90">
+        <CardHeader>
+          <CardTitle className="flex flex-wrap items-center justify-between gap-2">
+            <span>元器件列表</span>
+            <span className="text-sm font-normal text-muted-foreground" aria-live="polite">
+              {loading ? "正在加载…" : `共 ${data?.total ?? 0} 项`}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!loading && data?.items.length === 0 ? (
+            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+              没有符合条件的元器件。请调整搜索词或库存状态。
+            </div>
+          ) : data ? (
+            <div className="overflow-x-auto" tabIndex={0} aria-label="库存结果，可横向滚动">
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>料号</TableHead><TableHead>名称</TableHead>
+                  <TableHead className="hidden md:table-cell">分类</TableHead>
+                  <TableHead>库位</TableHead><TableHead>库存 / 最低</TableHead>
+                  <TableHead className="hidden lg:table-cell">更新时间</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>{data.items.map((item) => (
+                  <TableRow key={item.id} data-state={selectedId === item.id ? "selected" : undefined}>
+                    <TableCell><button className="font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={(event) => selectComponent(event, item.id)}>{item.sku}</button></TableCell>
+                    <TableCell>{item.name}</TableCell>
+                    <TableCell className="hidden md:table-cell">{item.category}</TableCell>
+                    <TableCell>{item.location}</TableCell>
+                    <TableCell className={item.low_stock ? "font-semibold text-amber-700" : ""}>
+                      {item.quantity} / {item.min_stock}
+                      {item.low_stock ? <span className="ml-2 whitespace-nowrap">低库存</span> : null}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">{formatDateTime(item.updated_at)}</TableCell>
+                  </TableRow>
+                ))}</TableBody>
+              </Table>
+            </div>
+          ) : <div className="h-48 animate-pulse rounded-xl bg-slate-100" aria-label="正在加载库存" />}
 
-          <div className="grid gap-6 xl:grid-cols-[1.3fr,0.7fr]">
-            <Card className="bg-white/90">
-              <CardHeader>
-                <CardTitle>Low-stock watchlist</CardTitle>
-                <CardDescription>
-                  Components that currently need replenishment attention.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {data.low_stock_components.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No low-stock components are currently flagged.
-                  </p>
-                ) : (
-                  data.low_stock_components.map((component) => (
-                    <div
-                      key={component.id}
-                      className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:flex-row md:items-center md:justify-between"
-                    >
-                      <div>
-                        <p className="font-medium text-slate-900">
-                          {component.name} ({component.sku})
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {component.location} • Updated {formatDateTime(component.updated_at)}
-                        </p>
-                      </div>
-                      <div className="text-sm font-medium text-amber-700">
-                        {component.quantity} / {component.min_stock} on hand
-                      </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
+          {data && data.page_count > 0 ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">第 {data.page} / {data.page_count} 页</p>
+              <div className="flex gap-2">
+                <Button variant="outline" disabled={loading || data.page <= 1} onClick={() => { setSearchParams(buildPageParams(query, stockFilter, page - 1)); setSelectedId(null); }}>上一页</Button>
+                <Button variant="outline" disabled={loading || data.page >= data.page_count} onClick={() => { setSearchParams(buildPageParams(query, stockFilter, page + 1)); setSelectedId(null); }}>下一页</Button>
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
-            <Card className="bg-white/90">
-              <CardHeader>
-                <CardTitle>Inventory posture</CardTitle>
-                <CardDescription>
-                  Current backend rules applied to synchronized inventory rows.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {data.inventory_rules.map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4"
-                    >
-                      <p className="text-sm font-medium text-slate-600">{item.label}</p>
-                      <p className="mt-1 text-sm text-slate-900">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className="bg-white/90">
-            <CardHeader>
-              <CardTitle>Recently updated inventory</CardTitle>
-              <CardDescription>
-                Stable inventory listing for server-side verification.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {data.recent_components.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No component records are available yet.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Updated</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.recent_components.map((component) => (
-                      <TableRow key={component.id}>
-                        <TableCell className="font-medium">{component.sku}</TableCell>
-                        <TableCell>{component.name}</TableCell>
-                        <TableCell>{component.category}</TableCell>
-                        <TableCell>{component.location}</TableCell>
-                        <TableCell>{component.quantity}</TableCell>
-                        <TableCell>{component.status}</TableCell>
-                        <TableCell>{formatDateTime(component.updated_at)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </>
+      {selectedId ? (
+        <Card className="scroll-mt-20 bg-white/90" aria-busy={detail.loading}>
+          <CardHeader className="flex flex-row items-start justify-between gap-3">
+            <CardTitle ref={detailHeading} tabIndex={-1} className="scroll-mt-20 focus:outline-none">
+              元器件详情
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={closeDetail}>关闭详情</Button>
+          </CardHeader>
+          <CardContent>
+            {detail.error ? <Alert variant="destructive"><AlertTitle>无法读取详情</AlertTitle><AlertDescription>{detail.error}</AlertDescription></Alert> : null}
+            {detail.data ? (
+              <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                <Detail label="料号" value={detail.data.sku} /><Detail label="名称" value={detail.data.name} />
+                <Detail label="分类" value={detail.data.category} /><Detail label="封装" value={detail.data.package_name} />
+                <Detail label="默认库位" value={detail.data.location} /><Detail label="库存 / 最低库存" value={`${detail.data.quantity} / ${detail.data.min_stock}`} />
+                <Detail label="说明" value={detail.data.description || "—"} />
+                <Detail label="库位分配" value={detail.data.allocations.length ? detail.data.allocations.map((item) => `${item.location_id}: ${item.quantity}`).join("；") : "未提供独立库位分配"} />
+                <Detail label="更新时间" value={formatDateTime(detail.data.updated_at)} />
+              </dl>
+            ) : detail.loading ? <p className="text-sm text-muted-foreground" aria-live="polite">正在加载详情…</p> : null}
+          </CardContent>
+        </Card>
       ) : null}
-
-      {loading && !data ? <Card className="h-56 animate-pulse bg-white/70" /> : null}
     </section>
   );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return <div><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 break-words font-medium">{value}</dd></div>;
+}
+
+function buildPageParams(query: string, stock: string, page: number) {
+  const params = new URLSearchParams();
+  if (query) params.set("q", query);
+  if (stock !== "all") params.set("stock", stock);
+  if (page > 1) params.set("page", String(page));
+  return params;
 }

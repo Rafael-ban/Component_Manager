@@ -62,6 +62,32 @@ export interface AdminInventoryResponse {
   inventory_rules: AdminKeyValueItem[];
 }
 
+export interface AdminComponentListItem {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  package_name: string;
+  location: string;
+  quantity: number;
+  min_stock: number;
+  updated_at: string;
+  low_stock: boolean;
+}
+
+export interface AdminComponentListResponse {
+  items: AdminComponentListItem[];
+  page: number;
+  page_size: number;
+  total: number;
+  page_count: number;
+}
+
+export interface AdminComponentDetail extends AdminComponentListItem {
+  description: string | null;
+  allocations: Array<{ location_id: string; quantity: number }>;
+}
+
 export interface AdminSyncResponse {
   metrics: AdminMetricSnapshot;
   recent_movements: AdminMovementRecord[];

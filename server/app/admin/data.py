@@ -19,6 +19,116 @@ class AdminSnapshot:
     sync_notes: list[str]
 
 
+@dataclass(frozen=True)
+class AdminComponentPage:
+    items: list[dict[str, object]]
+    page: int
+    page_size: int
+    total: int
+
+
+def load_admin_components(
+    settings: Settings,
+    *,
+    query: str | None,
+    low_stock: bool | None,
+    page: int,
+    page_size: int,
+) -> AdminComponentPage:
+    database_path = Path(settings.database_path)
+    if not database_path.exists():
+        return AdminComponentPage([], page, page_size, 0)
+
+    clauses = ["deleted = 0"]
+    parameters: list[object] = []
+    if query and query.strip():
+        pattern = f"%{_escape_like(query.strip())}%"
+        clauses.append(
+            "(sku LIKE ? ESCAPE '\\' COLLATE NOCASE "
+            "OR name LIKE ? ESCAPE '\\' COLLATE NOCASE "
+            "OR category LIKE ? ESCAPE '\\' COLLATE NOCASE "
+            "OR location LIKE ? ESCAPE '\\' COLLATE NOCASE)"
+        )
+        parameters.extend([pattern] * 4)
+    if low_stock is not None:
+        clauses.append("quantity <= min_stock" if low_stock else "quantity > min_stock")
+
+    where = " AND ".join(clauses)
+    connection = sqlite3.connect(str(database_path))
+    connection.row_factory = sqlite3.Row
+    try:
+        total = int(
+            connection.execute(
+                f"SELECT COUNT(*) FROM components WHERE {where}",
+                parameters,
+            ).fetchone()[0]
+        )
+        rows = connection.execute(
+            f"""
+            SELECT id, sku, name, category, package_name, location,
+                   quantity, min_stock, updated_at,
+                   quantity <= min_stock AS low_stock
+            FROM components
+            WHERE {where}
+            ORDER BY updated_at DESC, id ASC
+            LIMIT ? OFFSET ?
+            """,
+            [*parameters, page_size, (page - 1) * page_size],
+        ).fetchall()
+    finally:
+        connection.close()
+    return AdminComponentPage(
+        items=[dict(row) for row in rows],
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
+
+
+def load_admin_component(
+    settings: Settings,
+    component_id: str,
+) -> dict[str, object] | None:
+    database_path = Path(settings.database_path)
+    if not database_path.exists():
+        return None
+    connection = sqlite3.connect(str(database_path))
+    connection.row_factory = sqlite3.Row
+    try:
+        row = connection.execute(
+            """
+            SELECT id, sku, name, category, package_name, location, description,
+                   quantity, min_stock, updated_at,
+                   quantity <= min_stock AS low_stock
+            FROM components
+            WHERE id = ? AND deleted = 0
+            """,
+            (component_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        result = dict(row)
+        result["allocations"] = [
+            dict(allocation)
+            for allocation in connection.execute(
+                """
+                SELECT location_id, quantity
+                FROM component_allocations
+                WHERE component_id = ?
+                ORDER BY location_id ASC
+                """,
+                (component_id,),
+            ).fetchall()
+        ]
+        return result
+    finally:
+        connection.close()
+
+
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def load_admin_snapshot(settings: Settings) -> AdminSnapshot:
     database_path = Path(settings.database_path)
     if not database_path.exists():

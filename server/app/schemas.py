@@ -164,6 +164,37 @@ class AdminInventoryResponse(BaseModel):
     inventory_rules: list[AdminKeyValueItem] = Field(default_factory=list)
 
 
+class AdminComponentListItem(BaseModel):
+    id: str
+    sku: str
+    name: str
+    category: str
+    package_name: str
+    location: str
+    quantity: int
+    min_stock: int
+    updated_at: datetime
+    low_stock: bool
+
+
+class AdminComponentListResponse(BaseModel):
+    items: list[AdminComponentListItem] = Field(default_factory=list)
+    page: int
+    page_size: int
+    total: int
+    page_count: int
+
+
+class AdminComponentAllocation(BaseModel):
+    location_id: str
+    quantity: int
+
+
+class AdminComponentDetail(AdminComponentListItem):
+    description: str | None = None
+    allocations: list[AdminComponentAllocation] = Field(default_factory=list)
+
+
 class AdminSyncResponse(BaseModel):
     metrics: AdminMetricSnapshot
     recent_movements: list[AdminMovementRecord] = Field(default_factory=list)
