@@ -156,6 +156,6 @@ class LocationManagementUiTest {
         compose.onNodeWithTag("locations_list")
             .performScrollToNode(hasTestTag("locations_edit_BIN-100"))
         compose.onNodeWithTag("locations_edit_BIN-100").assertIsDisplayed().performClick()
-        compose.onNodeWithTag("locations_code").assertTextEquals("BIN-100")
+        compose.onNodeWithTag("locations_code").assert(hasText("BIN-100") and !hasSetTextAction())
     }
 }

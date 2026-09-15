@@ -31,16 +31,18 @@ class SettingsDraftUiTest {
         var tested: Pair<String, String>? = null
         compose.setContent {
             MaterialTheme {
-                SettingsContent(
-                    contentPadding = PaddingValues(),
-                    syncConfiguration = SyncConfiguration("device", "https://saved.example", "saved-token", false, "", ""),
-                    appPreferences = AppPreferences(), importLearningSummary = ImportLearningSummary(),
-                    isBusy = false, statusMessage = "", layoutMode = CompactPreviewLayout,
-                    selectedSection = SettingsSection.Sync, onSelectSection = {},
-                    onSaveSyncSettings = { _, _, _ -> saves++ }, onSaveAppPreferences = { saves++ },
-                    onTestConnection = { url, token -> tested = url to token }, onSyncNow = {},
-                    onClearImportLearningMappings = {},
-                )
+                ProvideComponentVaultStrings(runtimeComponentVaultStrings()) {
+                    SettingsContent(
+                        contentPadding = PaddingValues(),
+                        syncConfiguration = SyncConfiguration("device", "https://saved.example", "saved-token", false, "", ""),
+                        appPreferences = AppPreferences(), importLearningSummary = ImportLearningSummary(),
+                        isBusy = false, statusMessage = "", layoutMode = CompactPreviewLayout,
+                        selectedSection = SettingsSection.Sync, onSelectSection = {},
+                        onSaveSyncSettings = { _, _, _ -> saves++ }, onSaveAppPreferences = { saves++ },
+                        onTestConnection = { url, token -> tested = url to token }, onSyncNow = {},
+                        onClearImportLearningMappings = {},
+                    )
+                }
             }
         }
         compose.onNodeWithText(context.getString(R.string.field_server_url)).performTextReplacement("https://draft.example")

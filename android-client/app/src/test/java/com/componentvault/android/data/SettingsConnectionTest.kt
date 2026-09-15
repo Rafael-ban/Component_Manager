@@ -19,7 +19,7 @@ import kotlin.test.assertEquals
 @Config(sdk = [28], application = Application::class)
 class SettingsConnectionTest {
     @Test
-    fun successfulAndFailedDraftTestsNeverReplaceSavedConnectionOrCursor() = runBlocking {
+    fun successfulAndFailedDraftTestsNeverReplaceSavedConnectionOrCursor(): Unit = runBlocking {
         val context: Application = RuntimeEnvironment.getApplication()
         val repository = InventoryRepository(context)
         repository.saveSyncConfiguration("https://saved.example", "saved-token", true)
