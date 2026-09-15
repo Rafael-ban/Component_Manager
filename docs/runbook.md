@@ -473,6 +473,10 @@ curl -X POST http://localhost:8787/auth/ping `
 - Cause: the reusable `release.yml` workflow was not callable, a required
   Android signing secret is missing, or artifact packaging failed in one of the
   platform jobs.
+- If all platform builds succeed but publication is skipped, inspect the prepare
+  job's resolved tag and publish flag. Reusable workflows inherit the caller's
+  event context; supplied release inputs must take precedence over branch-push
+  event handling. A tag page without APK/MSIX assets is not a completed release.
 - Fix: verify that `.github/workflows/release.yml` supports `workflow_call`,
   confirm all Android signing secrets are configured, and rerun the workflow
   after inspecting the failing build job.

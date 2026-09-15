@@ -337,6 +337,11 @@ The repository now includes three workflows under `.github/workflows/`:
 - `release.yml`: builds release artifacts on `workflow_dispatch`, `workflow_call`,
   and `v*` tags
 
+Branch pushes explicitly trigger CI; version tags use the release workflow.
+Reusable release calls resolve their supplied inputs before examining the
+caller event, so a changelog-triggered branch push still publishes its requested
+release tag. Build success alone does not prove that release assets were uploaded.
+
 Release artifacts produced by GitHub Actions:
 
 - `component-vault-android-release.apk`

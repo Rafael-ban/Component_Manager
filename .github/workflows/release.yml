@@ -103,30 +103,26 @@ jobs:
           release_notes=""
           publish_github_release="false"
 
-          case "$GITHUB_EVENT_NAME" in
-            workflow_call)
+          if [ -n "$CALL_SOURCE_REF" ] || [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            if [ -n "$CALL_SOURCE_REF" ]; then
               source_ref="$CALL_SOURCE_REF"
               release_tag="$CALL_RELEASE_TAG"
               release_name="$CALL_RELEASE_NAME"
               release_notes="$CALL_RELEASE_NOTES"
               publish_github_release="${CALL_PUBLISH_GITHUB_RELEASE:-true}"
-              ;;
-            workflow_dispatch)
+            else
               source_ref="$DISPATCH_SOURCE_REF"
               release_tag="$DISPATCH_RELEASE_TAG"
               release_name="$DISPATCH_RELEASE_NAME"
               release_notes="$DISPATCH_RELEASE_NOTES"
               publish_github_release="${DISPATCH_PUBLISH_GITHUB_RELEASE:-true}"
-              ;;
-            push)
-              if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-                source_ref="$GITHUB_REF"
-                release_tag="$GITHUB_REF_NAME"
-                release_name="$GITHUB_REF_NAME"
-                publish_github_release="true"
-              fi
-              ;;
-          esac
+            fi
+          elif [ "$GITHUB_EVENT_NAME" = push ] && [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            source_ref="$GITHUB_REF"
+            release_tag="$GITHUB_REF_NAME"
+            release_name="$GITHUB_REF_NAME"
+            publish_github_release="true"
+          fi
 
           if [ -z "$source_ref" ]; then
             source_ref="$GITHUB_SHA"

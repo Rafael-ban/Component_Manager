@@ -142,6 +142,9 @@
   versions as `major.minor.patch.0`.
 - The release path is:
   `docs/CHANGELOG.md -> tools/versioning/sync_version.py -> release commit if needed -> vX.Y.Z tag -> reusable .github/workflows/release.yml build and GitHub Release publish`
+- CI explicitly includes branch pushes alongside pull requests. The reusable
+  release workflow prioritizes supplied inputs because its event context comes
+  from the caller; it must not require an event name of `workflow_call`.
 
 ## Windows Client
 

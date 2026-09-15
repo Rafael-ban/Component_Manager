@@ -21,6 +21,8 @@ bump: patch
   platform download links with explicit no-update, missing-asset and error states.
 - Added authenticated MQTT configuration in web Settings, masked credentials,
   persistent settings applied on server restart, and connection/queue status.
+- Fixed CI branch-push triggers and reusable release input resolution so
+  changelog-driven builds publish their requested GitHub Release assets.
 
 
 ## [0.3.10] - 2026-09-15
