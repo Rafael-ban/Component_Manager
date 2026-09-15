@@ -435,7 +435,7 @@ internal fun BomImportScreen(
                             busy = false
                             confirmKind = null
                             message = result.message
-                            messageIsError = !result.isSuccess
+                            messageIsError = result.outcome == com.componentvault.android.data.bom.ComponentHubImportOutcome.REJECTED
                         }
                     }
                 }) { Text("确认") }
