@@ -59,6 +59,7 @@ import com.componentvault.android.model.InventoryScreenUiState
 import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.model.StockMovementRecord
+import com.componentvault.android.model.StockUsageSummary
 import com.componentvault.android.ui.theme.VaultWarning
 import com.componentvault.android.ui.theme.VaultWarningContainer
 import kotlinx.coroutines.launch
@@ -200,6 +201,7 @@ internal fun InventoryContent(
 internal fun InventoryDetailRoute(
     component: ComponentRecord?,
     recentMovements: List<StockMovementRecord>,
+    issuedQuantity: Long,
     onDismiss: () -> Unit,
     onEditComponent: (String) -> Unit,
     onGenerateLabel: (ComponentRecord) -> Unit,
@@ -240,6 +242,7 @@ internal fun InventoryDetailRoute(
             detail = InventoryDetailUiState(
                 component = component,
                 recentMovements = recentMovements,
+                issuedQuantity = issuedQuantity,
             ),
             modifier = Modifier
                 .fillMaxSize()
@@ -532,6 +535,12 @@ internal fun InventoryDetailPane(
                     component.packageName,
                 ),
             ) {
+                ProductThumbnail(
+                    sku = component.sku,
+                    imageUrl = component.productImageUrl,
+                    imageSize = 180.dp,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                )
                 StatusBanner(
                     message = if (component.isLowStock) {
                         strings.inventory.selectedComponentLowStockStatus
@@ -599,9 +608,24 @@ internal fun InventoryDetailPane(
         }
         item {
             SectionPane(title = strings.inventory.detailStockTitle) {
+                val usage = StockUsageSummary(component.quantity, detail.issuedQuantity)
                 ValueBlock(
-                    label = strings.inventory.metricQuantity,
+                    label = androidx.compose.ui.res.stringResource(
+                        com.componentvault.android.R.string.inventory_usage_remaining,
+                    ),
                     value = component.quantity.toString(),
+                )
+                ValueBlock(
+                    label = androidx.compose.ui.res.stringResource(
+                        com.componentvault.android.R.string.inventory_usage_issued,
+                    ),
+                    value = detail.issuedQuantity.toString(),
+                )
+                ValueBlock(
+                    label = androidx.compose.ui.res.stringResource(
+                        com.componentvault.android.R.string.inventory_usage_total,
+                    ),
+                    value = usage.total.toString(),
                 )
                 ValueBlock(
                     label = strings.inventory.metricMinStock,
@@ -610,6 +634,13 @@ internal fun InventoryDetailPane(
                 ValueBlock(
                     label = strings.common.labelUpdated,
                     value = component.updatedAt,
+                )
+                Text(
+                    text = androidx.compose.ui.res.stringResource(
+                        com.componentvault.android.R.string.inventory_usage_explanation,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

@@ -233,6 +233,9 @@ internal object InventoryPreviewData {
             minStock = component.minStock,
             isLowStock = component.isLowStock,
             updatedAt = component.updatedAt,
+            issuedQuantity = previewMovements
+                .filter { it.componentId == component.id && it.movementType.trim().equals("outbound", true) && !it.deleted }
+                .sumOf { kotlin.math.abs(it.quantity.toLong()) },
         )
     }
 
@@ -296,6 +299,11 @@ internal object InventoryPreviewData {
                 } else {
                     previewMovements.filter { it.componentId == selectedComponent.id }.take(5)
                 },
+                issuedQuantity = selectedComponent?.let { component ->
+                    previewMovements
+                        .filter { it.componentId == component.id && it.movementType.trim().equals("outbound", true) && !it.deleted }
+                        .sumOf { kotlin.math.abs(it.quantity.toLong()) }
+                } ?: 0,
             ),
         )
     }

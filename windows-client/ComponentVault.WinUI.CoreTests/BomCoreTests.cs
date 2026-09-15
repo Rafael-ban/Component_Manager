@@ -227,6 +227,27 @@ public sealed class BomCoreTests : IDisposable
     }
 
     [Fact]
+    public void OutboundStatistics_AreNotLimitedByRecentMovementList()
+    {
+        var store = CreateStore();
+        var component = store.SaveComponent(Draft("A", 250));
+        for (var index = 0; index < 205; index++)
+        {
+            Assert.True(store.RecordMovement(new MovementEntryDraft
+            {
+                ComponentId = component.Id,
+                MovementType = "outbound",
+                Quantity = 1,
+                Reason = "test",
+            }).IsSuccess);
+        }
+
+        Assert.Equal(200, store.GetMovements().Count);
+        Assert.Equal(205, store.GetCumulativeOutboundQuantities()[component.Id]);
+        Assert.Equal(45, Assert.Single(store.GetComponents()).Quantity);
+    }
+
+    [Fact]
     public void ComponentHubPreview_PreservesStructuredMetadataWithoutInventingPackage()
     {
         Directory.CreateDirectory(_testRoot);

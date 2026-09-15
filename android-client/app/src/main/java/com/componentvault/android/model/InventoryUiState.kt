@@ -61,11 +61,13 @@ data class InventoryListItemUiState(
     val isLowStock: Boolean,
     val updatedAt: String,
     val productImageUrl: String? = null,
+    val issuedQuantity: Long = 0,
 )
 
 data class InventoryDetailUiState(
     val component: ComponentRecord? = null,
     val recentMovements: List<StockMovementRecord> = emptyList(),
+    val issuedQuantity: Long = 0,
 )
 
 data class MovementsUiState(

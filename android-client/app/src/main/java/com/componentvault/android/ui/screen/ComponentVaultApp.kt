@@ -329,6 +329,7 @@ fun ComponentVaultApp(
                 InventoryDetailRoute(
                     component = compactDetailComponent,
                     recentMovements = compactDetailMovements,
+                    issuedQuantity = uiState.inventory.detail.issuedQuantity,
                     onDismiss = { compactDetailComponentId = null },
                     onEditComponent = { componentId -> openComponentEditor(componentId) },
                     onGenerateLabel = { component ->

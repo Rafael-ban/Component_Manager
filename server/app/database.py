@@ -57,6 +57,37 @@ SCHEMA_STATEMENTS = (
         current_revision INTEGER NOT NULL CHECK (current_revision >= 0)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS mqtt_outbox (
+        event_id TEXT PRIMARY KEY,
+        component_id TEXT NOT NULL,
+        sync_revision INTEGER NOT NULL UNIQUE,
+        topic TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS mqtt_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        snapshot_seeded INTEGER NOT NULL DEFAULT 0,
+        snapshot_key TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS mqtt_configuration (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        enabled INTEGER NOT NULL,
+        host TEXT NOT NULL,
+        port INTEGER NOT NULL,
+        tls INTEGER NOT NULL,
+        username TEXT NOT NULL,
+        password TEXT NOT NULL,
+        topic_prefix TEXT NOT NULL,
+        client_id TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
 )
 
 
@@ -78,6 +109,21 @@ def init_db(settings: Settings) -> None:
         for statement in SCHEMA_STATEMENTS:
             connection.execute(statement)
         _migrate_sync_revisions(connection)
+        connection.execute(
+            "INSERT OR IGNORE INTO mqtt_state (id, snapshot_seeded) VALUES (1, 0)"
+        )
+        mqtt_state_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(mqtt_state)").fetchall()
+        }
+        if "snapshot_key" not in mqtt_state_columns:
+            connection.execute(
+                "ALTER TABLE mqtt_state ADD COLUMN snapshot_key TEXT NOT NULL DEFAULT ''"
+            )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mqtt_outbox_revision "
+            "ON mqtt_outbox(sync_revision)"
+        )
         for table in ("components", "stock_movements"):
             connection.execute(
                 f"CREATE INDEX IF NOT EXISTS idx_{table}_sync_revision "

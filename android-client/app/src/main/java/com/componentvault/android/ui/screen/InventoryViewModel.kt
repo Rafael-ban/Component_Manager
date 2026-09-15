@@ -50,6 +50,7 @@ class InventoryViewModel(
     private val repository = InventoryRepository(application)
     private var allComponentsCache: List<ComponentRecord> = emptyList()
     private var allMovementsCache: List<StockMovementRecord> = emptyList()
+    private var issuedQuantitiesCache: Map<String, Long> = emptyMap()
     private val defaultSyncMessage = application.getString(R.string.sync_no_sync_yet)
     private val defaultLastSyncedAt = application.getString(R.string.sync_never)
 
@@ -130,6 +131,7 @@ class InventoryViewModel(
                 detail = InventoryDetailUiState(
                     component = selectedComponent,
                     recentMovements = recentMovements,
+                    issuedQuantity = selectedId?.let { issuedQuantitiesCache[it] } ?: 0,
                 ),
             ),
         )
@@ -548,6 +550,7 @@ class InventoryViewModel(
         val importLearningSummary = repository.loadImportLearningSummary()
         allComponentsCache = repository.loadComponents()
         allMovementsCache = repository.loadMovements()
+        issuedQuantitiesCache = repository.loadIssuedQuantities()
         val dashboardSnapshot = repository.loadDashboardSnapshot()
         uiState = uiState.copy(
             overview = buildOverviewUiState(dashboardSnapshot),
@@ -575,6 +578,7 @@ class InventoryViewModel(
     ) {
         allComponentsCache = repository.loadComponents()
         allMovementsCache = repository.loadMovements()
+        issuedQuantitiesCache = repository.loadIssuedQuantities()
         val appPreferences = repository.loadAppPreferences()
         val syncConfiguration = repository.loadSyncConfiguration()
         val importLearningSummary = repository.loadImportLearningSummary()
@@ -687,6 +691,7 @@ class InventoryViewModel(
                 } else {
                     allMovementsCache.filter { it.componentId == selectedComponent.id }.take(5)
                 },
+                issuedQuantity = selectedComponent?.let { issuedQuantitiesCache[it.id] } ?: 0,
             ),
         )
     }
@@ -736,6 +741,7 @@ class InventoryViewModel(
             isLowStock = component.isLowStock,
             updatedAt = component.updatedAt,
             productImageUrl = component.productImageUrl,
+            issuedQuantity = issuedQuantitiesCache[component.id] ?: 0,
         )
     }
 

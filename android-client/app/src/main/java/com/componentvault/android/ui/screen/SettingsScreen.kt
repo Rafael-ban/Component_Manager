@@ -30,21 +30,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.AppLocaleManager
 import com.componentvault.android.BuildConfig
+import com.componentvault.android.R
+import com.componentvault.android.data.GitHubReleaseUpdateChecker
+import com.componentvault.android.data.ReleaseCheckResult
 import com.componentvault.android.model.AppLanguage
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ImportLearningSummary
 import com.componentvault.android.model.OcrEngineMode
 import com.componentvault.android.model.SyncConfiguration
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -550,14 +557,32 @@ private fun SettingsSummaryPane(
 @Composable
 private fun SettingsAboutPane() {
     val strings = vaultStrings()
+    val uriHandler = LocalUriHandler.current
+    val coroutineScope = rememberCoroutineScope()
+    val updateChecker = remember { GitHubReleaseUpdateChecker() }
+    var isChecking by remember { mutableStateOf(false) }
+    var updateResult by remember { mutableStateOf<ReleaseCheckResult?>(null) }
+    var browserError by remember { mutableStateOf(false) }
+
+    fun openTrustedUrl(url: String) {
+        browserError = runCatching { uriHandler.openUri(url) }.isFailure
+    }
 
     SectionPane(
         title = strings.settings.aboutTitle,
         supporting = strings.settings.aboutSubtitle,
     ) {
         ValueBlock(
+            label = stringResource(R.string.settings_about_app_name),
+            value = stringResource(R.string.app_name),
+        )
+        ValueBlock(
             label = strings.settings.appVersion,
-            value = BuildConfig.VERSION_NAME,
+            value = stringResource(
+                R.string.settings_about_version_format,
+                BuildConfig.VERSION_NAME,
+                BuildConfig.VERSION_CODE,
+            ),
         )
         ValueBlock(
             label = strings.settings.localStorage,
@@ -568,8 +593,161 @@ private fun SettingsAboutPane() {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        ValueBlock(
+            label = stringResource(R.string.settings_about_project_address),
+            value = PROJECT_URL,
+        )
+        OutlinedButton(
+            onClick = { openTrustedUrl(PROJECT_URL) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.settings_about_open_project))
+        }
+        ValueBlock(
+            label = stringResource(R.string.settings_about_open_source_label),
+            value = stringResource(R.string.settings_about_open_source_value),
+        )
+        OutlinedButton(
+            onClick = { openTrustedUrl(OPEN_SOURCE_URL) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.settings_about_open_source))
+        }
+        Button(
+            onClick = {
+                if (!isChecking) {
+                    coroutineScope.launch {
+                        isChecking = true
+                        try {
+                            updateResult = updateChecker.check(BuildConfig.VERSION_NAME)
+                        } finally {
+                            isChecking = false
+                        }
+                    }
+                }
+            },
+            enabled = !isChecking,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                if (isChecking) {
+                    stringResource(R.string.settings_update_checking)
+                } else {
+                    stringResource(R.string.settings_update_check_action)
+                },
+            )
+        }
+        SettingsUpdateResult(
+            result = updateResult,
+            onOpenRelease = ::openTrustedUrl,
+        )
+        OutlinedButton(
+            onClick = { openTrustedUrl(RELEASES_URL) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.settings_update_open_all_releases))
+        }
+        if (browserError) {
+            Text(
+                text = stringResource(R.string.settings_browser_open_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        Text(
+            text = stringResource(R.string.settings_update_install_steps),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
+
+@Composable
+private fun SettingsUpdateResult(
+    result: ReleaseCheckResult?,
+    onOpenRelease: (String) -> Unit,
+) {
+    when (result) {
+        null -> Unit
+        is ReleaseCheckResult.UpdateAvailable -> {
+            Text(
+                text = stringResource(
+                    R.string.settings_update_available,
+                    result.release.tagName,
+                    releasePublishedDate(result.release),
+                ),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            ReleaseMetadata(result.release, onOpenRelease)
+            val apkUrl = result.release.apkUrl
+            if (apkUrl != null) {
+                Button(
+                    onClick = { onOpenRelease(apkUrl) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.settings_update_download_apk))
+                }
+            } else {
+                Text(
+                    text = stringResource(R.string.settings_update_missing_apk),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        is ReleaseCheckResult.UpToDate -> {
+            Text(stringResource(R.string.settings_update_up_to_date, result.release.tagName))
+            ReleaseMetadata(result.release, onOpenRelease)
+        }
+        is ReleaseCheckResult.LocalNewer -> {
+            Text(stringResource(R.string.settings_update_local_newer, result.release.tagName))
+            ReleaseMetadata(result.release, onOpenRelease)
+        }
+        ReleaseCheckResult.NoRelease -> Text(stringResource(R.string.settings_update_no_release))
+        ReleaseCheckResult.RateLimited -> Text(stringResource(R.string.settings_update_rate_limited))
+        is ReleaseCheckResult.CannotDetermineVersion -> Text(
+            stringResource(R.string.settings_update_bad_version, result.tagName.ifBlank { "?" }),
+            color = MaterialTheme.colorScheme.error,
+        )
+        ReleaseCheckResult.InvalidReleaseLinks -> Text(stringResource(R.string.settings_update_invalid_links), color = MaterialTheme.colorScheme.error)
+        ReleaseCheckResult.NetworkFailure -> Text(stringResource(R.string.settings_update_network_failure), color = MaterialTheme.colorScheme.error)
+    }
+}
+
+@Composable
+private fun ReleaseMetadata(
+    release: com.componentvault.android.data.GitHubReleaseInfo,
+    onOpenRelease: (String) -> Unit,
+) {
+    val notes = if (release.releaseNotes.isBlank()) {
+        stringResource(R.string.settings_update_notes_empty)
+    } else {
+        release.releaseNotes
+    }
+    Text(
+        text = stringResource(R.string.settings_update_release_date, releasePublishedDate(release)),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(
+        text = notes,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    TextButton(onClick = { onOpenRelease(release.pageUrl) }) {
+        Text(stringResource(R.string.settings_update_open_release))
+    }
+}
+
+@Composable
+private fun releasePublishedDate(release: com.componentvault.android.data.GitHubReleaseInfo): String {
+    val date = release.publishedAt.take(10)
+    return if (date.isBlank()) stringResource(R.string.settings_update_date_unknown) else date
+}
+
+private const val PROJECT_URL = "https://github.com/Rafael-ban/Component_Manager"
+private const val OPEN_SOURCE_URL = "https://github.com/Rafael-ban/Component_Manager/blob/master/LICENSE.txt"
+private const val RELEASES_URL = "https://github.com/Rafael-ban/Component_Manager/releases"
 
 private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetailItems(
     section: SettingsSection,

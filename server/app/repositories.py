@@ -9,11 +9,18 @@ from .schemas import ComponentPayload, PushRequest, StockMovementPayload
 def save_components(
     connection: sqlite3.Connection,
     components: list[ComponentPayload],
+    *,
+    mqtt_topic_prefix: str | None = None,
 ) -> int:
     accepted = 0
     for component in components:
         try:
-            accepted += int(_upsert_component(connection, component))
+            was_accepted = _upsert_component(connection, component)
+            accepted += int(was_accepted)
+            if was_accepted and mqtt_topic_prefix is not None:
+                from .mqtt import enqueue_component_state
+
+                enqueue_component_state(connection, component.id, mqtt_topic_prefix)
         except sqlite3.IntegrityError as error:
             raise ValueError(
                 'An active component with the same SKU already exists.',
@@ -34,13 +41,19 @@ def save_stock_movements(
 def save_sync_payload(
     connection: sqlite3.Connection,
     payload: PushRequest,
+    *,
+    mqtt_topic_prefix: str | None = None,
 ) -> tuple[int, int]:
     """Save an entire push in one transaction so retries see no partial state."""
     try:
         with connection:
             # Serialize the LWW read/check/write as well as revision allocation.
             connection.execute("BEGIN IMMEDIATE")
-            accepted_components = save_components(connection, payload.components)
+            accepted_components = save_components(
+                connection,
+                payload.components,
+                mqtt_topic_prefix=mqtt_topic_prefix,
+            )
             accepted_stock_movements = save_stock_movements(
                 connection,
                 payload.stock_movements,

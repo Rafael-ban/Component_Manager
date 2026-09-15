@@ -70,6 +70,16 @@
     <string name="inventory_detail_notes_title">Description and notes</string>
     <string name="inventory_detail_recent_movements_title">Recent movements</string>
     <string name="inventory_detail_recent_movements_empty">No recent movement history for this component.</string>
+    <string name="inventory_usage_remaining">Remaining</string>
+    <string name="inventory_usage_issued">Issued</string>
+    <string name="inventory_usage_total">Tracked total</string>
+    <string name="inventory_usage_issued_value">Issued %1$d</string>
+    <string name="inventory_usage_total_value">Total %1$d</string>
+    <string name="inventory_usage_summary">Remaining %1$d, issued %2$d, tracked total %3$d</string>
+    <string name="inventory_usage_explanation">Tracked total = remaining + recorded outbound. Outbound does not mean actual consumption; missing history cannot be inferred.</string>
+    <string name="product_image_loading">Loading image</string>
+    <string name="product_image_unavailable">No product image</string>
+    <string name="product_image_description">Product image for %1$s</string>
 
     <string name="component_subtitle_format">%1$s | %2$s | %3$s</string>
     <string name="component_min_stock_format">Min %1$d</string>
@@ -252,6 +262,32 @@
     <string name="settings_local_storage">Local storage</string>
     <string name="settings_local_storage_value">SQLite + SharedPreferences</string>
     <string name="settings_about_body">Inventory data is stored in SQLite first, then synced to the server on demand.</string>
+    <string name="settings_about_app_name">Application</string>
+    <string name="settings_about_version_format">%1$s (code %2$d)</string>
+    <string name="settings_about_project_address">Project address</string>
+    <string name="settings_about_open_project">Open project on GitHub</string>
+    <string name="settings_about_open_source_label">Open-source license</string>
+    <string name="settings_about_open_source_value">GNU General Public License v3.0</string>
+    <string name="settings_about_open_source">Open-source license and notice</string>
+    <string name="settings_update_check_action">Check for updates</string>
+    <string name="settings_update_checking">Checking…</string>
+    <string name="settings_update_available">Version %1$s is available · published %2$s</string>
+    <string name="settings_update_up_to_date">You already have the latest version (%1$s).</string>
+    <string name="settings_update_local_newer">This installation is newer than the latest published release (%1$s).</string>
+    <string name="settings_update_no_release">No public stable release is available yet.</string>
+    <string name="settings_update_rate_limited">GitHub has temporarily rate-limited update checks. Please retry later.</string>
+    <string name="settings_update_bad_version">The release version “%1$s” is not a numeric semantic version, so the update cannot be determined.</string>
+    <string name="settings_update_missing_apk">The release does not contain the expected Android APK.</string>
+    <string name="settings_update_invalid_links">The release returned an untrusted download or project link.</string>
+    <string name="settings_update_network_failure">The update check failed. Check the network and retry.</string>
+    <string name="settings_update_date_unknown">unknown date</string>
+    <string name="settings_update_notes_empty">No release notes were provided.</string>
+    <string name="settings_update_download_apk">Download new APK</string>
+    <string name="settings_update_open_release">View release page</string>
+    <string name="settings_update_open_all_releases">Browse all GitHub Releases</string>
+    <string name="settings_update_release_date">Published: %1$s</string>
+    <string name="settings_browser_open_failed">Could not open the system browser. Please retry or copy the project address above.</string>
+    <string name="settings_update_install_steps">Update flow: check the release, review its notes, download the APK in your browser, then approve installation in Android. A release signed with the same key can replace the installed app while preserving local inventory. Debug and release signatures differ, so a debug build cannot be replaced directly; do not uninstall the app just to update, because uninstalling can remove local inventory.</string>
 
     <string name="importer_title">Import components</string>
     <string name="importer_subtitle">Use JLC text, QR labels, supplier packaging OCR, or manual refinement before saving.</string>

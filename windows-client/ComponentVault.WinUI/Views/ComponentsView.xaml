@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:converters="using:ComponentVault.WinUI.Converters"
+    xmlns:controls="using:ComponentVault.WinUI.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:design="using:ComponentVault.WinUI.Design"
     xmlns:models="using:ComponentVault.WinUI.Models"
@@ -145,7 +146,7 @@
                                 <ColumnDefinition Width="1.2*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="64" />
+                                <ColumnDefinition Width="112" />
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Style="{StaticResource CaptionTextStyle}" Text="元器件" />
@@ -153,7 +154,7 @@
                             <TextBlock Grid.Column="2" Style="{StaticResource CaptionTextStyle}" Text="仓位" />
                             <TextBlock Grid.Column="3" Style="{StaticResource CaptionTextStyle}" Text="库存" />
                             <TextBlock Grid.Column="4" Style="{StaticResource CaptionTextStyle}" Text="状态" />
-                            <TextBlock Grid.Column="5" Style="{StaticResource CaptionTextStyle}" Text="图片" />
+                            <TextBlock Grid.Column="5" Style="{StaticResource CaptionTextStyle}" Text="出库比例" />
                         </Grid>
                     </Border>
 
@@ -180,7 +181,7 @@
                                             <ColumnDefinition Width="1.2*" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="64" />
+                                            <ColumnDefinition Width="112" />
                                         </Grid.ColumnDefinitions>
 
                                         <StackPanel>
@@ -212,11 +213,8 @@
                                             <TextBlock Foreground="{StaticResource VaultAccentBrush}" Text="{Binding Status}" />
                                         </Border>
 
-                                        <Border Grid.Column="5" Width="52" Height="42" Background="{StaticResource VaultPanelBrush}" CornerRadius="6">
-                                            <Grid>
-                                                <FontIcon HorizontalAlignment="Center" VerticalAlignment="Center" Glyph="&#xE91B;" FontSize="14" />
-                                                <Image Source="{Binding ProductImageUrl}" Stretch="Uniform" />
-                                            </Grid>
+                                        <Border Grid.Column="5" Width="108" Height="76" Background="Transparent">
+                                            <controls:InventoryUsageRing CurrentQuantity="{Binding Quantity}" OutboundQuantity="{Binding CumulativeOutboundQuantity}" />
                                         </Border>
                                     </Grid>
                                 </Border>
@@ -292,6 +290,19 @@
                                     <TextBlock Grid.Row="2" Style="{StaticResource CaptionTextStyle}" Text="更新" />
                                     <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedComponentUpdatedAt}" TextWrapping="Wrap" />
                                 </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorderStyle}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="库存统计" />
+                                <Grid ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <StackPanel><TextBlock Style="{StaticResource CaptionTextStyle}" Text="现存"/><TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedComponentQuantityText}"/></StackPanel>
+                                    <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource CaptionTextStyle}" Text="累计已出库"/><TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedComponentOutboundQuantityText}"/></StackPanel>
+                                    <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource CaptionTextStyle}" Text="统计总量"/><TextBlock Style="{StaticResource MetricValueTextStyle}" Text="{Binding SelectedComponentStatisticalTotalText}"/></StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="统计总量 = 现存库存 + 全部有效已记录的出库流水；调整不计入累计已出库，缺失历史不会推算。" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
 

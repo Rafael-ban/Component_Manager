@@ -14,7 +14,7 @@ connects to it over HTTP.
   operations and inventory verification.
 - `client/`: legacy Flutter reference kept for migration and field parity.
 - `server/`: FastAPI sync service with project-local virtual environment and
-  read-only admin APIs for the web console.
+  read-only inventory admin APIs plus authenticated MQTT configuration writes.
 - `.github/workflows/`: GitHub Actions CI and release artifact automation.
 - `docs/`: architecture, integration, and operations notes.
 - `docker-compose.yml`: self-hosted API deployment entrypoint.
@@ -455,6 +455,32 @@ The separated admin web container is available at:
   `false`
 
 ## Sync Contract
+
+The optional server MQTT publisher sends accepted inventory snapshots to your
+own broker for Home Assistant or dashboard subscriptions. It is disabled by
+default. Configure `MQTT_ENABLED`, `MQTT_HOST`, `MQTT_PORT`, `MQTT_TLS`,
+`MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_TOPIC_PREFIX`, and `MQTT_CLIENT_ID` in the
+API environment; Compose forwards the same variables. A transactional SQLite
+`mqtt_outbox` retries retained QoS 1 messages without waiting on the broker in
+the sync request. See [MQTT setup and Home Assistant examples](docs/mqtt.md).
+`GET /admin-api/mqtt/status` uses the existing bearer token.
+The web Settings page shows live publisher status and saves MQTT configuration
+for the next service restart. Saved values override MQTT environment defaults;
+broker credentials are stored in the server SQLite database and never returned
+by the configuration API. Protect database backups accordingly.
+
+Native inventory rows now show an outbound donut. The statistical total is
+current stock plus all valid recorded outbound quantities; adjustments and
+deleted movements are excluded from the outbound total. This is not cumulative
+purchases or proof of consumption. Component details show the counts and product
+image; missing historical movements are never inferred.
+
+Android and Windows Settings / About now show application identity, installed
+version, the GPLv3 license, project and release links, and manual GitHub update
+checks. They compare numeric versions from this repository's latest public
+stable Release, show notes, and offer the matching APK/MSIX/portable asset.
+Downloads open through the system browser; installation remains a user action.
+See [About and application updates](docs/app-updates.md).
 
 - `GET /health`: unauthenticated health probe
 - `POST /auth/ping`: validate the configured token.

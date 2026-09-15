@@ -10,6 +10,14 @@ services:
       APP_HOST: 0.0.0.0
       APP_PORT: "8787"
       ADMIN_WEB_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081
+      MQTT_ENABLED: ${MQTT_ENABLED:-false}
+      MQTT_HOST: ${MQTT_HOST:-}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_TLS: ${MQTT_TLS:-false}
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-component-vault}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-component-vault-server}
     volumes:
       - component_vault_data:/data
 

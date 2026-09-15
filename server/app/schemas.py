@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 class HealthResponse(BaseModel):
@@ -131,6 +131,32 @@ class AdminSettingsResponse(BaseModel):
     runtime_configuration: list[AdminKeyValueItem] = Field(default_factory=list)
     access_posture: list[AdminKeyValueItem] = Field(default_factory=list)
     next_backend_additions: list[str] = Field(default_factory=list)
+
+
+class MqttConfigurationUpdate(BaseModel):
+    enabled: bool = False
+    host: str = Field(default="", max_length=255)
+    port: int = Field(default=1883, ge=1, le=65535)
+    tls: bool = False
+    username: str = Field(default="", max_length=255)
+    password: SecretStr | None = Field(default=None, max_length=1024)
+    clear_password: bool = False
+    topic_prefix: str = Field(default="component-vault", max_length=255)
+    client_id: str = Field(default="component-vault-server", max_length=255)
+
+
+class MqttConfigurationResponse(BaseModel):
+    enabled: bool
+    host: str
+    port: int
+    tls: bool
+    username: str
+    topic_prefix: str
+    client_id: str
+    password_configured: bool
+    source: Literal["environment", "saved"]
+    restart_required: bool
+    message: str
 
 
 class LcscLookupResponse(BaseModel):

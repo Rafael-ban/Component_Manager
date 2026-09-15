@@ -5,13 +5,17 @@ from datetime import datetime, timezone
 import sqlite3
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .admin.api import router as admin_router
 from .auth import require_token
 from .config import get_settings
-from .database import get_db, init_db
+from .database import _connect, get_db, init_db
+from .mqtt import MqttPublisher
+from .mqtt_configuration import configuration_response, save_mqtt_configuration
 from .repositories import (
     pull_sync_snapshot,
     save_sync_payload,
@@ -22,18 +26,57 @@ from .schemas import (
     PushRequest,
     PushResponse,
     SyncTokenStatus,
+    MqttConfigurationResponse,
+    MqttConfigurationUpdate,
 )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db(get_settings())
-    yield
+    settings = get_settings()
+    init_db(settings)
+    if not settings.mqtt_enabled:
+        connection = _connect(settings.database_path)
+        try:
+            with connection:
+                connection.execute(
+                    "UPDATE mqtt_state SET snapshot_seeded = 0, snapshot_key = '' WHERE id = 1"
+                )
+        finally:
+            connection.close()
+    publisher = MqttPublisher(settings)
+    app.state.mqtt_publisher = publisher
+    publisher.start()
+    try:
+        yield
+    finally:
+        publisher.stop()
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="Component Vault Sync", lifespan=lifespan)
+
+    @app.exception_handler(RequestValidationError)
+    async def mqtt_validation_error(
+        request: Request,
+        error: RequestValidationError,
+    ) -> JSONResponse:
+        if request.url.path != "/admin-api/mqtt/config":
+            from fastapi.exception_handlers import request_validation_exception_handler
+
+            return await request_validation_exception_handler(request, error)
+        fields = sorted({
+            ".".join(str(part) for part in item.get("loc", ())[1:]) or "request"
+            for item in error.errors()
+        })
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "detail": "MQTT configuration validation failed.",
+                "fields": fields,
+            },
+        )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.admin_web_origins),
@@ -66,18 +109,58 @@ def create_app() -> FastAPI:
     ) -> PushResponse:
         try:
             accepted_components, accepted_stock_movements = save_sync_payload(
-                connection, payload
+                connection,
+                payload,
+                mqtt_topic_prefix=(
+                    settings.mqtt_topic_prefix if settings.mqtt_enabled else None
+                ),
             )
         except ValueError as error:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=str(error),
             ) from error
+        if settings.mqtt_enabled and accepted_components:
+            app.state.mqtt_publisher.notify()
         return PushResponse(
             accepted_components=accepted_components,
             accepted_stock_movements=accepted_stock_movements,
             server_time=_utc_now(),
         )
+
+    @app.get(
+        "/admin-api/mqtt/status",
+        dependencies=[Depends(require_token)],
+    )
+    def mqtt_status() -> dict[str, object]:
+        return app.state.mqtt_publisher.status()
+
+    @app.get(
+        "/admin-api/mqtt/config",
+        response_model=MqttConfigurationResponse,
+        dependencies=[Depends(require_token)],
+    )
+    def get_mqtt_config(
+        connection: sqlite3.Connection = Depends(get_db),
+    ) -> MqttConfigurationResponse:
+        return configuration_response(connection, settings)
+
+    @app.post(
+        "/admin-api/mqtt/config",
+        response_model=MqttConfigurationResponse,
+        dependencies=[Depends(require_token)],
+    )
+    def update_mqtt_config(
+        update: MqttConfigurationUpdate,
+        connection: sqlite3.Connection = Depends(get_db),
+    ) -> MqttConfigurationResponse:
+        try:
+            return save_mqtt_configuration(connection, settings, update)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(error),
+            ) from error
 
     @app.get(
         "/sync/pull",

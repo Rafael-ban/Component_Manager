@@ -10,6 +10,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useAdminResource } from "@/hooks/use-admin-resource";
 import type { AdminSettingsResponse } from "@/lib/types";
+import { MqttSettingsCard } from "@/components/mqtt-settings-card";
 
 export function SettingsPage() {
   const { data, error, loading, reload } = useAdminResource<AdminSettingsResponse>(
@@ -110,6 +111,7 @@ export function SettingsPage() {
       ) : null}
 
       {loading && !data ? <Card className="h-56 animate-pulse bg-white/70" /> : null}
+      <MqttSettingsCard />
     </section>
   );
 }

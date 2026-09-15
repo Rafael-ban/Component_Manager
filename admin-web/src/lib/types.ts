@@ -74,3 +74,25 @@ export interface AdminSettingsResponse {
   access_posture: AdminKeyValueItem[];
   next_backend_additions: string[];
 }
+
+export interface MqttConfiguration {
+  enabled: boolean;
+  host: string;
+  port: number;
+  tls: boolean;
+  username: string;
+  topic_prefix: string;
+  client_id: string;
+  password_configured: boolean;
+  source: "environment" | "saved";
+  restart_required: boolean;
+  message: string;
+}
+
+export interface MqttRuntimeStatus {
+  enabled: boolean;
+  connected: boolean;
+  pending: number;
+  last_publish_at: string | null;
+  error: string | null;
+}

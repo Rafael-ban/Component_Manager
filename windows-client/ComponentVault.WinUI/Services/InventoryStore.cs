@@ -158,6 +158,23 @@ public sealed class InventoryStore
         return ReadMovements(reader);
     }
 
+    public IReadOnlyDictionary<string, long> GetCumulativeOutboundQuantities()
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT component_id, SUM(ABS(CAST(quantity AS INTEGER)))
+            FROM stock_movements
+            WHERE deleted = 0 AND LOWER(TRIM(movement_type)) = 'outbound'
+            GROUP BY component_id
+            """;
+        using var reader = command.ExecuteReader();
+        var totals = new Dictionary<string, long>(StringComparer.Ordinal);
+        while (reader.Read()) totals[reader.GetString(0)] = reader.GetInt64(1);
+        return totals;
+    }
+
     public SyncConfiguration GetSyncConfiguration()
     {
         using var connection = OpenConnection();

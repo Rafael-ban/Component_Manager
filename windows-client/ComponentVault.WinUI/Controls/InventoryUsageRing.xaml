@@ -1,0 +1,18 @@
+<UserControl
+    x:Class="ComponentVault.WinUI.Controls.InventoryUsageRing"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Width="108" Height="76" RowSpacing="2">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="54" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid Width="54" Height="54" HorizontalAlignment="Center">
+            <Ellipse Margin="4" Stroke="{ThemeResource ControlStrokeColorDefaultBrush}" StrokeThickness="5" />
+            <Ellipse x:Name="FullUsedRing" Margin="4" Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="5" Visibility="Collapsed" />
+            <Path x:Name="UsedArc" Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+            <TextBlock x:Name="PercentageText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" FontWeight="SemiBold" />
+        </Grid>
+        <TextBlock x:Name="SummaryText" Grid.Row="1" HorizontalAlignment="Center" FontSize="9" TextTrimming="CharacterEllipsis" />
+    </Grid>
+</UserControl>

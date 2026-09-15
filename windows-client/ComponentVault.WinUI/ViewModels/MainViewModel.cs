@@ -317,6 +317,12 @@ public sealed class MainViewModel : ObservableObject
 
     public string SelectedComponentQuantityText => (SelectedComponent?.Quantity ?? 0).ToString();
 
+    public string SelectedComponentOutboundQuantityText =>
+        (SelectedComponent?.CumulativeOutboundQuantity ?? 0).ToString();
+
+    public string SelectedComponentStatisticalTotalText =>
+        (SelectedComponent?.StatisticalTotal ?? 0).ToString();
+
     public string SelectedComponentMinStockText => (SelectedComponent?.MinStock ?? 0).ToString();
 
     public string SelectedComponentStockDeltaText =>
@@ -475,7 +481,23 @@ public sealed class MainViewModel : ObservableObject
     public void Refresh()
     {
         Dashboard = _store.GetDashboardSnapshot();
-        _allComponents = _store.GetComponents();
+        var components = _store.GetComponents();
+        var outboundTotals = _store.GetCumulativeOutboundQuantities();
+        _allComponents = components.Select(component => new ComponentRecord
+        {
+            Id = component.Id,
+            Sku = component.Sku,
+            Name = component.Name,
+            Category = component.Category,
+            PackageName = component.PackageName,
+            Location = component.Location,
+            Description = component.Description,
+            Quantity = component.Quantity,
+            MinStock = component.MinStock,
+            UpdatedAt = component.UpdatedAt,
+            Deleted = component.Deleted,
+            CumulativeOutboundQuantity = outboundTotals.GetValueOrDefault(component.Id),
+        }).ToArray();
         ReplaceCollection(LowStockComponents, _store.GetLowStockComponents());
         ReplaceCollection(Movements, _store.GetMovements());
         SyncConfiguration = _store.GetSyncConfiguration();
@@ -863,6 +885,8 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedComponentName));
         OnPropertyChanged(nameof(SelectedComponentSubtitle));
         OnPropertyChanged(nameof(SelectedComponentQuantityText));
+        OnPropertyChanged(nameof(SelectedComponentOutboundQuantityText));
+        OnPropertyChanged(nameof(SelectedComponentStatisticalTotalText));
         OnPropertyChanged(nameof(SelectedComponentMinStockText));
         OnPropertyChanged(nameof(SelectedComponentStockDeltaText));
         OnPropertyChanged(nameof(SelectedComponentLocation));

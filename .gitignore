@@ -10,6 +10,7 @@
 .gradle-user-home-*/
 .gradle-codex-verify/
 .tmp-gradle-bom/
+/.tmp/
 .codex-remote-attachments/
 
 client/.dart_tool/

@@ -5,6 +5,24 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.3.11] - 2026-09-15
+
+- Added native inventory donut indicators and detail statistics using current
+  stock plus all valid recorded outbound movements, including history beyond
+  the recent 200-row list. Added a larger Android component-detail product image.
+- Added an optional server-only MQTT inventory-state publisher for Home
+  Assistant and dashboards, with transactional SQLite outbox, retained QoS 1
+  messages, deletion tombstones, retry after PUBACK failure, destination-aware
+  initial snapshots and authenticated publisher status.
+- Added MQTT environment/Compose configuration, Home Assistant setup examples,
+  and regression coverage for outbound totals and MQTT delivery boundaries.
+- Completed native Settings / About with installed versions, GPLv3 and project
+  links, manual GitHub stable-release checks, release notes, and validated
+  platform download links with explicit no-update, missing-asset and error states.
+- Added authenticated MQTT configuration in web Settings, masked credentials,
+  persistent settings applied on server restart, and connection/queue status.
+
+
 ## [0.3.10] - 2026-09-15
 
 - Added Android and Windows project BOM CSV/XLSX preview, exact inventory matching,

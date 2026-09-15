@@ -7,7 +7,7 @@
 - `admin-web/` is a separated React + `shadcn/ui` operations console.
 - `client/` remains as a legacy Flutter reference only.
 - `server/` is a FastAPI service for single-user self-hosted sync and
-  read-only admin APIs consumed by the web console.
+  read-only inventory admin APIs plus authenticated MQTT configuration writes.
 - Android, Windows, and server all use SQLite in the current architecture, and
   each runtime is now implemented against live storage.
 
@@ -203,7 +203,8 @@
 ## Server
 
 - FastAPI exposes a small token-protected sync API.
-- FastAPI also exposes token-protected read-only admin APIs at `/admin-api/*`.
+- FastAPI exposes token-protected inventory snapshots at `/admin-api/*` and
+  MQTT configuration GET/POST at `/admin-api/mqtt/config`.
 - The server now exposes `GET /admin-api/part-lookup` as a token-protected
   hybrid recognition endpoint that applies bundled or refreshed rule packs
   first and then optionally merges official LCSC metadata when credentials are
@@ -382,3 +383,45 @@ sensor orientation; the unavailable Paddle choice is no longer exposed.
 Movement quantities remain stored as magnitudes for inbound/outbound and signed
 deltas for adjustments. UI `quantityChange` / `QuantityChange` derives the sign
 from the movement type, fixing outbound history without rewriting stored data.
+
+## Inventory statistics and MQTT publication
+
+Each native client runs a full-history SQLite aggregation of non-deleted
+`outbound` magnitudes, grouped by component ID once per refresh. The recent
+movement list's 200-row limit does not affect these totals. Donuts and detail
+statistics use current quantity plus recorded outbound quantity as the
+denominator, with zero-safe ratios and 64-bit totals. Adjustments change current
+quantity but are not counted as outbound; missing pre-migration history is not
+reconstructed. Android detail reuses the trusted product image cache at a larger
+display size; Windows detail retains its existing product image.
+
+The FastAPI lifespan owns an optional single MQTT publisher. Accepted component
+upserts and their exact state snapshots enter `mqtt_outbox` within the same
+`BEGIN IMMEDIATE` transaction. Stale LWW writes and rolled-back pushes produce
+no messages. A background worker reads the oldest revision, publishes retained
+QoS 1, then deletes only after PUBACK. Retries preserve event IDs; consumers
+must tolerate duplicates. Broker I/O happens outside request handling and uses
+separate SQLite connections. Client writes and sync payloads are unchanged.
+
+`mqtt_state` tracks snapshot initialization and the destination identity
+(host/port/TLS/prefix, excluding credentials). First enable, re-enable after a
+disabled startup, or changing destination seeds current components including
+tombstones. A destination change replaces pending old-destination events with
+current snapshots. Existing broker retained messages are not removed.
+The publisher supports one API process, not multiple Uvicorn workers.
+The authenticated `/admin-api/mqtt/status` reports connection and queue state;
+it does not expose credentials. The existing admin-web Settings page adds
+publisher status and a connection form, without adding a route. GET/POST
+`/admin-api/mqtt/config` read/save a single `mqtt_configuration` SQLite row.
+Saved MQTT settings override environment defaults at the next process startup;
+saving does not hot-swap the publisher. Configuration responses omit passwords
+and report whether a restart is required. Inventory admin APIs remain read-only.
+See [MQTT](mqtt.md).
+
+Native Settings / About use standalone GitHub Release parsers and anonymous
+HTTP clients, independent of inventory sync and its bearer token. Numeric
+version comparisons, stable-release filtering, bounded responses, timeouts and
+repository-specific asset URL validation determine the update UI. Installers
+open only after a user click through the system browser. No background updater,
+self-replacement, auto-install or new database tables are needed for this flow.
+See [application updates](app-updates.md) for platform-specific installation.

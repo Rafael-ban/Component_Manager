@@ -729,6 +729,29 @@ class InventoryRepository(
         }
     }
 
+    suspend fun loadIssuedQuantities(): Map<String, Long> = withContext(Dispatchers.IO) {
+        databaseHelper.readableDatabase.use { db ->
+            db.rawQuery(
+                """
+                SELECT component_id, COALESCE(SUM(ABS(CAST(quantity AS INTEGER))), 0) AS issued_quantity
+                FROM stock_movements
+                WHERE deleted = 0
+                  AND LOWER(TRIM(movement_type)) = 'outbound'
+                GROUP BY component_id
+                """.trimIndent(),
+                null,
+            ).use { cursor ->
+                buildMap {
+                    val componentIdIndex = cursor.getColumnIndexOrThrow("component_id")
+                    val issuedQuantityIndex = cursor.getColumnIndexOrThrow("issued_quantity")
+                    while (cursor.moveToNext()) {
+                        put(cursor.getString(componentIdIndex), cursor.getLong(issuedQuantityIndex))
+                    }
+                }
+            }
+        }
+    }
+
     suspend fun recordMovementsBatch(drafts: List<MovementEntryDraft>): OperationResult = withContext(Dispatchers.IO) {
         try {
             if (drafts.isEmpty()) {

@@ -554,3 +554,40 @@ markup, or cannot be reached, open the product link or complete the form manuall
 The application does not attempt to bypass verification. Turning off the import
 preference stops automatic direct queries. Existing backend lookup settings are
 separate and remain optional.
+
+### MQTT inventory subscriptions
+
+MQTT is disabled by default. Configure the API environment variables
+`MQTT_ENABLED`, `MQTT_HOST`, `MQTT_PORT`, `MQTT_TLS`, `MQTT_USERNAME`,
+`MQTT_PASSWORD`, `MQTT_TOPIC_PREFIX`, and `MQTT_CLIENT_ID`; restart the API after
+changing them. Root Compose forwards these values from its environment/root
+`.env`; `server/.env` requires explicit `uvicorn --env-file .env` when running
+locally. The development script does not implicitly load that file.
+
+Alternatively, use the web Settings MQTT form and save. Saved SQLite settings
+override MQTT environment defaults on the next restart. The UI separates
+current connection state from saved configuration and flags restart-required
+changes. Empty passwords preserve the current value; explicit clear removes it.
+Configuration APIs never return passwords, but the server database backup
+contains broker credentials. Existing saved configurations must be changed
+through the form rather than by changing environment defaults alone.
+
+Run one API process/publisher per database. Back up SQLite before upgrading;
+startup adds `mqtt_outbox`, `mqtt_state`, and `mqtt_configuration` without
+changing stock values.
+Broker failures retain the queue on disk, so monitor `pending` and free space.
+`GET /admin-api/mqtt/status` is authenticated with the normal API token.
+First enable and destination changes seed all current component states;
+ordinary restarts resume pending publication. Disable MQTT to stop publication
+while retaining normal client synchronization. See [MQTT operations and Home
+Assistant configuration](mqtt.md) for recovery after retained data loss and
+topic/deletion behavior.
+
+### Native About and release checks
+
+Settings / About checks the latest stable Release in `Rafael-ban/Component_Manager`
+only after a user click. The APK, MSIX and portable filenames must match the
+release workflow. A missing package, HTTP 404, rate limit or network failure is
+shown in the UI; users can still open the fixed release page. Applications do
+not silently install or import signing certificates. See [application updates](app-updates.md)
+for installation and Debug/Release signing boundaries.

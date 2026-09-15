@@ -37,8 +37,8 @@ export function LoginPage() {
             <CardTitle className="text-3xl">Component Vault Admin</CardTitle>
             <CardDescription className="max-w-xl text-base">
               Connect the separated web admin to your self-hosted FastAPI sync
-              service. This console is read-only and uses the same shared bearer
-              token as the sync API.
+              service. It provides read-only inventory monitoring and MQTT
+              configuration using the same shared bearer token as the sync API.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 text-sm text-slate-600">
@@ -48,6 +48,7 @@ export function LoginPage() {
                 <li>Server-side inventory metrics and low-stock watchlists</li>
                 <li>Recent synchronized components and stock movements</li>
                 <li>Runtime configuration and deployment posture</li>
+                <li>Saved MQTT broker configuration for the next service restart</li>
               </ul>
             </div>
             <div className="rounded-2xl border border-sky-100 bg-sky-50/80 p-4">

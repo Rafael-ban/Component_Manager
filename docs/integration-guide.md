@@ -333,3 +333,26 @@ BOM depletion and component-hub migration produce ordinary component and
 stock-movement sync entities. Their batch/file idempotency markers are local
 only, not new sync objects. See [BOM and migration](bom-and-migration.md) for
 formats and the limits of cross-device concurrent stock operations.
+
+## MQTT inventory state
+
+An optional server publisher emits accepted component snapshots to
+`<MQTT_TOPIC_PREFIX>/components/<percent-encoded id>/state` with retained QoS 1.
+The JSON carries `event_id`, `id`, `sku`, `name`, `category`, `package_name`,
+`location`, `quantity`, `min_stock`, `updated_at`, `deleted`, and `sync_revision`.
+No description, raw label data, or stock-delta command is included. Use quantity
+as state; repeated delivery must not trigger another decrement. Deletions use
+`deleted: true` retained tombstones. Offline client changes appear only after
+successful sync. Existing sync request and response schemas remain unchanged.
+
+`GET /admin-api/mqtt/status` requires the existing bearer token and returns
+`enabled`, `connected`, `pending`, `last_publish_at`, and `error`. Configuration,
+delivery semantics, and a Home Assistant sensor example are in [MQTT](mqtt.md).
+
+`GET /admin-api/mqtt/config` returns the editable settings plus
+`password_configured`, `source`, `restart_required`, and `message`, never a
+password. `POST` to the same authenticated endpoint saves `enabled`, `host`,
+`port`, `tls`, `username`, `topic_prefix`, `client_id`, optional `password`, and
+`clear_password`. Empty/omitted password preserves the existing password;
+`clear_password: true` clears it explicitly. Saved settings take effect on API
+restart, override MQTT environment defaults, and do not modify inventory.

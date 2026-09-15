@@ -20,12 +20,15 @@
   <ItemGroup>
     <Compile Include="..\ComponentVault.WinUI\Localization\CategoryDisplay.cs" Link="Localization\CategoryDisplay.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\InventoryStore.cs" Link="Services\InventoryStore.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Services\ComponentUsageStatisticsCalculator.cs" Link="Services\ComponentUsageStatisticsCalculator.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\SyncApiModels.cs" Link="Services\SyncApiModels.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\Bom\*.cs" Link="Services\Bom\%(Filename)%(Extension)" />
     <Compile Include="..\ComponentVault.WinUI\Services\Migration\*.cs" Link="Services\Migration\%(Filename)%(Extension)" />
     <Compile Include="..\ComponentVault.WinUI\Services\Catalog\*.cs" Link="Services\Catalog\%(Filename)%(Extension)" />
+    <Compile Include="..\ComponentVault.WinUI\Services\Updates\*.cs" Link="Services\Updates\%(Filename)%(Extension)" />
     <Compile Include="..\ComponentVault.WinUI\Models\ComponentDraft.cs" Link="Models\ComponentDraft.cs" />
     <Compile Include="..\ComponentVault.WinUI\Models\ComponentRecord.cs" Link="Models\ComponentRecord.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Models\ComponentUsageStatistics.cs" Link="Models\ComponentUsageStatistics.cs" />
     <Compile Include="..\ComponentVault.WinUI\Models\DashboardSnapshot.cs" Link="Models\DashboardSnapshot.cs" />
     <Compile Include="..\ComponentVault.WinUI\Models\MovementEntryDraft.cs" Link="Models\MovementEntryDraft.cs" />
     <Compile Include="..\ComponentVault.WinUI\Models\OperationResult.cs" Link="Models\OperationResult.cs" />

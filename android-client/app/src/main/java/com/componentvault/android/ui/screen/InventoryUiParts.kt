@@ -32,6 +32,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.PublicProductImageStore
 import com.componentvault.android.model.InventoryListItemUiState
@@ -283,6 +284,13 @@ internal fun InventoryListRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                StockUsageDonut(
+                    summary = com.componentvault.android.model.StockUsageSummary(
+                        remaining = item.quantity,
+                        issued = item.issuedQuantity,
+                    ),
+                    modifier = Modifier.align(Alignment.End),
+                )
             }
         }
     }
@@ -293,6 +301,7 @@ internal fun ProductThumbnail(
     sku: String,
     imageUrl: String?,
     modifier: Modifier = Modifier,
+    imageSize: Dp = 60.dp,
 ) {
     val context = LocalContext.current
     val imageStore = remember(context) { PublicProductImageStore.get(context) }
@@ -305,7 +314,7 @@ internal fun ProductThumbnail(
     }
 
     Surface(
-        modifier = modifier.size(60.dp),
+        modifier = modifier.size(imageSize),
         shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
@@ -313,16 +322,24 @@ internal fun ProductThumbnail(
         if (loadedBitmap != null) {
             Image(
                 bitmap = loadedBitmap.asImageBitmap(),
-                contentDescription = null,
+                contentDescription = androidx.compose.ui.res.stringResource(
+                    com.componentvault.android.R.string.product_image_description,
+                    sku,
+                ),
                 modifier = Modifier.padding(4.dp),
                 contentScale = ContentScale.Fit,
             )
         } else {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = if (loading) "…" else "—",
+                    text = if (loading) {
+                        androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.product_image_loading)
+                    } else {
+                        androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.product_image_unavailable)
+                    },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(6.dp),
                 )
             }
         }

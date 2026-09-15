@@ -27,7 +27,7 @@ export function AppShell() {
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Component Vault</h1>
               <p className="text-sm text-muted-foreground">
-                Read-only operations console for the self-hosted sync service.
+                Inventory monitoring and MQTT configuration for the self-hosted sync service.
               </p>
             </div>
           </div>
