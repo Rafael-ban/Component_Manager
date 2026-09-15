@@ -9,7 +9,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.componentvault.android.ui.theme.ComponentVaultTheme
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import com.componentvault.android.model.StorageLocationRecord
 import java.io.File
 import java.io.FileOutputStream
@@ -27,13 +28,14 @@ import kotlin.test.assertTrue
 @Config(
     sdk = [28],
     application = Application::class,
-    qualifiers = "zh-rCN-w360dp-h640dp-normal-port-xhdpi",
+    qualifiers = "zh-rCN",
 )
 class UiScreenshotTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val context: Application get() = RuntimeEnvironment.getApplication()
 
     @Test
+    @Config(qualifiers = "zh-rCN-w360dp-h640dp-normal-port-xhdpi")
     fun captureImportWorkflowChooserLight() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = false) {
@@ -47,6 +49,7 @@ class UiScreenshotTest {
     }
 
     @Test
+    @Config(qualifiers = "zh-rCN-w360dp-h640dp-normal-port-xhdpi")
     fun captureBomTaskChooserLight() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = false) {
@@ -60,6 +63,7 @@ class UiScreenshotTest {
     }
 
     @Test
+    @Config(qualifiers = "zh-rCN-w360dp-h640dp-normal-port-xhdpi")
     fun captureBomFileStageLight() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = false) {
@@ -73,6 +77,7 @@ class UiScreenshotTest {
     }
 
     @Test
+    @Config(qualifiers = "zh-rCN-w360dp-h640dp-normal-port-xhdpi")
     fun captureMigrationFileStageLight() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = false) {
@@ -86,6 +91,7 @@ class UiScreenshotTest {
     }
 
     @Test
+    @Config(qualifiers = "zh-rCN-w360dp-h640dp-normal-port-xhdpi")
     fun captureStorageLocationListLight() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = false) {
@@ -105,7 +111,7 @@ class UiScreenshotTest {
                 StorageLocationsScreen(sampleLocations, {}, { _, _, _ -> }, { _, _ -> })
             }
         }
-        compose.onNodeWithTag("locations_add").performClick()
+        compose.onNodeWithTag("locations_add").performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.mainClock.advanceTimeBy(32)
 
         saveScreenshot("storage-locations-create-dialog-light.png") {
@@ -120,7 +126,7 @@ class UiScreenshotTest {
                 StorageLocationsScreen(sampleLocations, {}, { _, _, _ -> }, { _, _ -> })
             }
         }
-        compose.onNodeWithTag("locations_edit_BIN-A01").performClick()
+        compose.onNodeWithTag("locations_edit_BIN-A01").performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.mainClock.advanceTimeBy(32)
 
         saveScreenshot("storage-locations-edit-dialog-light.png") {
@@ -129,6 +135,7 @@ class UiScreenshotTest {
     }
 
     @Test
+    @Config(qualifiers = "zh-rCN-w360dp-h640dp-normal-port-xhdpi")
     fun captureStorageLocationListDark() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = true) {

@@ -33,7 +33,6 @@ import kotlin.test.assertFalse
 @Config(
     sdk = [28],
     application = Application::class,
-    qualifiers = "w360dp-h640dp-normal-port-xhdpi",
 )
 class LocationManagementUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
