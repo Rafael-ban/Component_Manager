@@ -11,6 +11,31 @@
     <Grid
         Padding="24"
         RowSpacing="12">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="CompactLayout">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="MovementMetricColumn3.Width" Value="0" />
+                        <Setter Target="MovementMetricColumn4.Width" Value="0" />
+                        <Setter Target="AdjustmentMetric.(Grid.Row)" Value="1" />
+                        <Setter Target="AdjustmentMetric.(Grid.Column)" Value="0" />
+                        <Setter Target="NetMetric.(Grid.Row)" Value="1" />
+                        <Setter Target="NetMetric.(Grid.Column)" Value="1" />
+                        <Setter Target="DetailColumn.Width" Value="0" />
+                        <Setter Target="MovementDetail.(Grid.Row)" Value="1" />
+                        <Setter Target="MovementDetail.(Grid.Column)" Value="0" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="ExpandedLayout">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="960" />
+                    </VisualState.StateTriggers>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
         <Grid.RowDefinitions>
             <RowDefinition
                 Height="Auto" />
@@ -57,12 +82,15 @@
         <Border
             Grid.Row="1"
             Style="{StaticResource CardBorderStyle}">
-            <Grid
-                ColumnSpacing="12">
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition
+                    <ColumnDefinition x:Name="MovementMetricColumn3"
                         Width="*" />
-                    <ColumnDefinition
+                    <ColumnDefinition x:Name="MovementMetricColumn4"
                         Width="*" />
                     <ColumnDefinition
                         Width="*" />
@@ -92,7 +120,7 @@
                             Text="{Binding OutboundMovementCount}" />
                     </StackPanel>
                 </Border>
-                <Border
+                <Border x:Name="AdjustmentMetric"
                     Grid.Column="2"
                     Style="{StaticResource MetricCardStyle}">
                     <StackPanel>
@@ -104,7 +132,7 @@
                             Text="{Binding AdjustmentMovementCount}" />
                     </StackPanel>
                 </Border>
-                <Border
+                <Border x:Name="NetMetric"
                     Grid.Column="3"
                     Style="{StaticResource MetricCardStyle}">
                     <StackPanel>
@@ -120,11 +148,16 @@
         </Border>
         <Grid
             Grid.Row="2"
-            ColumnSpacing="12">
+            ColumnSpacing="12"
+            RowSpacing="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition
                     Width="2.2*" />
-                <ColumnDefinition
+                <ColumnDefinition x:Name="DetailColumn"
                     Width="1.1*" />
             </Grid.ColumnDefinitions>
             <Border
@@ -242,7 +275,7 @@
                     </ListView>
                 </Grid>
             </Border>
-            <Border
+            <Border x:Name="MovementDetail"
                 Grid.Column="1"
                 Style="{StaticResource CardBorderStyle}">
                 <ScrollViewer>

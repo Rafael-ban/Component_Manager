@@ -18,6 +18,14 @@ public sealed class InventorySyncService
         return _apiClient.TestConnectionAsync(_store.GetSyncConfiguration(), cancellationToken);
     }
 
+    public Task<OperationResult> TestConnectionAsync(
+        SyncConfiguration draft,
+        CancellationToken cancellationToken = default
+    )
+    {
+        return _apiClient.TestConnectionAsync(draft, cancellationToken);
+    }
+
     public async Task<SyncRunResult> RunSyncAsync(CancellationToken cancellationToken = default)
     {
         var envelope = _store.CreateSyncEnvelope();

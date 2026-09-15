@@ -137,6 +137,28 @@ public sealed class InventoryStoreSyncTests : IDisposable
         }
     }
 
+    [Fact]
+    public void ConnectionDraft_DoesNotPersistOrReplaceSavedConfiguration()
+    {
+        var store = CreateStore();
+        store.SaveSyncConfiguration("https://saved.example/", "saved-token", true);
+        var saved = store.GetSyncConfiguration();
+
+        var draft = saved.WithDraftConnection(" https://draft.example/ ", " draft-token ", false);
+
+        Assert.Equal("https://draft.example/", draft.ServerBaseUrl);
+        Assert.Equal("draft-token", draft.ApiToken);
+        Assert.False(draft.AutoSyncEnabled);
+        Assert.Equal(saved.DeviceId, draft.DeviceId);
+        Assert.False(saved.MatchesConnectionDraft("https://draft.example/", "draft-token", false));
+        Assert.True(saved.MatchesConnectionDraft(" https://saved.example/ ", " saved-token ", true));
+
+        var persisted = store.GetSyncConfiguration();
+        Assert.Equal("https://saved.example/", persisted.ServerBaseUrl);
+        Assert.Equal("saved-token", persisted.ApiToken);
+        Assert.True(persisted.AutoSyncEnabled);
+    }
+
     private InventoryStore CreateStore()
     {
         var store = new InventoryStore(Path.Combine(_testRoot, "inventory.db"));

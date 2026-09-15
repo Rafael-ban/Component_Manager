@@ -185,6 +185,7 @@ public sealed class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanRunSyncActions));
                 OnPropertyChanged(nameof(CanRecordMovement));
                 OnPropertyChanged(nameof(SyncActionHint));
+                OnPropertyChanged(nameof(SyncButtonLabel));
             }
         }
     }
@@ -303,6 +304,8 @@ public sealed class MainViewModel : ObservableObject
             : $"{ShellSyncSummary} · {SyncConfiguration.LastSyncMessage}";
 
     public bool CanRunSyncActions => !IsBusy;
+
+    public string SyncButtonLabel => IsBusy ? "同步中" : "立即同步";
 
     public bool CanRecordMovement => AvailableComponents.Count > 0 && !IsBusy;
 
@@ -657,12 +660,21 @@ public sealed class MainViewModel : ObservableObject
         return result;
     }
 
-    public async Task<OperationResult> TestConnectionAsync()
+    public async Task<OperationResult> TestConnectionAsync(
+        string serverBaseUrl,
+        string apiToken,
+        bool autoSyncEnabled
+    )
     {
         IsBusy = true;
         try
         {
-            var result = await _syncService.TestConnectionAsync();
+            var draft = SyncConfiguration.WithDraftConnection(
+                serverBaseUrl,
+                apiToken,
+                autoSyncEnabled
+            );
+            var result = await _syncService.TestConnectionAsync(draft);
             StatusMessage = result.Message;
             return result;
         }

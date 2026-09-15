@@ -9,6 +9,31 @@ public sealed class SyncConfiguration
     public required string LastSyncedAt { get; init; }
     public required string LastSyncMessage { get; init; }
 
+    public SyncConfiguration WithDraftConnection(
+        string serverBaseUrl,
+        string apiToken,
+        bool autoSyncEnabled
+    ) => new()
+    {
+        DeviceId = DeviceId,
+        ServerBaseUrl = NormalizeServerBaseUrl(serverBaseUrl),
+        ApiToken = apiToken.Trim(),
+        AutoSyncEnabled = autoSyncEnabled,
+        LastSyncedAt = LastSyncedAt,
+        LastSyncMessage = LastSyncMessage,
+    };
+
+    public bool MatchesConnectionDraft(
+        string serverBaseUrl,
+        string apiToken,
+        bool autoSyncEnabled
+    ) => string.Equals(ServerBaseUrl, NormalizeServerBaseUrl(serverBaseUrl), StringComparison.Ordinal)
+        && string.Equals(ApiToken, apiToken.Trim(), StringComparison.Ordinal)
+        && AutoSyncEnabled == autoSyncEnabled;
+
+    private static string NormalizeServerBaseUrl(string serverBaseUrl) =>
+        serverBaseUrl.Trim().TrimEnd('/');
+
     public string ApiTokenMasked
     {
         get

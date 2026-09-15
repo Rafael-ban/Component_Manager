@@ -83,13 +83,11 @@ public sealed partial class SettingsView : Page
             return;
         }
 
-        viewModel.SaveSyncConfiguration(
+        var result = await viewModel.TestConnectionAsync(
             ServerUrlTextBox.Text,
             ApiTokenBox.Password,
             AutoSyncToggle.IsOn
         );
-        var result = await viewModel.TestConnectionAsync();
-        LoadValuesFromCurrentContext();
         await ShowMessageAsync(
             result.IsSuccess
                 ? AppStrings.Get("Settings_Dialog_TestSuccessTitle")
@@ -106,11 +104,14 @@ public sealed partial class SettingsView : Page
             return;
         }
 
-        viewModel.SaveSyncConfiguration(
-            ServerUrlTextBox.Text,
-            ApiTokenBox.Password,
-            AutoSyncToggle.IsOn
-        );
+        if (!viewModel.SyncConfiguration.MatchesConnectionDraft(
+                ServerUrlTextBox.Text,
+                ApiTokenBox.Password,
+                AutoSyncToggle.IsOn))
+        {
+            await ShowMessageAsync("请先保存设置", "当前连接设置有未保存的修改。保存后再同步，避免把草稿误用于正式同步。");
+            return;
+        }
         var result = await viewModel.RunSyncAsync();
         LoadValuesFromCurrentContext();
         await ShowMessageAsync(

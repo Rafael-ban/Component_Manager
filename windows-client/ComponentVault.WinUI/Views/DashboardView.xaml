@@ -12,6 +12,33 @@
         <StackPanel
             Padding="24"
             Spacing="16">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup>
+                    <VisualState x:Name="WideLayout" />
+                    <VisualState x:Name="CompactLayout">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="0" />
+                        </VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="MetricColumn2.Width" Value="*" />
+                            <Setter Target="MetricColumn3.Width" Value="0" />
+                            <Setter Target="MetricColumn4.Width" Value="0" />
+                            <Setter Target="LowStockMetric.(Grid.Row)" Value="1" />
+                            <Setter Target="LowStockMetric.(Grid.Column)" Value="0" />
+                            <Setter Target="MovementMetric.(Grid.Row)" Value="1" />
+                            <Setter Target="MovementMetric.(Grid.Column)" Value="1" />
+                            <Setter Target="ActivityColumn.Width" Value="0" />
+                            <Setter Target="RecentActivityCard.(Grid.Row)" Value="1" />
+                            <Setter Target="RecentActivityCard.(Grid.Column)" Value="0" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="ExpandedLayout">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="900" />
+                        </VisualState.StateTriggers>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition
@@ -38,14 +65,17 @@
                     Content="打开库存"
                     Style="{StaticResource AccentButtonStyle}" />
             </Grid>
-            <Grid
-                ColumnSpacing="12">
+            <Grid x:Name="MetricGrid" ColumnSpacing="12" RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition
+                    <ColumnDefinition x:Name="MetricColumn2"
                         Width="*" />
-                    <ColumnDefinition
+                    <ColumnDefinition x:Name="MetricColumn3"
                         Width="*" />
-                    <ColumnDefinition
+                    <ColumnDefinition x:Name="MetricColumn4"
                         Width="*" />
                     <ColumnDefinition
                         Width="*" />
@@ -75,7 +105,7 @@
                             Text="{Binding Dashboard.TotalUnits}" />
                     </StackPanel>
                 </Border>
-                <Border
+                <Border x:Name="LowStockMetric"
                     Grid.Column="2"
                     Style="{StaticResource MetricCardStyle}">
                     <StackPanel
@@ -89,7 +119,7 @@
                             Text="{Binding Dashboard.LowStockCount}" />
                     </StackPanel>
                 </Border>
-                <Border
+                <Border x:Name="MovementMetric"
                     Grid.Column="3"
                     Style="{StaticResource MetricCardStyle}">
                     <StackPanel
@@ -103,10 +133,13 @@
                     </StackPanel>
                 </Border>
             </Grid>
-            <Grid
-                ColumnSpacing="16">
+            <Grid ColumnSpacing="16" RowSpacing="16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition
+                    <ColumnDefinition x:Name="ActivityColumn"
                         Width="*" />
                     <ColumnDefinition
                         Width="*" />
@@ -166,7 +199,7 @@
                         </ItemsControl>
                     </StackPanel>
                 </Border>
-                <Border
+                <Border x:Name="RecentActivityCard"
                     Grid.Column="1"
                     Style="{StaticResource CardBorderStyle}">
                     <StackPanel

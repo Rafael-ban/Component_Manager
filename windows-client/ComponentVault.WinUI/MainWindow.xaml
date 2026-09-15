@@ -11,14 +11,15 @@
     <Grid Background="{StaticResource VaultBackgroundBrush}">
         <NavigationView
             x:Name="AppNavigationView"
-            IsBackButtonVisible="Collapsed"
+            IsBackButtonVisible="Auto"
             IsBackEnabled="False"
             IsSettingsVisible="False"
             IsTitleBarAutoPaddingEnabled="True"
             OpenPaneLength="224"
             CompactPaneLength="48"
             PaneDisplayMode="Auto"
-            SelectionChanged="OnSelectionChanged">
+            SelectionChanged="OnSelectionChanged"
+            BackRequested="OnBackRequested">
             <NavigationView.Header>
                 <Grid Margin="0,0,16,8" MinHeight="48">
                     <Grid.ColumnDefinitions>
@@ -42,10 +43,16 @@
                             Foreground="{StaticResource TextFillColorSecondaryBrush}"
                             Text="{Binding ShellSyncSummary}" />
                         <Button
+                            x:Name="SyncNowButton"
                             x:Uid="MainWindowSyncNowButton"
                             Style="{StaticResource AccentButtonStyle}"
                             Click="OnSyncNowClicked"
-                            Content="立即同步" />
+                            IsEnabled="{Binding CanRunSyncActions}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ProgressRing Width="16" Height="16" IsActive="{Binding IsBusy}" />
+                                <TextBlock Text="{Binding SyncButtonLabel}" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </NavigationView.Header>
