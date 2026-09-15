@@ -42,14 +42,22 @@ See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
 - Navigation centers on four adaptive top-level destinations: `Home`,
   `Inventory`, `Records`, and `Settings`. Home presents the summary; settings
   has one main entry with section drill-down and direct sync-section routing.
-  Inventory's Import and scan sheet groups single-item lookup, batch JLC inbound,
-  Project BOM / component-hub migration, and manual entry. Settings > Inventory
+  Inventory's Import and scan bottom sheet groups single-item lookup,
+  batch JLC inbound, separate Project BOM and data migration routes, and manual entry. Settings > Inventory
   and data owns location management and Excel backup/restore. These secondary
   routes consume system Back and return to their parent. Batch review uses a
   bounded LazyColumn with collapsible summaries and fixed confirmation actions;
   editor fields scroll independently inside their dialog. See the
   [native UI layout contract](native-ui-redesign.md) and
   [cross-platform UI audit and phased plan](ui-ux-audit-2026-09-16.md).
+- `SecondaryPageScaffold` provides shared app bars, insets and busy-aware Back
+  handling for location management, backup, BOM and batch pages. The import
+  chooser overlays the existing inventory route and dismisses back to it.
+  Locations use a bounded list and separate create/edit dialogs. BOM configuration
+  scrolls separately from its compact-summary, bounded-list preview stage.
+- Testing a connection uses a transient URL/token and does not save preferences
+  or reset the sync cursor. Sync actions require connection changes to be saved
+  explicitly. The same rule applies to the Windows settings page.
 - `Inventory` is the high-frequency workflow and uses dense search,
   filter, and list-first layouts on phones, plus persistent list-detail panes
   on larger widths. The current shell is built on official Material 3 adaptive
@@ -193,6 +201,10 @@ See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
   checks and platform download/fallback actions.
 - The implemented behavior matches Android at the business level and follows
   Windows-native layout conventions.
+- Windows Frame history retains the cached inventory page when entering batch
+  inbound. Busy batch operations block Back and sidebar navigation; leaving an
+  idle batch persists edits. Dashboard, movements and batch controls reflow at
+  narrower window widths. Sync progress and result dialogs have an action guard.
 - Startup diagnostics now log fatal launch/runtime exceptions under
   `%LOCALAPPDATA%\ComponentVault\logs\startup.log` and surface the log path in
   a native Windows error dialog.
@@ -272,10 +284,17 @@ from server/MQTT payloads and inventory Excel exports. See
   administrators.
 - Initial pages cover:
   - dashboard metrics
-  - recent inventory records
+  - searched and paginated active inventory
+  - read-only component details
   - recent stock movements
   - runtime and sync posture details
-- inventory and sync pages emphasize low-stock watchlists, sync posture, and
+- Inventory reads `GET /admin-api/components` with bounded page/page-size,
+  optional low-stock filtering, literal substring matching across SKU, name,
+  category and default location, and deterministic
+  `updated_at DESC, id ASC` ordering. `GET /admin-api/components/{id}` returns
+  reliable component fields and location allocations. Both exclude deleted
+  components; the original `/admin-api/inventory` overview remains unchanged.
+- Inventory and sync pages emphasize low-stock watchlists, sync posture, and
   read-only operational checks for administrators.
 - The admin web app authenticates with the same shared bearer token already
   used by sync clients.
@@ -283,6 +302,10 @@ from server/MQTT payloads and inventory Excel exports. See
   checks rather than replacing API-driven client editing flows.
 - It reflects live server SQLite content through dedicated `/admin-api/*`
   snapshot endpoints.
+- Inventory query and page state live in the URL. A 401 clears the invalid
+  local session, explains why login is required, and restores only an
+  allowlisted internal Dashboard, Inventory, Sync or Settings path after token
+  validation; inventory query parameters are retained.
 
 ## Sync Flow
 

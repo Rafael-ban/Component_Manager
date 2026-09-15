@@ -5,6 +5,27 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.5.3] - 2026-09-16
+
+<!-- Add unreleased notes below this line. -->
+
+- Preserved Android's Import and scan bottom sheet over the inventory page;
+  separated Project BOM and data migration choices without replacing the entry
+  workflow with a new page.
+- Reorganized BOM and migration into scrollable file/configuration, preview and
+  confirmation stages, with concise task titles and predictable Back behavior.
+- Unified Android location, backup, BOM and batch page chrome; location editing
+  now uses scrollable dialogs with visible validation and retryable save errors.
+- Testing Android and Windows connection drafts no longer silently saves them
+  or resets sync state; changed connection settings must be saved before syncing.
+- Fixed Windows secondary navigation and inventory state retention, prevented
+  duplicate sync dialogs, and added narrow-window layouts for core workflows.
+- Added authenticated read-only inventory search, pagination and component
+  details to the admin console and server, including expired-login recovery.
+- Added UI interaction regressions, rendered Android screenshots and browser
+  verification records; documented remaining real-device and high-DPI checks.
+
+
 ## [0.5.2] - 2026-09-16
 
 <!-- Add unreleased notes below this line. -->

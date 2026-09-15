@@ -1,5 +1,16 @@
 # Runbook
 
+## Read-only inventory browser deployment
+
+Deploy the server and matching admin-web bundle together when adopting the
+searched inventory page. It uses authenticated `GET /admin-api/components` and
+`GET /admin-api/components/{id}`; the old overview APIs remain supported. No new
+environment variables or database schema changes are required for this UI stage.
+Smoke-check a known SKU, a later results page, a missing result, and token expiry
+followed by login back to the original inventory query. Native clients remain
+the inventory writers. See [API parameters](integration-guide.md) and
+[UI verification](ui-consistency-implementation.md).
+
 ## Multi-location inventory upgrade
 
 Upgrade the FastAPI server before native clients. `/health` and authenticated

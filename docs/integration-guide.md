@@ -185,6 +185,32 @@ curl http://localhost:8787/admin-api/dashboard `
 
 Returns low-stock watchlist data plus the latest server-side component rows.
 
+### `GET /admin-api/components` and `GET /admin-api/components/{id}`
+
+Both endpoints require the existing bearer token and only read inventory.
+The overview endpoint above is unchanged.
+
+The list accepts `q` (up to 200 characters; literal substring search across SKU,
+name, category and default location), optional `low_stock=true|false`, `page`
+(1..1,000,000, default 1), and `page_size` (1..100, default 25). It excludes deleted
+components and sorts by `updated_at DESC, id ASC`. Pagination is offset-based;
+concurrent inventory changes may shift later pages, so refresh to reconcile them.
+
+The response contains `items`, `page`, `page_size`, `total` and `page_count`.
+Each item exposes `id`, `sku`, `name`, `category`, `package_name`, `location`,
+`quantity`, `min_stock`, `updated_at` and `low_stock`. An empty result has no items
+and `page_count=0`. Out-of-range page numbers can return an empty page.
+
+The detail endpoint returns the same component fields plus `description` and
+`allocations` (`location_id`, `quantity`), or 404 for missing/deleted components.
+Empty allocations mean no independent allocation data was provided, not zero
+component quantity. Invalid query values return 422; missing/invalid tokens 401.
+
+```powershell
+curl "http://localhost:8787/admin-api/components?q=C70565&page=1&page_size=20" `
+  -H "Authorization: Bearer <API_TOKEN>"
+```
+
 ### `GET /admin-api/sync`
 
 Returns recent stock movement activity and sync posture details for the admin

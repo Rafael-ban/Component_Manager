@@ -200,11 +200,10 @@ user's local app data directory and supports:
 - an inventory-first desktop shell:
   `Inventory`, `Movements`, `Overview`, `Settings`
 - component create/edit/soft delete
-- one `Import and scan` entry for single-item lookup, batch JLC inbound,
-  project BOM / migration, and manual entry; location management and Excel
-  backup/restore are under Settings > Inventory and data
-- scrollable batch review with a collapsible summary, fixed confirmation actions,
-  editable long drafts, lookup progress, and parent-preserving secondary-page Back
+- cached inventory navigation with a secondary Back path from batch inbound
+- adaptive dashboard, movement and batch layouts for narrower windows
+- connection draft testing without saving; explicit save required before syncing
+  changed connection settings
 - inventory movement entry
 - sync settings save/test/sync-now
 - push/pull against the FastAPI sync service
@@ -266,6 +265,11 @@ global Gradle drift does not change the build chain:
 The current Android implementation uses on-device SQLite plus shared
 preferences and supports:
 
+- an `Import and scan` bottom sheet with separate single-item, batch JLC,
+  project BOM and data migration workflows, plus secondary manual entry
+- Settings > Inventory and data for location management and Excel backup/restore;
+  shared secondary-page chrome, scrollable location dialogs and staged BOM forms
+- connection draft testing without saving credentials, preferences or sync cursor
 - component create/edit/soft delete
 - inventory movement entry
 - generated warehouse label scan for quick component locate plus
@@ -315,9 +319,9 @@ preferences and supports:
 - tablet layouts that keep persistent list-detail panes for inventory and
   movement history while keeping settings as a sectioned secondary route
 
-The [cross-platform UI audit](docs/ui-ux-audit-2026-09-16.md) records implemented
-Android navigation fixes and a separate, prioritized Windows/admin-web design
-plan. Windows and admin-web recommendations are not yet implemented.
+The [cross-platform UI audit](docs/ui-ux-audit-2026-09-16.md) records the initial
+findings. The [UI consistency implementation report](docs/ui-consistency-implementation.md)
+tracks completed Android, Windows and admin-web work and remaining validation.
 
 Android visual editing is based on Compose Preview in Android Studio. Open
 the files under
@@ -352,7 +356,9 @@ cmd /c npm run dev
 
 The login screen validates the shared API token through `POST /auth/ping`,
 stores the configured API base URL and token in browser local storage, and then
-uses `/admin-api/dashboard`, `/admin-api/inventory`, `/admin-api/sync`, and
+uses `/admin-api/components` and `/admin-api/components/{id}` for searched,
+paginated read-only inventory and details, plus `/admin-api/dashboard`,
+`/admin-api/inventory`, `/admin-api/sync`, and
 `/admin-api/settings` for read-only monitoring. The Android client also uses
 `/admin-api/part-lookup` for optional supplier metadata enrichment during JLC
 import flows, while `/admin-api/lcsc/lookup` remains available for direct
