@@ -2,8 +2,10 @@ package com.componentvault.android.data
 
 import android.app.Application
 import android.content.Context
-import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -25,18 +27,31 @@ class SettingsConnectionTest {
         preferences.edit().putLong("sync_cursor", 42L).commit()
         val saved = repository.loadSyncConfiguration()
         val authorization = AtomicReference<String>()
-        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        server.createContext("/auth/ping") { exchange ->
-            authorization.set(exchange.requestHeaders.getFirst("Authorization"))
-            val success = authorization.get() == "Bearer draft-token"
-            val bytes = (if (success) "{\"server_time\":\"test\"}" else "{\"detail\":\"Invalid token\"}").toByteArray()
-            exchange.sendResponseHeaders(if (success) 200 else 401, bytes.size.toLong())
-            exchange.responseBody.use { it.write(bytes) }
-            exchange.close()
+        val server = ServerSocket().apply {
+            bind(InetSocketAddress("127.0.0.1", 0))
+            soTimeout = 10_000
         }
-        server.start()
+        val responder = CompletableFuture.runAsync {
+            repeat(2) {
+                server.accept().use { socket ->
+                    socket.soTimeout = 10_000
+                    val reader = socket.getInputStream().bufferedReader()
+                    val headers = generateSequence { reader.readLine() }.takeWhile { it.isNotEmpty() }.toList()
+                    assertEquals("POST /auth/ping HTTP/1.1", headers.first())
+                    authorization.set(headers.first { it.startsWith("Authorization:", ignoreCase = true) }.substringAfter(':').trim())
+                    val success = authorization.get() == "Bearer draft-token"
+                    val bytes = (if (success) "{\"server_time\":\"test\"}" else "{\"detail\":\"Invalid token\"}").toByteArray()
+                    val status = if (success) "200 OK" else "401 Unauthorized"
+                    socket.getOutputStream().apply {
+                        write("HTTP/1.1 $status\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                        write(bytes)
+                        flush()
+                    }
+                }
+            }
+        }
         try {
-            val draftUrl = "http://127.0.0.1:${server.address.port}"
+            val draftUrl = "http://127.0.0.1:${server.localPort}"
             assertEquals(true, repository.testConnection(" $draftUrl/ ", " draft-token ").isSuccess)
             assertEquals("Bearer draft-token", authorization.get())
             assertEquals(saved, repository.loadSyncConfiguration())
@@ -44,8 +59,9 @@ class SettingsConnectionTest {
             assertEquals(false, repository.testConnection(draftUrl, "wrong-token").isSuccess)
             assertEquals(saved, repository.loadSyncConfiguration())
             assertEquals(42L, preferences.getLong("sync_cursor", -1L))
+            responder.get(10, TimeUnit.SECONDS)
         } finally {
-            server.stop(0)
+            server.close()
         }
     }
 }
