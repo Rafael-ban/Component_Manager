@@ -8,7 +8,10 @@ namespace ComponentVault.WinUI.Services;
 
 public sealed class InventoryStore
 {
+    private static readonly object TimestampLock = new();
+    private static long _lastTimestampMilliseconds;
     private readonly string _databasePath;
+    internal string DatabasePath => _databasePath;
 
     public InventoryStore()
         : this(
@@ -34,6 +37,7 @@ public sealed class InventoryStore
     public void Initialize()
     {
         using var connection = OpenConnection();
+        CreatePreUpgradeBackupIfNeeded(connection);
         using var transaction = connection.BeginTransaction();
 
         ExecuteSchema(connection);
@@ -86,14 +90,17 @@ public sealed class InventoryStore
                 quantity,
                 min_stock,
                 updated_at,
-                deleted
+                deleted,
+                base_updated_at
             FROM components
             WHERE deleted = 0
             ORDER BY updated_at DESC, name COLLATE NOCASE ASC
             """;
 
         using var reader = command.ExecuteReader();
-        return ReadComponents(reader);
+        var components = ReadComponents(reader);
+        reader.Close();
+        return AttachAllocations(connection, components);
     }
 
     public IReadOnlyList<ComponentRecord> GetLowStockComponents()
@@ -113,19 +120,79 @@ public sealed class InventoryStore
                 quantity,
                 min_stock,
                 updated_at,
-                deleted
+                deleted,
+                base_updated_at
             FROM components
             WHERE deleted = 0 AND quantity <= min_stock
             ORDER BY quantity ASC, updated_at DESC
             """;
 
         using var reader = command.ExecuteReader();
-        return ReadComponents(reader);
+        var components = ReadComponents(reader);
+        reader.Close();
+        return AttachAllocations(connection, components);
     }
 
     public IReadOnlyList<ComponentRecord> GetActiveComponentsForSelection()
     {
         return GetComponents();
+    }
+
+    public IReadOnlyList<StorageLocationRecord> GetStorageLocations(bool includeDeleted = false)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id,name,updated_at,deleted FROM storage_locations " +
+            (includeDeleted ? string.Empty : "WHERE deleted=0 ") + "ORDER BY id COLLATE NOCASE";
+        using var reader = command.ExecuteReader();
+        var result = new List<StorageLocationRecord>();
+        while (reader.Read()) result.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3) != 0));
+        return result;
+    }
+
+    public IReadOnlyList<ComponentAllocationRecord> GetAllocations(string componentId)
+    {
+        using var connection = OpenConnection();
+        return GetAllocations(connection, componentId);
+    }
+
+    public OperationResult SaveStorageLocation(string id, string name)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return OperationResult.Failure("库位编码不能为空。");
+        var normalized = NormalizeLocationId(id);
+        if (normalized.Length > 120 || string.IsNullOrWhiteSpace(name) || name.Trim().Length > 200)
+            return OperationResult.Failure("库位编码或名称无效。");
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        var updatedAt = UtcNow();
+        UpsertLocalLocation(connection, normalized, name.Trim(), updatedAt);
+        using (var update = connection.CreateCommand())
+        {
+            update.CommandText = "UPDATE storage_locations SET name=$name,updated_at=$updated_at,deleted=0 WHERE id=$id";
+            update.Parameters.AddWithValue("$name", name.Trim());
+            update.Parameters.AddWithValue("$updated_at", updatedAt);
+            update.Parameters.AddWithValue("$id", normalized);
+            update.ExecuteNonQuery();
+        }
+        EnqueueEntity(connection, "storage_location", normalized, updatedAt);
+        transaction.Commit();
+        return OperationResult.Success("库位已保存。");
+    }
+
+    public OperationResult DeleteStorageLocation(string id)
+    {
+        using var connection = OpenConnection(); using var transaction = connection.BeginTransaction();
+        using var positive = connection.CreateCommand();
+        positive.CommandText = "SELECT COALESCE(SUM(quantity),0) FROM component_allocations WHERE location_id=$id";
+        positive.Parameters.AddWithValue("$id", id);
+        if (Convert.ToInt64(positive.ExecuteScalar(), CultureInfo.InvariantCulture) > 0)
+            return OperationResult.Failure("该库位仍有正库存分配，不能删除。");
+        var updatedAt = UtcNow(); using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE storage_locations SET deleted=1,updated_at=$at WHERE id=$id AND deleted=0";
+        command.Parameters.AddWithValue("$at", updatedAt); command.Parameters.AddWithValue("$id", id);
+        if (command.ExecuteNonQuery() == 0) return OperationResult.Failure("未找到可删除库位。");
+        EnqueueEntity(connection,"storage_location",id,updatedAt); transaction.Commit();
+        return OperationResult.Success("库位已软删除；零数量分配引用会保留。");
     }
 
     public IReadOnlyList<StockMovementRecord> GetMovements(int limit = 200)
@@ -145,7 +212,9 @@ public sealed class InventoryStore
                 COALESCE(m.note, '') AS note,
                 m.happened_at,
                 m.updated_at,
-                m.deleted
+                m.deleted,
+                m.location_id,
+                m.destination_location_id
             FROM stock_movements m
             LEFT JOIN components c ON c.id = m.component_id
             WHERE m.deleted = 0
@@ -253,6 +322,10 @@ public sealed class InventoryStore
         EnsureUniqueActiveSku(connection, draft.Sku.Trim(), draft.Id);
 
         var componentId = draft.Id ?? $"cmp-{Guid.NewGuid():N}";
+        var existingComponent = draft.Id is null ? null : GetComponentById(connection, componentId);
+        var preserveAllocations = existingComponent is not null
+            && existingComponent.Quantity == draft.Quantity
+            && string.Equals(existingComponent.Location, draft.Location.Trim(), StringComparison.Ordinal);
         var updatedAt = UtcNow();
 
         using var command = connection.CreateCommand();
@@ -269,7 +342,8 @@ public sealed class InventoryStore
                 quantity,
                 min_stock,
                 updated_at,
-                deleted
+                deleted,
+                base_updated_at
             ) VALUES (
                 $id,
                 $sku,
@@ -281,7 +355,8 @@ public sealed class InventoryStore
                 $quantity,
                 $min_stock,
                 $updated_at,
-                0
+                0,
+                NULL
             )
             ON CONFLICT(id) DO UPDATE SET
                 sku = excluded.sku,
@@ -306,6 +381,18 @@ public sealed class InventoryStore
         command.Parameters.AddWithValue("$min_stock", draft.MinStock);
         command.Parameters.AddWithValue("$updated_at", updatedAt);
         command.ExecuteNonQuery();
+
+        if (!preserveAllocations)
+        {
+            var locationId = NormalizeLocationId(draft.Location);
+            UpsertLocalLocation(connection, locationId, locationId, updatedAt);
+            SetAllocationQuantity(connection, componentId, locationId, draft.Quantity);
+            using var clearOtherAllocations = connection.CreateCommand();
+            clearOtherAllocations.CommandText = "DELETE FROM component_allocations WHERE component_id=$component_id AND location_id<>$location_id";
+            clearOtherAllocations.Parameters.AddWithValue("$component_id", componentId);
+            clearOtherAllocations.Parameters.AddWithValue("$location_id", locationId);
+            clearOtherAllocations.ExecuteNonQuery();
+        }
 
         EnqueueEntity(connection, "component", componentId, updatedAt);
 
@@ -353,12 +440,18 @@ public sealed class InventoryStore
             return OperationResult.Failure("请先选择一个可用元器件。");
         }
 
+        var locationId = NormalizeLocationId(draft.LocationId ?? component.Location);
+        if (draft.MovementType.Equals("transfer", StringComparison.OrdinalIgnoreCase))
+            return TransferAllocation(connection, transaction, component, locationId, NormalizeLocationId(draft.DestinationLocationId), draft.Quantity, draft.Reason, draft.Note);
         var quantityDelta = CalculateQuantityDelta(draft.MovementType, draft.Quantity);
         var newQuantity = component.Quantity + quantityDelta;
         if (newQuantity < 0)
         {
             return OperationResult.Failure("这次变动会让库存变成负数。");
         }
+        var currentAllocation = GetAllocationQuantity(connection, component.Id, locationId);
+        var newAllocation = currentAllocation + quantityDelta;
+        if (newAllocation < 0) return OperationResult.Failure("所选库位的库存不足。");
 
         var happenedAt = UtcNow();
         var movementId = $"mov-{Guid.NewGuid():N}";
@@ -374,7 +467,9 @@ public sealed class InventoryStore
                 note,
                 happened_at,
                 updated_at,
-                deleted
+                deleted,
+                location_id,
+                destination_location_id
             ) VALUES (
                 $id,
                 $component_id,
@@ -385,6 +480,7 @@ public sealed class InventoryStore
                 $happened_at,
                 $updated_at,
                 0
+                , $location_id, NULL
             )
             """;
         insertMovement.Parameters.AddWithValue("$id", movementId);
@@ -401,7 +497,10 @@ public sealed class InventoryStore
         insertMovement.Parameters.AddWithValue("$note", draft.Note.Trim());
         insertMovement.Parameters.AddWithValue("$happened_at", happenedAt);
         insertMovement.Parameters.AddWithValue("$updated_at", happenedAt);
+        insertMovement.Parameters.AddWithValue("$location_id", locationId);
         insertMovement.ExecuteNonQuery();
+
+        SetAllocationQuantity(connection, component.Id, locationId, newAllocation);
 
         using var updateComponent = connection.CreateCommand();
         updateComponent.CommandText =
@@ -475,35 +574,29 @@ public sealed class InventoryStore
         var happenedAt = UtcNow();
         foreach (var line in request.Lines)
         {
-            var movementId = $"mov-{Guid.NewGuid():N}";
             using var update = connection.CreateCommand();
             update.CommandText = "UPDATE components SET quantity = $quantity, updated_at = $updated_at WHERE id = $id";
             update.Parameters.AddWithValue("$quantity", current[line.ComponentId].Quantity - line.RequiredQuantity);
             update.Parameters.AddWithValue("$updated_at", happenedAt);
             update.Parameters.AddWithValue("$id", line.ComponentId);
             update.ExecuteNonQuery();
-
-            using var movement = connection.CreateCommand();
-            movement.CommandText =
-                """
-                INSERT INTO stock_movements (
-                    id, component_id, movement_type, quantity, reason, note,
-                    happened_at, updated_at, deleted
-                ) VALUES (
-                    $id, $component_id, 'outbound', $quantity, 'BOM production', $note,
-                    $happened_at, $updated_at, 0
-                )
-                """;
-            movement.Parameters.AddWithValue("$id", movementId);
-            movement.Parameters.AddWithValue("$component_id", line.ComponentId);
-            movement.Parameters.AddWithValue("$quantity", line.RequiredQuantity);
-            movement.Parameters.AddWithValue("$note", $"项目：{request.ProjectName}；批次：{request.BatchId}");
-            movement.Parameters.AddWithValue("$happened_at", happenedAt);
-            movement.Parameters.AddWithValue("$updated_at", happenedAt);
-            movement.ExecuteNonQuery();
-
+            foreach (var deduction in DeductAllocations(connection, line.ComponentId, line.RequiredQuantity))
+            {
+                var movementId = $"mov-{Guid.NewGuid():N}";
+                using var movement = connection.CreateCommand();
+                movement.CommandText =
+                    "INSERT INTO stock_movements(id,component_id,movement_type,quantity,reason,note,happened_at,updated_at,deleted,location_id,destination_location_id) " +
+                    "VALUES($id,$component_id,'outbound',$quantity,'BOM production',$note,$at,$at,0,$location_id,NULL)";
+                movement.Parameters.AddWithValue("$id", movementId);
+                movement.Parameters.AddWithValue("$component_id", line.ComponentId);
+                movement.Parameters.AddWithValue("$quantity", deduction.Quantity);
+                movement.Parameters.AddWithValue("$note", $"项目：{request.ProjectName}；批次：{request.BatchId}");
+                movement.Parameters.AddWithValue("$at", happenedAt);
+                movement.Parameters.AddWithValue("$location_id", deduction.LocationId);
+                movement.ExecuteNonQuery();
+                EnqueueEntity(connection, "stock_movement", movementId, happenedAt);
+            }
             EnqueueEntity(connection, "component", line.ComponentId, happenedAt);
-            EnqueueEntity(connection, "stock_movement", movementId, happenedAt);
         }
 
         using (var batch = connection.CreateCommand())
@@ -585,6 +678,9 @@ public sealed class InventoryStore
             component.Parameters.AddWithValue("$min_stock", item.MinStock);
             component.Parameters.AddWithValue("$updated_at", updatedAt);
             component.ExecuteNonQuery();
+            var locationId = NormalizeLocationId(item.Location);
+            UpsertLocalLocation(connection, locationId, locationId, updatedAt);
+            SetAllocationQuantity(connection, componentId, locationId, item.Quantity);
             EnqueueEntity(connection, "component", componentId, updatedAt);
 
             if (item.Quantity > 0)
@@ -596,15 +692,18 @@ public sealed class InventoryStore
                     INSERT INTO stock_movements (
                         id, component_id, movement_type, quantity, reason, note,
                         happened_at, updated_at, deleted
+                        , location_id, destination_location_id
                     ) VALUES (
                         $id, $component_id, 'inbound', $quantity, 'component-hub migration',
                         'component-hub JSON 导入初始库存', $updated_at, $updated_at, 0
+                        , $location_id, NULL
                     )
                     """;
                 movement.Parameters.AddWithValue("$id", movementId);
                 movement.Parameters.AddWithValue("$component_id", componentId);
                 movement.Parameters.AddWithValue("$quantity", item.Quantity);
                 movement.Parameters.AddWithValue("$updated_at", updatedAt);
+                movement.Parameters.AddWithValue("$location_id", locationId);
                 movement.ExecuteNonQuery();
                 EnqueueEntity(connection, "stock_movement", movementId, updatedAt);
             }
@@ -629,6 +728,7 @@ public sealed class InventoryStore
 
         var components = new List<SyncComponentDto>();
         var stockMovements = new List<SyncStockMovementDto>();
+        var storageLocations = GetAllStorageLocationDtos(connection).ToList();
 
         foreach (var entity in queuedEntities)
         {
@@ -648,6 +748,11 @@ public sealed class InventoryStore
                     stockMovements.Add(movement);
                 }
             }
+            else if (entity.EntityType == "storage_location")
+            {
+                var location = GetStorageLocationDtoById(connection, entity.EntityId);
+                if (location is not null && storageLocations.All(item => item.Id != location.Id)) storageLocations.Add(location);
+            }
         }
 
         return new SyncEnvelope
@@ -660,6 +765,7 @@ public sealed class InventoryStore
                 DeviceId = settings.DeviceId,
                 Components = components,
                 StockMovements = stockMovements,
+                StorageLocations = storageLocations,
             },
         };
     }
@@ -684,14 +790,29 @@ public sealed class InventoryStore
             return false;
         }
 
+        foreach (var location in result.PullResponse.StorageLocations)
+        {
+            if (HasPostSnapshotEdit(connection, pushedEntities, "storage_location", location.Id)) continue;
+            UpsertRemoteStorageLocation(connection, location);
+            RemoveQueuedIfSuperseded(connection, "storage_location", location.Id, location.UpdatedAt);
+        }
+
         foreach (var component in result.PullResponse.Components)
         {
+            if (HasPostSnapshotEdit(connection, pushedEntities, "component", component.Id))
+            {
+                var pushed = pushedEntities.FirstOrDefault(item => item.EntityType == "component" && item.EntityId == component.Id);
+                if (pushed is not null && InstantsEqual(component.UpdatedAt, pushed.EntityUpdatedAt))
+                    UpdateComponentBaseline(connection, component.Id, pushed.EntityUpdatedAt);
+                continue;
+            }
             UpsertRemoteComponent(connection, component);
             RemoveQueuedIfSuperseded(connection, "component", component.Id, component.UpdatedAt);
         }
 
         foreach (var movement in result.PullResponse.StockMovements)
         {
+            if (HasPostSnapshotEdit(connection, pushedEntities, "stock_movement", movement.Id)) continue;
             UpsertRemoteMovement(connection, movement);
             RemoveQueuedIfSuperseded(
                 connection,
@@ -703,6 +824,9 @@ public sealed class InventoryStore
 
         foreach (var pushedEntity in pushedEntities)
         {
+            if (pushedEntity.EntityType == "component"
+                && !result.PullResponse.Components.Any(item => item.Id == pushedEntity.EntityId))
+                UpdateComponentBaseline(connection, pushedEntity.EntityId, pushedEntity.EntityUpdatedAt);
             RemoveQueuedEntityIfSnapshotMatches(connection, pushedEntity);
         }
 
@@ -737,8 +861,23 @@ public sealed class InventoryStore
         return connection;
     }
 
+    private void CreatePreUpgradeBackupIfNeeded(SqliteConnection connection)
+    {
+        using var check = connection.CreateCommand();
+        check.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='components'";
+        if (Convert.ToInt32(check.ExecuteScalar(), CultureInfo.InvariantCulture) == 0) return;
+        check.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='component_allocations'";
+        if (Convert.ToInt32(check.ExecuteScalar(), CultureInfo.InvariantCulture) != 0) return;
+        var directory = Path.GetDirectoryName(_databasePath)!;
+        var backupPath = Path.Combine(directory, $"pre-inventory-protocol1-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.db");
+        using var destination = new SqliteConnection($"Data Source={backupPath}");
+        destination.Open();
+        connection.BackupDatabase(destination);
+    }
+
     private static void ExecuteSchema(SqliteConnection connection)
     {
+        var needsLegacyMigration = TableExists(connection, "components") && !TableExists(connection, "component_allocations");
         var statements = new[]
         {
             """
@@ -773,6 +912,24 @@ public sealed class InventoryStore
                 updated_at TEXT NOT NULL,
                 deleted INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY (component_id) REFERENCES components(id)
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS storage_locations (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                deleted INTEGER NOT NULL DEFAULT 0
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS component_allocations (
+                component_id TEXT NOT NULL,
+                location_id TEXT NOT NULL,
+                quantity INTEGER NOT NULL CHECK(quantity >= 0),
+                PRIMARY KEY(component_id, location_id),
+                FOREIGN KEY(component_id) REFERENCES components(id),
+                FOREIGN KEY(location_id) REFERENCES storage_locations(id)
             )
             """,
             """
@@ -823,6 +980,48 @@ public sealed class InventoryStore
         }
 
         EnsureColumnExists(connection, "sync_settings", "last_sync_cursor", "INTEGER");
+        EnsureColumnExists(connection, "components", "base_updated_at", "TEXT");
+        EnsureColumnExists(connection, "stock_movements", "location_id", "TEXT");
+        EnsureColumnExists(connection, "stock_movements", "destination_location_id", "TEXT");
+        if (needsLegacyMigration) MigrateLegacyAllocations(connection);
+    }
+
+    private static bool TableExists(SqliteConnection connection, string name)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=$name";
+        command.Parameters.AddWithValue("$name", name);
+        return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture) != 0;
+    }
+
+    private static void MigrateLegacyAllocations(SqliteConnection connection)
+    {
+        var now = UtcNow();
+        using var locations = connection.CreateCommand();
+        locations.CommandText =
+            "INSERT OR IGNORE INTO storage_locations(id,name,updated_at,deleted) " +
+            "SELECT CASE WHEN TRIM(location)='' THEN '__unassigned__' ELSE TRIM(location) END, " +
+            "CASE WHEN TRIM(location)='' THEN '未分配' ELSE TRIM(location) END, $now, 0 FROM components";
+        locations.Parameters.AddWithValue("$now", now);
+        locations.ExecuteNonQuery();
+        using var allocations = connection.CreateCommand();
+        allocations.CommandText =
+            "INSERT OR IGNORE INTO component_allocations(component_id,location_id,quantity) " +
+            "SELECT id, CASE WHEN TRIM(location)='' THEN '__unassigned__' ELSE TRIM(location) END, quantity FROM components";
+        allocations.ExecuteNonQuery();
+        using var baselines = connection.CreateCommand();
+        baselines.CommandText = "UPDATE components SET base_updated_at=updated_at WHERE base_updated_at IS NULL";
+        baselines.ExecuteNonQuery();
+        using var queueComponents = connection.CreateCommand();
+        queueComponents.CommandText =
+            "INSERT OR IGNORE INTO sync_queue(entity_type,entity_id,entity_updated_at,created_at) SELECT 'component',id,updated_at,$now FROM components";
+        queueComponents.Parameters.AddWithValue("$now", now);
+        queueComponents.ExecuteNonQuery();
+        using var queueLocations = connection.CreateCommand();
+        queueLocations.CommandText =
+            "INSERT OR IGNORE INTO sync_queue(entity_type,entity_id,entity_updated_at,created_at) SELECT 'storage_location',id,updated_at,$now FROM storage_locations";
+        queueLocations.Parameters.AddWithValue("$now", now);
+        queueLocations.ExecuteNonQuery();
     }
 
     private static void EnsureColumnExists(
@@ -924,6 +1123,7 @@ public sealed class InventoryStore
                     MinStock = reader.GetInt32(8),
                     UpdatedAt = reader.GetString(9),
                     Deleted = reader.GetInt32(10) == 1,
+                    BaseUpdatedAt = reader.IsDBNull(11) ? null : reader.GetString(11),
                 }
             );
         }
@@ -950,6 +1150,8 @@ public sealed class InventoryStore
                     HappenedAt = reader.GetString(8),
                     UpdatedAt = reader.GetString(9),
                     Deleted = reader.GetInt32(10) == 1,
+                    LocationId = reader.IsDBNull(11) ? null : reader.GetString(11),
+                    DestinationLocationId = reader.IsDBNull(12) ? null : reader.GetString(12),
                 }
             );
         }
@@ -980,14 +1182,15 @@ public sealed class InventoryStore
                 quantity,
                 min_stock,
                 updated_at,
-                deleted
+                deleted,
+                base_updated_at
             FROM components
             WHERE id = $id
             """;
         command.Parameters.AddWithValue("$id", componentId);
 
         using var reader = command.ExecuteReader();
-        return reader.Read()
+        ComponentRecord? component = reader.Read()
             ? new ComponentRecord
             {
                 Id = reader.GetString(0),
@@ -1001,8 +1204,11 @@ public sealed class InventoryStore
                 MinStock = reader.GetInt32(8),
                 UpdatedAt = reader.GetString(9),
                 Deleted = reader.GetInt32(10) == 1,
+                BaseUpdatedAt = reader.IsDBNull(11) ? null : reader.GetString(11),
             }
             : null;
+        reader.Close();
+        return component is null ? null : CloneComponent(component, GetAllocations(connection, component.Id));
     }
 
     private static bool ComponentExists(SqliteConnection connection, string componentId)
@@ -1011,6 +1217,116 @@ public sealed class InventoryStore
         command.CommandText = "SELECT COUNT(*) FROM components WHERE id = $id";
         command.Parameters.AddWithValue("$id", componentId);
         return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
+    }
+
+    private static IReadOnlyList<ComponentAllocationRecord> GetAllocations(SqliteConnection connection, string componentId)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT component_id,location_id,quantity FROM component_allocations WHERE component_id=$id ORDER BY location_id COLLATE NOCASE";
+        command.Parameters.AddWithValue("$id", componentId);
+        using var reader = command.ExecuteReader();
+        var result = new List<ComponentAllocationRecord>();
+        while (reader.Read()) result.Add(new(reader.GetString(0), reader.GetString(1), reader.GetInt32(2)));
+        return result;
+    }
+
+    private static IReadOnlyList<ComponentRecord> AttachAllocations(SqliteConnection connection, IReadOnlyList<ComponentRecord> components) =>
+        components.Select(component => CloneComponent(component, GetAllocations(connection, component.Id))).ToArray();
+
+    private static ComponentRecord CloneComponent(ComponentRecord component, IReadOnlyList<ComponentAllocationRecord> allocations) => new()
+    {
+        Id = component.Id, Sku = component.Sku, Name = component.Name, Category = component.Category,
+        PackageName = component.PackageName, Location = component.Location, Description = component.Description,
+        Quantity = component.Quantity, MinStock = component.MinStock, UpdatedAt = component.UpdatedAt,
+        Deleted = component.Deleted, CumulativeOutboundQuantity = component.CumulativeOutboundQuantity,
+        BaseUpdatedAt = component.BaseUpdatedAt, Allocations = allocations,
+    };
+
+    private static int GetAllocationQuantity(SqliteConnection connection, string componentId, string locationId)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT quantity FROM component_allocations WHERE component_id=$component_id AND location_id=$location_id";
+        command.Parameters.AddWithValue("$component_id", componentId);
+        command.Parameters.AddWithValue("$location_id", locationId);
+        return command.ExecuteScalar() is { } value ? Convert.ToInt32(value, CultureInfo.InvariantCulture) : 0;
+    }
+
+    private static IReadOnlyList<(string LocationId, int Quantity)> DeductAllocations(SqliteConnection connection, string componentId, int required)
+    {
+        var allocations = GetAllocations(connection, componentId).Where(item => item.Quantity > 0).OrderBy(item => item.LocationId, StringComparer.Ordinal).ToArray();
+        var remaining = required;
+        var deductions = new List<(string, int)>();
+        foreach (var allocation in allocations)
+        {
+            if (remaining == 0) break;
+            var take = Math.Min(remaining, allocation.Quantity);
+            SetAllocationQuantity(connection, componentId, allocation.LocationId, allocation.Quantity - take);
+            deductions.Add((allocation.LocationId, take));
+            remaining -= take;
+        }
+        if (remaining != 0) throw new InvalidOperationException("分配库存合计不足，请重新预览。");
+        return deductions;
+    }
+
+    private static void SetAllocationQuantity(SqliteConnection connection, string componentId, string locationId, int quantity)
+    {
+        if (quantity < 0) throw new ArgumentOutOfRangeException(nameof(quantity));
+        UpsertLocalLocation(connection, locationId, locationId, UtcNow());
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO component_allocations(component_id,location_id,quantity) VALUES($component_id,$location_id,$quantity) " +
+            "ON CONFLICT(component_id,location_id) DO UPDATE SET quantity=excluded.quantity";
+        command.Parameters.AddWithValue("$component_id", componentId);
+        command.Parameters.AddWithValue("$location_id", locationId);
+        command.Parameters.AddWithValue("$quantity", quantity);
+        command.ExecuteNonQuery();
+    }
+
+    private static void UpsertLocalLocation(SqliteConnection connection, string id, string name, string updatedAt)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO storage_locations(id,name,updated_at,deleted) VALUES($id,$name,$updated_at,0) " +
+            "ON CONFLICT(id) DO UPDATE SET name=CASE WHEN storage_locations.name=storage_locations.id THEN excluded.name ELSE storage_locations.name END, deleted=0";
+        command.Parameters.AddWithValue("$id", id);
+        command.Parameters.AddWithValue("$name", name);
+        command.Parameters.AddWithValue("$updated_at", updatedAt);
+        command.ExecuteNonQuery();
+    }
+
+    private static string NormalizeLocationId(string? value) => string.IsNullOrWhiteSpace(value) ? "__unassigned__" : value.Trim();
+
+    private static OperationResult TransferAllocation(
+        SqliteConnection connection, SqliteTransaction transaction, ComponentRecord component,
+        string sourceId, string destinationId, int quantity, string reason, string note)
+    {
+        if (quantity <= 0 || sourceId == destinationId) return OperationResult.Failure("调拨数量必须为正数，且目标库位不能与来源相同。");
+        var sourceQuantity = GetAllocationQuantity(connection, component.Id, sourceId);
+        if (sourceQuantity < quantity) return OperationResult.Failure("来源库位库存不足。");
+        var happenedAt = UtcNow();
+        SetAllocationQuantity(connection, component.Id, sourceId, sourceQuantity - quantity);
+        SetAllocationQuantity(connection, component.Id, destinationId, checked(GetAllocationQuantity(connection, component.Id, destinationId) + quantity));
+        var movementId = $"mov-{Guid.NewGuid():N}";
+        using var movement = connection.CreateCommand();
+        movement.CommandText = "INSERT INTO stock_movements(id,component_id,movement_type,quantity,reason,note,happened_at,updated_at,deleted,location_id,destination_location_id) " +
+            "VALUES($id,$component_id,'transfer',$quantity,$reason,$note,$at,$at,0,$source,$destination)";
+        movement.Parameters.AddWithValue("$id", movementId);
+        movement.Parameters.AddWithValue("$component_id", component.Id);
+        movement.Parameters.AddWithValue("$quantity", quantity);
+        movement.Parameters.AddWithValue("$reason", reason.Trim());
+        movement.Parameters.AddWithValue("$note", note.Trim());
+        movement.Parameters.AddWithValue("$at", happenedAt);
+        movement.Parameters.AddWithValue("$source", sourceId);
+        movement.Parameters.AddWithValue("$destination", destinationId);
+        movement.ExecuteNonQuery();
+        using var update = connection.CreateCommand();
+        update.CommandText = "UPDATE components SET location=$location,updated_at=$at WHERE id=$id";
+        update.Parameters.AddWithValue("$location", destinationId);
+        update.Parameters.AddWithValue("$at", happenedAt);
+        update.Parameters.AddWithValue("$id", component.Id);
+        update.ExecuteNonQuery();
+        EnqueueEntity(connection, "component", component.Id, happenedAt);
+        EnqueueEntity(connection, "stock_movement", movementId, happenedAt);
+        transaction.Commit();
+        return OperationResult.Success("库存已在库位间调拨；总库存未变化。");
     }
 
     private static void EnsureUniqueActiveSku(
@@ -1090,8 +1406,15 @@ public sealed class InventoryStore
             _ => Math.Abs(quantity),
         };
 
-    private static string UtcNow() =>
-        DateTimeOffset.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+    private static string UtcNow()
+    {
+        lock (TimestampLock)
+        {
+            var wallClock = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            _lastTimestampMilliseconds = Math.Max(wallClock, checked(_lastTimestampMilliseconds + 1));
+            return DateTimeOffset.FromUnixTimeMilliseconds(_lastTimestampMilliseconds).ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+        }
+    }
 
     private static string NormalizeServerBaseUrl(string serverBaseUrl) =>
         serverBaseUrl.Trim().TrimEnd('/');
@@ -1198,7 +1521,8 @@ public sealed class InventoryStore
                 quantity,
                 min_stock,
                 updated_at,
-                deleted
+                deleted,
+                base_updated_at
             FROM components
             WHERE id = $id
             """;
@@ -1210,7 +1534,7 @@ public sealed class InventoryStore
             return null;
         }
 
-        return new SyncComponentDto
+        var dto = new SyncComponentDto
         {
             Id = reader.GetString(0),
             Sku = reader.GetString(1),
@@ -1223,7 +1547,45 @@ public sealed class InventoryStore
             MinStock = reader.GetInt32(8),
             UpdatedAt = reader.GetString(9),
             Deleted = reader.GetInt32(10) == 1,
+            BaseUpdatedAt = reader.IsDBNull(11) ? null : reader.GetString(11),
         };
+        reader.Close();
+        return new SyncComponentDto
+        {
+            Id = dto.Id, Sku = dto.Sku, Name = dto.Name, Category = dto.Category,
+            PackageName = dto.PackageName, Location = dto.Location, Description = dto.Description,
+            Quantity = dto.Quantity, MinStock = dto.MinStock, UpdatedAt = dto.UpdatedAt,
+            Deleted = dto.Deleted, BaseUpdatedAt = dto.BaseUpdatedAt,
+            Allocations = GetAllocations(connection, componentId).Select(item => new SyncAllocationDto
+            {
+                LocationId = item.LocationId, Quantity = item.Quantity,
+            }).ToArray(),
+        };
+    }
+
+    private static SyncStorageLocationDto? GetStorageLocationDtoById(SqliteConnection connection, string id)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id,name,updated_at,deleted FROM storage_locations WHERE id=$id";
+        command.Parameters.AddWithValue("$id", id);
+        using var reader = command.ExecuteReader();
+        return reader.Read() ? new SyncStorageLocationDto
+        {
+            Id = reader.GetString(0), Name = reader.GetString(1), UpdatedAt = reader.GetString(2), Deleted = reader.GetInt32(3) != 0,
+        } : null;
+    }
+
+    private static IReadOnlyList<SyncStorageLocationDto> GetAllStorageLocationDtos(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id,name,updated_at,deleted FROM storage_locations ORDER BY id";
+        using var reader = command.ExecuteReader();
+        var result = new List<SyncStorageLocationDto>();
+        while (reader.Read()) result.Add(new SyncStorageLocationDto
+        {
+            Id = reader.GetString(0), Name = reader.GetString(1), UpdatedAt = reader.GetString(2), Deleted = reader.GetInt32(3) != 0,
+        });
+        return result;
     }
 
     private static SyncStockMovementDto? GetMovementDtoById(
@@ -1243,7 +1605,9 @@ public sealed class InventoryStore
                 note,
                 happened_at,
                 updated_at,
-                deleted
+                deleted,
+                location_id,
+                destination_location_id
             FROM stock_movements
             WHERE id = $id
             """;
@@ -1266,6 +1630,8 @@ public sealed class InventoryStore
             HappenedAt = reader.GetString(6),
             UpdatedAt = reader.GetString(7),
             Deleted = reader.GetInt32(8) == 1,
+            LocationId = reader.IsDBNull(9) ? null : reader.GetString(9),
+            DestinationLocationId = reader.IsDBNull(10) ? null : reader.GetString(10),
         };
     }
 
@@ -1325,6 +1691,25 @@ public sealed class InventoryStore
         command.Parameters.AddWithValue("$entity_id", entityId);
         return command.ExecuteScalar() as string;
     }
+
+    private static bool HasPostSnapshotEdit(SqliteConnection connection, IReadOnlyList<SyncEntityReference> pushed, string type, string id)
+    {
+        var current = GetQueuedEntityUpdatedAt(connection, type, id);
+        if (current is null) return false;
+        var snapshot = pushed.FirstOrDefault(item => item.EntityType == type && item.EntityId == id);
+        return snapshot is null || !string.Equals(current, snapshot.EntityUpdatedAt, StringComparison.Ordinal);
+    }
+
+    private static void UpdateComponentBaseline(SqliteConnection connection, string id, string serverUpdatedAt)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE components SET base_updated_at=$base WHERE id=$id";
+        command.Parameters.AddWithValue("$base", serverUpdatedAt);
+        command.Parameters.AddWithValue("$id", id);
+        command.ExecuteNonQuery();
+    }
+
+    private static bool InstantsEqual(string left, string right) => TryCompareInstants(left, right, out var comparison) && comparison == 0;
 
     private static void RemoveQueuedEntity(
         SqliteConnection connection,
@@ -1422,15 +1807,6 @@ public sealed class InventoryStore
         SyncComponentDto component
     )
     {
-        var existing = GetComponentById(connection, component.Id);
-        if (
-            existing is not null
-            && string.CompareOrdinal(existing.UpdatedAt, component.UpdatedAt) > 0
-        )
-        {
-            return;
-        }
-
         using var command = connection.CreateCommand();
         command.CommandText =
             """
@@ -1445,7 +1821,8 @@ public sealed class InventoryStore
                 quantity,
                 min_stock,
                 updated_at,
-                deleted
+                deleted,
+                base_updated_at
             ) VALUES (
                 $id,
                 $sku,
@@ -1457,7 +1834,8 @@ public sealed class InventoryStore
                 $quantity,
                 $min_stock,
                 $updated_at,
-                $deleted
+                $deleted,
+                $updated_at
             )
             ON CONFLICT(id) DO UPDATE SET
                 sku = excluded.sku,
@@ -1469,7 +1847,8 @@ public sealed class InventoryStore
                 quantity = excluded.quantity,
                 min_stock = excluded.min_stock,
                 updated_at = excluded.updated_at,
-                deleted = excluded.deleted
+                deleted = excluded.deleted,
+                base_updated_at = excluded.updated_at
             """;
         command.Parameters.AddWithValue("$id", component.Id);
         command.Parameters.AddWithValue("$sku", component.Sku);
@@ -1482,6 +1861,30 @@ public sealed class InventoryStore
         command.Parameters.AddWithValue("$min_stock", component.MinStock);
         command.Parameters.AddWithValue("$updated_at", component.UpdatedAt);
         command.Parameters.AddWithValue("$deleted", component.Deleted ? 1 : 0);
+        command.ExecuteNonQuery();
+        var remoteAllocations = component.Allocations ??
+            [new SyncAllocationDto { LocationId = NormalizeLocationId(component.Location), Quantity = component.Quantity }];
+        if (remoteAllocations.Count == 0 || remoteAllocations.Sum(item => (long)item.Quantity) != component.Quantity)
+            throw new InvalidDataException($"远端元器件 {component.Id} 的库位分配与总库存不一致。");
+        using var clear = connection.CreateCommand();
+        clear.CommandText = "DELETE FROM component_allocations WHERE component_id=$id";
+        clear.Parameters.AddWithValue("$id", component.Id);
+        clear.ExecuteNonQuery();
+        foreach (var allocation in remoteAllocations)
+            SetAllocationQuantity(connection, component.Id, allocation.LocationId, allocation.Quantity);
+    }
+
+    private static void UpsertRemoteStorageLocation(SqliteConnection connection, SyncStorageLocationDto location)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "INSERT INTO storage_locations(id,name,updated_at,deleted) VALUES($id,$name,$updated_at,$deleted) " +
+            "ON CONFLICT(id) DO UPDATE SET name=excluded.name,updated_at=excluded.updated_at,deleted=excluded.deleted " +
+            "WHERE excluded.updated_at>=storage_locations.updated_at";
+        command.Parameters.AddWithValue("$id", location.Id);
+        command.Parameters.AddWithValue("$name", location.Name);
+        command.Parameters.AddWithValue("$updated_at", location.UpdatedAt);
+        command.Parameters.AddWithValue("$deleted", location.Deleted ? 1 : 0);
         command.ExecuteNonQuery();
     }
 
@@ -1515,7 +1918,9 @@ public sealed class InventoryStore
                 note,
                 happened_at,
                 updated_at,
-                deleted
+                deleted,
+                location_id,
+                destination_location_id
             ) VALUES (
                 $id,
                 $component_id,
@@ -1525,7 +1930,9 @@ public sealed class InventoryStore
                 $note,
                 $happened_at,
                 $updated_at,
-                $deleted
+                $deleted,
+                $location_id,
+                $destination_location_id
             )
             ON CONFLICT(id) DO UPDATE SET
                 component_id = excluded.component_id,
@@ -1535,7 +1942,9 @@ public sealed class InventoryStore
                 note = excluded.note,
                 happened_at = excluded.happened_at,
                 updated_at = excluded.updated_at,
-                deleted = excluded.deleted
+                deleted = excluded.deleted,
+                location_id = excluded.location_id,
+                destination_location_id = excluded.destination_location_id
             """;
         command.Parameters.AddWithValue("$id", movement.Id);
         command.Parameters.AddWithValue("$component_id", movement.ComponentId);
@@ -1549,6 +1958,8 @@ public sealed class InventoryStore
         command.Parameters.AddWithValue("$happened_at", movement.HappenedAt);
         command.Parameters.AddWithValue("$updated_at", movement.UpdatedAt);
         command.Parameters.AddWithValue("$deleted", movement.Deleted ? 1 : 0);
+        command.Parameters.AddWithValue("$location_id", (object?)movement.LocationId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$destination_location_id", (object?)movement.DestinationLocationId ?? DBNull.Value);
         command.ExecuteNonQuery();
     }
 }

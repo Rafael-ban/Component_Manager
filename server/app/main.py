@@ -172,16 +172,19 @@ def create_app() -> FastAPI:
         cursor: Annotated[int | None, Query(ge=0)] = None,
         connection: sqlite3.Connection = Depends(get_db),
     ) -> PullResponse:
+        locations = []
         sync_cursor, components, stock_movements = pull_sync_snapshot(
             connection,
             cursor=cursor,
             since=since,
+            locations_out=locations,
         )
         return PullResponse(
             server_time=_utc_now(),
             sync_cursor=sync_cursor,
             components=components,
             stock_movements=stock_movements,
+            storage_locations=locations,
         )
 
     return app

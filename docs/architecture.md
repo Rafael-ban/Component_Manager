@@ -223,7 +223,8 @@
   compatibility proxy to the LCSC OpenAPI, with short in-memory response
   caching and configurable credentials through environment variables.
 - SQLite is used for a single-user self-hosted deployment.
-- Incoming entities are merged with last-write-wins based on `updated_at`.
+- Legacy incoming entities and location metadata use last-write-wins on `updated_at`;
+  managed inventory uses a checked `base_updated_at` and a complete allocation snapshot.
 - `GET /health` is public.
 - `POST /auth/ping`, `POST /sync/push`, and `GET /sync/pull` require the shared
   bearer token.
@@ -260,7 +261,8 @@
 
 ## Conflict Model
 
-- Conflict resolution is last-write-wins on UTC `updated_at`.
+- Managed inventory uses optimistic `base_updated_at` checks; mismatches reject
+  the entire push. Legacy records and location metadata retain UTC timestamp LWW.
 - Soft deletes are synchronized as normal entity updates with `deleted = true`.
 - Local validation prevents negative stock and duplicate active `sku`.
 - Server validation repeats the critical uniqueness and schema checks.
@@ -365,8 +367,8 @@ existing components or history.
 
 Release and migration markers are device-local. Only the existing component
 and movement entities synchronize; no project/BOM object was added to the wire
-protocol. The existing LWW stock snapshot protocol does not merge concurrent
-offline decrements from multiple devices. A production batch should be released
+protocol. Managed snapshots now reject conflicting concurrent writes rather than
+merging offline decrements. A production batch should be released
 on one device and synchronized before using another device for the same stock.
 
 Migration accepts the upstream `{components: [...]}` backup envelope, maps
@@ -377,7 +379,8 @@ default or are explicitly skipped. Input files and existing components are not
 overwritten. See [BOM and migration guide](bom-and-migration.md) for supported
 columns, file limits, unavailable XLS support and migration scope.
 
-Both clients use exact-SKU Product JSON-LD and trusted image hosts for catalog
+Both clients use Chinese public catalog records, exact-SKU fallback Product JSON-LD,
+and trusted image hosts for catalog
 enrichment. Official classifications precede heuristic guesses; recognized
 English paths have Chinese display mappings and the original category path is
 retained. Images use the portable `商品图片：URL` description convention. Lazy
@@ -389,6 +392,31 @@ sensor orientation; the unavailable Paddle choice is no longer exposed.
 Movement quantities remain stored as magnitudes for inbound/outbound and signed
 deltas for adjustments. UI `quantityChange` / `QuantityChange` derives the sign
 from the movement type, fixing outbound history without rewriting stored data.
+Transfers carry source and destination location IDs and have zero quantity change.
+
+## Multi-location inventory and Excel exchange
+
+The native databases add `storage_locations`, `component_allocations`, and a
+component `base_updated_at`. Android upgrades to schema version 4; Windows uses
+column/table migration guards. An upgrade backup is retained before migration.
+Existing location strings become stable location IDs. Active SKU uniqueness is
+unchanged. Allocation quantities are non-negative and sum to component quantity;
+all writers (forms, movements, BOM, migration and pull) maintain this invariant.
+
+The server stores the same allocation relation and an `inventory_managed` flag.
+The wire protocol carries full allocations inside each component snapshot and
+complete location metadata on pull. This prevents independent per-bin LWW writes
+from violating component totals. New clients require `inventory_protocol=1`,
+and server CAS checks reject stale inventory bases atomically. New local edits
+during a sync retain their queue entry and use only the acknowledged base version.
+
+Both clients share the five-sheet `component-vault` Excel schemaVersion=1 format,
+plus a reader for LCSC_android_erp's distinct schemaVersion=1. Preview validates
+data before a transaction imports new records; existing IDs/SKUs are not overwritten.
+Own history is retained; foreign workbooks lacking history produce explicit initial
+inventory movements. Local images can be embedded without network access during export.
+See [storage and backup guide](storage-and-backup.md) and the exact shared columns
+in [implementation record](inventory-expansion-plan.md).
 
 ## Inventory statistics and MQTT publication
 

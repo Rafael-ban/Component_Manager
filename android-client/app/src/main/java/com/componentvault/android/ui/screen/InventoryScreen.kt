@@ -202,6 +202,7 @@ internal fun InventoryDetailRoute(
     component: ComponentRecord?,
     recentMovements: List<StockMovementRecord>,
     issuedQuantity: Long,
+    allocations: List<com.componentvault.android.model.ComponentAllocationRecord> = emptyList(),
     onDismiss: () -> Unit,
     onEditComponent: (String) -> Unit,
     onGenerateLabel: (ComponentRecord) -> Unit,
@@ -243,6 +244,7 @@ internal fun InventoryDetailRoute(
                 component = component,
                 recentMovements = recentMovements,
                 issuedQuantity = issuedQuantity,
+                allocations = allocations,
             ),
             modifier = Modifier
                 .fillMaxSize()
@@ -645,7 +647,16 @@ internal fun InventoryDetailPane(
         }
         item {
             SectionPane(title = strings.inventory.detailLocationTitle) {
-                ValueBlock(label = strings.common.fieldLocation, value = component.location)
+                if (detail.allocations.isEmpty()) {
+                    ValueBlock(label = strings.common.fieldLocation, value = component.location)
+                } else {
+                    detail.allocations.forEach { allocation ->
+                        ValueBlock(
+                            label = "${allocation.locationName} (${allocation.locationId})",
+                            value = allocation.quantity.toString(),
+                        )
+                    }
+                }
             }
         }
         item {

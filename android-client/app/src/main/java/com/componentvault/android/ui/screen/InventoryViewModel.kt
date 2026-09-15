@@ -39,10 +39,19 @@ import com.componentvault.android.model.MovementsUiState
 import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.OverviewUiState
 import com.componentvault.android.model.StockMovementRecord
+import com.componentvault.android.model.StorageLocationRecord
+import com.componentvault.android.model.ComponentAllocationRecord
 import com.componentvault.android.model.SyncConfiguration
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.net.Uri
+
+internal data class InventoryBackupUiState(
+    val loading:Boolean=false,
+    val preview:InventoryRepository.WorkbookPreview?=null,
+    val message:String="",
+)
 
 class InventoryViewModel(
     application: Application,
@@ -51,8 +60,12 @@ class InventoryViewModel(
     private var allComponentsCache: List<ComponentRecord> = emptyList()
     private var allMovementsCache: List<StockMovementRecord> = emptyList()
     private var issuedQuantitiesCache: Map<String, Long> = emptyMap()
+    private var storageLocationsCache: List<StorageLocationRecord> = emptyList()
+    private var allocationsCache: List<ComponentAllocationRecord> = emptyList()
     private val defaultSyncMessage = application.getString(R.string.sync_no_sync_yet)
     private val defaultLastSyncedAt = application.getString(R.string.sync_never)
+    internal var backupUiState by mutableStateOf(InventoryBackupUiState())
+        private set
 
     var uiState by mutableStateOf(
         InventoryUiState(
@@ -132,6 +145,7 @@ class InventoryViewModel(
                     component = selectedComponent,
                     recentMovements = recentMovements,
                     issuedQuantity = selectedId?.let { issuedQuantitiesCache[it] } ?: 0,
+                    allocations = selectedId?.let { id -> allocationsCache.filter { it.componentId == id } }.orEmpty(),
                 ),
             ),
         )
@@ -157,6 +171,11 @@ class InventoryViewModel(
             }
         }
     }
+
+    fun exportInventoryBackup(uri:Uri){viewModelScope.launch{backupUiState=InventoryBackupUiState(loading=true);runCatching{val bytes=repository.exportInventoryWorkbook();withContext(Dispatchers.IO){getApplication<Application>().contentResolver.openOutputStream(uri,"w")!!.use{it.write(bytes)}}}.onSuccess{backupUiState=InventoryBackupUiState(message="备份已导出。")}.onFailure{backupUiState=InventoryBackupUiState(message=it.message?:"备份导出失败。")}}}
+    fun previewInventoryBackup(uri:Uri){viewModelScope.launch{backupUiState=InventoryBackupUiState(loading=true);runCatching{val bytes=withContext(Dispatchers.IO){getApplication<Application>().contentResolver.openInputStream(uri)!!.use{it.readBytes()}};repository.previewInventoryWorkbook(bytes)}.onSuccess{backupUiState=InventoryBackupUiState(preview=it)}.onFailure{backupUiState=InventoryBackupUiState(message=it.message?:"备份预览失败。")}}}
+    fun confirmInventoryRestore(){val p=backupUiState.preview?:return;viewModelScope.launch{backupUiState=backupUiState.copy(loading=true);val result=repository.restoreInventoryWorkbook(p);backupUiState=InventoryBackupUiState(message=result.message);if(result.isSuccess)refresh()}}
+    fun clearInventoryBackupState(){backupUiState=InventoryBackupUiState()}
 
     fun saveImportedComponent(
         draft: ComponentDraft,
@@ -254,6 +273,22 @@ class InventoryViewModel(
             if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
                 runSyncInternal()
             }
+        }
+    }
+
+    fun saveStorageLocation(id: String, name: String, onComplete: (OperationResult) -> Unit = {}) {
+        viewModelScope.launch {
+            val result = repository.saveStorageLocation(id, name)
+            reloadState(result.message)
+            onComplete(result)
+        }
+    }
+
+    fun deleteStorageLocation(id: String, onComplete: (OperationResult) -> Unit = {}) {
+        viewModelScope.launch {
+            val result = repository.deleteStorageLocation(id)
+            reloadState(result.message)
+            onComplete(result)
         }
     }
 
@@ -551,6 +586,8 @@ class InventoryViewModel(
         allComponentsCache = repository.loadComponents()
         allMovementsCache = repository.loadMovements()
         issuedQuantitiesCache = repository.loadIssuedQuantities()
+        storageLocationsCache = repository.loadStorageLocations()
+        allocationsCache = repository.loadAllocations()
         val dashboardSnapshot = repository.loadDashboardSnapshot()
         uiState = uiState.copy(
             overview = buildOverviewUiState(dashboardSnapshot),
@@ -579,6 +616,8 @@ class InventoryViewModel(
         allComponentsCache = repository.loadComponents()
         allMovementsCache = repository.loadMovements()
         issuedQuantitiesCache = repository.loadIssuedQuantities()
+        storageLocationsCache = repository.loadStorageLocations()
+        allocationsCache = repository.loadAllocations()
         val appPreferences = repository.loadAppPreferences()
         val syncConfiguration = repository.loadSyncConfiguration()
         val importLearningSummary = repository.loadImportLearningSummary()
@@ -692,7 +731,11 @@ class InventoryViewModel(
                     allMovementsCache.filter { it.componentId == selectedComponent.id }.take(5)
                 },
                 issuedQuantity = selectedComponent?.let { issuedQuantitiesCache[it.id] } ?: 0,
+                allocations = selectedComponent?.let { selected ->
+                    allocationsCache.filter { it.componentId == selected.id }
+                }.orEmpty(),
             ),
+            storageLocations = storageLocationsCache,
         )
     }
 

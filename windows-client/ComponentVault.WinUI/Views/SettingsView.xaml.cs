@@ -6,6 +6,8 @@ using ComponentVault.WinUI.Services.Updates;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System.Reflection;
+using Windows.Storage.Pickers;
+using WinRT.Interop;
 
 namespace ComponentVault.WinUI.Views;
 
@@ -114,6 +116,37 @@ public sealed partial class SettingsView : Page
                 : AppStrings.Get("Settings_Dialog_SyncFailureTitle"),
             result.IsSuccess ? viewModel.SyncConfiguration.LastSyncMessage : result.Message
         );
+    }
+
+    private async void OnExportInventoryClicked(object sender, RoutedEventArgs e)
+    {
+        if (RuntimeViewModel is not { } viewModel) return;
+        var picker = new FileSavePicker { SuggestedFileName = $"component-vault-{DateTime.Now:yyyyMMdd-HHmmss}" };
+        picker.FileTypeChoices.Add("Excel 工作簿", new List<string> { ".xlsx" });
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(((App)Application.Current).Window));
+        var file = await picker.PickSaveFileAsync();
+        if (file is null) return;
+        try { viewModel.ExportInventoryWorkbook(file.Path); await ShowMessageAsync("备份完成", "库存、独立库位、分配和流水已导出；未包含同步凭据，也没有执行联网补全。"); }
+        catch (Exception exception) { await ShowMessageAsync("备份失败", exception.Message); }
+    }
+
+    private async void OnImportInventoryClicked(object sender, RoutedEventArgs e)
+    {
+        if (RuntimeViewModel is not { } viewModel) return;
+        var picker = new FileOpenPicker(); picker.FileTypeFilter.Add(".xlsx");
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(((App)Application.Current).Window));
+        var file = await picker.PickSingleFileAsync(); if (file is null) return;
+        var preview = viewModel.PreviewInventoryWorkbook(file.Path);
+        var dialog = new ContentDialog
+        {
+            Title = $"恢复预览 · {preview.SourceFormat}",
+            Content = new TextBlock { Text = $"元器件 {preview.Components}（可新增 {preview.NewComponents}，冲突跳过 {preview.ConflictingComponents}） · 库位 {preview.Locations} · 分配 {preview.Allocations} · 流水 {preview.Movements}\n" + (preview.Issues.Count == 0 ? "默认仅新增，不覆盖已有 ID 或 SKU。确认时会复核文件和当前库存版本。" : string.Join("\n", preview.Issues)) + (preview.Warnings is { Count: > 0 } ? "\n\n注意：\n" + string.Join("\n", preview.Warnings) : string.Empty), TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = "确认仅新增迁入", CloseButtonText = AppStrings.Get("Common_Cancel"),
+            IsPrimaryButtonEnabled = preview.CanImport, DefaultButton = ContentDialogButton.Close, XamlRoot = XamlRoot,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var result = viewModel.ImportInventoryWorkbook(file.Path);
+        await ShowMessageAsync(result.IsSuccess ? "迁入完成" : "迁入失败", result.Message);
     }
 
     private async Task ShowMessageAsync(string title, string message)

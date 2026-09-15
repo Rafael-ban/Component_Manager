@@ -39,6 +39,7 @@ import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.MovementEntryDraft
 import com.componentvault.android.model.OperationResult
+import com.componentvault.android.model.StorageLocationRecord
 
 @Composable
 internal fun ComponentEditorSurface(
@@ -260,6 +261,8 @@ internal data class MovementEditorState(
     val quantityText: String = "1",
     val reason: String = "",
     val note: String = "",
+    val locationId: String = "",
+    val destinationLocationId: String = "",
     val errorMessage: String? = null,
 )
 
@@ -279,12 +282,18 @@ internal fun validateMovementEditorState(
         if (state.movementType != "adjustment" && quantity <= 0) {
             throw IllegalStateException(strings.forms.movementQuantityPositive)
         }
+        if (state.locationId.isBlank()) throw IllegalStateException("请选择发生库存变动的库位。")
+        if (state.movementType == "transfer" &&
+            (state.destinationLocationId.isBlank() || state.destinationLocationId == state.locationId)
+        ) throw IllegalStateException("调拨必须选择两个不同库位。")
         MovementEntryDraft(
             componentId = selectedComponentId,
             movementType = state.movementType,
             quantity = quantity,
             reason = state.reason,
             note = state.note,
+            locationId = state.locationId,
+            destinationLocationId = state.destinationLocationId.takeIf { state.movementType == "transfer" },
         )
     }
 }
@@ -295,7 +304,7 @@ internal fun MovementTypeSelector(
     onMovementTypeChange: (String) -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("inbound", "outbound", "adjustment").forEach { type ->
+        listOf("inbound", "outbound", "adjustment", "transfer").forEach { type ->
             FilterChip(
                 selected = movementType == type,
                 onClick = { onMovementTypeChange(type) },
@@ -309,10 +318,55 @@ internal fun MovementTypeSelector(
 internal fun MovementEntryFields(
     state: MovementEditorState,
     onStateChange: (MovementEditorState) -> Unit,
+    storageLocations: List<StorageLocationRecord> = emptyList(),
 ) {
     val strings = vaultStrings()
+    var sourceMenu by remember { mutableStateOf(false) }
+    var destinationMenu by remember { mutableStateOf(false) }
 
     SectionPane(title = strings.forms.movementEntryTitle) {
+        OutlinedTextField(
+            value = state.locationId,
+            onValueChange = { onStateChange(state.copy(locationId = it.trim(), errorMessage = null)) },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("源库位编码") },
+            singleLine = true,
+        )
+        if (storageLocations.isNotEmpty()) {
+            OutlinedButton(onClick = { sourceMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("选择已有源库位")
+            }
+            DropdownMenu(expanded = sourceMenu, onDismissRequest = { sourceMenu = false }) {
+                storageLocations.forEach { location ->
+                    DropdownMenuItem(text = { Text("${location.name} (${location.id})") }, onClick = {
+                        onStateChange(state.copy(locationId = location.id, errorMessage = null)); sourceMenu = false
+                    })
+                }
+                DropdownMenuItem(text = { Text("新建库位…") }, onClick = { sourceMenu = false })
+            }
+        }
+        if (state.movementType == "transfer") {
+            OutlinedTextField(
+                value = state.destinationLocationId,
+                onValueChange = { onStateChange(state.copy(destinationLocationId = it.trim(), errorMessage = null)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("目标库位编码") },
+                singleLine = true,
+            )
+            if (storageLocations.isNotEmpty()) {
+                OutlinedButton(onClick = { destinationMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("选择已有目标库位")
+                }
+                DropdownMenu(expanded = destinationMenu, onDismissRequest = { destinationMenu = false }) {
+                    storageLocations.filterNot { it.id == state.locationId }.forEach { location ->
+                        DropdownMenuItem(text = { Text("${location.name} (${location.id})") }, onClick = {
+                            onStateChange(state.copy(destinationLocationId = location.id, errorMessage = null)); destinationMenu = false
+                        })
+                    }
+                    DropdownMenuItem(text = { Text("新建库位…") }, onClick = { destinationMenu = false })
+                }
+            }
+        }
         OutlinedTextField(
             value = state.quantityText,
             onValueChange = {
@@ -365,6 +419,7 @@ internal fun MovementEditorSurface(
     allowManualComponentSelection: Boolean = true,
     onDismiss: () -> Unit,
     onSave: (MovementEntryDraft, (OperationResult) -> Unit) -> Unit,
+    storageLocations: List<StorageLocationRecord> = emptyList(),
 ) {
     val strings = vaultStrings()
     var componentMenuExpanded by remember { mutableStateOf(false) }
@@ -377,6 +432,7 @@ internal fun MovementEditorSurface(
         mutableStateOf(
             MovementEditorState(
                 movementType = initialMovementType ?: "inbound",
+                locationId = components.firstOrNull { it.id == selectedComponentId }?.location.orEmpty(),
             ),
         )
     }
@@ -427,7 +483,7 @@ internal fun MovementEditorSurface(
                                     onClick = {
                                         selectedComponent = component
                                         componentMenuExpanded = false
-                                        editorState = editorState.copy(errorMessage = null)
+                                        editorState = editorState.copy(locationId = component.location, errorMessage = null)
                                     },
                                 )
                             }
@@ -461,6 +517,7 @@ internal fun MovementEditorSurface(
             MovementEntryFields(
                 state = editorState,
                 onStateChange = { editorState = it },
+                storageLocations = storageLocations,
             )
         }
     }

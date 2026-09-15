@@ -28,6 +28,8 @@ import com.componentvault.android.model.OcrEngineMode
 import com.componentvault.android.model.MovementScanMatchStatus
 import com.componentvault.android.model.MovementScanResolutionUiState
 import com.componentvault.android.model.StockMovementRecord
+import com.componentvault.android.model.StorageLocationRecord
+import com.componentvault.android.model.ComponentAllocationRecord
 import com.componentvault.android.model.SyncConfiguration
 import com.componentvault.android.model.isJlcSource
 import com.componentvault.android.model.parseImportDescription
@@ -51,10 +53,12 @@ import java.util.Locale
 class InventoryRepository(
     context: Context,
 ) {
+    internal data class WorkbookPreview(val workbook:InventoryWorkbook,val newComponentCount:Int,val skippedComponentCount:Int,val newLocationCount:Int,val warnings:List<String>)
     private val appContext = context.applicationContext
     private val databaseHelper = InventoryDatabaseHelper(appContext)
+    private val inventoryImageStore = InventoryImageStore(appContext)
     private val localPartRecognitionEngine by lazy { LocalPartRecognitionEngine(appContext) }
-    private val publicCatalogLookup = LcscPublicLookup()
+    private val publicCatalogLookup = LcscCombinedLookup()
     private val preferences: SharedPreferences = appContext.getSharedPreferences(
         PREFS_NAME,
         Context.MODE_PRIVATE,
@@ -64,6 +68,21 @@ class InventoryRepository(
 
     init {
         ensureDefaultSettings()
+        if (!preferences.getBoolean(KEY_INVENTORY_PROTOCOL_MIGRATED, false)) {
+            databaseHelper.writableDatabase.use { db ->
+                db.beginTransaction()
+                try {
+                    db.rawQuery("SELECT id, updated_at FROM components", null).use { cursor ->
+                        while (cursor.moveToNext()) enqueueEntity(db, "component", cursor.getString(0), cursor.getString(1))
+                    }
+                    db.setTransactionSuccessful()
+                } finally { db.endTransaction() }
+            }
+            preferences.edit()
+                .remove(KEY_SYNC_CURSOR)
+                .putBoolean(KEY_INVENTORY_PROTOCOL_MIGRATED, true)
+                .commit()
+        }
     }
 
     suspend fun loadDashboardSnapshot(): DashboardSnapshot = withContext(Dispatchers.IO) {
@@ -155,7 +174,9 @@ class InventoryRepository(
                     COALESCE(m.note, '') AS note,
                     m.happened_at,
                     m.updated_at,
-                    m.deleted
+                    m.deleted,
+                    m.location_id,
+                    m.destination_location_id
                 FROM stock_movements m
                 LEFT JOIN components c ON c.id = m.component_id
                 WHERE m.deleted = 0
@@ -729,6 +750,133 @@ class InventoryRepository(
         }
     }
 
+    suspend fun loadStorageLocations(): List<StorageLocationRecord> = withContext(Dispatchers.IO) {
+        databaseHelper.readableDatabase.use { db ->
+            db.rawQuery(
+                "SELECT id, name, updated_at, deleted FROM storage_locations WHERE deleted = 0 ORDER BY name, id",
+                null,
+            ).use { cursor -> buildList {
+                while (cursor.moveToNext()) add(StorageLocationRecord(
+                    id = cursor.getString(0), name = cursor.getString(1),
+                    updatedAt = cursor.getString(2), deleted = cursor.getInt(3) == 1,
+                ))
+            } }
+        }
+    }
+
+    internal suspend fun exportInventoryWorkbook():ByteArray=withContext(Dispatchers.IO){
+        databaseHelper.readableDatabase.use{db->
+            db.beginTransaction()
+            try {
+                val snapshot=readWorkbookSnapshot(db)
+                InventoryWorkbookWriter.write(snapshot.copy(images=snapshot.components.mapNotNull{c->inventoryImageStore.resolve(c.description)?.let{c.id to it}}.toMap()))
+            } finally { db.endTransaction() }
+        }
+    }
+
+    internal suspend fun previewInventoryWorkbook(bytes:ByteArray):WorkbookPreview=withContext(Dispatchers.IO){
+        val workbook=InventoryWorkbookCodec.parse(bytes)
+        databaseHelper.readableDatabase.use{db->
+            db.beginTransaction()
+            try {
+                val ids=db.rawQuery("SELECT id FROM components",null).use{c->buildSet{while(c.moveToNext())add(c.getString(0))}}
+                val skus=db.rawQuery("SELECT UPPER(sku) FROM components",null).use{c->buildSet{while(c.moveToNext())add(c.getString(0))}}
+                val locations=db.rawQuery("SELECT id FROM storage_locations",null).use{c->buildSet{while(c.moveToNext())add(c.getString(0))}}
+                val movementIds=db.rawQuery("SELECT id FROM stock_movements",null).use{c->buildSet{while(c.moveToNext())add(c.getString(0))}}
+                val conflictingMovementComponents=workbook.movements.filter{it.id in movementIds}.map{it.componentId}.toSet()
+                val fresh=workbook.components.filter{it.id !in ids && it.sku.uppercase() !in skus && it.id !in conflictingMovementComponents}
+                val warnings=buildList{addAll(workbook.warnings);if(conflictingMovementComponents.isNotEmpty())add("部分流水 ID 已存在；对应组件将按新记录合并规则跳过。")}
+                WorkbookPreview(workbook,fresh.size,workbook.components.size-fresh.size,workbook.locations.count{it.id !in locations},warnings)
+            } finally { db.endTransaction() }
+        }
+    }
+
+    internal suspend fun restoreInventoryWorkbook(preview:WorkbookPreview):OperationResult=withContext(Dispatchers.IO){
+        val createdImages=mutableListOf<String>()
+        runCatching{
+            databaseHelper.writableDatabase.use{db->db.beginTransaction();try{
+                check(!db.rawQuery("SELECT 1 FROM inventory_backup_imports WHERE fingerprint = ?",arrayOf(preview.workbook.fingerprint)).use{it.moveToFirst()}){"该备份已经导入。"}
+                val ids=db.rawQuery("SELECT id FROM components",null).use{c->buildSet{while(c.moveToNext())add(c.getString(0))}}
+                val skus=db.rawQuery("SELECT UPPER(sku) FROM components",null).use{c->buildSet{while(c.moveToNext())add(c.getString(0))}}
+                val movementIds=db.rawQuery("SELECT id FROM stock_movements",null).use{c->buildSet{while(c.moveToNext())add(c.getString(0))}}
+                val conflictingMovementComponents=preview.workbook.movements.filter{it.id in movementIds}.map{it.componentId}.toSet()
+                val selected=preview.workbook.components.filter{it.id !in ids&&it.sku.uppercase() !in skus&&it.id !in conflictingMovementComponents}.map{c->preview.workbook.images[c.id]?.let{image->val marker=WorkbookImageCodec.marker(image);if(!inventoryImageStore.exists(marker))createdImages+=marker;inventoryImageStore.persist(image);c.copy(description=c.description.lineSequence().filterNot{it.startsWith("本地图片：")}.joinToString("\n").trim().let{base->listOf(base,marker).filter{it.isNotBlank()}.joinToString("\n")})}?:c}
+                val selectedIds=selected.map{it.id}.toSet();val now=utcNow()
+                val deletedLocations=db.rawQuery("SELECT id FROM storage_locations WHERE deleted = 1",null).use{c->buildSet{while(c.moveToNext())add(c.getString(0))}}
+                check(preview.workbook.allocations.none{it.componentId in selectedIds&&it.quantity>0&&it.locationId in deletedLocations}){"导入的正库存不能分配到本地已删除库位。"}
+                preview.workbook.locations.forEach{l->db.insertWithOnConflict("storage_locations",null,ContentValues().apply{put("id",l.id);put("name",l.name);put("updated_at",l.updatedAt);put("deleted",if(l.deleted)1 else 0)},SQLiteDatabase.CONFLICT_IGNORE)}
+                selected.forEach{c->db.insertOrThrow("components",null,ContentValues().apply{put("id",c.id);put("sku",c.sku);put("name",c.name);put("category",c.category);put("package_name",c.packageName);put("location",c.location);put("description",c.description);put("quantity",c.quantity);put("min_stock",c.minStock);put("updated_at",c.updatedAt);put("deleted",if(c.deleted)1 else 0);put("base_updated_at",c.baseUpdatedAt)})}
+                preview.workbook.allocations.filter{it.componentId in selectedIds}.forEach{a->setAllocationQuantity(db,a.componentId,a.locationId,a.quantity)}
+                if(preview.workbook.source==WorkbookSource.ComponentVault){
+                    preview.workbook.movements.filter{it.componentId in selectedIds}.forEach{m->db.insertOrThrow("stock_movements",null,ContentValues().apply{put("id",m.id);put("component_id",m.componentId);put("movement_type",m.type);put("quantity",m.quantity);put("reason",m.reason);put("note",m.note);put("happened_at",m.happenedAt);put("updated_at",m.updatedAt);put("deleted",if(m.deleted)1 else 0);put("location_id",m.locationId);put("destination_location_id",m.destinationLocationId)});enqueueEntity(db,"stock_movement",m.id,m.updatedAt)}
+                }else selected.filter{it.quantity>0}.forEach{c->preview.workbook.allocations.filter{it.componentId==c.id&&it.quantity>0}.forEach{a->val id="mov-"+randomId();db.insertOrThrow("stock_movements",null,ContentValues().apply{put("id",id);put("component_id",c.id);put("movement_type","inbound");put("quantity",a.quantity);put("reason","LCSC schema1 initial inventory");put("note","Imported source fingerprint "+preview.workbook.fingerprint);put("happened_at",now);put("updated_at",now);put("deleted",0);put("location_id",a.locationId)});enqueueEntity(db,"stock_movement",id,now)}}
+                selected.forEach{c->verifyAllocationTotal(db,c.id,c.quantity);enqueueEntity(db,"component",c.id,c.updatedAt)}
+                db.insertOrThrow("inventory_backup_imports",null,ContentValues().apply{put("fingerprint",preview.workbook.fingerprint);put("source",preview.workbook.source.name);put("imported_at",now)})
+                db.setTransactionSuccessful()
+            }finally{db.endTransaction()}}
+            OperationResult(true,"已新增导入 "+preview.newComponentCount+" 个元器件；跳过 "+preview.skippedComponentCount+" 个现有记录。")
+        }.getOrElse{createdImages.forEach(inventoryImageStore::delete);OperationResult(false,it.message?:"库存恢复失败。")}
+    }
+
+    private fun readWorkbookSnapshot(db:SQLiteDatabase):InventoryWorkbook {
+        val components=db.rawQuery("SELECT id,sku,name,category,package_name,location,COALESCE(description,''),quantity,min_stock,updated_at,deleted,base_updated_at FROM components ORDER BY id",null).use{c->buildList{while(c.moveToNext())add(WorkbookComponent(c.getString(0),c.getString(1),c.getString(2),c.getString(3),c.getString(4),c.getString(5),c.getString(6),c.getInt(7),c.getInt(8),c.getString(9),c.getInt(10)==1,c.getString(11)))}}
+        val locations=db.rawQuery("SELECT id,name,updated_at,deleted FROM storage_locations ORDER BY id",null).use{c->buildList{while(c.moveToNext())add(WorkbookLocation(c.getString(0),c.getString(1),c.getString(2),c.getInt(3)==1))}}
+        val allocations=db.rawQuery("SELECT component_id,location_id,quantity FROM component_allocations ORDER BY component_id,location_id",null).use{c->buildList{while(c.moveToNext())add(WorkbookAllocation(c.getString(0),c.getString(1),c.getInt(2)))}}
+        val movements=db.rawQuery("SELECT id,component_id,movement_type,quantity,reason,COALESCE(note,''),happened_at,updated_at,deleted,location_id,destination_location_id FROM stock_movements ORDER BY id",null).use{c->buildList{while(c.moveToNext())add(WorkbookMovement(c.getString(0),c.getString(1),c.getString(2),c.getInt(3),c.getString(4),c.getString(5),c.getString(6),c.getString(7),c.getInt(8)==1,c.getString(9),c.getString(10)))}}
+        return InventoryWorkbook(WorkbookSource.ComponentVault,components,locations,allocations,movements,"",emptyList())
+    }
+
+    suspend fun loadAllocations(componentId: String? = null): List<ComponentAllocationRecord> = withContext(Dispatchers.IO) {
+        databaseHelper.readableDatabase.use { db ->
+            db.rawQuery(
+                """SELECT a.component_id, a.location_id, COALESCE(l.name, a.location_id), a.quantity
+                   FROM component_allocations a LEFT JOIN storage_locations l ON l.id = a.location_id
+                   WHERE (? = '' OR a.component_id = ?) ORDER BY a.quantity DESC, a.location_id""",
+                arrayOf(componentId.orEmpty(), componentId.orEmpty()),
+            ).use { cursor -> buildList {
+                while (cursor.moveToNext()) add(ComponentAllocationRecord(
+                    cursor.getString(0), cursor.getString(1), cursor.getString(2), cursor.getInt(3),
+                ))
+            } }
+        }
+    }
+
+    suspend fun saveStorageLocation(id: String, name: String): OperationResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val code = id.trim()
+            val displayName = name.trim()
+            require(code.isNotEmpty() && code.length <= 120 && displayName.isNotEmpty() && displayName.length <= 200)
+            databaseHelper.writableDatabase.use { db ->
+                val now = utcNow()
+                val existingName = db.rawQuery("SELECT name FROM storage_locations WHERE id = ?", arrayOf(code))
+                    .use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                if (existingName == null) ensureStorageLocation(db, code, now)
+                db.update("storage_locations", ContentValues().apply {
+                    put("name", displayName); put("updated_at", now); put("deleted", 0)
+                }, "id = ?", arrayOf(code))
+            }
+            OperationResult(true, "库位已保存。", code)
+        }.getOrElse { OperationResult(false, it.message ?: "库位保存失败。") }
+    }
+
+    suspend fun deleteStorageLocation(id: String): OperationResult = withContext(Dispatchers.IO) {
+        runCatching {
+            databaseHelper.writableDatabase.use { db ->
+                val occupied = db.rawQuery(
+                    """SELECT 1 FROM component_allocations a JOIN components c ON c.id=a.component_id
+                       WHERE a.location_id = ? AND a.quantity > 0 AND c.deleted = 0 LIMIT 1""",
+                    arrayOf(id),
+                ).use { it.moveToFirst() }
+                check(!occupied) { "该库位仍有库存，不能删除。" }
+                val count = db.update("storage_locations", ContentValues().apply {
+                    put("deleted", 1); put("updated_at", utcNow())
+                }, "id = ? AND deleted = 0", arrayOf(id))
+                check(count == 1) { "库位不存在。" }
+            }
+            OperationResult(true, "空库位已删除。", id)
+        }.getOrElse { OperationResult(false, it.message ?: "库位删除失败。") }
+    }
+
     suspend fun loadIssuedQuantities(): Map<String, Long> = withContext(Dispatchers.IO) {
         databaseHelper.readableDatabase.use { db ->
             db.rawQuery(
@@ -826,6 +974,10 @@ class InventoryRepository(
             }
 
             try {
+                val capability = callJson(settings, "POST", "/auth/ping", null)
+                check(capability.optInt("inventory_protocol", 0) == 1) {
+                    "The server does not support inventory_protocol=1. Local changes were kept for retry."
+                }
                 val pushPayload = buildPushPayload(settings.deviceId)
                 val pushResponse = callJson(
                     settings = settings,
@@ -964,9 +1116,18 @@ class InventoryRepository(
                 )
             }
         }
+        val allocations = loadAllocations().groupBy { it.componentId }
         com.componentvault.android.data.bom.BomReleasePreview(
             parsed = parsed,
-            lines = aggregated,
+            lines = aggregated.map { line ->
+                val componentId = line.componentId ?: return@map line
+                line.copy(allocationPlan = runCatching {
+                    com.componentvault.android.data.bom.BomAllocationPlanner.plan(
+                        line.requirement.requiredQuantity,
+                        allocations[componentId].orEmpty().map { it.locationId to it.quantity },
+                    )
+                }.getOrDefault(emptyList()))
+            },
         )
     }
 
@@ -1024,29 +1185,36 @@ class InventoryRepository(
                 val now = utcNow()
                 preview.lines.zip(currentRows).forEach { (line, current) ->
                     val required = line.requirement.requiredQuantity
+                    val currentPlan = allocationPlan(db, current.first, required)
+                    check(currentPlan == line.allocationPlan.map { it.locationId to it.quantity }) {
+                        "预览后库位分配已变化，请重新生成 BOM 预览。"
+                    }
+                    val consumed = consumeAllocations(db, current.first, required)
                     val values = ContentValues().apply {
                         put("quantity", current.second - required)
                         put("updated_at", now)
                     }
                     db.update("components", values, "id = ?", arrayOf(current.first))
                     enqueueEntity(db, "component", current.first, now)
-                    val movementId = "mov-${randomId()}"
-                    db.insertOrThrow(
-                        "stock_movements",
-                        null,
-                        ContentValues().apply {
-                            put("id", movementId)
-                            put("component_id", current.first)
-                            put("movement_type", "outbound")
-                            put("quantity", required)
-                            put("reason", "BOM: ${preview.parsed.projectName}")
-                            put("note", "Batch $batchId; release $releaseId")
-                            put("happened_at", now)
-                            put("updated_at", now)
-                            put("deleted", 0)
-                        },
-                    )
-                    enqueueEntity(db, "stock_movement", movementId, now)
+                    consumed.forEach { (locationId, consumedQuantity) ->
+                        val movementId = "mov-${randomId()}"
+                        db.insertOrThrow(
+                            "stock_movements", null, ContentValues().apply {
+                                put("id", movementId)
+                                put("component_id", current.first)
+                                put("movement_type", "outbound")
+                                put("quantity", consumedQuantity)
+                                put("reason", "BOM: ${preview.parsed.projectName}")
+                                put("note", "Batch $batchId; release $releaseId")
+                                put("happened_at", now)
+                                put("updated_at", now)
+                                put("deleted", 0)
+                                put("location_id", locationId)
+                            },
+                        )
+                        enqueueEntity(db, "stock_movement", movementId, now)
+                    }
+                    verifyAllocationTotal(db, current.first, current.second - required)
                 }
                 db.insertOrThrow(
                     "bom_releases",
@@ -1144,6 +1312,9 @@ class InventoryRepository(
                             put("deleted", 0)
                         },
                     )
+                    ensureStorageLocation(db, source.location.trim(), now)
+                    setAllocationQuantity(db, componentId, source.location.trim(), source.quantity)
+                    verifyAllocationTotal(db, componentId, source.quantity)
                     enqueueEntity(db, "component", componentId, now)
                     if (source.quantity > 0) {
                         val movementId = "mov-${randomId()}"
@@ -1160,6 +1331,7 @@ class InventoryRepository(
                                 put("happened_at", now)
                                 put("updated_at", now)
                                 put("deleted", 0)
+                                put("location_id", source.location.trim())
                             },
                         )
                         enqueueEntity(db, "stock_movement", movementId, now)
@@ -1238,6 +1410,8 @@ class InventoryRepository(
                 happenedAt = cursor.getString(cursor.getColumnIndexOrThrow("happened_at")),
                 updatedAt = cursor.getString(cursor.getColumnIndexOrThrow("updated_at")),
                 deleted = cursor.getInt(cursor.getColumnIndexOrThrow("deleted")) == 1,
+                locationId = cursor.getString(cursor.getColumnIndexOrThrow("location_id")),
+                destinationLocationId = cursor.getString(cursor.getColumnIndexOrThrow("destination_location_id")),
             )
         }
         return items
@@ -1447,6 +1621,13 @@ class InventoryRepository(
         ensureUniqueActiveSku(db, draft.sku.trim(), draft.id)
         val updatedAt = utcNow()
         val componentId = draft.id ?: "cmp-${randomId()}"
+        val oldTotal = draft.id?.let { getComponentById(db, it)?.quantity } ?: 0
+        val baseUpdatedAt = draft.id?.let { id ->
+            db.rawQuery("SELECT base_updated_at FROM components WHERE id = ?", arrayOf(id)).use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }
+        ensureStorageLocation(db, draft.location.trim(), updatedAt)
 
         val values = ContentValues().apply {
             put("id", componentId)
@@ -1460,6 +1641,7 @@ class InventoryRepository(
             put("min_stock", draft.minStock)
             put("updated_at", updatedAt)
             put("deleted", 0)
+            put("base_updated_at", baseUpdatedAt)
         }
         db.insertWithOnConflict(
             "components",
@@ -1467,6 +1649,21 @@ class InventoryRepository(
             values,
             SQLiteDatabase.CONFLICT_REPLACE,
         )
+        val locationId = draft.location.trim()
+        val existingAtLocation = allocationQuantity(db, componentId, locationId)
+        val adjustedAtLocation = Math.addExact(existingAtLocation, draft.quantity - oldTotal)
+        check(adjustedAtLocation >= 0) { "The edited total would make the selected location negative." }
+        db.insertWithOnConflict(
+            "component_allocations",
+            null,
+            ContentValues().apply {
+                put("component_id", componentId)
+                put("location_id", locationId)
+                put("quantity", adjustedAtLocation)
+            },
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+        verifyAllocationTotal(db, componentId, draft.quantity)
         enqueueEntity(db, "component", componentId, updatedAt)
         return componentId
     }
@@ -1697,7 +1894,11 @@ class InventoryRepository(
         if (draft.componentId.isBlank() || draft.reason.isBlank() || draft.movementType.isBlank()) {
             throw IllegalStateException(text(R.string.sync_choose_component_type_reason))
         }
-        if (draft.movementType == "adjustment") {
+        if (draft.movementType == "transfer") {
+            if (draft.quantity <= 0 || draft.locationId.isNullOrBlank() ||
+                draft.destinationLocationId.isNullOrBlank() || draft.locationId == draft.destinationLocationId
+            ) throw IllegalStateException("Choose two different locations and a positive transfer quantity.")
+        } else if (draft.movementType == "adjustment") {
             if (draft.quantity == 0) {
                 throw IllegalStateException(text(R.string.sync_adjustment_non_zero))
             }
@@ -1714,6 +1915,8 @@ class InventoryRepository(
             val component = getComponentById(db, draft.componentId)
                 ?: throw IllegalStateException(text(R.string.sync_choose_active_component_first))
 
+            val sourceLocation = draft.locationId?.trim()?.takeIf(String::isNotEmpty) ?: component.location
+            val destinationLocation = draft.destinationLocationId?.trim()?.takeIf(String::isNotEmpty)
             val delta = calculateQuantityDelta(draft.movementType, draft.quantity)
             val newQuantity = component.quantity + delta
             if (newQuantity < 0) {
@@ -1721,6 +1924,20 @@ class InventoryRepository(
             }
 
             val updatedAt = utcNow()
+            ensureStorageLocation(db, sourceLocation, updatedAt)
+            destinationLocation?.let { ensureStorageLocation(db, it, updatedAt) }
+            if (draft.movementType == "transfer") {
+                val sourceQuantity = allocationQuantity(db, draft.componentId, sourceLocation)
+                val destinationQuantity = allocationQuantity(db, draft.componentId, requireNotNull(destinationLocation))
+                val transferred = StockAllocationMath.transfer(sourceQuantity, destinationQuantity, draft.quantity)
+                setAllocationQuantity(db, draft.componentId, sourceLocation, transferred.first)
+                setAllocationQuantity(db, draft.componentId, destinationLocation, transferred.second)
+            } else {
+                val currentAllocation = allocationQuantity(db, draft.componentId, sourceLocation)
+                val allocationDelta = calculateQuantityDelta(draft.movementType, draft.quantity)
+                val newAllocation = StockAllocationMath.applyDelta(currentAllocation, allocationDelta)
+                setAllocationQuantity(db, draft.componentId, sourceLocation, newAllocation)
+            }
             val movementId = "mov-${randomId()}"
             val movementValues = ContentValues().apply {
                 put("id", movementId)
@@ -1732,6 +1949,8 @@ class InventoryRepository(
                 put("happened_at", updatedAt)
                 put("updated_at", updatedAt)
                 put("deleted", 0)
+                put("location_id", sourceLocation)
+                put("destination_location_id", destinationLocation)
             }
             db.insertWithOnConflict(
                 "stock_movements",
@@ -1750,10 +1969,89 @@ class InventoryRepository(
                 "id = ?",
                 arrayOf(draft.componentId),
             )
+            verifyAllocationTotal(db, draft.componentId, newQuantity)
 
             enqueueEntity(db, "component", draft.componentId, updatedAt)
             enqueueEntity(db, "stock_movement", movementId, updatedAt)
         }
+    }
+
+    private fun ensureStorageLocation(db: SQLiteDatabase, id: String, updatedAt: String) {
+        require(id.isNotBlank() && id.length <= 120) { "Invalid storage location code." }
+        val deleted=db.rawQuery("SELECT deleted FROM storage_locations WHERE id = ?",arrayOf(id)).use{it.moveToFirst()&&it.getInt(0)==1}
+        check(!deleted){"库位已删除，请先在库位管理中恢复或改用其他库位。"}
+        db.insertWithOnConflict(
+            "storage_locations",
+            null,
+            ContentValues().apply {
+                put("id", id)
+                put("name", id)
+                put("updated_at", updatedAt)
+                put("deleted", 0)
+            },
+            SQLiteDatabase.CONFLICT_IGNORE,
+        )
+    }
+
+    private fun allocationQuantity(db: SQLiteDatabase, componentId: String, locationId: String): Int =
+        db.rawQuery(
+            "SELECT quantity FROM component_allocations WHERE component_id = ? AND location_id = ?",
+            arrayOf(componentId, locationId),
+        ).use { cursor -> if (cursor.moveToFirst()) cursor.getInt(0) else 0 }
+
+    private fun setAllocationQuantity(db: SQLiteDatabase, componentId: String, locationId: String, quantity: Int) {
+        db.insertWithOnConflict(
+            "component_allocations",
+            null,
+            ContentValues().apply {
+                put("component_id", componentId)
+                put("location_id", locationId)
+                put("quantity", quantity)
+            },
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+    }
+
+    private fun verifyAllocationTotal(db: SQLiteDatabase, componentId: String, expected: Int) {
+        val total = db.rawQuery(
+            "SELECT COALESCE(SUM(quantity), 0) FROM component_allocations WHERE component_id = ?",
+            arrayOf(componentId),
+        ).use { cursor -> cursor.moveToFirst(); cursor.getLong(0) }
+        check(total == expected.toLong()) { "Allocation total does not match component quantity." }
+    }
+
+    private fun consumeAllocations(
+        db: SQLiteDatabase,
+        componentId: String,
+        requested: Int,
+    ): List<Pair<String, Int>> {
+        var remaining = requested
+        val consumed = mutableListOf<Pair<String, Int>>()
+        db.rawQuery(
+            "SELECT location_id, quantity FROM component_allocations WHERE component_id = ? AND quantity > 0 " +
+                "ORDER BY quantity DESC, location_id ASC",
+            arrayOf(componentId),
+        ).use { cursor ->
+            while (cursor.moveToNext() && remaining > 0) {
+                val locationId = cursor.getString(0)
+                val available = cursor.getInt(1)
+                val take = minOf(available, remaining)
+                setAllocationQuantity(db, componentId, locationId, available - take)
+                consumed += locationId to take
+                remaining -= take
+            }
+        }
+        check(remaining == 0) { "Allocated stock is insufficient; refresh the BOM preview." }
+        return consumed
+    }
+
+    private fun allocationPlan(db: SQLiteDatabase, componentId: String, requested: Int): List<Pair<String, Int>> {
+        val available = db.rawQuery(
+            "SELECT location_id, quantity FROM component_allocations WHERE component_id = ? AND quantity > 0",
+            arrayOf(componentId),
+        ).use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.getString(0) to cursor.getInt(1)) } }
+        return com.componentvault.android.data.bom.BomAllocationPlanner.plan(requested, available)
+            .map { it.locationId to it.quantity }
     }
 
     private fun ensureUniqueActiveSku(
@@ -1861,8 +2159,10 @@ class InventoryRepository(
 
             val payload = JSONObject().apply {
                 put("device_id", deviceId)
+                put("inventory_protocol", 1)
                 put("components", JSONArray())
                 put("stock_movements", JSONArray())
+                put("storage_locations", getStorageLocationsJson(db))
             }
 
             queuedEntities.forEach { entity ->
@@ -1904,7 +2204,8 @@ class InventoryRepository(
                 quantity,
                 min_stock,
                 updated_at,
-                deleted
+                deleted,
+                base_updated_at
             FROM components
             WHERE id = ?
             """.trimIndent(),
@@ -1925,6 +2226,18 @@ class InventoryRepository(
                 put("min_stock", cursor.getInt(cursor.getColumnIndexOrThrow("min_stock")))
                 put("updated_at", cursor.getString(cursor.getColumnIndexOrThrow("updated_at")))
                 put("deleted", cursor.getInt(cursor.getColumnIndexOrThrow("deleted")) == 1)
+                put("base_updated_at", cursor.getString(cursor.getColumnIndexOrThrow("base_updated_at")))
+                put("allocations", JSONArray().apply {
+                    db.rawQuery(
+                        "SELECT location_id, quantity FROM component_allocations WHERE component_id = ? ORDER BY location_id",
+                        arrayOf(componentId),
+                    ).use { allocationCursor ->
+                        while (allocationCursor.moveToNext()) put(JSONObject().apply {
+                            put("location_id", allocationCursor.getString(0))
+                            put("quantity", allocationCursor.getInt(1))
+                        })
+                    }
+                })
             }
         }
     }
@@ -1944,7 +2257,9 @@ class InventoryRepository(
                 note,
                 happened_at,
                 updated_at,
-                deleted
+                deleted,
+                location_id,
+                destination_location_id
             FROM stock_movements
             WHERE id = ?
             """.trimIndent(),
@@ -1963,6 +2278,8 @@ class InventoryRepository(
                 put("happened_at", cursor.getString(cursor.getColumnIndexOrThrow("happened_at")))
                 put("updated_at", cursor.getString(cursor.getColumnIndexOrThrow("updated_at")))
                 put("deleted", cursor.getInt(cursor.getColumnIndexOrThrow("deleted")) == 1)
+                put("location_id", cursor.getString(cursor.getColumnIndexOrThrow("location_id")))
+                put("destination_location_id", cursor.getString(cursor.getColumnIndexOrThrow("destination_location_id")))
             }
         }
     }
@@ -2039,16 +2356,28 @@ class InventoryRepository(
         pullResponse: JSONObject,
         pushedEntities: List<QueuedEntity>,
     ) {
+        check(pullResponse.optInt("inventory_protocol", 0) == 1) {
+            "The sync response is missing inventory_protocol=1. Local changes were kept."
+        }
+        val locations = pullResponse.optJSONArray("storage_locations") ?: JSONArray()
+        for (index in 0 until locations.length()) {
+            upsertRemoteStorageLocation(db, locations.getJSONObject(index))
+        }
         val components = pullResponse.optJSONArray("components") ?: JSONArray()
         for (index in 0 until components.length()) {
             val component = components.getJSONObject(index)
-            upsertRemoteComponent(db, component)
-            removeQueuedIfSuperseded(
-                db = db,
-                entityType = "component",
-                entityId = component.getString("id"),
-                updatedAt = component.getString("updated_at"),
-            )
+            val id = component.getString("id")
+            val pushed = pushedEntities.firstOrNull { it.entityType == "component" && it.entityId == id }
+            val queued = db.rawQuery(
+                "SELECT entity_updated_at FROM sync_queue WHERE entity_type = 'component' AND entity_id = ?",
+                arrayOf(id),
+            ).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+            if (SyncProtocol.canApplyInventorySnapshot(queued, pushed?.entityUpdatedAt)) {
+                upsertRemoteComponent(db, component)
+            } else if (pushed != null) {
+                // A second local edit survives the pull, based on the version actually uploaded.
+                db.execSQL("UPDATE components SET base_updated_at = ? WHERE id = ?", arrayOf(pushed.entityUpdatedAt, id))
+            }
         }
 
         val movements = pullResponse.optJSONArray("stock_movements") ?: JSONArray()
@@ -2064,6 +2393,11 @@ class InventoryRepository(
         }
 
         pushedEntities.forEach { entity ->
+            if (entity.entityType == "component" && (0 until components.length()).none {
+                components.getJSONObject(it).getString("id") == entity.entityId
+            }) {
+                db.execSQL("UPDATE components SET base_updated_at = ? WHERE id = ?", arrayOf(entity.entityUpdatedAt, entity.entityId))
+            }
             removeQueuedIfSuperseded(
                 db = db,
                 entityType = entity.entityType,
@@ -2077,17 +2411,6 @@ class InventoryRepository(
         db: SQLiteDatabase,
         component: JSONObject,
     ) {
-        val existing = getComponentById(db, component.getString("id"))
-        if (
-            existing != null &&
-            !SyncProtocol.isRemoteAtLeastAsNew(
-                localUpdatedAt = existing.updatedAt,
-                remoteUpdatedAt = component.getString("updated_at"),
-            )
-        ) {
-            return
-        }
-
         val values = ContentValues().apply {
             put("id", component.getString("id"))
             put("sku", component.getString("sku"))
@@ -2095,11 +2418,12 @@ class InventoryRepository(
             put("category", component.getString("category"))
             put("package_name", component.getString("package_name"))
             put("location", component.getString("location"))
-            put("description", component.optString("description"))
+            put("description", if (component.isNull("description")) null as String? else component.optString("description"))
             put("quantity", component.getInt("quantity"))
             put("min_stock", component.getInt("min_stock"))
             put("updated_at", component.getString("updated_at"))
             put("deleted", if (component.getBoolean("deleted")) 1 else 0)
+            put("base_updated_at", component.getString("updated_at"))
         }
         db.insertWithOnConflict(
             "components",
@@ -2107,6 +2431,26 @@ class InventoryRepository(
             values,
             SQLiteDatabase.CONFLICT_REPLACE,
         )
+        val allocations = component.optJSONArray("allocations") ?: JSONArray().put(
+            JSONObject().put("location_id", component.getString("location").trim().ifBlank { "待整理" })
+                .put("quantity", component.getInt("quantity")),
+        )
+        run {
+            db.delete("component_allocations", "component_id = ?", arrayOf(component.getString("id")))
+            for (index in 0 until allocations.length()) {
+                val allocation = allocations.getJSONObject(index)
+                if (component.optJSONArray("allocations") == null) {
+                    ensureStorageLocation(db, allocation.getString("location_id"), component.getString("updated_at"))
+                }
+                setAllocationQuantity(
+                    db,
+                    component.getString("id"),
+                    allocation.getString("location_id"),
+                    allocation.getInt("quantity"),
+                )
+            }
+            verifyAllocationTotal(db, component.getString("id"), component.getInt("quantity"))
+        }
     }
 
     private fun upsertRemoteMovement(
@@ -2140,6 +2484,8 @@ class InventoryRepository(
             put("happened_at", movement.getString("happened_at"))
             put("updated_at", movement.getString("updated_at"))
             put("deleted", if (movement.getBoolean("deleted")) 1 else 0)
+            put("location_id", movement.optString("location_id").takeIf(String::isNotBlank))
+            put("destination_location_id", movement.optString("destination_location_id").takeIf(String::isNotBlank))
         }
         db.insertWithOnConflict(
             "stock_movements",
@@ -2169,7 +2515,7 @@ class InventoryRepository(
             val queuedUpdatedAt = cursor.getString(
                 cursor.getColumnIndexOrThrow("entity_updated_at"),
             )
-            if (!SyncProtocol.shouldRemoveQueued(queuedUpdatedAt, updatedAt)) {
+            if (!SyncProtocol.timestampsEqual(queuedUpdatedAt, updatedAt)) {
                 return
             }
             db.delete(
@@ -2199,6 +2545,7 @@ class InventoryRepository(
         "inbound" -> quantity
         "outbound" -> -quantity
         "adjustment" -> quantity
+        "transfer" -> 0
         else -> throw IllegalStateException(text(R.string.sync_unsupported_movement_type))
     }
 
@@ -2210,7 +2557,12 @@ class InventoryRepository(
         else -> kotlin.math.abs(quantity)
     }
 
-    private fun utcNow(): String = TIMESTAMP_FORMATTER.format(Instant.now())
+    private fun utcNow(): String {
+        val millis = lastMutationMillis.updateAndGet { previous ->
+            maxOf(System.currentTimeMillis(), previous + 1L)
+        }
+        return TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(millis))
+    }
 
     private fun randomId(): String = java.util.UUID.randomUUID().toString().replace("-", "")
 
@@ -2256,6 +2608,38 @@ class InventoryRepository(
         return alphaNumericCount >= 5 && (hasSeparator || normalized.any(Char::isDigit))
     }
 
+    private fun upsertRemoteStorageLocation(db: SQLiteDatabase, location: JSONObject) {
+        val id = location.getString("id")
+        val remoteUpdatedAt = location.getString("updated_at")
+        val existingUpdatedAt = db.rawQuery(
+            "SELECT updated_at FROM storage_locations WHERE id = ?",
+            arrayOf(id),
+        ).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+        if (existingUpdatedAt != null && !SyncProtocol.isRemoteAtLeastAsNew(existingUpdatedAt, remoteUpdatedAt)) return
+        db.insertWithOnConflict(
+            "storage_locations",
+            null,
+            ContentValues().apply {
+                put("id", id)
+                put("name", location.getString("name"))
+                put("updated_at", remoteUpdatedAt)
+                put("deleted", if (location.getBoolean("deleted")) 1 else 0)
+            },
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+    }
+
+    private fun getStorageLocationsJson(db: SQLiteDatabase): JSONArray = JSONArray().apply {
+        db.rawQuery("SELECT id, name, updated_at, deleted FROM storage_locations ORDER BY id", null).use { cursor ->
+            while (cursor.moveToNext()) put(JSONObject().apply {
+                put("id", cursor.getString(0))
+                put("name", cursor.getString(1))
+                put("updated_at", cursor.getString(2))
+                put("deleted", cursor.getInt(3) == 1)
+            })
+        }
+    }
+
     private fun readStoredSyncCursor(): Long? = if (preferences.contains(KEY_SYNC_CURSOR)) {
         preferences.getLong(KEY_SYNC_CURSOR, 0L).coerceAtLeast(0L)
     } else {
@@ -2296,6 +2680,7 @@ class InventoryRepository(
     )
 
     private companion object {
+        val lastMutationMillis = java.util.concurrent.atomic.AtomicLong(0L)
         const val PREFS_NAME = "component_vault_sync"
         const val KEY_DEVICE_ID = "device_id"
         const val KEY_SERVER_BASE_URL = "server_base_url"
@@ -2304,6 +2689,7 @@ class InventoryRepository(
         const val KEY_LAST_SYNCED_AT = "last_synced_at"
         const val KEY_LAST_SYNC_MESSAGE = "last_sync_message"
         const val KEY_SYNC_CURSOR = "sync_cursor"
+        const val KEY_INVENTORY_PROTOCOL_MIGRATED = "inventory_protocol_migrated_v1"
         const val KEY_DEFAULT_IMPORT_LOCATION = "default_import_location"
         const val KEY_LAST_IMPORT_LOCATION = "last_import_location"
         const val KEY_DEFAULT_IMPORT_MIN_STOCK = "default_import_min_stock"

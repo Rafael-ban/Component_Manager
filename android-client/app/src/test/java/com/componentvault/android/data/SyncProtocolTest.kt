@@ -8,6 +8,16 @@ import kotlin.test.assertTrue
 
 class SyncProtocolTest {
     @Test
+    fun inventorySnapshotDoesNotOverwriteEditsMadeDuringUploadEvenAfterClockRollback() {
+        val pushed = "2026-09-15T10:00:00Z"
+        assertFalse(SyncProtocol.canApplyInventorySnapshot("2026-09-15T10:01:00Z", pushed))
+        assertFalse(SyncProtocol.canApplyInventorySnapshot("2026-09-15T09:00:00Z", pushed))
+        assertFalse(SyncProtocol.canApplyInventorySnapshot(pushed, null))
+        assertTrue(SyncProtocol.canApplyInventorySnapshot("2026-09-15T10:00:00.000000Z", pushed))
+        assertTrue(SyncProtocol.canApplyInventorySnapshot(null, pushed))
+    }
+
+    @Test
     fun timestampsCompareByInstantAcrossFractionalPrecisionAndOffsets() {
         assertTrue(
             SyncProtocol.isRemoteAtLeastAsNew(

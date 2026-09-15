@@ -3,7 +3,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import sqlite3
 
-from .schemas import ComponentPayload, PushRequest, StockMovementPayload
+from .schemas import (
+    AllocationPayload, ComponentPayload, PushRequest,
+    StockMovementPayload, StorageLocationPayload,
+)
+from .storage import (
+    check_component_version, load_allocations, save_allocations,
+    save_locations, validate_inventory_push,
+)
 
 
 def save_components(
@@ -49,6 +56,8 @@ def save_sync_payload(
         with connection:
             # Serialize the LWW read/check/write as well as revision allocation.
             connection.execute("BEGIN IMMEDIATE")
+            validate_inventory_push(connection, payload)
+            save_locations(connection, payload.storage_locations)
             accepted_components = save_components(
                 connection,
                 payload.components,
@@ -58,6 +67,14 @@ def save_sync_payload(
                 connection,
                 payload.stock_movements,
             )
+            invalid_location = connection.execute("""
+                SELECT a.location_id FROM component_allocations a
+                JOIN storage_locations l ON l.id = a.location_id
+                JOIN components c ON c.id = a.component_id
+                WHERE c.deleted = 0 AND l.deleted = 1 AND a.quantity > 0 LIMIT 1
+            """).fetchone()
+            if invalid_location:
+                raise ValueError("A location with positive inventory cannot be deleted.")
     except sqlite3.IntegrityError as error:
         raise ValueError(_integrity_error_message(error)) from error
     return accepted_components, accepted_stock_movements
@@ -68,6 +85,7 @@ def pull_sync_snapshot(
     *,
     cursor: int | None,
     since: datetime | None,
+    locations_out: list[StorageLocationPayload] | None = None,
 ) -> tuple[int, list[ComponentPayload], list[StockMovementPayload]]:
     """Read both entity types and the returned cursor from one DB snapshot."""
     connection.execute("BEGIN")
@@ -95,10 +113,21 @@ def pull_sync_snapshot(
             movement_rows = connection.execute(
                 "SELECT * FROM stock_movements"
             ).fetchall()
+        components = [
+            _row_to_component(
+                row, load_allocations(connection, row["id"])
+                if row["inventory_managed"] else None,
+            )
+            for row in component_rows
+        ]
+        if locations_out is not None:
+            locations_out.extend(
+                StorageLocationPayload.model_validate(dict(row))
+                for row in connection.execute("SELECT * FROM storage_locations ORDER BY id")
+            )
     finally:
         connection.rollback()
 
-    components = [_row_to_component(row) for row in component_rows]
     movements = [_row_to_stock_movement(row) for row in movement_rows]
     if cursor is None and since is not None:
         since_utc = _as_utc(since)
@@ -117,10 +146,12 @@ def _upsert_component(
 ) -> bool:
     new_updated_at = _to_storage_time(component.updated_at)
     existing = connection.execute(
-        "SELECT updated_at FROM components WHERE id = ?",
+        "SELECT * FROM components WHERE id = ?",
         (component.id,),
     ).fetchone()
-    if existing and _parse_storage_time(existing["updated_at"]) > _as_utc(
+    if check_component_version(connection, existing, component):
+        return False
+    if component.allocations is None and existing and _parse_storage_time(existing["updated_at"]) > _as_utc(
         component.updated_at
     ):
         return False
@@ -171,6 +202,8 @@ def _upsert_component(
             sync_revision,
         ),
     )
+    if component.allocations is not None:
+        save_allocations(connection, component)
     return True
 
 
@@ -228,10 +261,18 @@ def _upsert_stock_movement(
             sync_revision,
         ),
     )
+    connection.execute(
+        "UPDATE stock_movements SET location_id = ?, destination_location_id = ? "
+        "WHERE id = ?",
+        (stock_movement.location_id, stock_movement.destination_location_id,
+         stock_movement.id),
+    )
     return True
 
 
-def _row_to_component(row: sqlite3.Row) -> ComponentPayload:
+def _row_to_component(
+    row: sqlite3.Row, allocations: list[AllocationPayload] | None = None,
+) -> ComponentPayload:
     return ComponentPayload.model_validate(
         {
             "id": row["id"],
@@ -245,6 +286,7 @@ def _row_to_component(row: sqlite3.Row) -> ComponentPayload:
             "min_stock": row["min_stock"],
             "updated_at": row["updated_at"],
             "deleted": bool(row["deleted"]),
+            "allocations": allocations,
         }
     )
 
@@ -261,6 +303,8 @@ def _row_to_stock_movement(row: sqlite3.Row) -> StockMovementPayload:
             "happened_at": row["happened_at"],
             "updated_at": row["updated_at"],
             "deleted": bool(row["deleted"]),
+            "location_id": row["location_id"],
+            "destination_location_id": row["destination_location_id"],
         }
     )
 

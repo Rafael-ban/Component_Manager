@@ -38,6 +38,13 @@ connects to it over HTTP.
   preview. See [BOM and migration guide](docs/bom-and-migration.md).
 - Active components enforce unique `sku`.
 - Component `quantity` and `min_stock` are non-negative.
+- Independent storage locations support one component in multiple bins and
+  transactional partial/full transfers. A component's quantity equals the sum
+  of its location allocations; transfers do not count as consumption.
+- Native clients share an Excel backup format and import LCSC_android_erp
+  schema-version-1 workbooks through a conflict preview. Restore adds new
+  records; it does not silently overwrite existing inventory. See
+  [storage and backup guide](docs/storage-and-backup.md).
 - Native layouts use a home summary, compact inventory cards with adjacent
   images and usage rings, local display dates, and a single Settings entry.
   About displays author `Rafael-Ikaros`, installed version, project/license
@@ -47,24 +54,29 @@ connects to it over HTTP.
 ## Sync reliability and direct LCSC lookup
 
 - Updated native clients use the server-issued `sync_cursor` for incremental
-  downloads. `updated_at` remains the LWW conflict timestamp; `server_time` is
-  informational. The first upgraded sync is a full snapshot.
+  downloads. Managed inventory snapshots use `base_updated_at` optimistic
+  conflict checks; legacy inventory and location metadata retain LWW.
+  `server_time` is informational. The first upgraded sync is a full snapshot.
 - Pending changes are acknowledged against the uploaded queue version, so edits
   made while a sync is running remain queued. Windows automatic sync now runs
   after startup and successful local edits, with a short debounce.
-- Both native clients can look up an LCSC `C` number directly on the official public
-  product page, without a sync server or OpenAPI credentials. This is enabled by
+- Both native clients can look up an LCSC `C` number directly on official public
+  pages and search the Chinese catalog by keyword, without a sync server or OpenAPI credentials. This is enabled by
   default on Android and can be disabled under import settings. Windows provides
-  a lookup action in the editor. Only the SKU is sent.
-- Product JSON-LD must contain the exact scanned SKU. Product descriptions,
+  a lookup action in the editor. Only the entered SKU or search keyword is sent.
+- Chinese catalog results or fallback Product JSON-LD must contain the exact scanned SKU. Product descriptions,
   manufacturer model, brand, and package fill the import confirmation form;
   supplier stock and prices never become local inventory quantities.
 - Successful lookups are cached for seven days. Public-page changes, verification
   screens, and network failures leave manual entry and an open-product-page link
   available. This is best-effort enrichment, not a guaranteed catalog service.
-- The implementation currently reads `www.lcsc.com` (LCSC's international
-  storefront). The domestic `item.szlcsc.com` numeric page ID must not be inferred
-  by removing the `C` prefix from the SKU.
+- Chinese search reads the public `so.szlcsc.com` page's structured product
+  records. Keyword candidates expose parameters and require selection. Exact
+  C-number lookup falls back to `www.lcsc.com` when Chinese lookup is unavailable.
+  Domestic product links use the returned `productId`, never the digits of the SKU.
+- New native clients require server `inventory_protocol=1` before sync. A stale
+  inventory base returns HTTP 409 without accepting any part of the push.
+  Pending local changes remain available; upgrade the server before clients.
 - See [component-hub comparison and BOM roadmap](docs/component-hub-comparison.md)
   and [implementation plan](docs/sync-and-catalog-plan.md).
 

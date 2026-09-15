@@ -1,5 +1,6 @@
 using ComponentVault.WinUI.Localization;
 using ComponentVault.WinUI.Services.Catalog;
+using ComponentVault.WinUI.Services;
 using System.Globalization;
 
 namespace ComponentVault.WinUI.Models;
@@ -18,6 +19,8 @@ public sealed class ComponentRecord
     public required string UpdatedAt { get; init; }
     public required bool Deleted { get; init; }
     public long CumulativeOutboundQuantity { get; init; }
+    public IReadOnlyList<ComponentAllocationRecord> Allocations { get; init; } = [];
+    public string? BaseUpdatedAt { get; init; }
 
     public bool IsLowStock => !Deleted && Quantity <= MinStock;
 
@@ -29,14 +32,19 @@ public sealed class ComponentRecord
 
     public string Status => IsLowStock ? "低库存" : "库存正常";
 
-    public string? ProductImageUrl => Description
-        .Split(['；', ';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-        .Select(note => note.Trim())
-        .FirstOrDefault(note => note.StartsWith("商品图片：", StringComparison.Ordinal))
-        ?.Substring("商品图片：".Length)
-        .Trim() is { } value
-            ? LcscPublicCatalog.TrustedImageUrl(value) ?? LcscPublicCatalog.CachedImageUrl(Sku)
-            : LcscPublicCatalog.CachedImageUrl(Sku);
+    public string? ProductImageUrl
+    {
+        get
+        {
+            var local = PrivateProductImageStore.Resolve(
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ComponentVault", "images"), Description);
+            if (local is not null) return local;
+            var value = Description.Split(['；', ';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(note => note.Trim()).FirstOrDefault(note => note.StartsWith("商品图片：", StringComparison.Ordinal))?
+                .Substring("商品图片：".Length).Trim();
+            return value is not null ? LcscPublicCatalog.TrustedImageUrl(value) ?? LcscPublicCatalog.CachedImageUrl(Sku) : LcscPublicCatalog.CachedImageUrl(Sku);
+        }
+    }
 
     public string DisplayCategory => CategoryDisplay.Localize(Category);
 

@@ -81,10 +81,31 @@ public sealed partial class MovementsView : Page
                 new MovementTypeOption("inbound", "入库"),
                 new MovementTypeOption("outbound", "出库"),
                 new MovementTypeOption("adjustment", "调整"),
+                new MovementTypeOption("transfer", "库位调拨"),
             },
             DisplayMemberPath = nameof(MovementTypeOption.Label),
             SelectedIndex = 0,
         };
+        var sourceLocationCombo = new ComboBox
+        {
+            ItemsSource = viewModel.StorageLocations,
+            DisplayMemberPath = nameof(StorageLocationRecord.Id),
+            PlaceholderText = "选择来源/作业库位",
+        };
+        var destinationLocationCombo = new ComboBox
+        {
+            ItemsSource = viewModel.StorageLocations,
+            DisplayMemberPath = nameof(StorageLocationRecord.Id),
+            PlaceholderText = "调拨目标库位",
+        };
+        void RefreshSourceLocations()
+        {
+            var component = componentCombo.SelectedItem as ComponentRecord;
+            sourceLocationCombo.SelectedItem = viewModel.StorageLocations.FirstOrDefault(item => item.Id == component?.Location)
+                ?? viewModel.StorageLocations.FirstOrDefault();
+        }
+        componentCombo.SelectionChanged += (_, _) => RefreshSourceLocations();
+        RefreshSourceLocations();
         var quantityBox = new NumberBox
         {
             Value = 1,
@@ -123,6 +144,8 @@ public sealed partial class MovementsView : Page
         panel.Children.Add(CreateSectionHeader("记录对象", "先选择元器件，再填写变动类型。"));
         panel.Children.Add(CreateField("元器件", componentCombo));
         panel.Children.Add(CreateField("变动类型", movementTypeCombo));
+        panel.Children.Add(CreateField("作业 / 来源库位", sourceLocationCombo));
+        panel.Children.Add(CreateField("调拨目标库位", destinationLocationCombo));
 
         panel.Children.Add(CreateSectionHeader("数量与原因", "数量将直接影响本地库存。"));
         panel.Children.Add(CreateField("数量", quantityBox));
@@ -169,6 +192,19 @@ public sealed partial class MovementsView : Page
                 args.Cancel = true;
                 return;
             }
+            if (sourceLocationCombo.SelectedItem is not StorageLocationRecord source)
+            {
+                errorText.Text = "请选择具体作业库位。";
+                args.Cancel = true;
+                return;
+            }
+            var destination = destinationLocationCombo.SelectedItem as StorageLocationRecord;
+            if (movementType.Value == "transfer" && destination is null)
+            {
+                errorText.Text = "调拨时请选择目标库位。";
+                args.Cancel = true;
+                return;
+            }
 
             draft = new MovementEntryDraft
             {
@@ -177,6 +213,8 @@ public sealed partial class MovementsView : Page
                 Quantity = (int)Math.Round(quantityBox.Value),
                 Reason = reasonBox.Text,
                 Note = noteBox.Text,
+                LocationId = source.Id,
+                DestinationLocationId = destination?.Id,
             };
         };
 

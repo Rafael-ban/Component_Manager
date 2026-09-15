@@ -1,0 +1,68 @@
+package com.componentvault.android.data
+
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
+class InventoryWorkbookCodecTest {
+    private fun sample(components:List<WorkbookComponent> = listOf(WorkbookComponent("cmp-1","C1","电阻","电阻","0603","loc-1","",4,1,"2026-09-15T00:00:00Z",false,null)))=InventoryWorkbook(
+        WorkbookSource.ComponentVault,components,listOf(WorkbookLocation("loc-1","A-01","2026-09-15T00:00:00Z",false)),
+        listOf(WorkbookAllocation("cmp-1","loc-1",4)),
+        listOf(WorkbookMovement("mov-1","cmp-1","inbound",4,"initial","","2026-09-15T00:00:00Z","2026-09-15T00:00:00Z",false,"loc-1",null)),"",emptyList())
+
+    @Test fun ownWorkbookRoundTripsExactTablesAndTransferFields(){
+        val transfer=WorkbookMovement("mov-2","cmp-1","transfer",2,"move","","2026-09-15T01:00:00Z","2026-09-15T01:00:00Z",false,"loc-1","loc-2")
+        val model=sample().copy(locations=sample().locations+WorkbookLocation("loc-2","B-02","2026-09-15T00:00:00Z",false),movements=sample().movements+transfer)
+        val parsed=InventoryWorkbookCodec.parse(InventoryWorkbookWriter.write(model,"2026-09-15T02:00:00.000Z"))
+        assertEquals(WorkbookSource.ComponentVault,parsed.source);assertEquals(transfer,parsed.movements.last());assertTrue(parsed.fingerprint.length==64)
+    }
+
+    @Test fun duplicateActiveSkuIsRejected(){
+        val duplicate=sample().components.first().copy(id="cmp-2")
+        val model=sample(sample().components+duplicate).copy(allocations=sample().allocations+WorkbookAllocation("cmp-2","loc-1",4))
+        assertFailsWith<IllegalArgumentException>{InventoryWorkbookCodec.parse(InventoryWorkbookWriter.write(model))}
+    }
+
+    @Test fun lcscPoiNumericCellsAcceptIntegralDecimalsAndScientificEpoch(){
+        val parsed=InventoryWorkbookCodec.parse(lcscPoiFixture("5.0"))
+        assertEquals("cmp-legacy-1",parsed.components.single().id)
+        assertEquals(5,parsed.components.single().quantity)
+        assertEquals("A-01",parsed.locations.single().id)
+        assertEquals("2023-11-14T22:13:20Z",parsed.components.single().updatedAt)
+    }
+
+    @Test fun lcscPoiNumericCellsRejectFractions(){
+        assertFailsWith<IllegalStateException>{InventoryWorkbookCodec.parse(lcscPoiFixture("1.5"))}
+    }
+
+    private fun lcscPoiFixture(quantity:String):ByteArray{
+        val sheets=listOf(
+            "meta" to listOf(listOf("schemaVersion","1")),
+            "storage_locations" to listOf(
+                listOf("id","code","displayName","colorHex","sortMode","remark","createdAt"),
+                listOf("#1.0","A-01","主库位","","","","#1700000000000.0"),
+            ),
+            "components" to listOf(
+                listOf("id","partNumber","name","brand","packageName","category","specJson","description","sourceUrl","updatedAt","imagePreview"),
+                listOf("#1.0","C70565","晶振","YXC","3225","晶振","{}","desc","https://item.szlcsc.com/1.html","#1.7E12",""),
+            ),
+            "inventory_items" to listOf(
+                listOf("id","componentId","locationId","quantity","lastInboundAt","updatedAt"),
+                listOf("#9.0","#1.0","#1.0","#$quantity","","#1700000000000.0"),
+            ),
+        )
+        val out=ByteArrayOutputStream();ZipOutputStream(out).use{zip->
+            fun add(path:String,text:String){zip.putNextEntry(ZipEntry(path));zip.write(text.toByteArray());zip.closeEntry()}
+            add("[Content_Types].xml","<?xml version=\"1.0\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>"+(1..4).joinToString(""){"<Override PartName=\"/xl/worksheets/sheet$it.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>"}+"</Types>")
+            add("_rels/.rels","<?xml version=\"1.0\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>")
+            add("xl/workbook.xml","<?xml version=\"1.0\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets>"+sheets.mapIndexed{i,s->"<sheet name=\"${s.first}\" sheetId=\"${i+1}\" r:id=\"rId${i+1}\"/>"}.joinToString("")+"</sheets></workbook>")
+            add("xl/_rels/workbook.xml.rels","<?xml version=\"1.0\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"+(1..4).joinToString(""){"<Relationship Id=\"rId$it\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet$it.xml\"/>"}+"</Relationships>")
+            sheets.forEachIndexed{i,s->add("xl/worksheets/sheet${i+1}.xml",poiSheet(s.second))}
+        };return out.toByteArray()
+    }
+    private fun poiSheet(rows:List<List<String>>)="<?xml version=\"1.0\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>"+rows.mapIndexed{ri,row->"<row r=\"${ri+1}\">"+row.mapIndexed{ci,value->val ref=('A'.code+ci).toChar().toString()+(ri+1);if(value.startsWith("#"))"<c r=\"$ref\"><v>${value.drop(1)}</v></c>" else "<c r=\"$ref\" t=\"inlineStr\"><is><t>$value</t></is></c>"}.joinToString("")+"</row>"}.joinToString("")+"</sheetData></worksheet>"
+}

@@ -406,4 +406,28 @@
     <string name="import_part_number_invalid">Enter a complete LCSC part number, for example C70565.</string>
     <string name="import_ocr_secondary_hint">Scan the QR code or enter the C-number first. Use text recognition when no code is available, then verify the extracted fields.</string>
     <string name="importer_open_domestic_product">Open Chinese LCSC store</string>
+    <string name="import_catalog_search_label">Chinese LCSC catalog</string>
+    <string name="import_catalog_search_placeholder">C70565 or a keyword such as STM32</string>
+    <string name="import_catalog_search_action">Search Chinese LCSC catalog</string>
+    <string name="import_catalog_searching">Searching catalog…</string>
+    <string name="import_catalog_empty">No matching products found.</string>
+    <string name="import_catalog_choose">Found %1$d candidates. Choose one to fill the form.</string>
+    <string name="import_catalog_failed">Catalog search failed: %1$s</string>
+    <string name="import_catalog_blocked">LCSC requested browser verification. Open the search in a browser; an exact C-number will still try the public international listing.</string>
+    <string name="import_catalog_open_browser">Open search in browser</string>
+    <string name="import_catalog_use_candidate">Use this product</string>
+    <string name="import_catalog_open_datasheet">Open datasheet</string>
+    <string name="import_catalog_image_source">Product image source</string>
+    <string name="import_domestic_selected">Chinese LCSC product selected. Review the filled fields before saving.</string>
+    <string name="movement_type_transfer">Transfer</string>
+    <string name="backup_title">Excel backup and restore</string>
+    <string name="backup_back">Back</string>
+    <string name="backup_description">Exports a component-vault schemaVersion=1 workbook containing locations, allocations, movement history, and persisted images.</string>
+    <string name="backup_create">Create backup file</string>
+    <string name="backup_choose">Choose backup and preview</string>
+    <string name="backup_own_source">Component Vault backup</string>
+    <string name="backup_lcsc_source">LCSC Android ERP schema1</string>
+    <string name="backup_counts">Add %1$d components and %2$d locations; skip %3$d existing IDs/SKUs.</string>
+    <string name="backup_merge_notice">Restore adds new records only and does not overwrite existing data.</string>
+    <string name="backup_confirm">Confirm restore</string>
 </resources>

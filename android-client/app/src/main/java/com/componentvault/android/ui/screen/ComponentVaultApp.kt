@@ -57,6 +57,8 @@ fun ComponentVaultApp(
     var movementEditorAllowManualSelection by rememberSaveable { mutableStateOf(true) }
     var importSurfaceVisible by rememberSaveable { mutableStateOf(false) }
     var bomImportVisible by rememberSaveable { mutableStateOf(false) }
+    var storageLocationsVisible by rememberSaveable { mutableStateOf(false) }
+    var inventoryBackupVisible by rememberSaveable { mutableStateOf(false) }
     var showDeleteConfirmation by rememberSaveable { mutableStateOf(false) }
     var showAddEntrySheet by rememberSaveable { mutableStateOf(false) }
     var componentEditorInitialDraft by remember { mutableStateOf<ComponentDraft?>(null) }
@@ -282,6 +284,7 @@ fun ComponentVaultApp(
                             }
                         }
                     },
+                    storageLocations = uiState.inventory.storageLocations,
                 )
             }
 
@@ -316,6 +319,20 @@ fun ComponentVaultApp(
                 )
             }
 
+            storageLocationsVisible -> {
+                StorageLocationsScreen(
+                    locations = uiState.inventory.storageLocations,
+                    onDismiss = { storageLocationsVisible = false },
+                    onSave = viewModel::saveStorageLocation,
+                    onDelete = viewModel::deleteStorageLocation,
+                )
+            }
+
+            inventoryBackupVisible -> InventoryBackupScreen(
+                viewModel = viewModel,
+                onDismiss = { inventoryBackupVisible = false; viewModel.clearInventoryBackupState() },
+            )
+
             labelPreviewSeed != null && !layoutMode.prefersDialogForms -> {
                 ComponentLabelPreviewSurface(
                     seed = requireNotNull(labelPreviewSeed),
@@ -335,6 +352,7 @@ fun ComponentVaultApp(
                     component = compactDetailComponent,
                     recentMovements = compactDetailMovements,
                     issuedQuantity = uiState.inventory.detail.issuedQuantity,
+                    allocations = uiState.inventory.detail.allocations,
                     onDismiss = { compactDetailComponentId = null },
                     onEditComponent = { componentId -> openComponentEditor(componentId) },
                     onGenerateLabel = { component ->
@@ -512,6 +530,7 @@ fun ComponentVaultApp(
                             }
                         }
                     },
+                    storageLocations = uiState.inventory.storageLocations,
                 )
             }
 
@@ -569,6 +588,14 @@ fun ComponentVaultApp(
                     showAddEntrySheet = false
                     bomImportVisible = true
                 },
+                onManageLocations = {
+                    showAddEntrySheet = false
+                    storageLocationsVisible = true
+                },
+                onBackupRestore = {
+                    showAddEntrySheet = false
+                    inventoryBackupVisible = true
+                },
             )
         }
 
@@ -592,6 +619,8 @@ private fun AddComponentEntrySheet(
     onImportComponent: () -> Unit,
     onAddComponent: () -> Unit,
     onImportBom: () -> Unit,
+    onManageLocations: () -> Unit,
+    onBackupRestore: () -> Unit,
 ) {
     val strings = vaultStrings()
 
@@ -619,6 +648,12 @@ private fun AddComponentEntrySheet(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(strings.forms.addComponentTitle)
+            }
+            OutlinedButton(onClick = onManageLocations, modifier = Modifier.fillMaxWidth()) {
+                Text("管理库位")
+            }
+            OutlinedButton(onClick = onBackupRestore, modifier = Modifier.fillMaxWidth()) {
+                Text("Excel 备份与恢复")
             }
             OutlinedButton(
                 onClick = onDismiss,

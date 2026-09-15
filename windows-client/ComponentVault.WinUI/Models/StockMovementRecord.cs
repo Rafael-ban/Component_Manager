@@ -15,11 +15,14 @@ public sealed class StockMovementRecord
     public required string HappenedAt { get; init; }
     public required string UpdatedAt { get; init; }
     public required bool Deleted { get; init; }
+    public string? LocationId { get; init; }
+    public string? DestinationLocationId { get; init; }
 
     public long QuantityChange => MovementType.Trim().ToLowerInvariant() switch
     {
         "outbound" => -Math.Abs((long)Quantity),
         "inbound" => Math.Abs((long)Quantity),
+        "transfer" => 0,
         _ => Quantity,
     };
 
@@ -30,6 +33,7 @@ public sealed class StockMovementRecord
         "inbound" => "入库",
         "outbound" => "出库",
         "adjustment" => "调整",
+        "transfer" => "调拨",
         _ => MovementType,
     };
 

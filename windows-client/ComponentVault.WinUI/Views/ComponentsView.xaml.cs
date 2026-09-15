@@ -70,6 +70,48 @@ public sealed partial class ComponentsView : Page
         await ShowOperationResultAsync(viewModel.SaveComponent(draft));
     }
 
+    private async void OnManageLocationsClicked(object sender, RoutedEventArgs e)
+    {
+        if (RuntimeViewModel is not { } viewModel) return;
+        var selector = new ComboBox
+        {
+            ItemsSource = viewModel.StorageLocations,
+            DisplayMemberPath = "Name",
+            PlaceholderText = "选择已有库位",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        var idBox = CreateTextBox(null, "稳定编码，例如 A-01-02（保存后不可修改）");
+        var nameBox = CreateTextBox(null, "显示名称，例如 电阻柜 A1");
+        selector.SelectionChanged += (_, _) => { if (selector.SelectedItem is StorageLocationRecord item) { idBox.Text = item.Id; idBox.IsReadOnly = true; nameBox.Text = item.Name; } };
+        var newButton = new Button { Content = "新建库位" };
+        newButton.Click += (_, _) => { selector.SelectedItem = null; idBox.IsReadOnly = false; idBox.Text = string.Empty; nameBox.Text = string.Empty; };
+        var deleteButton = new Button { Content = "删除所选库位" };
+        var error = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        deleteButton.Click += (_, _) =>
+        {
+            if (selector.SelectedItem is not StorageLocationRecord item) { error.Text = "请先选择库位。"; return; }
+            var result = viewModel.DeleteStorageLocation(item.Id); error.Text = result.Message;
+            if (result.IsSuccess) { selector.ItemsSource = viewModel.StorageLocations; selector.SelectedItem = null; idBox.Text = nameBox.Text = string.Empty; idBox.IsReadOnly = false; }
+        };
+        var panel = new StackPanel { Width = 480, Spacing = 10 };
+        panel.Children.Add(CreateField("现有独立库位", selector));
+        panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { newButton, deleteButton } });
+        panel.Children.Add(CreateField("库位编码", idBox));
+        panel.Children.Add(CreateField("库位名称", nameBox));
+        panel.Children.Add(error);
+        var dialog = new ContentDialog
+        {
+            Title = "管理库位", Content = panel, PrimaryButtonText = "保存库位",
+            CloseButtonText = AppStrings.Get("Common_Cancel"), XamlRoot = XamlRoot,
+        };
+        dialog.PrimaryButtonClick += (_, args) =>
+        {
+            var result = viewModel.SaveStorageLocation(idBox.Text, nameBox.Text);
+            if (!result.IsSuccess) { error.Text = result.Message; args.Cancel = true; }
+        };
+        await dialog.ShowAsync();
+    }
+
     private async void OnImportComponentHubClicked(object sender, RoutedEventArgs e)
     {
         var viewModel = RuntimeViewModel;
@@ -202,7 +244,15 @@ public sealed partial class ComponentsView : Page
         var nameBox = CreateTextBox(existing?.Name, "例如 10k 电阻");
         var categoryBox = CreateTextBox(existing?.Category, "例如 电阻");
         var packageBox = CreateTextBox(existing?.PackageName, "例如 0402");
-        var locationBox = CreateTextBox(existing?.Location, "例如 B-02-01");
+        var locationBox = new ComboBox
+        {
+            IsEditable = true,
+            ItemsSource = RuntimeViewModel?.StorageLocations,
+            DisplayMemberPath = "Id",
+            Text = existing?.Location ?? string.Empty,
+            PlaceholderText = "选择库位或输入新编码",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
         var descriptionBox = new TextBox
         {
             Text = existing?.Description ?? string.Empty,
@@ -238,8 +288,8 @@ public sealed partial class ComponentsView : Page
         };
         panel.Children.Add(CreateSectionHeader("基本信息", "名称、SKU、分类与封装。"));
         var skuActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var lookupButton = new Button { Content = "按 C 编号联网补全" };
-        var chinaSearchButton = new Button { Content = "打开国内商城搜索" };
+        var lookupButton = new Button { Content = AppStrings.Get("Components_Catalog_ExactLookup") };
+        var chinaSearchButton = new Button { Content = AppStrings.Get("Components_Catalog_OpenSearch") };
         skuActions.Children.Add(lookupButton);
         skuActions.Children.Add(chinaSearchButton);
         var skuPanel = new StackPanel { Spacing = 6 };
@@ -249,6 +299,48 @@ public sealed partial class ComponentsView : Page
         panel.Children.Add(CreateField("名称", nameBox));
         panel.Children.Add(CreateField("分类", categoryBox));
         panel.Children.Add(CreateField("封装", packageBox));
+
+        panel.Children.Add(CreateSectionHeader(
+            AppStrings.Get("Components_Catalog_SectionTitle"),
+            AppStrings.Get("Components_Catalog_SectionDescription")
+        ));
+        var keywordBox = CreateTextBox(null, AppStrings.Get("Components_Catalog_KeywordPlaceholder"));
+        var searchButton = new Button { Content = AppStrings.Get("Components_Catalog_Search") };
+        var searchRow = new Grid { ColumnSpacing = 8 };
+        searchRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        searchRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        searchRow.Children.Add(keywordBox);
+        Grid.SetColumn(searchButton, 1);
+        searchRow.Children.Add(searchButton);
+        panel.Children.Add(searchRow);
+
+        var candidateList = new ListView
+        {
+            MaxHeight = 220,
+            SelectionMode = ListViewSelectionMode.Single,
+            Visibility = Visibility.Collapsed,
+        };
+        var parameterText = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            IsTextSelectionEnabled = true,
+            Visibility = Visibility.Collapsed,
+        };
+        var candidateActions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Visibility = Visibility.Collapsed,
+        };
+        var fillCandidateButton = new Button { Content = AppStrings.Get("Components_Catalog_FillSelected") };
+        var openProductButton = new Button { Content = AppStrings.Get("Components_Catalog_OpenProduct") };
+        var openDatasheetButton = new Button { Content = AppStrings.Get("Components_Catalog_OpenDatasheet"), IsEnabled = false };
+        candidateActions.Children.Add(fillCandidateButton);
+        candidateActions.Children.Add(openProductButton);
+        candidateActions.Children.Add(openDatasheetButton);
+        panel.Children.Add(candidateList);
+        panel.Children.Add(parameterText);
+        panel.Children.Add(candidateActions);
 
         panel.Children.Add(CreateSectionHeader("库存与仓位", "数量与最低库存均不能为负数。"));
         panel.Children.Add(CreateField("仓位", locationBox));
@@ -282,21 +374,85 @@ public sealed partial class ComponentsView : Page
                     errorText.Text = "公共商品页没有返回与该 C 编号精确一致的 Product 数据。";
                     return;
                 }
-                skuBox.Text = metadata.Sku;
-                if (string.IsNullOrWhiteSpace(nameBox.Text)) nameBox.Text = metadata.Name;
-                if (string.IsNullOrWhiteSpace(categoryBox.Text)) categoryBox.Text = metadata.Category;
-                if (string.IsNullOrWhiteSpace(packageBox.Text) && !string.IsNullOrWhiteSpace(metadata.PackageName)) packageBox.Text = metadata.PackageName;
-                descriptionBox.Text = AppendOfficialNotes(descriptionBox.Text, metadata);
-                errorText.Text = "已按精确 C 编号补全空白字段；原有手工字段未覆盖。";
+                ApplyMetadata(metadata, skuBox, nameBox, categoryBox, packageBox, descriptionBox);
+                errorText.Text = AppStrings.Get("Components_Catalog_ExactSuccess");
             }
-            catch (Exception exception) { errorText.Text = $"公共商品查询失败：{exception.Message}"; }
+            catch (LcscDomesticBlockedException)
+            {
+                errorText.Text = AppStrings.Get("Components_Catalog_VerificationRequired");
+            }
+            catch (Exception exception) { errorText.Text = AppStrings.Format("Components_Catalog_QueryFailedPattern", exception.Message); }
             finally { lookupButton.IsEnabled = true; }
         };
         chinaSearchButton.Click += async (_, _) =>
         {
-            var uri = LcscPublicCatalog.ChinaSearchUri(skuBox.Text);
-            if (uri is null) { errorText.Text = "请输入有效 C 编号后再打开搜索。"; return; }
+            var uri = LcscPublicCatalog.ChinaSearchUri(
+                string.IsNullOrWhiteSpace(keywordBox.Text) ? skuBox.Text : keywordBox.Text
+            );
+            if (uri is null) { errorText.Text = AppStrings.Get("Components_Catalog_KeywordRequired"); return; }
             await Windows.System.Launcher.LaunchUriAsync(uri);
+        };
+
+        searchButton.Click += async (_, _) =>
+        {
+            var keyword = keywordBox.Text.Trim();
+            if (keyword.Length == 0)
+            {
+                errorText.Text = AppStrings.Get("Components_Catalog_KeywordRequired");
+                return;
+            }
+            searchButton.IsEnabled = false;
+            candidateList.Visibility = Visibility.Collapsed;
+            candidateActions.Visibility = Visibility.Collapsed;
+            parameterText.Visibility = Visibility.Collapsed;
+            errorText.Text = AppStrings.Get("Components_Catalog_Searching");
+            try
+            {
+                var results = await _catalogLookup.SearchChinaAsync(keyword);
+                candidateList.ItemsSource = results.Select(item => new CatalogCandidateItem(item)).ToArray();
+                candidateList.Visibility = results.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+                errorText.Text = results.Count == 0
+                    ? AppStrings.Get("Components_Catalog_NoResults")
+                    : AppStrings.Format("Components_Catalog_ResultCountPattern", results.Count);
+                if (results.Count > 0) candidateList.SelectedIndex = 0;
+            }
+            catch (LcscDomesticBlockedException)
+            {
+                errorText.Text = AppStrings.Get("Components_Catalog_VerificationRequired");
+            }
+            catch (Exception exception) { errorText.Text = AppStrings.Format("Components_Catalog_QueryFailedPattern", exception.Message); }
+            finally { searchButton.IsEnabled = true; }
+        };
+        candidateList.SelectionChanged += (_, _) =>
+        {
+            var selected = (candidateList.SelectedItem as CatalogCandidateItem)?.Metadata;
+            candidateActions.Visibility = selected is null ? Visibility.Collapsed : Visibility.Visible;
+            if (selected is null)
+            {
+                parameterText.Visibility = Visibility.Collapsed;
+                return;
+            }
+            parameterText.Text = FormatCatalogDetails(selected);
+            parameterText.Visibility = Visibility.Visible;
+            openDatasheetButton.IsEnabled = selected.DatasheetUrl is not null;
+        };
+        fillCandidateButton.Click += (_, _) =>
+        {
+            if ((candidateList.SelectedItem as CatalogCandidateItem)?.Metadata is not { } selected) return;
+            ApplyMetadata(selected, skuBox, nameBox, categoryBox, packageBox, descriptionBox);
+            errorText.Text = AppStrings.Get("Components_Catalog_CandidateFilled");
+        };
+        openProductButton.Click += async (_, _) =>
+        {
+            if ((candidateList.SelectedItem as CatalogCandidateItem)?.Metadata is { } selected
+                && Uri.TryCreate(selected.OfficialUrl, UriKind.Absolute, out var uri))
+                await Windows.System.Launcher.LaunchUriAsync(uri);
+        };
+        openDatasheetButton.Click += async (_, _) =>
+        {
+            var url = (candidateList.SelectedItem as CatalogCandidateItem)?.Metadata.DatasheetUrl;
+            if (LcscPublicCatalog.TrustedDatasheetUrl(url) is { } trusted)
+                await Windows.System.Launcher.LaunchUriAsync(new Uri(trusted));
         };
 
         ComponentDraft? draft = null;
@@ -375,7 +531,47 @@ public sealed partial class ComponentsView : Page
         AddUnique(notes, $"官方商品页：{metadata.OfficialUrl}");
         AddUnique(notes, metadata.CategoryPath is null ? null : $"官方分类路径：{metadata.CategoryPath}");
         AddUnique(notes, metadata.ImageUrl is null ? null : $"商品图片：{metadata.ImageUrl}");
+        AddUnique(notes, metadata.DatasheetUrl is null ? null : $"数据手册：{metadata.DatasheetUrl}");
+        if (metadata.Parameters is not null)
+            foreach (var parameter in metadata.Parameters) AddUnique(notes, $"参数·{parameter.Key}：{parameter.Value}");
         return string.Join("\n", notes);
+    }
+
+    private static void ApplyMetadata(
+        LcscProductMetadata metadata,
+        TextBox skuBox,
+        TextBox nameBox,
+        TextBox categoryBox,
+        TextBox packageBox,
+        TextBox descriptionBox
+    )
+    {
+        if (string.IsNullOrWhiteSpace(skuBox.Text)) skuBox.Text = metadata.Sku;
+        if (string.IsNullOrWhiteSpace(nameBox.Text)) nameBox.Text = metadata.Name;
+        if (string.IsNullOrWhiteSpace(categoryBox.Text)) categoryBox.Text = metadata.Category;
+        if (string.IsNullOrWhiteSpace(packageBox.Text) && !string.IsNullOrWhiteSpace(metadata.PackageName)) packageBox.Text = metadata.PackageName;
+        descriptionBox.Text = AppendOfficialNotes(descriptionBox.Text, metadata);
+    }
+
+    private static string FormatCatalogDetails(LcscProductMetadata metadata)
+    {
+        var lines = new List<string>
+        {
+            $"{metadata.Sku} · {metadata.Name}",
+            $"型号：{metadata.Model ?? "—"}   品牌：{metadata.Brand ?? "—"}",
+            $"分类：{metadata.Category}   封装：{metadata.PackageName ?? "—"}",
+        };
+        if (metadata.Parameters is { Count: > 0 })
+        {
+            lines.Add("参数：");
+            lines.AddRange(metadata.Parameters.Select(pair => $"  {pair.Key}：{pair.Value}"));
+        }
+        return string.Join("\n", lines);
+    }
+
+    private sealed record CatalogCandidateItem(LcscProductMetadata Metadata)
+    {
+        public override string ToString() => $"{Metadata.Sku} · {Metadata.Name} · {Metadata.Brand ?? "未知品牌"} · {Metadata.PackageName ?? "未知封装"}";
     }
 
     private static void AddUnique(List<string> notes, string? value)

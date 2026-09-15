@@ -5,6 +5,25 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.4.0] - 2026-09-15
+
+<!-- Add unreleased notes below this line. -->
+
+- Added Chinese LCSC public catalog search, keyword candidates, structured
+  parameter details and exact C-number fallback to the international storefront.
+- Added independent storage locations, multiple locations per component, explicit
+  location movements, partial/full transfers and visible BOM allocation plans
+  on Android and Windows. Transfers do not increase consumption statistics.
+- Added a shared Excel backup/restore format and LCSC_android_erp schemaVersion=1
+  migration with preview, new-record merging, strict inventory validation and
+  persistent embedded product images. Export does not query or change inventory.
+- Added inventory sync protocol 1 with atomic allocation snapshots, checked
+  base versions, capability negotiation, legacy-client write protection and
+  pre-upgrade database backups. Concurrent local edits remain queued.
+- Extended MQTT component state with location allocations and the admin console
+  movement display with transfers. Bluetooth printer integration remains deferred.
+
+
 ## [0.3.13] - 2026-09-15
 
 - Fixed the Android settings section list's missing localized string binding

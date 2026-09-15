@@ -16,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -24,6 +25,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.ComponentImportParser
 import com.componentvault.android.data.InventoryRepository
+import com.componentvault.android.data.LcscDomesticBlockedException
+import com.componentvault.android.data.LcscDomesticCatalog
+import com.componentvault.android.data.LcscDomesticProduct
 import com.componentvault.android.data.LcscPublicCatalog
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ComponentDraft
@@ -35,6 +39,12 @@ import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.SyncConfiguration
 import com.componentvault.android.model.isJlcSource
 import com.componentvault.android.model.referenceDisplayName
+import com.componentvault.android.model.withOfficialMetadata
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private enum class ImportScannerMode {
     Qr,
@@ -54,9 +64,16 @@ internal fun JlcImportSurface(
     val repository = remember(context) { InventoryRepository(context) }
     val strings = vaultStrings()
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val coroutineScope = rememberCoroutineScope()
 
     var rawInput by remember { mutableStateOf("") }
     var partNumberInput by rememberSaveable { mutableStateOf("") }
+    var domesticResults by remember { mutableStateOf<List<LcscDomesticProduct>>(emptyList()) }
+    var domesticSearchInProgress by remember { mutableStateOf(false) }
+    var domesticSearchMessage by remember { mutableStateOf<String?>(null) }
+    var domesticSearchIsError by remember { mutableStateOf(false) }
+    var domesticSearchJob by remember { mutableStateOf<Job?>(null) }
+    var selectedDomesticSku by remember { mutableStateOf<String?>(null) }
     var baseCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
     var displayedCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
     var scannerMode by rememberSaveable { mutableStateOf<ImportScannerMode?>(null) }
@@ -154,12 +171,37 @@ internal fun JlcImportSurface(
     }
 
     fun setBaseCandidate(candidate: ComponentImportCandidate) {
+        domesticSearchJob?.cancel()
+        selectedDomesticSku = null
         baseCandidate = candidate
         learningMatchType = null
         lookupMessage = null
         lookupIsError = false
         lookupInProgress = false
         applyDisplayedCandidate(candidate, preserveUserEdits = false)
+    }
+
+    fun applyDomesticProduct(product: LcscDomesticProduct) {
+        val currentQuantity = quantityText
+        val candidate = ComponentImportParser.parseScannedQr(requireNotNull(product.metadata.sku))
+            .withOfficialMetadata(product.metadata)
+        baseCandidate = candidate
+        selectedDomesticSku = product.metadata.sku
+        applyDisplayedCandidate(candidate, preserveUserEdits = displayedCandidate != null)
+        quantityText = currentQuantity
+        domesticSearchMessage = context.getString(com.componentvault.android.R.string.import_domestic_selected)
+        lookupInProgress = false
+        lookupMessage = domesticSearchMessage
+        lookupIsError = false
+    }
+
+    fun applyInternationalFallback(skuValue: String) {
+        val currentQuantity = quantityText
+        val candidate = ComponentImportParser.parseScannedQr(skuValue)
+        selectedDomesticSku = null
+        baseCandidate = candidate
+        applyDisplayedCandidate(candidate, preserveUserEdits = displayedCandidate != null)
+        quantityText = currentQuantity
     }
 
     fun buildQuickSaveDraftOrNull(): ComponentDraft? {
@@ -284,6 +326,7 @@ internal fun JlcImportSurface(
         appPreferences.enablePublicJlcLookup,
     ) {
         val candidate = baseCandidate ?: return@LaunchedEffect
+        if (candidate.sku.equals(selectedDomesticSku, ignoreCase = true)) return@LaunchedEffect
         lookupInProgress = candidate.sourceType != com.componentvault.android.model.ComponentImportSourceType.WarehouseLabel &&
             appPreferences.enablePublicJlcLookup && LcscPublicCatalog.normalizeSku(candidate.sku) != null
         val resolution = repository.enrichImportCandidate(
@@ -366,26 +409,123 @@ internal fun JlcImportSurface(
                 }
                 OutlinedTextField(
                     value = partNumberInput,
-                    onValueChange = { partNumberInput = it },
+                    onValueChange = { domesticSearchJob?.cancel(); partNumberInput = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_part_number_label)) },
-                    placeholder = { Text("C70565") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_search_label)) },
+                    placeholder = { Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_search_placeholder)) },
                 )
                 FilledTonalButton(
                     onClick = {
-                        val normalized = LcscPublicCatalog.normalizeSku(partNumberInput)
-                        if (normalized == null) {
-                            feedbackMessage = context.getString(com.componentvault.android.R.string.import_part_number_invalid)
-                        } else {
-                            runCatching { ComponentImportParser.parseScannedQr(normalized) }
-                                .onSuccess(::setBaseCandidate)
-                                .onFailure { feedbackMessage = it.message }
+                        val keyword = partNumberInput.trim()
+                        if (keyword.isBlank()) return@FilledTonalButton
+                        LcscPublicCatalog.normalizeSku(keyword)?.let { normalized ->
+                            applyInternationalFallback(normalized)
+                            domesticSearchMessage = context.getString(com.componentvault.android.R.string.import_catalog_searching)
+                            return@FilledTonalButton
+                        }
+                        domesticSearchInProgress = true
+                        domesticSearchMessage = null
+                        domesticSearchIsError = false
+                        domesticResults = emptyList()
+                        domesticSearchJob?.cancel()
+                        domesticSearchJob = coroutineScope.launch {
+                            runCatching {
+                                withContext(Dispatchers.IO) {
+                                    LcscDomesticCatalog.parseSearchPage(
+                                        LcscDomesticCatalog.fetchSearchPage(keyword),
+                                    )
+                                }
+                            }.onSuccess { results ->
+                                if (keyword != partNumberInput.trim()) return@onSuccess
+                                domesticSearchInProgress = false
+                                val normalized = LcscPublicCatalog.normalizeSku(keyword)
+                                val exact = normalized?.let { LcscDomesticCatalog.exactMatch(it, results) }
+                                if (exact != null) {
+                                    domesticResults = listOf(exact)
+                                    applyDomesticProduct(exact)
+                                } else {
+                                    domesticResults = results
+                                    domesticSearchMessage = if (results.isEmpty()) {
+                                        context.getString(com.componentvault.android.R.string.import_catalog_empty)
+                                    } else {
+                                        context.getString(com.componentvault.android.R.string.import_catalog_choose, results.size)
+                                    }
+                                    normalized?.let(::applyInternationalFallback)
+                                }
+                            }.onFailure { error ->
+                                if (error is CancellationException || keyword != partNumberInput.trim()) return@onFailure
+                                domesticSearchInProgress = false
+                                domesticSearchIsError = true
+                                domesticSearchMessage = if (error is LcscDomesticBlockedException) {
+                                    context.getString(com.componentvault.android.R.string.import_catalog_blocked)
+                                } else {
+                                    context.getString(
+                                        com.componentvault.android.R.string.import_catalog_failed,
+                                        error.message ?: error.javaClass.simpleName,
+                                    )
+                                }
+                                LcscPublicCatalog.normalizeSku(keyword)?.let(::applyInternationalFallback)
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
+                    enabled = !domesticSearchInProgress,
                 ) {
-                    Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_part_number_lookup))
+                    Text(
+                        if (domesticSearchInProgress) {
+                            androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_searching)
+                        } else {
+                            androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_search_action)
+                        },
+                    )
+                }
+                domesticSearchMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (domesticSearchIsError) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (domesticSearchIsError) {
+                    LcscDomesticCatalog.searchUrl(partNumberInput)?.let { searchUrl ->
+                        TextButton(onClick = { uriHandler.openUri(searchUrl) }) {
+                            Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_open_browser))
+                        }
+                    }
+                }
+                domesticResults.forEach { product ->
+                    val metadata = product.metadata
+                    SectionPane(
+                        title = listOfNotNull(metadata.sku, metadata.model).joinToString(" · "),
+                        supporting = metadata.name.orEmpty(),
+                    ) {
+                        metadata.brand?.let { ValueBlock(strings.importer.vendorLabel, it) }
+                        metadata.categoryPath?.let { ValueBlock(strings.common.fieldCategory, it) }
+                        metadata.packageName?.let { ValueBlock(strings.common.fieldPackage, it) }
+                        metadata.imageUrl?.let { ValueBlock(
+                            androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_image_source),
+                            it,
+                        ) }
+                        product.parameters.entries.take(8).forEach { (key, value) -> ValueBlock(key, value) }
+                        FilledTonalButton(
+                            onClick = { applyDomesticProduct(product) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_use_candidate))
+                        }
+                        metadata.officialUrl?.let { url ->
+                            TextButton(onClick = { uriHandler.openUri(url) }) {
+                                Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.importer_open_domestic_product))
+                            }
+                        }
+                        product.datasheetUrl?.let { url ->
+                            TextButton(onClick = { uriHandler.openUri(url) }) {
+                                Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_open_datasheet))
+                            }
+                        }
+                    }
                 }
                 Text(
                     androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_ocr_secondary_hint),

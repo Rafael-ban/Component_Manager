@@ -513,7 +513,11 @@ internal fun RailDot(color: Color) {
 
 @Composable
 internal fun movementTypeLabel(movementType: String): String =
-    vaultStrings().movements.movementTypeLabel(movementType)
+    if (movementType.equals("transfer", true)) {
+        androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.movement_type_transfer)
+    } else {
+        vaultStrings().movements.movementTypeLabel(movementType)
+    }
 
 @Composable
 internal fun inventorySortLabel(sort: InventorySortOption): String =

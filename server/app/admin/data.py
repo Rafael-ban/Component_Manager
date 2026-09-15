@@ -115,7 +115,7 @@ def load_admin_snapshot(settings: Settings) -> AdminSnapshot:
 
     sync_notes = [
         f'API health endpoint remains available at http://{settings.app_host}:{settings.app_port}/health.',
-        'Conflict strategy is last-write-wins on updated_at.',
+        'Managed inventory uses base_updated_at conflict checks; legacy snapshots use last-write-wins.',
         'Device registry is not implemented yet; sync visibility is derived from server-side inventory state.',
     ]
     if settings.api_token == 'change-me':

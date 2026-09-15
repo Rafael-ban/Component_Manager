@@ -13,7 +13,7 @@ export function formatDateTime(value: string) {
   }).format(date);
 }
 
-export function formatMovementType(value: "inbound" | "outbound" | "adjustment") {
+export function formatMovementType(value: "inbound" | "outbound" | "adjustment" | "transfer") {
   switch (value) {
     case "inbound":
       return "Inbound";
@@ -21,5 +21,7 @@ export function formatMovementType(value: "inbound" | "outbound" | "adjustment")
       return "Outbound";
     case "adjustment":
       return "Adjustment";
+    case "transfer":
+      return "Transfer";
   }
 }

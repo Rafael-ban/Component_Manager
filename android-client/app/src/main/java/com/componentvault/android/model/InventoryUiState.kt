@@ -34,6 +34,7 @@ data class InventoryScreenUiState(
     val availableLocations: List<String> = emptyList(),
     val list: InventoryListUiState = InventoryListUiState(),
     val detail: InventoryDetailUiState = InventoryDetailUiState(),
+    val storageLocations: List<StorageLocationRecord> = emptyList(),
 )
 
 data class InventoryFiltersUiState(
@@ -68,6 +69,7 @@ data class InventoryDetailUiState(
     val component: ComponentRecord? = null,
     val recentMovements: List<StockMovementRecord> = emptyList(),
     val issuedQuantity: Long = 0,
+    val allocations: List<ComponentAllocationRecord> = emptyList(),
 )
 
 data class MovementsUiState(

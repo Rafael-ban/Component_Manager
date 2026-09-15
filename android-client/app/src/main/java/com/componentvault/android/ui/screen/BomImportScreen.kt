@@ -210,6 +210,9 @@ internal fun BomImportScreen(
                                 }
                             } else {
                                 Text("匹配：${line.componentSku}")
+                                line.allocationPlan.forEach { allocation ->
+                                    Text("库位 ${allocation.locationId}：扣减 ${allocation.quantity}")
+                                }
                             }
                         }
                     }

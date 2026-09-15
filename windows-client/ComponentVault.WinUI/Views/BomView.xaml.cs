@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using ComponentVault.WinUI.Services.Bom;
 using ComponentVault.WinUI.ViewModels;
+using ComponentVault.WinUI.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Storage.Pickers;
@@ -55,11 +56,27 @@ public sealed partial class BomView : Page
         var batches = double.IsFinite(value) && value >= 1 && value <= int.MaxValue && value == Math.Truncate(value)
             ? (int)value : 0;
         _preview = ViewModel.CreateBomPreview(_document, ProjectNameBox.Text, batches, _selections);
-        PreviewList.ItemsSource = _preview.Lines.Select(line => $"{line.ComponentSku} · 单批 {line.UnitQuantity} · 总需 {line.RequiredQuantity} · 库存 {line.AvailableQuantity}")
+        PreviewList.ItemsSource = _preview.Lines.Select(line => $"{line.ComponentSku} · 单批 {line.UnitQuantity} · 总需 {line.RequiredQuantity} · 库存 {line.AvailableQuantity} · 扣料 {AllocationPlan(line)}")
             .Concat(_preview.Issues.Select(issue => $"第 {issue.RowNumber?.ToString() ?? "-"} 行 · {issue.Message}")).ToArray();
         SummaryText.Text = $"{_document.SourceName}{(_document.WorksheetName is null ? "" : $" / {_document.WorksheetName}")} · {_preview.Lines.Count} 个匹配 · {_preview.Issues.Count} 个阻止项";
         ResolveButton.IsEnabled = _preview.Candidates.Count > 0;
         ConfirmButton.IsEnabled = _preview.CanConfirm && !_confirmed;
+    }
+
+    private string AllocationPlan(BomConsumptionLine line)
+    {
+        var component = ViewModel.Components.FirstOrDefault(item => item.Id == line.ComponentId);
+        if (component is null) return "不可用";
+        var remaining = line.RequiredQuantity;
+        var parts = new List<string>();
+        foreach (var allocation in component.Allocations.Where(item => item.Quantity > 0).OrderBy(item => item.LocationId, StringComparer.Ordinal))
+        {
+            if (remaining == 0) break;
+            var take = Math.Min(remaining, allocation.Quantity);
+            parts.Add($"{allocation.LocationId} × {take}");
+            remaining -= take;
+        }
+        return remaining == 0 ? string.Join("，", parts) : "分配不足";
     }
 
     private async void OnResolveClicked(object sender, RoutedEventArgs e)

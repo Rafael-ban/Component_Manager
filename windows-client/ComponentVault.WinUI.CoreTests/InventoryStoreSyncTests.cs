@@ -21,12 +21,28 @@ public sealed class InventoryStoreSyncTests : IDisposable
         var snapshot = store.CreateSyncEnvelope();
 
         store.SaveComponent(CreateDraft("second", component.Id));
-        store.ApplySyncResult(CreateSuccess(syncCursor: 7), snapshot.QueuedEntities, string.Empty);
+        var pushed = Assert.Single(snapshot.PushRequest.Components);
+        var success = new SyncRunResult
+        {
+            IsSuccess = true, Message = "ok", PullResponse = new SyncPullResponse
+            {
+                ServerTime = "2026-09-15T00:00:00Z", SyncCursor = 7,
+                Components = [new SyncComponentDto
+                {
+                    Id = pushed.Id, Sku = pushed.Sku, Name = pushed.Name, Category = pushed.Category,
+                    PackageName = pushed.PackageName, Location = pushed.Location, Description = pushed.Description,
+                    Quantity = pushed.Quantity, MinStock = pushed.MinStock, UpdatedAt = pushed.UpdatedAt,
+                    Deleted = pushed.Deleted, Allocations = pushed.Allocations,
+                }],
+            },
+        };
+        store.ApplySyncResult(success, snapshot.QueuedEntities, string.Empty);
 
         var remaining = store.CreateSyncEnvelope();
         var queued = Assert.Single(remaining.QueuedEntities);
         Assert.NotEqual(snapshot.QueuedEntities[0].EntityUpdatedAt, queued.EntityUpdatedAt);
         Assert.Equal("second", Assert.Single(remaining.PushRequest.Components).Description);
+        Assert.Equal(snapshot.QueuedEntities[0].EntityUpdatedAt, Assert.Single(remaining.PushRequest.Components).BaseUpdatedAt);
         Assert.Equal(7, remaining.Cursor);
     }
 
@@ -47,6 +63,30 @@ public sealed class InventoryStoreSyncTests : IDisposable
         store.ApplySyncResult(CreateSuccess(syncCursor: 1), [equivalentSnapshot], string.Empty);
 
         Assert.Empty(store.CreateSyncEnvelope().QueuedEntities);
+    }
+
+    [Fact]
+    public void RapidEdits_GetDistinctMonotonicVersionsAndAbsentPullAdvancesUploadedBase()
+    {
+        var store=CreateStore(); var component=store.SaveComponent(CreateDraft("first")); var snapshot=store.CreateSyncEnvelope();
+        var edited=store.SaveComponent(CreateDraft("second",component.Id));
+        Assert.True(DateTimeOffset.Parse(edited.UpdatedAt)>DateTimeOffset.Parse(component.UpdatedAt));
+        store.ApplySyncResult(CreateSuccess(2),snapshot.QueuedEntities,string.Empty);
+        var pushed=Assert.Single(store.CreateSyncEnvelope().PushRequest.Components);
+        Assert.Equal(snapshot.QueuedEntities.Single(x=>x.EntityType=="component").EntityUpdatedAt,pushed.BaseUpdatedAt);
+        Assert.Equal("second",pushed.Description);
+    }
+
+    [Fact]
+    public void ConcurrentRemoteVersion_DoesNotBecomeBaselineForPostSnapshotLocalEdit()
+    {
+        var store=CreateStore(); var component=store.SaveComponent(CreateDraft("first")); var snapshot=store.CreateSyncEnvelope();
+        store.SaveComponent(CreateDraft("second",component.Id)); var pushed=Assert.Single(snapshot.PushRequest.Components);
+        var remoteAt=DateTimeOffset.Parse(pushed.UpdatedAt).AddSeconds(1).ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'");
+        var result=new SyncRunResult { IsSuccess=true,Message="ok",PullResponse=new SyncPullResponse { ServerTime=remoteAt,SyncCursor=3,Components=[new SyncComponentDto { Id=pushed.Id,Sku=pushed.Sku,Name=pushed.Name,Category=pushed.Category,PackageName=pushed.PackageName,Location=pushed.Location,Description="remote",Quantity=pushed.Quantity,MinStock=pushed.MinStock,UpdatedAt=remoteAt,Deleted=false,Allocations=pushed.Allocations }] } };
+        store.ApplySyncResult(result,snapshot.QueuedEntities,string.Empty);
+        var next=Assert.Single(store.CreateSyncEnvelope().PushRequest.Components);
+        Assert.Equal("second",next.Description); Assert.Null(next.BaseUpdatedAt);
     }
 
     [Fact]

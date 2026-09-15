@@ -110,6 +110,7 @@ object BomParser {
 internal data class TabularRow(
     val rowNumber: Int,
     val values: List<String>,
+    val cellTypes: List<String> = emptyList(),
 )
 
 private object CsvTableReader {

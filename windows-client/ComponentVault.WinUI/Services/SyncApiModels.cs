@@ -13,6 +13,22 @@ public sealed class SyncComponentDto
     public required int MinStock { get; init; }
     public required string UpdatedAt { get; init; }
     public required bool Deleted { get; init; }
+    public string? BaseUpdatedAt { get; init; }
+    public IReadOnlyList<SyncAllocationDto>? Allocations { get; init; }
+}
+
+public sealed class SyncAllocationDto
+{
+    public required string LocationId { get; init; }
+    public required int Quantity { get; init; }
+}
+
+public sealed class SyncStorageLocationDto
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required string UpdatedAt { get; init; }
+    public required bool Deleted { get; init; }
 }
 
 public sealed class SyncStockMovementDto
@@ -26,13 +42,17 @@ public sealed class SyncStockMovementDto
     public required string HappenedAt { get; init; }
     public required string UpdatedAt { get; init; }
     public required bool Deleted { get; init; }
+    public string? LocationId { get; init; }
+    public string? DestinationLocationId { get; init; }
 }
 
 public sealed class SyncPushRequest
 {
+    public int InventoryProtocol { get; init; } = 1;
     public required string DeviceId { get; init; }
     public IReadOnlyList<SyncComponentDto> Components { get; init; } = [];
     public IReadOnlyList<SyncStockMovementDto> StockMovements { get; init; } = [];
+    public IReadOnlyList<SyncStorageLocationDto> StorageLocations { get; init; } = [];
 }
 
 public sealed class SyncPushResponse
@@ -44,16 +64,19 @@ public sealed class SyncPushResponse
 
 public sealed class SyncPullResponse
 {
+    public int InventoryProtocol { get; init; }
     public required string ServerTime { get; init; }
     public long? SyncCursor { get; init; }
     public IReadOnlyList<SyncComponentDto> Components { get; init; } = [];
     public IReadOnlyList<SyncStockMovementDto> StockMovements { get; init; } = [];
+    public IReadOnlyList<SyncStorageLocationDto> StorageLocations { get; init; } = [];
 }
 
 public sealed class SyncTokenStatusResponse
 {
     public required string Status { get; init; }
     public required string ServerTime { get; init; }
+    public int InventoryProtocol { get; init; }
 }
 
 public sealed class ApiErrorResponse

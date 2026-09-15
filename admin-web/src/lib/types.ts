@@ -36,7 +36,7 @@ export interface AdminMovementRecord {
   id: string;
   sku: string;
   component_name: string;
-  movement_type: "inbound" | "outbound" | "adjustment";
+  movement_type: "inbound" | "outbound" | "adjustment" | "transfer";
   quantity: number;
   reason: string;
   note: string | null;

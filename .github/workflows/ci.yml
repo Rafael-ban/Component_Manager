@@ -126,6 +126,9 @@ jobs:
           gradle -p android-client :app:testDebugUnitTest
           --tests 'com.componentvault.android.data.SyncProtocolTest'
           --tests 'com.componentvault.android.data.LcscPublicCatalogTest'
+          --tests 'com.componentvault.android.data.LcscDomesticCatalogTest'
+          --tests 'com.componentvault.android.data.StockAllocationMathTest'
+          --tests 'com.componentvault.android.data.InventoryWorkbookCodecTest'
           --tests 'com.componentvault.android.data.GitHubReleaseUpdateTest'
           --tests 'com.componentvault.android.model.ComponentImportModelsTest'
           --tests 'com.componentvault.android.model.StockMovementRecordTest'

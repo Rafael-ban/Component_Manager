@@ -135,6 +135,8 @@ data class ComponentOfficialMetadata(
     val matchedBy: String? = null,
     val confidence: String? = null,
     val ruleVersion: String? = null,
+    val parameters: Map<String, String> = emptyMap(),
+    val datasheetUrl: String? = null,
 )
 
 data class ComponentRecognitionMetadata(
@@ -296,7 +298,7 @@ fun ComponentImportCandidate.withRecognitionMetadata(
 fun ComponentImportCandidate.withOfficialMetadata(
     metadata: ComponentOfficialMetadata,
 ): ComponentImportCandidate {
-    val metadataOrigin = if (metadata.source == "lcsc_public_web") {
+    val metadataOrigin = if (metadata.source in setOf("lcsc_public_web", "lcsc_domestic_web")) {
         ComponentImportFieldOrigin.PublicWeb
     } else ComponentImportFieldOrigin.Server
     val resolvedName = when {
@@ -337,6 +339,8 @@ fun ComponentImportCandidate.withOfficialMetadata(
         metadata.categoryPath?.let { addIfMissing("官方分类路径：$it") }
         metadata.officialUrl?.let { addIfMissing("官方链接：$it") }
         trustedProductImageUrl(metadata.imageUrl)?.let { addIfMissing("商品图片：$it") }
+        metadata.datasheetUrl?.let { addIfMissing("数据手册：$it") }
+        metadata.parameters.forEach { (key, value) -> addIfMissing("参数：$key：$value") }
         metadata.ruleVersion?.let { addIfMissing("识别规则版本：$it") }
     }
 
@@ -412,7 +416,13 @@ fun trustedProductImageUrl(value: String?): String? {
         uri.scheme.equals("https", ignoreCase = true) &&
             uri.userInfo == null &&
             uri.port == -1 &&
-            host in setOf("assets.lcsc.com", "www.lcsc.com")
+            host in setOf(
+                "assets.lcsc.com",
+                "www.lcsc.com",
+                "img.szlcsc.com",
+                "image.szlcsc.com",
+                "static.szlcsc.com",
+            )
     }
 }
 

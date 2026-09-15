@@ -20,6 +20,9 @@
   <ItemGroup>
     <Compile Include="..\ComponentVault.WinUI\Localization\CategoryDisplay.cs" Link="Localization\CategoryDisplay.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\InventoryStore.cs" Link="Services\InventoryStore.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Services\InventoryWorkbookBackup.cs" Link="Services\InventoryWorkbookBackup.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Services\SimpleXlsxImages.cs" Link="Services\SimpleXlsxImages.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Services\PrivateProductImageStore.cs" Link="Services\PrivateProductImageStore.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\ComponentUsageStatisticsCalculator.cs" Link="Services\ComponentUsageStatisticsCalculator.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\SyncApiModels.cs" Link="Services\SyncApiModels.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\Bom\*.cs" Link="Services\Bom\%(Filename)%(Extension)" />
@@ -33,6 +36,7 @@
     <Compile Include="..\ComponentVault.WinUI\Models\MovementEntryDraft.cs" Link="Models\MovementEntryDraft.cs" />
     <Compile Include="..\ComponentVault.WinUI\Models\OperationResult.cs" Link="Models\OperationResult.cs" />
     <Compile Include="..\ComponentVault.WinUI\Models\StockMovementRecord.cs" Link="Models\StockMovementRecord.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Models\StorageLocationRecord.cs" Link="Models\StorageLocationRecord.cs" />
     <Compile Include="..\ComponentVault.WinUI\Models\SyncConfiguration.cs" Link="Models\SyncConfiguration.cs" />
     <Compile Include="..\ComponentVault.WinUI\Models\SyncRunResult.cs" Link="Models\SyncRunResult.cs" />
   </ItemGroup>

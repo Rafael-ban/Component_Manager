@@ -105,9 +105,18 @@ def init_db(settings: Settings) -> None:
     connection = _connect(str(database_path))
     try:
         connection.execute("PRAGMA journal_mode = WAL")
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(components)")}
+        backup_path = database_path.with_name(database_path.name + ".pre-inventory-v1.bak")
+        if columns and "inventory_managed" not in columns and not backup_path.exists():
+            backup = sqlite3.connect(str(backup_path))
+            try:
+                connection.backup(backup)
+            finally:
+                backup.close()
         connection.execute("BEGIN IMMEDIATE")
         for statement in SCHEMA_STATEMENTS:
             connection.execute(statement)
+        _migrate_storage(connection)
         _migrate_sync_revisions(connection)
         connection.execute(
             "INSERT OR IGNORE INTO mqtt_state (id, snapshot_seeded) VALUES (1, 0)"
@@ -132,6 +141,33 @@ def init_db(settings: Settings) -> None:
         connection.commit()
     finally:
         connection.close()
+
+
+def _migrate_storage(connection: sqlite3.Connection) -> None:
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS storage_locations (
+            id TEXT PRIMARY KEY, name TEXT NOT NULL,
+            updated_at TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS component_allocations (
+            component_id TEXT NOT NULL REFERENCES components(id),
+            location_id TEXT NOT NULL REFERENCES storage_locations(id),
+            quantity INTEGER NOT NULL CHECK(quantity >= 0),
+            PRIMARY KEY(component_id, location_id)
+        )
+    """)
+    for table, column, definition in (
+        ("components", "inventory_managed", "INTEGER NOT NULL DEFAULT 0"),
+        ("stock_movements", "location_id", "TEXT"),
+        ("stock_movements", "destination_location_id", "TEXT"),
+    ):
+        columns = {row["name"] for row in connection.execute(
+            f"PRAGMA table_info({table})"
+        )}
+        if column not in columns:
+            connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def _migrate_sync_revisions(connection: sqlite3.Connection) -> None:

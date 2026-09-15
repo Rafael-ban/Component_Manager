@@ -388,5 +388,29 @@
     <string name="import_part_number_invalid">请输入完整立创编号，例如 C70565。</string>
     <string name="import_ocr_secondary_hint">优先扫码或输入 C 编号。没有二维码时再用文字识别，并核对识别结果。</string>
     <string name="importer_open_domestic_product">打开中文版立创商城</string>
+    <string name="import_catalog_search_label">立创商城中文目录</string>
+    <string name="import_catalog_search_placeholder">C70565，或输入 STM32 等关键词</string>
+    <string name="import_catalog_search_action">搜索立创商城中文目录</string>
+    <string name="import_catalog_searching">正在搜索目录…</string>
+    <string name="import_catalog_empty">没有找到匹配的商品。</string>
+    <string name="import_catalog_choose">找到 %1$d 个候选，请选择一个回填表单。</string>
+    <string name="import_catalog_failed">目录搜索失败：%1$s</string>
+    <string name="import_catalog_blocked">立创商城要求浏览器验证。请在浏览器中打开搜索；若输入的是完整 C 编号，应用仍会尝试国际公开商品页。</string>
+    <string name="import_catalog_open_browser">在浏览器中打开搜索</string>
+    <string name="import_catalog_use_candidate">使用此商品</string>
+    <string name="import_catalog_open_datasheet">打开数据手册</string>
+    <string name="import_catalog_image_source">商品图片来源</string>
+    <string name="import_domestic_selected">已选择立创商城商品，请核对回填字段后再保存。</string>
+    <string name="movement_type_transfer">调拨</string>
+    <string name="backup_title">Excel 备份与恢复</string>
+    <string name="backup_back">返回</string>
+    <string name="backup_description">导出 component-vault schemaVersion=1 工作簿，包含库位、分配、流水和已持久化图片。</string>
+    <string name="backup_create">创建备份文件</string>
+    <string name="backup_choose">选择备份并预览</string>
+    <string name="backup_own_source">Component Vault 自有备份</string>
+    <string name="backup_lcsc_source">LCSC Android ERP schema1</string>
+    <string name="backup_counts">将新增 %1$d 个元器件、%2$d 个库位；跳过 %3$d 个已有 ID/SKU。</string>
+    <string name="backup_merge_notice">恢复采用新增记录合并，不覆盖现有数据。</string>
+    <string name="backup_confirm">确认恢复</string>
 </resources>
 

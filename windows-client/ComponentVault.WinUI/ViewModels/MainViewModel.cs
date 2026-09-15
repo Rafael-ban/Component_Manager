@@ -61,6 +61,7 @@ public sealed class MainViewModel : ObservableObject
         OverviewLowStockComponents = [];
         OverviewRecentMovements = [];
         SelectedComponentRecentMovements = [];
+        StorageLocations = [];
         InventoryCategoryOptions = [];
         InventoryLocationOptions = [];
         InventorySortOptions = new ObservableCollection<string>(
@@ -105,6 +106,7 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<StockMovementRecord> OverviewRecentMovements { get; }
 
     public ObservableCollection<StockMovementRecord> SelectedComponentRecentMovements { get; }
+    public ObservableCollection<StorageLocationRecord> StorageLocations { get; }
 
     public ObservableCollection<string> InventoryCategoryOptions { get; }
 
@@ -497,7 +499,10 @@ public sealed class MainViewModel : ObservableObject
             UpdatedAt = component.UpdatedAt,
             Deleted = component.Deleted,
             CumulativeOutboundQuantity = outboundTotals.GetValueOrDefault(component.Id),
+            Allocations = component.Allocations,
+            BaseUpdatedAt = component.BaseUpdatedAt,
         }).ToArray();
+        ReplaceCollection(StorageLocations, _store.GetStorageLocations());
         ReplaceCollection(LowStockComponents, _store.GetLowStockComponents());
         ReplaceCollection(Movements, _store.GetMovements());
         SyncConfiguration = _store.GetSyncConfiguration();
@@ -538,6 +543,30 @@ public sealed class MainViewModel : ObservableObject
         {
             return OperationResult.Failure(exception.Message);
         }
+    }
+
+    public OperationResult SaveStorageLocation(string id, string name)
+    {
+        var result = _store.SaveStorageLocation(id, name);
+        if (result.IsSuccess) { Refresh(); ScheduleAutoSync(); }
+        return result;
+    }
+    public OperationResult DeleteStorageLocation(string id)
+    {
+        var result = _store.DeleteStorageLocation(id);
+        if (result.IsSuccess) { Refresh(); ScheduleAutoSync(); }
+        return result;
+    }
+
+    private InventoryRestorePreview? _approvedInventoryRestorePreview;
+    public void ExportInventoryWorkbook(string path) => new InventoryWorkbookBackup(_store).Export(path);
+    public InventoryRestorePreview PreviewInventoryWorkbook(string path) => _approvedInventoryRestorePreview = new InventoryWorkbookBackup(_store).Preview(path);
+    public OperationResult ImportInventoryWorkbook(string path)
+    {
+        var result = new InventoryWorkbookBackup(_store).ImportNewOnly(path, _approvedInventoryRestorePreview);
+        _approvedInventoryRestorePreview = null;
+        if (result.IsSuccess) { Refresh(); ScheduleAutoSync(); }
+        return result;
     }
 
     public OperationResult DeleteSelectedComponent()

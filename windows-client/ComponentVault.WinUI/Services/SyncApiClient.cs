@@ -53,6 +53,8 @@ public sealed class SyncApiClient
             }
 
             var payload = await DeserializeAsync<SyncTokenStatusResponse>(response, cancellationToken);
+            if (payload.InventoryProtocol != 1)
+                return OperationResult.Failure("服务器不支持多库位库存协议 inventory_protocol=1；本地待同步内容已保留。");
             return OperationResult.Success($"连接成功。服务器时间：{payload.ServerTime}");
         }
         catch (Exception exception)
@@ -80,6 +82,9 @@ public sealed class SyncApiClient
 
         try
         {
+            var capability = await PingAsync(settings, cancellationToken);
+            if (capability.InventoryProtocol != 1)
+                return SyncRunResult.Failure("服务器不支持多库位库存协议 inventory_protocol=1；同步已停止，本地待同步内容已保留。");
             var pushResponse = await PushAsync(settings, pushRequest, cancellationToken);
             if (pushResponse.Result is not null)
             {
@@ -105,6 +110,15 @@ public sealed class SyncApiClient
         {
             return SyncRunResult.Failure($"同步失败：{exception.Message}");
         }
+    }
+
+    private async Task<SyncTokenStatusResponse> PingAsync(SyncConfiguration settings, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(settings.ServerBaseUrl, "/auth/ping"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiToken);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode) throw new InvalidOperationException(await BuildErrorMessageAsync(response, cancellationToken));
+        return await DeserializeAsync<SyncTokenStatusResponse>(response, cancellationToken);
     }
 
     private async Task<(SyncPushResponse? Payload, SyncRunResult? Result)> PushAsync(
@@ -159,6 +173,8 @@ public sealed class SyncApiClient
         }
 
         var payload = await DeserializeAsync<SyncPullResponse>(response, cancellationToken);
+        if (payload.InventoryProtocol != 1)
+            return (null, SyncRunResult.Failure("服务端拉取响应缺少 inventory_protocol=1；本地待同步内容已保留。"));
         if (payload.SyncCursor is < 0)
         {
             return (null, SyncRunResult.Failure("同步服务端返回了无效的同步游标。"));

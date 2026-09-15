@@ -3,17 +3,31 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 
 class HealthResponse(BaseModel):
     status: str
     server_time: datetime
+    inventory_protocol: int = 1
 
 
 class SyncTokenStatus(BaseModel):
     status: str
     server_time: datetime
+    inventory_protocol: int = 1
+
+
+class StorageLocationPayload(BaseModel):
+    id: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1, max_length=200)
+    updated_at: datetime
+    deleted: bool = False
+
+
+class AllocationPayload(BaseModel):
+    location_id: str = Field(min_length=1, max_length=120)
+    quantity: int = Field(ge=0, le=2147483647, strict=True)
 
 
 class ComponentPayload(BaseModel):
@@ -24,28 +38,56 @@ class ComponentPayload(BaseModel):
     package_name: str = Field(min_length=1, max_length=120)
     location: str = Field(min_length=1, max_length=120)
     description: str | None = None
-    quantity: int = Field(ge=0)
-    min_stock: int = Field(default=0, ge=0)
+    quantity: int = Field(ge=0, le=2147483647, strict=True)
+    min_stock: int = Field(default=0, ge=0, le=2147483647, strict=True)
     updated_at: datetime
     deleted: bool = False
+    allocations: list[AllocationPayload] | None = None
+    base_updated_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_allocations(self) -> ComponentPayload:
+        if self.allocations is not None:
+            ids = [item.location_id for item in self.allocations]
+            if not ids or len(ids) != len(set(ids)):
+                raise ValueError("Allocations require unique non-empty locations.")
+            if sum(item.quantity for item in self.allocations) != self.quantity:
+                raise ValueError("Allocation quantities must equal component quantity.")
+            if self.quantity > 2147483647:
+                raise ValueError("Inventory exceeds the supported quantity range.")
+        return self
 
 
 class StockMovementPayload(BaseModel):
     id: str = Field(min_length=1)
     component_id: str = Field(min_length=1)
-    movement_type: Literal["inbound", "outbound", "adjustment"]
-    quantity: int
+    movement_type: Literal["inbound", "outbound", "adjustment", "transfer"]
+    quantity: int = Field(ge=-2147483647, le=2147483647, strict=True)
     reason: str = Field(min_length=1, max_length=160)
     note: str | None = None
     happened_at: datetime
     updated_at: datetime
     deleted: bool = False
+    location_id: str | None = None
+    destination_location_id: str | None = None
+
+    @model_validator(mode="after")
+    def validate_transfer(self) -> StockMovementPayload:
+        if self.movement_type == "transfer" and (
+            self.quantity <= 0 or not self.location_id
+            or not self.destination_location_id
+            or self.location_id == self.destination_location_id
+        ):
+            raise ValueError("Transfer requires positive quantity and distinct locations.")
+        return self
 
 
 class PushRequest(BaseModel):
     device_id: str = Field(min_length=1)
     components: list[ComponentPayload] = Field(default_factory=list)
     stock_movements: list[StockMovementPayload] = Field(default_factory=list)
+    inventory_protocol: Literal[0, 1] = 0
+    storage_locations: list[StorageLocationPayload] = Field(default_factory=list)
 
 
 class PushResponse(BaseModel):
@@ -59,6 +101,8 @@ class PullResponse(BaseModel):
     sync_cursor: int = Field(ge=0)
     components: list[ComponentPayload] = Field(default_factory=list)
     stock_movements: list[StockMovementPayload] = Field(default_factory=list)
+    inventory_protocol: int = 1
+    storage_locations: list[StorageLocationPayload] = Field(default_factory=list)
 
 
 class AdminMetricSnapshot(BaseModel):
@@ -94,7 +138,7 @@ class AdminMovementRecord(BaseModel):
     id: str
     sku: str
     component_name: str
-    movement_type: Literal["inbound", "outbound", "adjustment"]
+    movement_type: Literal["inbound", "outbound", "adjustment", "transfer"]
     quantity: int
     reason: str
     note: str | None = None

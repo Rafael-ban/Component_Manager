@@ -102,9 +102,52 @@ Success response:
 
 A push is atomic across components and stock movements. Duplicate active SKU or
 missing component references return HTTP 409 and roll back the entire batch.
-LWW compares UTC instants rather than timestamp text. Equal-timestamp arrivals
+Legacy LWW compares UTC instants rather than timestamp text. Equal-timestamp arrivals
 retain the existing last-arrival policy; retrying an identical payload does not
 create duplicate entities, although the sync revision may advance.
+
+### Multi-location inventory protocol 1
+
+`GET /health` and authenticated `POST /auth/ping` advertise `inventory_protocol: 1`.
+New native clients check this before uploading. They send the following additional fields:
+
+```json
+{
+  "device_id": "desktop-1",
+  "inventory_protocol": 1,
+  "storage_locations": [
+    {"id": "A1", "name": "Drawer A1", "updated_at": "2026-09-15T00:00:00Z", "deleted": false}
+  ],
+  "components": [],
+  "stock_movements": []
+}
+```
+
+Each component includes `allocations: [{"location_id":"A1","quantity":24}]`
+and `base_updated_at` (nullable for a new record). Existing component fields are
+still required. Allocations are a complete snapshot, including at least one row
+for a zero-stock component, and must sum to its quantity. Codes are stable location
+IDs; names are editable. All amounts are bounded integers, never supplier stock.
+
+Existing managed records require the incoming base to equal the server's current
+`updated_at` as a UTC instant. Exact identical retries are accepted. Conflicts
+return HTTP 409 and roll back locations, components, movements, revisions and MQTT
+outbox together. Legacy clients cannot overwrite managed records. This is an
+optimistic concurrency check, not automatic reconciliation of offline deltas.
+
+Movements may contain `location_id` and `destination_location_id`. New type
+`transfer` requires a positive quantity and two different locations. It leaves
+the component total unchanged. New movements accompany their component snapshot
+in the same push; existing protocol-1 history cannot be rewritten. An unstocked
+location can be tombstoned; a location with positive active stock cannot.
+
+Pull responses add `inventory_protocol: 1` and the complete `storage_locations`
+list, including tombstones. Locations, allocation snapshots, component/movement
+rows and `sync_cursor` come from one read transaction. Existing legacy components
+return `allocations: null`; new clients migrate these to a single-bin snapshot.
+Clients must retain edits made after the upload snapshot and advance their base
+only to the version actually acknowledged, rather than silently adopting a later
+unseen remote edit. A failed push must not clear local queues.
 
 ### `GET /sync/pull`
 
@@ -340,6 +383,7 @@ An optional server publisher emits accepted component snapshots to
 `<MQTT_TOPIC_PREFIX>/components/<percent-encoded id>/state` with retained QoS 1.
 The JSON carries `event_id`, `id`, `sku`, `name`, `category`, `package_name`,
 `location`, `quantity`, `min_stock`, `updated_at`, `deleted`, and `sync_revision`.
+Managed inventory also publishes `allocations` with per-location quantities.
 No description, raw label data, or stock-delta command is included. Use quantity
 as state; repeated delivery must not trigger another decrement. Deletions use
 `deleted: true` retained tombstones. Offline client changes appear only after

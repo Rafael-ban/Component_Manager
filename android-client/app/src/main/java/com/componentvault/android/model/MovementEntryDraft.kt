@@ -6,4 +6,6 @@ data class MovementEntryDraft(
     val quantity: Int,
     val reason: String,
     val note: String,
+    val locationId: String? = null,
+    val destinationLocationId: String? = null,
 )

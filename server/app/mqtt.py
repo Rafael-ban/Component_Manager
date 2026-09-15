@@ -50,6 +50,11 @@ def enqueue_component_state(
     if row is None:
         return
     state = component_state(row)
+    if "inventory_managed" in row.keys() and row["inventory_managed"]:
+        state["allocations"] = [dict(item) for item in connection.execute(
+            "SELECT location_id, quantity FROM component_allocations "
+            "WHERE component_id = ? ORDER BY location_id", (component_id,),
+        )]
     connection.execute(
         """
         INSERT OR IGNORE INTO mqtt_outbox (

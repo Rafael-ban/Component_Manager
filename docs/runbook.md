@@ -1,5 +1,27 @@
 # Runbook
 
+## Multi-location inventory upgrade
+
+Upgrade the FastAPI server before native clients. `/health` and authenticated
+`/auth/ping` must report `inventory_protocol: 1`. New clients refuse to upload to
+servers without that capability, preserving their local queue. All clients that
+write a managed component must support the new protocol.
+
+The server keeps `<database filename>.pre-inventory-v1.bak` before upgrading an
+existing database. Native clients also retain private pre-upgrade backups. Keep
+these when rolling back: older binaries must not write the new inventory format.
+Backups may contain private application data and belong with the database.
+
+HTTP 409 inventory conflicts indicate a stale `base_updated_at`, not a transient
+network failure. The push rolls back as a whole; do not clear a client's queue to
+hide the error. Preserve client Excel/database backups and compare local changes
+with the server's current inventory before reconciling. No server merge of offline
+stock deltas or global BOM idempotency is implied.
+
+Excel restore and LCSC_android_erp migration instructions are in
+[storage-and-backup.md](storage-and-backup.md). These import new records after
+preview, and do not reset server credentials or silently replace current stock.
+
 Native UI layout and navigation are documented in
 [native-ui-redesign.md](native-ui-redesign.md). Android and Windows About pages
 show author Rafael-Ikaros and read the existing repository's stable Releases.

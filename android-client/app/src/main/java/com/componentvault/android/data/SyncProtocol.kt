@@ -16,6 +16,9 @@ internal object SyncProtocol {
     fun timestampsEqual(first: String, second: String): Boolean =
         parseInstant(first) == parseInstant(second)
 
+    fun canApplyInventorySnapshot(queuedVersion: String?, pushedVersion: String?): Boolean =
+        queuedVersion == null || (pushedVersion != null && timestampsEqual(queuedVersion, pushedVersion))
+
     fun cursorFromResponse(hasCursor: Boolean, cursor: Long?): CursorDecision = when {
         !hasCursor -> CursorDecision.Clear
         cursor != null && cursor >= 0L -> CursorDecision.Store(cursor)

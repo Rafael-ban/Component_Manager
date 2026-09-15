@@ -311,6 +311,17 @@
             </Grid>
             <Border
                 Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="12">
+                    <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="库存备份与迁入" />
+                    <TextBlock Style="{StaticResource CaptionTextStyle}" Text="导出 component-vault Excel 备份，或预览后仅新增迁入本项目/LCSC_android_erp schema1 工作簿。不会导出同步凭据。" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Click="OnExportInventoryClicked" Content="导出 Excel 备份" />
+                        <Button Click="OnImportInventoryClicked" Content="预览并迁入 Excel" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            <Border
+                Style="{StaticResource CardBorderStyle}">
                 <StackPanel
                     Spacing="12">
                     <Grid>

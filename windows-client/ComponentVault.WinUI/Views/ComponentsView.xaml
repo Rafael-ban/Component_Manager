@@ -91,6 +91,13 @@
                     Icon="Upload"
                     Label="导入" />
                 <AppBarButton
+                    Click="OnManageLocationsClicked"
+                    Label="库位">
+                    <AppBarButton.Icon>
+                        <FontIcon Glyph="&#xE707;" />
+                    </AppBarButton.Icon>
+                </AppBarButton>
+                <AppBarButton
                     x:Uid="ComponentsViewAddButton"
                     Click="OnAddComponentClicked"
                     Icon="Add"
@@ -475,6 +482,10 @@
                             <TextBlock
                                 Text="{Binding SelectedComponentDescription}"
                                 TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock FontWeight="SemiBold" Text="库位分配" />
+                            <ItemsControl ItemsSource="{Binding SelectedComponent.Allocations}" />
                         </StackPanel>
                         <StackPanel
                             Spacing="6">

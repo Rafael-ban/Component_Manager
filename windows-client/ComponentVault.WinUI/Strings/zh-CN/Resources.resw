@@ -59,6 +59,23 @@
   <data name="Components_Dialog_DeleteConfirmMessagePattern" xml:space="preserve"><value>确认将 {0} 标记为已删除吗？历史出入库记录会保留。</value></data>
   <data name="Components_Dialog_OperationSuccessTitle" xml:space="preserve"><value>操作完成</value></data>
   <data name="Components_Dialog_OperationFailureTitle" xml:space="preserve"><value>操作失败</value></data>
+  <data name="Components_Catalog_ExactLookup" xml:space="preserve"><value>按 C 编号联网补全</value></data>
+  <data name="Components_Catalog_OpenSearch" xml:space="preserve"><value>在浏览器打开国内商城</value></data>
+  <data name="Components_Catalog_SectionTitle" xml:space="preserve"><value>国内立创商城目录</value></data>
+  <data name="Components_Catalog_SectionDescription" xml:space="preserve"><value>按关键词查找候选，查看参数后再选择回填；不会写入供应商库存。</value></data>
+  <data name="Components_Catalog_KeywordPlaceholder" xml:space="preserve"><value>输入型号、品牌、参数或 C 编号</value></data>
+  <data name="Components_Catalog_Search" xml:space="preserve"><value>查询候选</value></data>
+  <data name="Components_Catalog_FillSelected" xml:space="preserve"><value>回填所选候选</value></data>
+  <data name="Components_Catalog_OpenProduct" xml:space="preserve"><value>打开商品页</value></data>
+  <data name="Components_Catalog_OpenDatasheet" xml:space="preserve"><value>打开数据手册</value></data>
+  <data name="Components_Catalog_ExactSuccess" xml:space="preserve"><value>已按精确 C 编号补全空白字段；原有手工字段和本地库存未覆盖。</value></data>
+  <data name="Components_Catalog_CandidateFilled" xml:space="preserve"><value>已回填所选候选的空白字段与目录备注；原有手工字段和本地库存未覆盖。</value></data>
+  <data name="Components_Catalog_VerificationRequired" xml:space="preserve"><value>国内商城要求浏览器安全验证。请使用“在浏览器打开国内商城”完成查看，本应用不会绕过验证。</value></data>
+  <data name="Components_Catalog_QueryFailedPattern" xml:space="preserve"><value>目录查询失败：{0}</value></data>
+  <data name="Components_Catalog_KeywordRequired" xml:space="preserve"><value>请输入搜索关键词。</value></data>
+  <data name="Components_Catalog_Searching" xml:space="preserve"><value>正在查询国内立创商城目录…</value></data>
+  <data name="Components_Catalog_NoResults" xml:space="preserve"><value>没有找到可用候选。可尝试 C 编号、完整型号或更短关键词。</value></data>
+  <data name="Components_Catalog_ResultCountPattern" xml:space="preserve"><value>找到 {0} 个候选。请选择一项查看参数，再决定是否回填。</value></data>
   <data name="Movements_Dialog_Title" xml:space="preserve"><value>记录库存变动</value></data>
   <data name="Movements_Dialog_NoComponentMessage" xml:space="preserve"><value>请先新增一个元器件，再记录库存变动。</value></data>
   <data name="Movements_Dialog_SuccessTitle" xml:space="preserve"><value>记录已保存</value></data>

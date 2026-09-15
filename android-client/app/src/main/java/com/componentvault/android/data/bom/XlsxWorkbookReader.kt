@@ -24,6 +24,7 @@ internal object XlsxWorkbookReader {
         bytes: ByteArray,
         loadWorksheetRows: Boolean,
         selectedSheetName: String? = null,
+        loadAllWorksheets: Boolean = false,
     ): XlsxWorkbook {
         val entries = unzipBounded(bytes)
         val workbookXml = entries["xl/workbook.xml"] ?: invalid("XLSX 缺少 xl/workbook.xml。")
@@ -39,13 +40,16 @@ internal object XlsxWorkbookReader {
         } else {
             sheetRefs.firstOrNull { it.name == selectedSheetName }
         } ?: return XlsxWorkbook(sheets, emptyMap())
-        val target = relationships[selected.relationshipId]
-            ?: invalid("工作表 ${selected.name} 缺少 relationship。")
-        val worksheetXml = entries[target]
-            ?: invalid("XLSX 缺少工作表内容：${selected.name}。")
         val sharedStrings = entries["xl/sharedStrings.xml"]?.let(::parseSharedStrings).orEmpty()
-        val rows = parseWorksheet(worksheetXml, sharedStrings, selected.name)
-        return XlsxWorkbook(sheets, mapOf(selected.name to rows))
+        val requested = if (loadAllWorksheets) sheetRefs else listOf(selected)
+        val rowsByName = requested.associate { sheet ->
+            val target = relationships[sheet.relationshipId]
+                ?: invalid("工作表 ${sheet.name} 缺少 relationship。")
+            val worksheetXml = entries[target]
+                ?: invalid("XLSX 缺少工作表内容：${sheet.name}。")
+            sheet.name to parseWorksheet(worksheetXml, sharedStrings, sheet.name)
+        }
+        return XlsxWorkbook(sheets, rowsByName)
     }
 
     private fun unzipBounded(bytes: ByteArray): Map<String, ByteArray> {
@@ -194,6 +198,7 @@ internal object XlsxWorkbookReader {
         var fallbackRowNumber = 0
         var currentRowNumber = 0
         var currentCells = sortedMapOf<Int, String>()
+        var currentCellTypes = sortedMapOf<Int, String>()
         var currentCellColumn = -1
         var currentCellType = ""
         var currentCellHasFormula = false
@@ -207,6 +212,7 @@ internal object XlsxWorkbookReader {
                         fallbackRowNumber++
                         currentRowNumber = attributes.valueByName("r")?.toIntOrNull() ?: fallbackRowNumber
                         currentCells = sortedMapOf()
+                        currentCellTypes = sortedMapOf()
                     }
                     "c" -> {
                         currentCellColumn = columnIndex(attributes.valueByName("r").orEmpty())
@@ -241,6 +247,7 @@ internal object XlsxWorkbookReader {
                                 else -> rawValue
                             }
                             currentCells[currentCellColumn] = value
+                            currentCellTypes[currentCellColumn] = currentCellType
                         }
                         currentCellColumn = -1
                         currentValue.clear()
@@ -251,6 +258,7 @@ internal object XlsxWorkbookReader {
                             rows += TabularRow(
                                 currentRowNumber,
                                 List(width) { column -> currentCells[column].orEmpty() },
+                                List(width) { column -> currentCellTypes[column].orEmpty() },
                             )
                             if (rows.size > LocalImportLimits.MAX_DATA_ROWS + 1) {
                                 throw RowLimitSaxException()

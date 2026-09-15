@@ -164,3 +164,20 @@ internal class LcscPublicLookup(
         if (cache.size > 64) cache.remove(cache.keys.first())
     }
 }
+
+/** Exact C-number lookup prefers the Chinese catalog and falls back to the public international page. */
+internal class LcscCombinedLookup(
+    private val domesticFetch: (String) -> String = LcscDomesticCatalog::fetchSearchPage,
+    private val international: LcscPublicLookup = LcscPublicLookup(),
+) {
+    fun lookup(sku: String): ComponentOfficialMetadata? {
+        val normalized = LcscPublicCatalog.normalizeSku(sku) ?: return null
+        val domestic = runCatching {
+            LcscDomesticCatalog.exactMatch(
+                normalized,
+                LcscDomesticCatalog.parseSearchPage(domesticFetch(normalized)),
+            )?.metadata?.copy(matchedBy = "sku", confidence = "exact")
+        }.getOrNull()
+        return domestic ?: international.lookup(normalized)
+    }
+}

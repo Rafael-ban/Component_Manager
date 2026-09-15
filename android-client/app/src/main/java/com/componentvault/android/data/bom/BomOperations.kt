@@ -7,7 +7,28 @@ data class BomReleaseLine(
     val availableQuantity: Int,
     val expectedUpdatedAt: String?,
     val candidates: List<InventoryMatchCandidate>,
+    val allocationPlan: List<BomAllocationPlan> = emptyList(),
 )
+
+data class BomAllocationPlan(val locationId: String, val quantity: Int)
+
+object BomAllocationPlanner {
+    fun plan(required: Int, available: List<Pair<String, Int>>): List<BomAllocationPlan> {
+        require(required > 0)
+        var remaining = required
+        val result = mutableListOf<BomAllocationPlan>()
+        available.filter { it.second > 0 }.sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
+            .forEach { (location, quantity) ->
+                if (remaining > 0) {
+                    val take = minOf(remaining, quantity)
+                    result += BomAllocationPlan(location, take)
+                    remaining -= take
+                }
+            }
+        require(remaining == 0) { "Allocated stock is insufficient." }
+        return result
+    }
+}
 
 data class BomReleasePreview(
     val parsed: BomParseResult,
@@ -20,7 +41,8 @@ data class BomReleasePreview(
             it.componentId != null &&
                 it.requirement.requiredQuantity > 0 &&
                 it.candidates.count { candidate -> candidate.inventoryId == it.componentId } == 1 &&
-                it.availableQuantity >= it.requirement.requiredQuantity
+                it.availableQuantity >= it.requirement.requiredQuantity &&
+                it.allocationPlan.sumOf(BomAllocationPlan::quantity) == it.requirement.requiredQuantity
             }
 }
 
