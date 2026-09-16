@@ -129,7 +129,7 @@ class BomParserTest {
     @Test
     fun inventorySearchRanksExactMatchesAndExcludesInactiveItems() {
         val inventory = listOf(
-            InventoryMatchCandidate("contains", "C200", "STM32G0", "LQFP-48", "Control STM32 board"),
+            InventoryMatchCandidate("contains", "C200", "CONTROL-MODULE", "LQFP-48", "Control STM32 board"),
             InventoryMatchCandidate("prefix", "C201", "STM32F103", "LQFP-48", "MCU"),
             InventoryMatchCandidate("exact", "C202", "STM32", "LQFP-48", "MCU"),
             InventoryMatchCandidate("inactive", "STM32", "OTHER", "DIP", "Old", active = false),

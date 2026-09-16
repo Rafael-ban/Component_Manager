@@ -10,7 +10,10 @@ internal static class StartupDiagnostics
 
     public static string LogException(string area, Exception exception)
     {
-        return LogMessage(area, exception.ToString());
+        return LogMessage(
+            area,
+            $"HRESULT=0x{exception.HResult:X8}{Environment.NewLine}{exception}"
+        );
     }
 
     public static string LogMessage(string area, string message)

@@ -14,6 +14,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Title = AppStrings.Get("Windows_App_WindowTitle");
         _viewModel =
             ((App)Application.Current).MainViewModel
             ?? throw new InvalidOperationException(AppStrings.Get("Windows_App_MainViewModelMissing"));

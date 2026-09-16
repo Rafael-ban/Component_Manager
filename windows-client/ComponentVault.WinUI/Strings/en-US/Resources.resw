@@ -89,6 +89,7 @@
   <data name="MainWindow_SyncSuccessTitle" xml:space="preserve"><value>Sync completed</value></data>
   <data name="MainWindow_SyncFailureTitle" xml:space="preserve"><value>Sync failed</value></data>
   <data name="Windows_App_StartupFailureTitle" xml:space="preserve"><value>Component Vault failed to start.</value></data>
+  <data name="Windows_App_WindowTitle" xml:space="preserve"><value>Component Vault</value></data>
   <data name="Windows_App_FatalUiFailureTitle" xml:space="preserve"><value>Component Vault encountered a fatal UI error.</value></data>
   <data name="Windows_App_FatalAppFailureTitle" xml:space="preserve"><value>Component Vault encountered a fatal application error.</value></data>
   <data name="Windows_App_MainViewModelMissing" xml:space="preserve"><value>MainViewModel was not initialized.</value></data>
