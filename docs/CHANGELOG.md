@@ -5,6 +5,35 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.5.4] - 2026-09-17
+
+<!-- Add unreleased notes below this line. -->
+
+- Fixed Windows WinUI 3 startup failing on a missing theme color resource; use
+  the Windows App SDK background brush, including system high-contrast support.
+  Apply localized window titles after initialization and remove the obsolete
+  localized Content override from the composite sync button.
+  Include compiled window/page XBF resources and the merged application PRI in
+  portable publish output; attach navigation handlers after initialization.
+- Publish Windows as a self-contained x64 ZIP only. Removed MSIX, temporary
+  signing certificates and certificate-install scripts from release artifacts;
+  CI now starts the real app and checks the extracted release ZIP before upload.
+- Prefer the manufacturer part model for new JLC/LCSC imports and retain long
+  official product descriptions separately, preserving custom component names.
+- Raised the server component-name limit from 200 to 4000 characters so earlier
+  long-name imports can synchronize without truncation or clearing local data.
+  Android now summarizes HTTP 422 validation errors without dumping input data.
+- Added optional Android external server routing: probe the preferred address
+  first, fall back on transport failures, and keep one endpoint for each sync.
+- Clarified deployment API_TOKEN configuration and added show/copy controls for
+  the web session token. Docker Compose now reads API_TOKEN from the root .env.
+  Web release builds suggest the server host instead of a baked-in localhost.
+- Completed BOM exact SKU/model matching and manual inventory search on Android
+  and Windows, including editing matches after quantity aggregation.
+- Deferred optional Web inventory writes and Windows LAN/WAN routing to the next
+  version; the web console remains read-only for inventory in this release.
+
+
 ## [0.5.3] - 2026-09-16
 
 <!-- Add unreleased notes below this line. -->
