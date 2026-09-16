@@ -27,17 +27,19 @@
   </ItemGroup>
 
   <!--
-    The WinUI compiler copies generated XBF files to OutputPath, but the .NET
-    publish pipeline does not include those files for an unpackaged app.
-    Publish them at their application-relative paths so ms-appx XAML URIs can
-    resolve in the portable distribution.
+    The WinUI compiler and the self-contained SDK place application and runtime
+    XBF files in OutputPath, but the .NET publish pipeline does not include
+    them for an unpackaged app. Publish the complete set at application-relative
+    paths so both app and WinUI theme ms-appx URIs resolve in the portable app.
   -->
   <Target Name="IncludeWinUiXamlInPublish"
           AfterTargets="ComputeFilesToPublish"
           DependsOnTargets="ComputeProcessXamlFiles"
           Condition="'$(WindowsPackageType)' == 'None'">
     <ItemGroup>
-      <_WinUiCompiledXaml Include="@(ProcessedXamlFiles->'%(FullPath)')" />
+      <_WinUiCompiledXamlCandidate Include="$(OutputPath)**\*.xbf"
+                                   Exclude="$(OutputPath)publish\**\*.xbf;$(PublishDir)**\*.xbf" />
+      <_WinUiCompiledXaml Include="@(_WinUiCompiledXamlCandidate->'%(FullPath)')" />
     </ItemGroup>
 
     <AssignTargetPath Files="@(_WinUiCompiledXaml)" RootFolder="$(OutputPath)\">
