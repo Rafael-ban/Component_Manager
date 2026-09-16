@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bom_match_none">No inventory match</string>
+    <string name="bom_match_choose">Choose a matching inventory item</string>
+    <string name="bom_match_selected">Matched: %1$s</string>
+    <string name="bom_allocation_line">Location %1$s: release %2$d</string>
+    <string name="bom_match_manual">Choose another inventory item</string>
+    <string name="bom_match_search_label">Search SKU, model, package, or name</string>
+    <string name="bom_match_search_action">Search inventory</string>
+    <string name="bom_match_search_empty">No active inventory items match this search.</string>
+</resources>

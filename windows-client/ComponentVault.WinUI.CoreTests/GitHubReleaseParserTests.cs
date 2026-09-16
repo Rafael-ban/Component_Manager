@@ -39,15 +39,14 @@ public sealed class GitHubReleaseParserTests
     }
 
     [Fact]
-    public void ParseRelease_RejectsForeignAssetButKeepsRelease()
+    public void ParseRelease_RejectsForeignPortableAssetButKeepsRelease()
     {
         var release = GitHubReleaseParser.ParseRelease(ReleaseJson(
-            msixUrl: "https://github.com/Rafael-ban/Other/releases/download/v0.3.11/component-vault-windows-x64.msix"
+            portableUrl: "https://github.com/Rafael-ban/Other/releases/download/v0.3.11/component-vault-windows-portable-x64.zip"
         ));
 
         Assert.NotNull(release);
-        Assert.Null(release.MsixDownload);
-        Assert.NotNull(release.PortableDownload);
+        Assert.Null(release.PortableDownload);
     }
 
     [Fact]
@@ -56,7 +55,6 @@ public sealed class GitHubReleaseParserTests
         var release = GitHubReleaseParser.ParseRelease(ReleaseJson(includePortable: false));
 
         Assert.NotNull(release);
-        Assert.NotNull(release.MsixDownload);
         Assert.Null(release.PortableDownload);
     }
 
@@ -64,26 +62,26 @@ public sealed class GitHubReleaseParserTests
     public void ValidateAssetUrl_RejectsUserInfoAndQuery()
     {
         Assert.Null(GitHubReleaseParser.ValidateAssetUrl(
-            "https://user@github.com/Rafael-ban/Component_Manager/releases/download/v0.3.11/component-vault-windows-x64.msix",
+            "https://user@github.com/Rafael-ban/Component_Manager/releases/download/v0.3.11/component-vault-windows-portable-x64.zip",
             "v0.3.11",
-            GitHubReleaseParser.MsixAssetName
+            GitHubReleaseParser.PortableAssetName
         ));
         Assert.Null(GitHubReleaseParser.ValidateAssetUrl(
-            "https://github.com/Rafael-ban/Component_Manager/releases/download/v0.3.11/component-vault-windows-x64.msix?redirect=evil",
+            "https://github.com/Rafael-ban/Component_Manager/releases/download/v0.3.11/component-vault-windows-portable-x64.zip?redirect=evil",
             "v0.3.11",
-            GitHubReleaseParser.MsixAssetName
+            GitHubReleaseParser.PortableAssetName
         ));
     }
 
     private static string ReleaseJson(
         bool prerelease = false,
         string htmlUrl = "https://github.com/Rafael-ban/Component_Manager/releases/tag/v0.3.11",
-        string msixUrl = "https://github.com/Rafael-ban/Component_Manager/releases/download/v0.3.11/component-vault-windows-x64.msix",
+        string portableUrl = "https://github.com/Rafael-ban/Component_Manager/releases/download/v0.3.11/component-vault-windows-portable-x64.zip",
         bool includePortable = true
     )
     {
         var portable = includePortable
-            ? ", {\"name\":\"component-vault-windows-portable-x64.zip\",\"browser_download_url\":\"https://github.com/Rafael-ban/Component_Manager/releases/download/v0.3.11/component-vault-windows-portable-x64.zip\"}"
+            ? $", {{\"name\":\"component-vault-windows-portable-x64.zip\",\"browser_download_url\":\"{portableUrl}\"}}"
             : string.Empty;
         return $$"""
             {
@@ -94,7 +92,7 @@ public sealed class GitHubReleaseParserTests
               "published_at": "2026-09-15T08:00:00Z",
               "body": "Fixes and improvements.",
               "assets": [
-                {"name":"component-vault-windows-x64.msix","browser_download_url":"{{msixUrl}}"}{{portable}}
+                {{portable.TrimStart(',', ' ')}}
               ]
             }
             """;

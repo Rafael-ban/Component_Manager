@@ -1,0 +1,7 @@
+<resources>
+    <string name="settings_api_token_help">Use API_TOKEN from the server .env file or deployment environment. Ask the server owner for it. This is not a GitHub token.</string>
+    <string name="settings_external_server_url">External URL (optional)</string>
+    <string name="settings_external_server_help">An external address for the same server and database. Used when the primary address is unreachable. Leave empty to disable automatic fallback.</string>
+    <string name="sync_via_external">Connected through the external address.</string>
+    <string name="sync_validation_failed">Sync validation failed (HTTP 422): %1$s — %2$s (%3$d issue(s)). Local data is retained. Update the server and try again, or correct the indicated field.</string>
+</resources>

@@ -89,8 +89,8 @@ internal object LcscDomesticCatalog {
         val params = record.optJSONObject("paramLinkedMap")?.let(::stringMap).orEmpty()
         val model = clean(record.text("lightProductModel")) ?: clean(product.text("productModel"))
         val categoryPath = clean(record.text("lightCatalogName")) ?: clean(product.text("productType"))
-        val name = clean(record.text("lightProductName")) ?: clean(product.text("productName"))
-            ?: model ?: sku
+        val description = clean(record.text("lightProductName")) ?: clean(product.text("productName"))
+        val name = model ?: description ?: sku
         val brand = clean(record.text("lightBrandName")) ?: clean(product.text("productGradePlateName"))
         val packageName = clean(record.text("lightStandard")) ?: clean(product.text("encapsulationModel"))
             ?: params.entries.firstOrNull { (key, _) -> key.contains("封装") || key.equals("Package", true) }?.value
@@ -101,6 +101,7 @@ internal object LcscDomesticCatalog {
                 source = "lcsc_domestic_web",
                 sku = sku,
                 name = name,
+                description = description?.takeUnless { it.equals(name, ignoreCase = true) },
                 packageName = packageName,
                 category = categoryPath,
                 model = model,

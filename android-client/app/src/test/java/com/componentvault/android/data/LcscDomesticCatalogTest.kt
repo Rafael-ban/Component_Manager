@@ -28,6 +28,8 @@ class LcscDomesticCatalogTest {
     @Test fun parsesChineseSearchCandidateParametersAndRealProductIdUrl() {
         val product = LcscDomesticCatalog.parseSearchPage(page()).single()
         assertEquals("C70565", product.metadata.sku)
+        assertEquals("X322512MOB4SI", product.metadata.name)
+        assertEquals("YXC 12MHz 晶体", product.metadata.description)
         assertEquals("晶体/谐振器/晶振", product.metadata.category)
         assertEquals("扬兴科技", product.metadata.brand)
         assertEquals("SMD3225-4P", product.metadata.packageName)
@@ -38,6 +40,8 @@ class LcscDomesticCatalogTest {
         val candidate = JlcImportParser.parseQr("{pc:C70565,qty:25}")
             .withOfficialMetadata(product.metadata)
         assertEquals(25, candidate.suggestedQuantity)
+        assertEquals("X322512MOB4SI", candidate.name)
+        assertTrue(candidate.notes.contains("官方描述：YXC 12MHz 晶体"))
         assertTrue(candidate.notes.contains("参数：频率：12MHz"))
         assertTrue(candidate.notes.contains("数据手册：https://atta.szlcsc.com/upload/public.pdf"))
     }

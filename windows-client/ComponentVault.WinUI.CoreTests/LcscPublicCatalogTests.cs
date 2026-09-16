@@ -30,6 +30,8 @@ public sealed class LcscPublicCatalogTests
 
         Assert.NotNull(result);
         Assert.Equal("C123", result.Sku);
+        Assert.Equal("RC0603", result.Name);
+        Assert.Equal("10k resistor", result.Description);
         Assert.Equal("电阻", result.Category);
         Assert.Equal("0603", result.PackageName);
         Assert.Equal("https://assets.lcsc.com/a.jpg", result.ImageUrl);
@@ -68,7 +70,8 @@ public sealed class LcscPublicCatalogTests
         var result = Assert.Single(LcscPublicCatalog.ParseChinaSearchPage(html));
 
         Assert.Equal("C25804", result.Sku);
-        Assert.Equal("贴片电阻 10kΩ", result.Name);
+        Assert.Equal("RC0603FR-0710KL", result.Name);
+        Assert.Equal("贴片电阻 10kΩ", result.Description);
         Assert.Equal("电阻器 & 电位器", result.Category);
         Assert.Equal("https://item.szlcsc.com/123456.html", result.OfficialUrl);
         Assert.Equal("https://atta.szlcsc.com/upload/public/pdf/a.pdf", result.DatasheetUrl);

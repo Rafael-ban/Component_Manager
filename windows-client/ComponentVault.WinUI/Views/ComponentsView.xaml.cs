@@ -540,6 +540,7 @@ public sealed partial class ComponentsView : Page
                 .Select(note => note.Trim())
                 .Where(note => metadata.ImageUrl is null || !note.StartsWith("商品图片：", StringComparison.Ordinal)));
         AddUnique(notes, metadata.Model is null ? null : $"型号：{metadata.Model}");
+        AddUnique(notes, metadata.Description is null ? null : $"官方描述：{metadata.Description}");
         AddUnique(notes, metadata.Brand is null ? null : $"品牌：{metadata.Brand}");
         AddUnique(notes, $"官方商品页：{metadata.OfficialUrl}");
         AddUnique(notes, metadata.CategoryPath is null ? null : $"官方分类路径：{metadata.CategoryPath}");

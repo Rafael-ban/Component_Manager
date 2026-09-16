@@ -574,11 +574,13 @@ class InventoryViewModel(
         serverBaseUrl: String,
         apiToken: String,
         autoSyncEnabled: Boolean,
+        externalServerBaseUrl: String,
     ) {
         val result = repository.saveSyncConfiguration(
             serverBaseUrl = serverBaseUrl,
             apiToken = apiToken,
             autoSyncEnabled = autoSyncEnabled,
+            externalServerBaseUrl = externalServerBaseUrl,
         )
         uiState = uiState.copy(
             syncConfiguration = repository.loadSyncConfiguration(),
@@ -594,11 +596,11 @@ class InventoryViewModel(
         )
     }
 
-    fun testConnection(serverBaseUrl: String, apiToken: String) {
+    fun testConnection(serverBaseUrl: String, apiToken: String, externalServerBaseUrl: String) {
         if (uiState.isBusy) return
         viewModelScope.launch {
             uiState = uiState.copy(isBusy = true)
-            val result = repository.testConnection(serverBaseUrl, apiToken)
+            val result = repository.testConnection(serverBaseUrl, apiToken, externalServerBaseUrl)
             uiState = uiState.copy(
                 syncConfiguration = repository.loadSyncConfiguration(),
                 statusMessage = result.message,
@@ -1050,6 +1052,7 @@ class InventoryViewModel(
         productionSets: Int,
         sheetName: String?,
         selections: Map<String, String> = emptyMap(),
+        searchQueries: Map<String, String> = emptyMap(),
         onComplete: (Result<BomReleasePreview>) -> Unit,
     ) {
         viewModelScope.launch {
@@ -1060,7 +1063,7 @@ class InventoryViewModel(
                     require(fileName.endsWith(".csv", true)) { "仅支持 CSV 或 XLSX BOM。" }
                     BomParser.parseCsv(bytes, projectName, productionSets)
                 } }
-                repository.previewBomRelease(parsed, selections)
+                repository.previewBomRelease(parsed, selections, searchQueries)
             })
         }
     }

@@ -1,0 +1,7 @@
+<resources>
+    <string name="settings_api_token_help">填写服务端 .env 或部署环境中的 API_TOKEN，请向服务端管理者获取；这里不是 GitHub 令牌。</string>
+    <string name="settings_external_server_url">外网地址（可选）</string>
+    <string name="settings_external_server_help">填写同一服务端、同一数据库的外网地址。主地址无法连接时自动尝试；留空则关闭自动切换。</string>
+    <string name="sync_via_external">本次通过外网地址连接。</string>
+    <string name="sync_validation_failed">同步数据校验未通过（HTTP 422）：%1$s — %2$s（共 %3$d 项）。本地数据已保留，请更新服务端后重试，或修正对应字段。</string>
+</resources>

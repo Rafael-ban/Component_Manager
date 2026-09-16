@@ -243,6 +243,23 @@ def test_write_during_pull_is_deferred_to_next_cursor(tmp_path: Path, monkeypatc
     assert [row.id for row in next_rows] == ["cmp-1"]
 
 
+def test_sync_accepts_legacy_name_longer_than_200_characters(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    monkeypatch.setenv("API_TOKEN", "test-token")
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "sync.db"))
+    get_settings.cache_clear()
+    legacy_name = "Long imported English description. " * 20
+    with TestClient(create_app()) as client:
+        pushed = client.post(
+            "/sync/push", headers=AUTH,
+            json={"device_id": "legacy-import", "components": [_component(name=legacy_name)]},
+        )
+        pulled = client.get("/sync/pull", headers=AUTH)
+    assert pushed.status_code == 200, pushed.text
+    assert pulled.json()["components"][0]["name"] == legacy_name
+
+
 def _component(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "id": "cmp-1",

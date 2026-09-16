@@ -66,9 +66,9 @@ internal fun SettingsRouteScreen(
     selectedSection: SettingsSection?,
     onSelectSection: (SettingsSection?) -> Unit,
     onDismiss: () -> Unit,
-    onSaveSyncSettings: (String, String, Boolean) -> Unit,
+    onSaveSyncSettings: (String, String, Boolean, String) -> Unit,
     onSaveAppPreferences: (AppPreferences) -> Unit,
-    onTestConnection: (String, String) -> Unit,
+    onTestConnection: (String, String, String) -> Unit,
     onSyncNow: () -> Unit,
     onClearImportLearningMappings: () -> Unit,
 ) {
@@ -130,9 +130,9 @@ internal fun SettingsScreen(
     layoutMode: InventoryLayoutMode,
     selectedSection: SettingsSection?,
     onSelectSection: (SettingsSection?) -> Unit,
-    onSaveSyncSettings: (String, String, Boolean) -> Unit,
+    onSaveSyncSettings: (String, String, Boolean, String) -> Unit,
     onSaveAppPreferences: (AppPreferences) -> Unit,
-    onTestConnection: (String, String) -> Unit,
+    onTestConnection: (String, String, String) -> Unit,
     onSyncNow: () -> Unit,
     onClearImportLearningMappings: () -> Unit,
 ) {
@@ -165,9 +165,9 @@ internal fun SettingsContent(
     layoutMode: InventoryLayoutMode,
     selectedSection: SettingsSection?,
     onSelectSection: (SettingsSection?) -> Unit,
-    onSaveSyncSettings: (String, String, Boolean) -> Unit,
+    onSaveSyncSettings: (String, String, Boolean, String) -> Unit,
     onSaveAppPreferences: (AppPreferences) -> Unit,
-    onTestConnection: (String, String) -> Unit,
+    onTestConnection: (String, String, String) -> Unit,
     onSyncNow: () -> Unit,
     onClearImportLearningMappings: () -> Unit,
     onManageLocations: (() -> Unit)? = null,
@@ -176,6 +176,9 @@ internal fun SettingsContent(
     val strings = vaultStrings()
     var serverUrl by remember(syncConfiguration.serverBaseUrl) {
         mutableStateOf(syncConfiguration.serverBaseUrl)
+    }
+    var externalServerUrl by remember(syncConfiguration.externalServerBaseUrl) {
+        mutableStateOf(syncConfiguration.externalServerBaseUrl)
     }
     var apiToken by remember(syncConfiguration.apiToken) {
         mutableStateOf(syncConfiguration.apiToken)
@@ -221,6 +224,7 @@ internal fun SettingsContent(
     var showClearLearningConfirmation by remember { mutableStateOf(false) }
 
     val hasUnsavedConnection = serverUrl.trim().trimEnd('/') != syncConfiguration.serverBaseUrl ||
+        externalServerUrl.trim().trimEnd('/') != syncConfiguration.externalServerBaseUrl ||
         apiToken.trim() != syncConfiguration.apiToken || autoSyncEnabled != syncConfiguration.autoSyncEnabled
 
     val saveDraft: (Boolean) -> Boolean = { applyLocale ->
@@ -230,7 +234,7 @@ internal fun SettingsContent(
             false
         } else {
             errorMessage = null
-            onSaveSyncSettings(serverUrl, apiToken, autoSyncEnabled)
+            onSaveSyncSettings(serverUrl, apiToken, autoSyncEnabled, externalServerUrl)
             onSaveAppPreferences(
                 AppPreferences(
                     defaultImportLocation = defaultImportLocation.trim(),
@@ -298,6 +302,8 @@ internal fun SettingsContent(
                     strings = strings,
                     serverUrl = serverUrl,
                     onServerUrlChange = { serverUrl = it },
+                    externalServerUrl = externalServerUrl,
+                    onExternalServerUrlChange = { externalServerUrl = it },
                     apiToken = apiToken,
                     onApiTokenChange = { apiToken = it },
                     autoSyncEnabled = autoSyncEnabled,
@@ -332,7 +338,7 @@ internal fun SettingsContent(
                     hasUnsavedConnection = hasUnsavedConnection,
                     onSave = { saveDraft(true) },
                     onTestConnection = {
-                        onTestConnection(serverUrl, apiToken)
+                        onTestConnection(serverUrl, apiToken, externalServerUrl)
                     },
                     onSyncNow = {
                         onSyncNow()
@@ -381,6 +387,8 @@ internal fun SettingsContent(
                 strings = strings,
                 serverUrl = serverUrl,
                 onServerUrlChange = { serverUrl = it },
+                    externalServerUrl = externalServerUrl,
+                    onExternalServerUrlChange = { externalServerUrl = it },
                 apiToken = apiToken,
                 onApiTokenChange = { apiToken = it },
                 autoSyncEnabled = autoSyncEnabled,
@@ -415,7 +423,7 @@ internal fun SettingsContent(
                 hasUnsavedConnection = hasUnsavedConnection,
                 onSave = { saveDraft(true) },
                 onTestConnection = {
-                    onTestConnection(serverUrl, apiToken)
+                    onTestConnection(serverUrl, apiToken, externalServerUrl)
                 },
                 onSyncNow = {
                     onSyncNow()
@@ -779,6 +787,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
     strings: ComponentVaultStrings,
     serverUrl: String,
     onServerUrlChange: (String) -> Unit,
+    externalServerUrl: String,
+    onExternalServerUrlChange: (String) -> Unit,
     apiToken: String,
     onApiTokenChange: (String) -> Unit,
     autoSyncEnabled: Boolean,
@@ -831,6 +841,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
                         placeholder = { Text(strings.settings.serverUrlPlaceholder) },
                         singleLine = true,
                     )
+                    OutlinedTextField(
+                        value = externalServerUrl,
+                        onValueChange = onExternalServerUrlChange,
+                        modifier = Modifier.fillMaxWidth().testTag("external-server-url"),
+                        label = { Text(stringResource(R.string.settings_external_server_url)) },
+                        supportingText = { Text(stringResource(R.string.settings_external_server_help)) },
+                        singleLine = true,
+                    )
                 }
             }
             item {
@@ -843,6 +861,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
                         onValueChange = onApiTokenChange,
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text(strings.common.fieldApiToken) },
+                        supportingText = { Text(stringResource(R.string.settings_api_token_help)) },
                         singleLine = true,
                         visualTransformation = if (showToken) {
                             VisualTransformation.None

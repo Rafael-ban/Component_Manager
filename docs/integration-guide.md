@@ -426,3 +426,22 @@ password. `POST` to the same authenticated endpoint saves `enabled`, `host`,
 `clear_password`. Empty/omitted password preserves the existing password;
 `clear_password: true` clears it explicitly. Saved settings take effect on API
 restart, override MQTT environment defaults, and do not modify inventory.
+
+## Component-name compatibility and connection fallback
+
+The `name` field on synchronized components accepts 1–4000 characters. This
+preserves names imported as long product descriptions by previous versions;
+other field constraints are unchanged. A client-only update cannot fix an old
+server's 200-character limit: upgrade the server and then retry the queued sync.
+
+Android's optional external URL is another route to the same server/database.
+It is selected before inventory writes, following a primary transport failure on
+`POST /auth/ping`. An HTTP 401, 409 or 422 is a server response, not a signal to
+switch addresses. Push and pull within a cycle always use the chosen endpoint.
+No new sync endpoint or protocol version is introduced.
+
+`API_TOKEN` comes from the server deployment environment. With Docker Compose,
+the repository-root `.env` supplies it; for direct uvicorn launches explicitly
+export it or use `--env-file .env`. The web console may show/copy the token already
+held in its authenticated browser session. No endpoint reveals the server token
+without authentication, and GitHub issue-report credentials are unrelated.

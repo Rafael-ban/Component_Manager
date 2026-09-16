@@ -19,7 +19,10 @@ public sealed record BomImportOptions(string ProjectName, int BatchQuantity);
 
 public sealed record BomIssue(int? RowNumber, string Code, string Message);
 
-public sealed record BomMatchCandidate(string ComponentId, string Sku, string Name, string PackageName);
+public sealed record BomMatchCandidate(string ComponentId, string Sku, string Name, string PackageName, string? Model = null)
+{
+    public override string ToString() => string.Join(" · ", new[] { Sku, Model, PackageName, Name }.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct());
+}
 
 public sealed record BomConsumptionLine(
     string ComponentId,
@@ -36,7 +39,8 @@ public sealed record BomPreview(
     int BatchQuantity,
     IReadOnlyList<BomConsumptionLine> Lines,
     IReadOnlyList<BomIssue> Issues,
-    IReadOnlyDictionary<int, IReadOnlyList<BomMatchCandidate>> Candidates
+    IReadOnlyDictionary<int, IReadOnlyList<BomMatchCandidate>> Candidates,
+    IReadOnlyDictionary<int, IReadOnlyList<int>>? SelectionGroups = null
 )
 {
     public bool CanConfirm => Issues.Count == 0 && Lines.Count > 0;

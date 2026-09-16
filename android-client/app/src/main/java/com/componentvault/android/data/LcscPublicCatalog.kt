@@ -37,8 +37,8 @@ internal object LcscPublicCatalog {
                 normalizeSku(it.text("sku").orEmpty()) == expectedSku
             } ?: continue
             val model = product.text("mpn")
-            val name = product.text("description") ?: product.text("name")
-            if (name.isNullOrBlank() || name.equals(expectedSku, true) || name.equals(model, true)) continue
+            val description = product.text("description") ?: product.text("name")
+            val name = model ?: product.text("name") ?: expectedSku
             val brand = product.optJSONObject("brand")?.text("name") ?: product.text("brand")
             val categoryPath = product.text("category")
             val properties = product.optJSONArray("additionalProperty")
@@ -51,13 +51,14 @@ internal object LcscPublicCatalog {
                 source = "lcsc_public_web",
                 sku = expectedSku,
                 name = name,
+                description = description?.takeUnless { it.equals(name, ignoreCase = true) },
                 model = model,
                 brand = brand,
                 vendor = brand,
                 packageName = packageName,
                 category = categoryPath?.let(OfficialCategoryNormalizer::normalize)
                     ?: ComponentCategoryInferencer.infer(
-                        name,
+                        description ?: name,
                         packageName,
                         model,
                         brand,

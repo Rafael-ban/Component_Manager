@@ -281,53 +281,6 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
-      - name: Create temporary Windows signing certificate
-        shell: pwsh
-        run: |
-          $cert = New-SelfSignedCertificate `
-            -Type Custom `
-            -Subject 'CN=ComponentVault' `
-            -KeyAlgorithm RSA `
-            -KeyLength 2048 `
-            -HashAlgorithm SHA256 `
-            -KeyExportPolicy Exportable `
-            -KeyUsage DigitalSignature `
-            -FriendlyName 'ComponentVault Release Signing' `
-            -CertStoreLocation 'Cert:\CurrentUser\My' `
-            -TextExtension @('2.5.29.19={text}CA=false','2.5.29.37={text}1.3.6.1.5.5.7.3.3')
-          $cerPath = Join-Path $env:RUNNER_TEMP 'component-vault-release-signing.cer'
-
-          Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
-
-          "WINDOWS_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
-          "WINDOWS_CER_PATH=$cerPath" >> $env:GITHUB_ENV
-
-      - name: Publish Windows MSIX package
-        shell: pwsh
-        run: |
-          dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj `
-            -c Release `
-            /p:PublishProfile=win-x64.pubxml `
-            /p:AppxPackageSigningEnabled=true `
-            /p:PackageCertificateThumbprint="$env:WINDOWS_CERT_THUMBPRINT"
-
-      - name: Stage Windows MSIX package
-        shell: pwsh
-        run: |
-          $releaseRoot = Join-Path $env:GITHUB_WORKSPACE 'windows-client\ComponentVault.WinUI\bin\Release'
-          $stagedMsixPath = Join-Path $env:RUNNER_TEMP 'component-vault-windows-x64.msix'
-          $msix = Get-ChildItem -Path $releaseRoot -Recurse -Filter *.msix |
-            Sort-Object LastWriteTimeUtc -Descending |
-            Select-Object -First 1
-
-          if (-not $msix) {
-            throw 'Windows MSIX package was not generated immediately after publish.'
-          }
-
-          Copy-Item $msix.FullName $stagedMsixPath -Force
-          "WINDOWS_MSIX_PATH=$stagedMsixPath" >> $env:GITHUB_ENV
-          Write-Host "Staged Windows MSIX: $($msix.FullName)"
-
       - name: Publish Windows portable bundle
         shell: pwsh
         run: |
@@ -349,43 +302,19 @@ jobs:
             -p:PublishSingleFile=false `
             -o $portablePublishDir
 
-      - name: Verify staged Windows MSIX package
-        shell: pwsh
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_MSIX_PATH)) {
-            throw 'WINDOWS_MSIX_PATH was not set by the staging step.'
-          }
-
-          if (!(Test-Path $env:WINDOWS_MSIX_PATH)) {
-            throw "Staged MSIX package is missing: $env:WINDOWS_MSIX_PATH"
-          }
-
-          Write-Host "Verified staged Windows MSIX: $env:WINDOWS_MSIX_PATH"
-
-      - name: Normalize Windows release artifacts
+      - name: Package and smoke test Windows portable archive
         shell: pwsh
         run: |
           $artifactDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts\windows'
-          $stagedMsixPath = $env:WINDOWS_MSIX_PATH
           $portablePublishDir = Join-Path $env:RUNNER_TEMP 'component-vault-portable-x64'
           $portableStageDir = Join-Path $env:RUNNER_TEMP 'component-vault-windows-portable-x64'
           $portableZipPath = Join-Path $artifactDir 'component-vault-windows-portable-x64.zip'
+          $smokeDir = Join-Path $env:RUNNER_TEMP 'component-vault-portable-smoke'
           New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
-
-          if ([string]::IsNullOrWhiteSpace($stagedMsixPath)) {
-            throw 'WINDOWS_MSIX_PATH is not available during artifact normalization.'
-          }
-
-          if (!(Test-Path $stagedMsixPath)) {
-            throw "Staged Windows MSIX package was not found: $stagedMsixPath"
-          }
 
           if (!(Test-Path $portablePublishDir)) {
             throw 'Windows portable publish output was not generated.'
           }
-
-          Copy-Item $stagedMsixPath (Join-Path $artifactDir 'component-vault-windows-x64.msix') -Force
-          Copy-Item $env:WINDOWS_CER_PATH (Join-Path $artifactDir 'component-vault-windows-test-certificate.cer') -Force
 
           if (Test-Path $portableStageDir) {
             Remove-Item -LiteralPath $portableStageDir -Recurse -Force
@@ -399,53 +328,46 @@ jobs:
           }
 
           Compress-Archive -Path $portableStageDir -DestinationPath $portableZipPath
-
-          @'
-          param(
-              [string]$PackagePath = "component-vault-windows-x64.msix",
-              [string]$CertificatePath = "component-vault-windows-test-certificate.cer"
-          )
-
-          $packageFullPath = Join-Path $PSScriptRoot $PackagePath
-          $certificateFullPath = Join-Path $PSScriptRoot $CertificatePath
-          $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-
-          if (!(Test-Path $packageFullPath)) {
-              throw "MSIX package not found: $packageFullPath"
+          if (Test-Path $smokeDir) {
+            Remove-Item -LiteralPath $smokeDir -Recurse -Force
           }
+          Expand-Archive -LiteralPath $portableZipPath -DestinationPath $smokeDir
 
-          if (!(Test-Path $certificateFullPath)) {
-              throw "Certificate file not found: $certificateFullPath"
+          $executable = Join-Path $smokeDir 'component-vault-windows-portable-x64\ComponentVault.WinUI.exe'
+          $marker = Join-Path $env:RUNNER_TEMP 'component-vault-startup-ready'
+          if (!(Test-Path -LiteralPath $executable)) {
+            throw "Portable archive is missing ComponentVault.WinUI.exe: $executable"
           }
-
-          if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-              throw "Run this script from an elevated PowerShell window. MSIX test certificates must be imported into Cert:\LocalMachine\TrustedPeople."
+          Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
+          $env:COMPONENT_VAULT_STARTUP_SMOKE_FILE = $marker
+          $process = Start-Process -FilePath $executable -WorkingDirectory (Split-Path $executable) -WindowStyle Hidden -PassThru
+          try {
+            if (-not $process.WaitForExit(30000)) {
+              throw 'Windows portable startup smoke timed out before the app reported ready.'
+            }
+            if ($process.ExitCode -ne 0) {
+              throw "Windows portable startup smoke exited with code $($process.ExitCode)."
+            }
+            if (!(Test-Path -LiteralPath $marker)) {
+              throw 'Windows portable app exited without completing MainWindow startup.'
+            }
+          } catch {
+            $startupLog = Join-Path $env:LOCALAPPDATA 'ComponentVault\logs\startup.log'
+            if (Test-Path -LiteralPath $startupLog) {
+              Get-Content -LiteralPath $startupLog
+            }
+            throw
+          } finally {
+            if (!$process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
           }
-
-          Import-Certificate -FilePath $certificateFullPath -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
-          Add-AppxPackage -Path $packageFullPath
-          Write-Host "Component Vault installation completed."
-          '@ | Set-Content (Join-Path $artifactDir 'Install-ComponentVault.ps1')
-
-          @'
-          Component Vault Windows release bundle
-
-          Portable package:
-          1. Unzip component-vault-windows-portable-x64.zip
-          2. Open the extracted component-vault-windows-portable-x64 folder
-          3. Run ComponentVault.WinUI.exe
-
-          MSIX package:
-          1. Keep component-vault-windows-x64.msix and component-vault-windows-test-certificate.cer in the same folder
-          2. Open PowerShell as Administrator
-          3. Run Install-ComponentVault.ps1
-          '@ | Set-Content (Join-Path $artifactDir 'README-Windows-Release.txt')
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v7
         with:
-          name: windows-release-bundle
-          path: artifacts/windows
+          name: windows-portable-x64
+          path: artifacts/windows/component-vault-windows-portable-x64.zip
           if-no-files-found: error
 
   github-release:
@@ -472,7 +394,7 @@ jobs:
       - name: Download Windows artifact
         uses: actions/download-artifact@v7
         with:
-          name: windows-release-bundle
+          name: windows-portable-x64
           path: release-assets/windows
 
       - name: Create or update GitHub release

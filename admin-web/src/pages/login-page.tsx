@@ -14,8 +14,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
 
-const DEFAULT_API_BASE_URL =
-  import.meta.env.VITE_DEFAULT_API_BASE_URL ?? "http://localhost:8787";
+const DEFAULT_API_BASE_URL = import.meta.env.VITE_DEFAULT_API_BASE_URL
+  || `${window.location.protocol}//${window.location.hostname}:8787`;
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -123,6 +123,7 @@ export function LoginPage() {
                   onChange={(event) => setToken(event.target.value)}
                   placeholder="change-me"
                 />
+                <p className="text-xs text-muted-foreground">令牌是服务部署时配置的 <code>API_TOKEN</code>，不是 GitHub token。可从启动脚本、容器环境或部署平台 Secrets 获取或重设。</p>
               </label>
 
               {error ? (

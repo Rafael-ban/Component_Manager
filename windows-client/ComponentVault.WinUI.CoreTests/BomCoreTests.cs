@@ -50,6 +50,83 @@ public sealed class BomCoreTests : IDisposable
     }
 
     [Fact]
+    public void Preview_ExactModelWithoutPackageAutoMatchesOnlyWhenUnique()
+    {
+        var unique = new BomPlanningService().CreatePreview(
+            Document(new BomSourceRow(2, null, "MODEL-1", null, 1)),
+            new("Project", 1),
+            [Component("c1", "C1", 5, "型号：MODEL-1", "QFN")]
+        );
+        Assert.True(unique.CanConfirm);
+        Assert.Equal("c1", Assert.Single(unique.Lines).ComponentId);
+
+        var ambiguous = new BomPlanningService().CreatePreview(
+            Document(new BomSourceRow(2, null, "MODEL-1", null, 1)),
+            new("Project", 1),
+            [
+                Component("c1", "C1", 5, "型号：MODEL-1", "QFN"),
+                Component("c2", "C2", 5, "MPN: MODEL-1", "DIP"),
+            ]
+        );
+        Assert.False(ambiguous.CanConfirm);
+        Assert.Contains(ambiguous.Issues, issue => issue.Code == "ambiguous");
+    }
+
+    [Fact]
+    public void SearchInventoryRanksFieldsAndExcludesDeletedItems()
+    {
+        var items = new[]
+        {
+            Component("contains", "C3", 1, "型号：X-STM32-G0", "QFN"),
+            Component("prefix", "C2", 1, "型号：STM32F103", "LQFP"),
+            Component("exact", "C1", 1, "型号：STM32", "LQFP"),
+            new ComponentRecord { Id = "deleted", Sku = "STM32", Name = "Old", Category = "Test", PackageName = "DIP", Location = "A", Description = "", Quantity = 1, MinStock = 0, UpdatedAt = "2026-09-15T00:00:00Z", Deleted = true },
+        };
+
+        Assert.Equal(
+            ["exact", "prefix", "contains"],
+            new BomPlanningService().SearchInventory(items, " stm32 ").Select(item => item.ComponentId)
+        );
+    }
+
+    [Fact]
+    public void Preview_SelectionGroupsPreserveEverySourceRowAfterComponentAggregation()
+    {
+        var component = Component("shared", "C1", 20, "型号：M1\n型号：M2", "0603");
+        var replacement = Component("replacement", "C2", 20, "", "0603");
+        var document = Document(
+            new BomSourceRow(2, null, "M1", "0603", 1),
+            new BomSourceRow(3, null, "M2", "0603", 2)
+        );
+        var preview = new BomPlanningService().CreatePreview(
+            document,
+            new("Project", 1),
+            [component, replacement]
+        );
+
+        Assert.Single(preview.Lines);
+        Assert.Equal([2], preview.SelectionGroups![2]);
+        Assert.Equal([3], preview.SelectionGroups[3]);
+
+        var movedTogether = new BomPlanningService().CreatePreview(
+            document,
+            new("Project", 1),
+            [component, replacement],
+            new Dictionary<int, string> { [2] = "replacement", [3] = "replacement" }
+        );
+        Assert.Equal("replacement", Assert.Single(movedTogether.Lines).ComponentId);
+        Assert.Equal(3, movedTogether.Lines[0].RequiredQuantity);
+
+        var splitAgain = new BomPlanningService().CreatePreview(
+            document,
+            new("Project", 1),
+            [component, replacement],
+            new Dictionary<int, string> { [2] = "replacement", [3] = "shared" }
+        );
+        Assert.Equal(2, splitAgain.Lines.Count);
+    }
+
+    [Fact]
     public void CsvReader_RecognizesLcscHeaderAndQuotedFields()
     {
         Directory.CreateDirectory(_testRoot);

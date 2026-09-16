@@ -8,7 +8,7 @@
     Title="元件仓库"
     mc:Ignorable="d">
 
-    <Grid Background="{StaticResource VaultBackgroundBrush}">
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <NavigationView
             x:Name="AppNavigationView"
             IsBackButtonVisible="Auto"

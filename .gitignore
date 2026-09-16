@@ -36,6 +36,8 @@ windows-client/**/obj/
 .pytest-cache-local/
 .tmp-pytest/
 .local-secrets/
+.env
+.env.local
 .npm-cache/
 env/
 AGENTS.md

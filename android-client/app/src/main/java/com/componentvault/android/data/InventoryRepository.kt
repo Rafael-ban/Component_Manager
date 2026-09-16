@@ -257,6 +257,7 @@ class InventoryRepository(
         return SyncConfiguration(
             deviceId = preferences.getString(KEY_DEVICE_ID, "") ?: "",
             serverBaseUrl = preferences.getString(KEY_SERVER_BASE_URL, "") ?: "",
+            externalServerBaseUrl = preferences.getString(KEY_EXTERNAL_SERVER_BASE_URL, "") ?: "",
             apiToken = preferences.getString(KEY_API_TOKEN, "") ?: "",
             autoSyncEnabled = preferences.getBoolean(KEY_AUTO_SYNC_ENABLED, false),
             lastSyncedAt = preferences.getString(KEY_LAST_SYNCED_AT, text(R.string.sync_never))
@@ -298,6 +299,7 @@ class InventoryRepository(
         serverBaseUrl: String,
         apiToken: String,
         autoSyncEnabled: Boolean,
+        externalServerBaseUrl: String = "",
     ): OperationResult {
         ensureDefaultSettings()
         val normalizedServerUrl = serverBaseUrl.trim().trimEnd('/')
@@ -308,6 +310,7 @@ class InventoryRepository(
             ).orEmpty()
             preferences.edit()
                 .putString(KEY_SERVER_BASE_URL, normalizedServerUrl)
+                .putString(KEY_EXTERNAL_SERVER_BASE_URL, externalServerBaseUrl.trim().trimEnd('/'))
                 .putString(KEY_API_TOKEN, apiToken.trim())
                 .putBoolean(KEY_AUTO_SYNC_ENABLED, autoSyncEnabled)
                 .apply {
@@ -1026,9 +1029,11 @@ class InventoryRepository(
     suspend fun testConnection(
         serverBaseUrl: String,
         apiToken: String,
+        externalServerBaseUrl: String = "",
     ): OperationResult = withContext(Dispatchers.IO) {
         val settings = loadSyncConfiguration().copy(
             serverBaseUrl = serverBaseUrl.trim().trimEnd('/'),
+            externalServerBaseUrl = externalServerBaseUrl.trim().trimEnd('/'),
             apiToken = apiToken.trim(),
         )
         if (settings.serverBaseUrl.isBlank()) {
@@ -1039,16 +1044,11 @@ class InventoryRepository(
         }
 
         return@withContext try {
-            val response = callJson(
-                settings = settings,
-                method = "POST",
-                path = "/auth/ping",
-                body = null,
-                timeoutMillis = 15_000,
-            )
+            val endpoint = resolveSyncEndpoint(settings)
             OperationResult(
                 isSuccess = true,
-                message = text(R.string.sync_connection_ok, response.optString("server_time")),
+                message = text(R.string.sync_connection_ok, endpoint.probe.optString("server_time")) +
+                    if (endpoint.usesExternalAddress) " " + text(R.string.sync_via_external) else "",
             )
         } catch (exception: Exception) {
             OperationResult(
@@ -1075,20 +1075,21 @@ class InventoryRepository(
             }
 
             try {
-                val capability = callJson(settings, "POST", "/auth/ping", null)
+                val endpoint = resolveSyncEndpoint(settings)
+                val capability = endpoint.probe
                 check(capability.optInt("inventory_protocol", 0) == 1) {
                     "The server does not support inventory_protocol=1. Local changes were kept for retry."
                 }
                 val pushPayload = buildPushPayload(settings.deviceId)
                 val pushResponse = callJson(
-                    settings = settings,
+                    settings = endpoint.configuration,
                     method = "POST",
                     path = "/sync/push",
                     body = pushPayload.payload,
                 )
                 val cursor = readStoredSyncCursor()
                 val pullResponse = callJson(
-                    settings = settings,
+                    settings = endpoint.configuration,
                     method = "GET",
                     path = SyncProtocol.pullPath(cursor),
                     body = null,
@@ -1132,7 +1133,7 @@ class InventoryRepository(
                     acceptedMovements,
                     pulledComponents,
                     pulledMovements,
-                )
+                ) + if (endpoint.usesExternalAddress) " " + text(R.string.sync_via_external) else ""
 
                 synchronized(syncConfigurationLock) {
                     checkSyncConfigurationUnchanged(settings)
@@ -1164,6 +1165,7 @@ class InventoryRepository(
     suspend fun previewBomRelease(
         parsed: com.componentvault.android.data.bom.BomParseResult,
         selections: Map<String, String> = emptyMap(),
+        searchQueries: Map<String, String> = emptyMap(),
     ): com.componentvault.android.data.bom.BomReleasePreview = withContext(Dispatchers.IO) {
         val components = loadComponents()
         val inventory = components.map { component ->
@@ -1183,40 +1185,29 @@ class InventoryRepository(
         )
         val componentsById = components.associateBy { it.id }
         val rawLines = matches.map { match ->
-            val selectedId = selections[match.requirement.identity.canonicalKey]
+            val requirementKey = match.requirement.identity.canonicalKey
+            val selectedId = selections[requirementKey]
                 ?: match.selectedInventoryId
             val component = selectedId?.let(componentsById::get)
+                ?.takeUnless { it.deleted }
+            val searchedCandidates = searchQueries[requirementKey]
+                ?.let { query ->
+                    com.componentvault.android.data.bom.BomInventoryMatcher.search(inventory, query)
+                }.orEmpty()
+            val selectedCandidate = component?.let {
+                inventory.firstOrNull { candidate -> candidate.inventoryId == it.id }
+            }
             com.componentvault.android.data.bom.BomReleaseLine(
                 requirement = match.requirement,
                 componentId = component?.id,
                 componentSku = component?.sku,
                 availableQuantity = component?.quantity ?: 0,
                 expectedUpdatedAt = component?.updatedAt,
-                candidates = match.candidates,
+                candidates = (match.candidates + searchedCandidates + listOfNotNull(selectedCandidate))
+                    .distinctBy { it.inventoryId },
             )
         }
-        val aggregated = rawLines.groupBy { line ->
-            line.componentId?.let { "component:$it" }
-                ?: "requirement:${line.requirement.identity.canonicalKey}"
-        }.map { (key, grouped) ->
-            val first = grouped.first()
-            if (grouped.size == 1) first else {
-                val quantityPerSet = grouped.sumOf { it.requirement.quantityPerSet.toLong() }
-                val requiredQuantity = grouped.sumOf { it.requirement.requiredQuantity.toLong() }
-                check(quantityPerSet <= Int.MAX_VALUE && requiredQuantity <= Int.MAX_VALUE) {
-                    "BOM 聚合数量超过整数范围。"
-                }
-                first.copy(
-                requirement = first.requirement.copy(
-                    identity = com.componentvault.android.data.bom.BomRequirementIdentity(key),
-                    quantityPerSet = quantityPerSet.toInt(),
-                    requiredQuantity = requiredQuantity.toInt(),
-                    sourceRows = grouped.flatMap { it.requirement.sourceRows },
-                ),
-                candidates = grouped.flatMap { it.candidates }.distinctBy { it.inventoryId },
-                )
-            }
-        }
+        val aggregated = com.componentvault.android.data.bom.BomReleaseAggregator.aggregate(rawLines)
         val allocations = loadAllocations().groupBy { it.componentId }
         com.componentvault.android.data.bom.BomReleasePreview(
             parsed = parsed,
@@ -1229,6 +1220,7 @@ class InventoryRepository(
                     )
                 }.getOrDefault(emptyList()))
             },
+            matchingLines = rawLines,
         )
     }
 
@@ -2385,12 +2377,17 @@ class InventoryRepository(
         }
     }
 
+    private fun resolveSyncEndpoint(settings: SyncConfiguration): ResolvedSyncEndpoint<JSONObject> =
+        SyncEndpointResolver.resolve(settings) { configuration, timeout ->
+            callJson(configuration, "POST", "/auth/ping", null, timeout)
+        }
+
     private fun callJson(
         settings: SyncConfiguration,
         method: String,
         path: String,
         body: JSONObject?,
-        timeoutMillis: Int = 0,
+        timeoutMillis: Int = 60_000,
     ): JSONObject {
         val connection = URL("${settings.serverBaseUrl.trimEnd('/')}$path").openConnection() as HttpURLConnection
         connection.connectTimeout = timeoutMillis
@@ -2398,15 +2395,14 @@ class InventoryRepository(
         connection.requestMethod = method
         connection.setRequestProperty("Authorization", "Bearer ${settings.apiToken}")
         connection.setRequestProperty("Accept", "application/json")
-        if (body != null) {
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.outputStream.bufferedWriter().use { writer ->
-                writer.write(body.toString())
-            }
-        }
-
         return try {
+            if (body != null) {
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.outputStream.bufferedWriter().use { writer ->
+                    writer.write(body.toString())
+                }
+            }
             val responseCode = connection.responseCode
             val responseText = readResponseText(connection, responseCode)
             if (responseCode !in 200..299) {
@@ -2444,7 +2440,22 @@ class InventoryRepository(
         }
 
         return try {
-            val detail = JSONObject(body).optString("detail")
+            val parsedBody = JSONObject(body)
+            val validationErrors = parsedBody.optJSONArray("detail")
+            if (statusCode == 422 && validationErrors != null && validationErrors.length() > 0) {
+                val first = validationErrors.optJSONObject(0)
+                val location = first?.optJSONArray("loc")
+                val path = location?.let { fields ->
+                    (0 until fields.length()).joinToString(".") { fields.optString(it) }
+                }.orEmpty()
+                return text(
+                    R.string.sync_validation_failed,
+                    path,
+                    first?.optString("msg").orEmpty(),
+                    validationErrors.length(),
+                )
+            }
+            val detail = parsedBody.optString("detail")
             if (detail.isBlank()) {
                 text(R.string.sync_server_error_detail, statusCode, body)
             } else {
@@ -2762,8 +2773,10 @@ class InventoryRepository(
     private fun checkSyncConfigurationUnchanged(settings: SyncConfiguration) {
         val currentServerUrl = preferences.getString(KEY_SERVER_BASE_URL, "").orEmpty()
         val currentApiToken = preferences.getString(KEY_API_TOKEN, "").orEmpty()
+        val currentExternalUrl = preferences.getString(KEY_EXTERNAL_SERVER_BASE_URL, "").orEmpty()
         check(
             currentServerUrl == settings.serverBaseUrl &&
+                currentExternalUrl == settings.externalServerBaseUrl &&
                 currentApiToken == settings.apiToken,
         ) {
             "Sync configuration changed while synchronization was running. Please retry."
@@ -2788,6 +2801,7 @@ class InventoryRepository(
         const val PREFS_NAME = "component_vault_sync"
         const val KEY_DEVICE_ID = "device_id"
         const val KEY_SERVER_BASE_URL = "server_base_url"
+        const val KEY_EXTERNAL_SERVER_BASE_URL = "external_server_base_url"
         const val KEY_API_TOKEN = "api_token"
         const val KEY_AUTO_SYNC_ENABLED = "auto_sync_enabled"
         const val KEY_LAST_SYNCED_AT = "last_synced_at"

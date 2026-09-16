@@ -8,7 +8,34 @@ data class BomReleaseLine(
     val expectedUpdatedAt: String?,
     val candidates: List<InventoryMatchCandidate>,
     val allocationPlan: List<BomAllocationPlan> = emptyList(),
+    val selectionKeys: List<String> = listOf(requirement.identity.canonicalKey),
 )
+
+object BomReleaseAggregator {
+    fun aggregate(lines: List<BomReleaseLine>): List<BomReleaseLine> = lines.groupBy { line ->
+        line.componentId?.let { "component:$it" }
+            ?: "requirement:${line.requirement.identity.canonicalKey}"
+    }.map { (key, grouped) ->
+        val first = grouped.first()
+        if (grouped.size == 1) first else {
+            val quantityPerSet = grouped.sumOf { it.requirement.quantityPerSet.toLong() }
+            val requiredQuantity = grouped.sumOf { it.requirement.requiredQuantity.toLong() }
+            check(quantityPerSet <= Int.MAX_VALUE && requiredQuantity <= Int.MAX_VALUE) {
+                "BOM 聚合数量超过整数范围。"
+            }
+            first.copy(
+                requirement = first.requirement.copy(
+                    identity = BomRequirementIdentity(key),
+                    quantityPerSet = quantityPerSet.toInt(),
+                    requiredQuantity = requiredQuantity.toInt(),
+                    sourceRows = grouped.flatMap { it.requirement.sourceRows },
+                ),
+                candidates = grouped.flatMap { it.candidates }.distinctBy { it.inventoryId },
+                selectionKeys = grouped.flatMap { it.selectionKeys }.distinct(),
+            )
+        }
+    }
+}
 
 data class BomAllocationPlan(val locationId: String, val quantity: Int)
 
@@ -33,6 +60,7 @@ object BomAllocationPlanner {
 data class BomReleasePreview(
     val parsed: BomParseResult,
     val lines: List<BomReleaseLine>,
+    val matchingLines: List<BomReleaseLine> = lines,
 ) {
     val canCommit: Boolean
         get() = lines.isNotEmpty() &&

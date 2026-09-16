@@ -44,9 +44,9 @@ private fun AboutCompactPreview() {
             layoutMode = CompactPreviewLayout,
             selectedSection = SettingsSection.About,
             onSelectSection = {},
-            onSaveSyncSettings = { _, _, _ -> },
+            onSaveSyncSettings = { _, _, _, _ -> },
             onSaveAppPreferences = {},
-            onTestConnection = { _, _ -> },
+            onTestConnection = { _, _, _ -> },
             onSyncNow = {},
             onClearImportLearningMappings = {},
         )
@@ -68,9 +68,9 @@ private fun AboutWidePreview() {
             layoutMode = ExpandedPreviewLayout,
             selectedSection = SettingsSection.About,
             onSelectSection = {},
-            onSaveSyncSettings = { _, _, _ -> },
+            onSaveSyncSettings = { _, _, _, _ -> },
             onSaveAppPreferences = {},
-            onTestConnection = { _, _ -> },
+            onTestConnection = { _, _, _ -> },
             onSyncNow = {},
             onClearImportLearningMappings = {},
         )

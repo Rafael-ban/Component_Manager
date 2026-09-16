@@ -10,7 +10,8 @@ namespace ComponentVault.WinUI.Services.Catalog;
 public sealed record LcscProductMetadata(
     string Sku, string Name, string? Model, string? Brand, string? PackageName,
     string Category, string? CategoryPath, string OfficialUrl, string? ImageUrl,
-    string? DatasheetUrl = null, IReadOnlyDictionary<string, string>? Parameters = null
+    string? DatasheetUrl = null, IReadOnlyDictionary<string, string>? Parameters = null,
+    string? Description = null
 );
 
 public sealed class LcscDomesticBlockedException : IOException
@@ -101,12 +102,14 @@ public static partial class LcscPublicCatalog
         var parameters = StringMap(record, "paramLinkedMap");
         var model = CleanText(Text(record, "lightProductModel")) ?? CleanText(Text(product, "productModel"));
         var categoryPath = CleanText(Text(record, "lightCatalogName")) ?? CleanText(Text(product, "productType"));
-        var name = CleanText(Text(record, "lightProductName")) ?? CleanText(Text(product, "productName")) ?? model ?? sku;
+        var description = CleanText(Text(record, "lightProductName")) ?? CleanText(Text(product, "productName"));
+        var name = model ?? description ?? sku;
         var brand = CleanText(Text(record, "lightBrandName")) ?? CleanText(Text(product, "productGradePlateName"));
         var packageName = CleanText(Text(record, "lightStandard")) ?? CleanText(Text(product, "encapsulationModel"))
             ?? parameters.FirstOrDefault(pair => pair.Key.Contains("封装", StringComparison.Ordinal) || pair.Key.Equals("Package", StringComparison.OrdinalIgnoreCase)).Value;
         return new(sku, name, model, brand, packageName, NormalizeCategory(categoryPath), categoryPath,
-            $"https://item.szlcsc.com/{productId}.html", TrustedImageUrl(Text(product, "breviaryImageUrl")), ProductDatasheet(product), parameters);
+            $"https://item.szlcsc.com/{productId}.html", TrustedImageUrl(Text(product, "breviaryImageUrl")), ProductDatasheet(product), parameters,
+            description is not null && !description.Equals(name, StringComparison.OrdinalIgnoreCase) ? description : null);
     }
 
     private static string? ProductDatasheet(JsonElement product)
@@ -170,11 +173,12 @@ public static partial class LcscPublicCatalog
                 {
                     if (NormalizeSku(Text(product, "sku")) != expected) continue;
                     var model = Text(product, "mpn");
-                    var name = Text(product, "description") ?? Text(product, "name");
-                    if (string.IsNullOrWhiteSpace(name) || name.Equals(expected, StringComparison.OrdinalIgnoreCase) || name.Equals(model, StringComparison.OrdinalIgnoreCase)) continue;
+                    var description = Text(product, "description") ?? Text(product, "name");
+                    var name = model ?? Text(product, "name") ?? expected;
                     var brand = product.TryGetProperty("brand", out var brandNode) && brandNode.ValueKind == JsonValueKind.Object ? Text(brandNode, "name") : Text(product, "brand");
                     var categoryPath = Text(product, "category");
-                    return new(expected, name, model, brand, AdditionalPackage(product), NormalizeCategory(categoryPath), categoryPath, ProductUri(expected)!.AbsoluteUri, ProductImage(product));
+                    return new(expected, name, model, brand, AdditionalPackage(product), NormalizeCategory(categoryPath), categoryPath, ProductUri(expected)!.AbsoluteUri, ProductImage(product),
+                        Description: description is not null && !description.Equals(name, StringComparison.OrdinalIgnoreCase) ? description : null);
                 }
             }
             catch (JsonException) { }

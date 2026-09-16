@@ -12,6 +12,7 @@ namespace ComponentVault.WinUI.Views;
 public sealed partial class BomView : Page
 {
     private readonly BomFileReader _reader = new();
+    private readonly BomPlanningService _planner = new();
     private readonly Dictionary<int, string> _selections = [];
     private BomDocument? _document;
     private BomPreview? _preview;
@@ -59,7 +60,7 @@ public sealed partial class BomView : Page
         PreviewList.ItemsSource = _preview.Lines.Select(line => $"{line.ComponentSku} · 单批 {line.UnitQuantity} · 总需 {line.RequiredQuantity} · 库存 {line.AvailableQuantity} · 扣料 {AllocationPlan(line)}")
             .Concat(_preview.Issues.Select(issue => $"第 {issue.RowNumber?.ToString() ?? "-"} 行 · {issue.Message}")).ToArray();
         SummaryText.Text = $"{_document.SourceName}{(_document.WorksheetName is null ? "" : $" / {_document.WorksheetName}")} · {_preview.Lines.Count} 个匹配 · {_preview.Issues.Count} 个阻止项";
-        ResolveButton.IsEnabled = _preview.Candidates.Count > 0;
+        ResolveButton.IsEnabled = _preview.SelectionGroups is { Count: > 0 };
         ConfirmButton.IsEnabled = _preview.CanConfirm && !_confirmed;
     }
 
@@ -83,16 +84,50 @@ public sealed partial class BomView : Page
     {
         if (_preview is null) return;
         var panel = new StackPanel { Spacing = 12, Width = 520 };
-        var boxes = new Dictionary<int, ComboBox>();
-        foreach (var pair in _preview.Candidates.Where(pair => pair.Value.Count > 0))
+        var choices = new Dictionary<int, BomMatchCandidate>();
+        foreach (var pair in _preview.SelectionGroups ?? new Dictionary<int, IReadOnlyList<int>>())
         {
-            panel.Children.Add(new TextBlock { Text = $"BOM 第 {pair.Key} 行", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
-            var box = new ComboBox { ItemsSource = pair.Value, DisplayMemberPath = "Sku", HorizontalAlignment = HorizontalAlignment.Stretch };
-            panel.Children.Add(box); boxes[pair.Key] = box;
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"BOM 第 {string.Join("、", pair.Value)} 行",
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            });
+            var box = new AutoSuggestBox
+            {
+                PlaceholderText = "搜索 SKU、型号、封装或名称",
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            box.TextChanged += (_, args) =>
+            {
+                if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+                    box.ItemsSource = _planner.SearchInventory(ViewModel.Components, box.Text);
+            };
+            box.SuggestionChosen += (_, args) =>
+            {
+                if (args.SelectedItem is BomMatchCandidate candidate) choices[pair.Key] = candidate;
+            };
+            var currentId = _selections.GetValueOrDefault(pair.Key)
+                ?? _preview.Lines.FirstOrDefault(line => line.SourceRows.Contains(pair.Key))?.ComponentId;
+            if (currentId is { } selectedId &&
+                ViewModel.Components.FirstOrDefault(item => item.Id == selectedId) is { } selected)
+            {
+                var selectedCandidate = _planner.SearchInventory(ViewModel.Components, selected.Sku)
+                    .FirstOrDefault(item => item.ComponentId == selectedId);
+                if (selectedCandidate is not null)
+                {
+                    choices[pair.Key] = selectedCandidate;
+                    box.Text = selectedCandidate.ToString();
+                }
+            }
+            panel.Children.Add(box);
         }
         var dialog = new ContentDialog { Title = "选择库存匹配", Content = panel, PrimaryButtonText = "应用", CloseButtonText = "取消", XamlRoot = XamlRoot };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-        foreach (var pair in boxes) if (pair.Value.SelectedItem is BomMatchCandidate candidate) _selections[pair.Key] = candidate.ComponentId;
+        foreach (var pair in choices)
+        {
+            var sourceRows = _preview.SelectionGroups?.GetValueOrDefault(pair.Key) ?? [pair.Key];
+            foreach (var sourceRow in sourceRows) _selections[sourceRow] = pair.Value.ComponentId;
+        }
         RefreshPreview();
     }
 

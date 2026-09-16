@@ -19,6 +19,39 @@ import kotlin.test.assertEquals
 @Config(sdk = [28], application = Application::class)
 class SettingsConnectionTest {
     @Test
+    fun externalDraftIsUsedWhenPrimaryIsOfflineWithoutChangingSavedSettings(): Unit = runBlocking {
+        val context: Application = RuntimeEnvironment.getApplication()
+        val repository = InventoryRepository(context)
+        repository.saveSyncConfiguration("https://saved.example", "saved-token", true, "https://saved-external.example")
+        val saved = repository.loadSyncConfiguration()
+        val preferences = context.getSharedPreferences("component_vault_sync", Context.MODE_PRIVATE)
+        preferences.edit().putLong("sync_cursor", 42L).commit()
+        val offlinePort = ServerSocket(0).use { it.localPort }
+        ServerSocket(0).use { server ->
+            server.soTimeout = 10_000
+            val responder = CompletableFuture.runAsync {
+                server.accept().use { socket ->
+                    socket.soTimeout = 10_000
+                    val reader = socket.getInputStream().bufferedReader()
+                    val headers = generateSequence { reader.readLine() }.takeWhile { it.isNotEmpty() }.toList()
+                    assertEquals("POST /auth/ping HTTP/1.1", headers.first())
+                    val bytes = "{\"server_time\":\"external\"}".toByteArray()
+                    socket.getOutputStream().apply {
+                        write("HTTP/1.1 200 OK\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                        write(bytes)
+                        flush()
+                    }
+                }
+            }
+            val result = repository.testConnection("http://127.0.0.1:$offlinePort", "draft-token", "http://127.0.0.1:${server.localPort}")
+            assertEquals(true, result.isSuccess)
+            assertEquals(saved, repository.loadSyncConfiguration())
+            assertEquals(42L, preferences.getLong("sync_cursor", -1L))
+            responder.get(10, TimeUnit.SECONDS)
+        }
+    }
+
+    @Test
     fun successfulAndFailedDraftTestsNeverReplaceSavedConnectionOrCursor(): Unit = runBlocking {
         val context: Application = RuntimeEnvironment.getApplication()
         val repository = InventoryRepository(context)

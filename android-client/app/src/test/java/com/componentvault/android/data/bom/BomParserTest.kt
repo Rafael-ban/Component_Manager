@@ -104,6 +104,44 @@ class BomParserTest {
     }
 
     @Test
+    fun uniqueExactModelMatchesWithoutPackageButDuplicatesStayAmbiguous() {
+        val requirements = BomParser.parseCsv(
+            "MPN,Qty\nMODEL-1,1\nMODEL-2,1".toByteArray(),
+            "P",
+            1,
+        ).requirements
+        val matches = BomInventoryMatcher.match(
+            requirements,
+            listOf(
+                InventoryMatchCandidate("unique", "C1", "MODEL-1", "QFN"),
+                InventoryMatchCandidate("duplicate-a", "C2", "MODEL-2", "0603"),
+                InventoryMatchCandidate("duplicate-b", "C3", "model-2", "0805"),
+            ),
+        )
+
+        assertEquals(BomMatchKind.EXACT_MODEL, matches[0].kind)
+        assertEquals("unique", matches[0].selectedInventoryId)
+        assertEquals(BomMatchKind.EXACT_MODEL, matches[1].kind)
+        assertTrue(matches[1].isAmbiguous)
+        assertNull(matches[1].selectedInventoryId)
+    }
+
+    @Test
+    fun inventorySearchRanksExactMatchesAndExcludesInactiveItems() {
+        val inventory = listOf(
+            InventoryMatchCandidate("contains", "C200", "STM32G0", "LQFP-48", "Control STM32 board"),
+            InventoryMatchCandidate("prefix", "C201", "STM32F103", "LQFP-48", "MCU"),
+            InventoryMatchCandidate("exact", "C202", "STM32", "LQFP-48", "MCU"),
+            InventoryMatchCandidate("inactive", "STM32", "OTHER", "DIP", "Old", active = false),
+        )
+
+        assertEquals(
+            listOf("exact", "prefix", "contains"),
+            BomInventoryMatcher.search(inventory, " stm32 ").map { it.inventoryId },
+        )
+    }
+
+    @Test
     fun parsesSelectedXlsxSheetUsingSharedStrings() {
         val xlsx = workbook(
             sheets = linkedMapOf(

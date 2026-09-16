@@ -7,6 +7,8 @@ namespace ComponentVault.WinUI;
 
 public partial class App : Application
 {
+    private const string StartupSmokeMarkerVariable = "COMPONENT_VAULT_STARTUP_SMOKE_FILE";
+
     public App()
     {
         InitializeComponent();
@@ -26,11 +28,16 @@ public partial class App : Application
             MainViewModel = new MainViewModel(store, syncService);
 
             Window = new MainWindow();
+            PrepareStartupSmokeIfRequested();
             Window.Activate();
         }
         catch (Exception exception)
         {
             var logPath = StartupDiagnostics.LogException("startup", exception);
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(StartupSmokeMarkerVariable)))
+            {
+                throw;
+            }
             StartupDiagnostics.ShowStartupFailure(
                 AppStrings.Get("Windows_App_StartupFailureTitle"),
                 exception,
@@ -42,9 +49,28 @@ public partial class App : Application
 
     public Window? Window { get; private set; }
 
+    private void PrepareStartupSmokeIfRequested()
+    {
+        var markerPath = Environment.GetEnvironmentVariable(StartupSmokeMarkerVariable);
+        if (string.IsNullOrWhiteSpace(markerPath) || Window?.Content is not FrameworkElement root)
+        {
+            return;
+        }
+
+        root.Loaded += (_, _) =>
+        {
+            File.WriteAllText(markerPath, "ready");
+            Window?.Close();
+        };
+    }
+
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
         var logPath = StartupDiagnostics.LogException("ui-unhandled", e.Exception);
+        if (IsStartupSmokeRequested())
+        {
+            return;
+        }
         StartupDiagnostics.ShowRuntimeFailure(
             AppStrings.Get("Windows_App_FatalUiFailureTitle"),
             e.Exception,
@@ -60,10 +86,17 @@ public partial class App : Application
         }
 
         var logPath = StartupDiagnostics.LogException("domain-unhandled", exception);
+        if (IsStartupSmokeRequested())
+        {
+            return;
+        }
         StartupDiagnostics.ShowRuntimeFailure(
             AppStrings.Get("Windows_App_FatalAppFailureTitle"),
             exception,
             logPath
         );
     }
+
+    private static bool IsStartupSmokeRequested() =>
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(StartupSmokeMarkerVariable));
 }

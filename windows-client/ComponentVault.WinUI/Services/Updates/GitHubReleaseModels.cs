@@ -10,7 +10,6 @@ public sealed record GitHubReleaseInfo(
     DateTimeOffset? PublishedAt,
     string Notes,
     Uri ReleasePage,
-    Uri? MsixDownload,
     Uri? PortableDownload
 );
 
@@ -25,7 +24,6 @@ public static class GitHubReleaseParser
 {
     public const string Owner = "Rafael-ban";
     public const string Repository = "Component_Manager";
-    public const string MsixAssetName = "component-vault-windows-x64.msix";
     public const string PortableAssetName = "component-vault-windows-portable-x64.zip";
 
     public static Version? ParseNumericVersion(string? value)
@@ -71,7 +69,6 @@ public static class GitHubReleaseParser
             DateTimeOffset.TryParse(Text(root, "published_at"), out var published) ? published : null,
             Text(root, "body") ?? string.Empty,
             releasePage,
-            FindAsset(assets, tag, MsixAssetName),
             FindAsset(assets, tag, PortableAssetName)
         );
     }

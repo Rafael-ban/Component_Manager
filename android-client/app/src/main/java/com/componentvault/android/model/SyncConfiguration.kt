@@ -7,6 +7,7 @@ data class SyncConfiguration(
     val autoSyncEnabled: Boolean,
     val lastSyncedAt: String,
     val lastSyncMessage: String,
+    val externalServerBaseUrl: String = "",
 ) {
     val apiTokenMasked: String
         get() {

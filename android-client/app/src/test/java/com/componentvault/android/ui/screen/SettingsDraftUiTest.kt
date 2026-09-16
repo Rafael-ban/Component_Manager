@@ -29,6 +29,7 @@ class SettingsDraftUiTest {
         val context: Application = RuntimeEnvironment.getApplication()
         var saves = 0
         var tested: Pair<String, String>? = null
+        var testedExternal = ""
         compose.setContent {
             MaterialTheme {
                 ProvideComponentVaultStrings(runtimeComponentVaultStrings()) {
@@ -38,19 +39,21 @@ class SettingsDraftUiTest {
                         appPreferences = AppPreferences(), importLearningSummary = ImportLearningSummary(),
                         isBusy = false, statusMessage = "", layoutMode = CompactPreviewLayout,
                         selectedSection = SettingsSection.Sync, onSelectSection = {},
-                        onSaveSyncSettings = { _, _, _ -> saves++ }, onSaveAppPreferences = { saves++ },
-                        onTestConnection = { url, token -> tested = url to token }, onSyncNow = {},
+                        onSaveSyncSettings = { _, _, _, _ -> saves++ }, onSaveAppPreferences = { saves++ },
+                        onTestConnection = { url, token, external -> tested = url to token; testedExternal = external }, onSyncNow = {},
                         onClearImportLearningMappings = {},
                     )
                 }
             }
         }
         compose.onNodeWithText(context.getString(R.string.field_server_url)).performTextReplacement("https://draft.example")
+        compose.onNodeWithTag("external-server-url").performTextReplacement("https://external.example")
         val testLabel = context.getString(R.string.action_test_connection)
         compose.onNodeWithTag("settings_detail_list").performScrollToNode(hasText(testLabel))
         compose.onNodeWithText(testLabel).performClick()
         compose.runOnIdle {
             assertEquals("https://draft.example" to "saved-token", tested)
+            assertEquals("https://external.example", testedExternal)
             assertEquals(0, saves)
         }
         val syncLabel = context.getString(R.string.action_sync_now)

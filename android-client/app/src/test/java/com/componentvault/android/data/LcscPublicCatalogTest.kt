@@ -27,10 +27,14 @@ class LcscPublicCatalogTest {
         val metadata = requireNotNull(LcscPublicCatalog.parsePage("c70565", page("C30926") + page()))
         assertEquals("C70565", metadata.sku)
         assertEquals("X322512MOB4SI", metadata.model)
+        assertEquals("X322512MOB4SI", metadata.name)
+        assertEquals("Crystal 12MHz 12pF", metadata.description)
         assertEquals("SMD3225-4P", metadata.packageName)
         val candidate = JlcImportParser.parseQr("{pc:C70565,qty:20}").withOfficialMetadata(metadata)
         assertEquals(20, candidate.suggestedQuantity)
         assertEquals(ComponentImportFieldOrigin.PublicWeb, candidate.fieldOrigins.name)
+        assertEquals("X322512MOB4SI", candidate.name)
+        assertTrue(candidate.notes.contains("官方描述：Crystal 12MHz 12pF"))
     }
 
     @Test fun readsTrustedImageStringAndArrayButRejectsOtherHosts() {

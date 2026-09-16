@@ -5,11 +5,11 @@ services:
     ports:
       - "8787:8787"
     environment:
-      API_TOKEN: change-me
+      API_TOKEN: ${API_TOKEN:-change-me}
       DATABASE_PATH: /data/component_vault.db
       APP_HOST: 0.0.0.0
       APP_PORT: "8787"
-      ADMIN_WEB_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081
+      ADMIN_WEB_ORIGINS: ${ADMIN_WEB_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081}
       MQTT_ENABLED: ${MQTT_ENABLED:-false}
       MQTT_HOST: ${MQTT_HOST:-}
       MQTT_PORT: ${MQTT_PORT:-1883}
@@ -25,7 +25,7 @@ services:
     build:
       context: ./admin-web
       args:
-        VITE_DEFAULT_API_BASE_URL: http://localhost:8787
+        VITE_DEFAULT_API_BASE_URL: ${VITE_DEFAULT_API_BASE_URL:-}
     depends_on:
       - api
     ports:

@@ -224,11 +224,10 @@ public sealed partial class SettingsView : Page
             PublishedAtText.Text = result.Release?.PublishedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—";
             ReleaseNotesText.Text = string.IsNullOrWhiteSpace(result.Release?.Notes) ? "该 Release 没有正文更新日志。" : result.Release.Notes;
             var canDownloadUpdate = result.Comparison == UpdateComparison.UpdateAvailable;
-            DownloadMsixButton.IsEnabled = canDownloadUpdate && result.Release?.MsixDownload is not null;
             DownloadPortableButton.IsEnabled = canDownloadUpdate && result.Release?.PortableDownload is not null;
-            UpdateAssetHint.Text = result.Release is not null && (result.Release.MsixDownload is null || result.Release.PortableDownload is null)
-                ? "此 Release 缺少一个或多个 Windows 平台包，请打开发布页核对资产。应用不会自动安装或添加签名证书。"
-                : "应用不会自动下载、安装或添加签名证书。更新时请继续使用与当前相同的安装方式；数据保留情况取决于安装方式。";
+            UpdateAssetHint.Text = result.Release is not null && result.Release.PortableDownload is null
+                ? "此 Release 缺少 Windows 便携版，请打开发布页核对资产。"
+                : "应用不会自动下载或替换当前程序。下载后请解压便携版并运行其中的 ComponentVault.WinUI.exe。";
         }
         catch (OperationCanceledException) { }
         finally
@@ -238,13 +237,6 @@ public sealed partial class SettingsView : Page
             CheckUpdateButton.IsEnabled = true;
             UpdateProgressRing.IsActive = false;
         }
-    }
-
-    private async void OnDownloadMsixClicked(object sender, RoutedEventArgs e)
-    {
-        if (_latestRelease?.MsixDownload is { } uri
-            && GitHubReleaseParser.ValidateAssetUrl(uri.AbsoluteUri, _latestRelease.Tag, GitHubReleaseParser.MsixAssetName) is { } trusted)
-            await LaunchTrustedUriAsync(trusted, "MSIX 下载");
     }
 
     private async void OnDownloadPortableClicked(object sender, RoutedEventArgs e)

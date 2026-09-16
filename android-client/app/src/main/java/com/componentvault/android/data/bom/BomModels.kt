@@ -80,6 +80,7 @@ data class InventoryMatchCandidate(
 
 enum class BomMatchKind {
     EXACT_SKU,
+    EXACT_MODEL,
     EXACT_MODEL_AND_PACKAGE,
     NONE,
 }
@@ -124,24 +125,59 @@ object BomInventoryMatcher {
         } else {
             val model = requirement.model?.normalizedIdentityPart().orEmpty()
             val packageName = requirement.packageName?.normalizedIdentityPart().orEmpty()
-            val modelPackageMatches = if (model.isBlank() || packageName.isBlank()) {
+            val modelMatches = if (model.isBlank()) {
                 emptyList()
             } else {
                 activeInventory.filter {
-                    it.model?.normalizedIdentityPart() == model &&
-                        it.packageName?.normalizedIdentityPart() == packageName
+                    it.model?.normalizedIdentityPart() == model
                 }
+            }
+            val modelPackageMatches = if (packageName.isBlank()) modelMatches else {
+                modelMatches.filter { it.packageName?.normalizedIdentityPart() == packageName }
             }
             if (modelPackageMatches.isEmpty()) {
                 BomMatchPreview(requirement, BomMatchKind.NONE, emptyList())
             } else {
                 BomMatchPreview(
                     requirement,
-                    BomMatchKind.EXACT_MODEL_AND_PACKAGE,
+                    if (packageName.isBlank()) BomMatchKind.EXACT_MODEL
+                    else BomMatchKind.EXACT_MODEL_AND_PACKAGE,
                     modelPackageMatches,
                 )
             }
         }
+    }
+
+    fun search(
+        inventory: List<InventoryMatchCandidate>,
+        query: String,
+        limit: Int = 50,
+    ): List<InventoryMatchCandidate> {
+        val normalizedQuery = query.normalizedIdentityPart()
+        if (normalizedQuery.isBlank() || limit <= 0) return emptyList()
+        return inventory.asSequence()
+            .filter(InventoryMatchCandidate::active)
+            .mapNotNull { candidate ->
+                val fields = listOfNotNull(
+                    candidate.sku,
+                    candidate.model,
+                    candidate.packageName,
+                    candidate.displayName,
+                ).map(String::normalizedIdentityPart)
+                val rank = when {
+                    fields.any { it == normalizedQuery } -> 0
+                    fields.any { it.startsWith(normalizedQuery) } -> 1
+                    fields.any { normalizedQuery in it } -> 2
+                    else -> return@mapNotNull null
+                }
+                rank to candidate
+            }
+            .sortedWith(compareBy<Pair<Int, InventoryMatchCandidate>> { it.first }
+                .thenBy { it.second.sku.normalizedIdentityPart() }
+                .thenBy { it.second.inventoryId })
+            .map { it.second }
+            .take(limit)
+            .toList()
     }
 }
 

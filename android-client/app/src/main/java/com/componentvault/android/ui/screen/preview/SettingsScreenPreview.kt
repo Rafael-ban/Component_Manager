@@ -20,9 +20,9 @@ private fun SettingsPhonePreview() {
             layoutMode = CompactPreviewLayout,
             selectedSection = null,
             onSelectSection = {},
-            onSaveSyncSettings = { _, _, _ -> },
+            onSaveSyncSettings = { _, _, _, _ -> },
             onSaveAppPreferences = {},
-            onTestConnection = { _, _ -> },
+            onTestConnection = { _, _, _ -> },
             onSyncNow = {},
             onClearImportLearningMappings = {},
         )
@@ -45,9 +45,9 @@ private fun SettingsBusyPreview() {
             layoutMode = ExpandedPreviewLayout,
             selectedSection = SettingsSection.ImportAndOcr,
             onSelectSection = {},
-            onSaveSyncSettings = { _, _, _ -> },
+            onSaveSyncSettings = { _, _, _, _ -> },
             onSaveAppPreferences = {},
-            onTestConnection = { _, _ -> },
+            onTestConnection = { _, _, _ -> },
             onSyncNow = {},
             onClearImportLearningMappings = {},
         )

@@ -27,6 +27,13 @@ connects to it over HTTP.
   actions without clearing data. Do not clear app storage to work around an
   upgrade failure; install the fixed update over the existing installation.
 - Manual sync and optional auto sync.
+- Android accepts an optional external address for the same server; connection
+  failures on the preferred address trigger a pre-sync external probe. Server
+  validation/authentication errors do not trigger address switching.
+- Catalog imports use the part model as the name and retain product descriptions
+  separately. The server accepts legacy component names up to 4000 characters.
+- BOM previews automatically select unambiguous SKU/model matches and support
+  manual search of existing inventory before confirming deductions.
 - Soft delete for synchronized entities.
 - Inventory history recorded as stock movements.
 - Self-hosted API secured by a shared API token.
@@ -208,14 +215,12 @@ user's local app data directory and supports:
 - sync settings save/test/sync-now
 - push/pull against the FastAPI sync service
 
-`dotnet publish` now supports two Windows release shapes:
-
-- `windows-client\ComponentVault.WinUI\bin\Release\net9.0-windows10.0.19041.0\win-x64\AppPackages\`
-- `windows-client\artifacts\portable-local\`
-
-The first path is the test-signed MSIX package output. The second path is an
-unpackaged portable folder that can be zipped and run directly via
-`ComponentVault.WinUI.exe`.
+Windows releases use one self-contained, unpackaged ZIP. Extract the entire
+`component-vault-windows-portable-x64.zip` archive and run
+`ComponentVault.WinUI.exe`; keep its runtime files beside the executable.
+No MSIX publisher certificate installation is required. User data remains under
+`%LOCALAPPDATA%\ComponentVault`, separate from the extracted application.
+CI publishes this layout and checks actual window startup before distributing it.
 
 ## Android Client
 
@@ -390,10 +395,6 @@ Release artifacts produced by GitHub Actions:
 - `component-vault-android-release.apk`
 - `component-vault-admin-web.zip`
 - `component-vault-windows-portable-x64.zip`
-- `component-vault-windows-x64.msix`
-- `component-vault-windows-test-certificate.cer`
-- `Install-ComponentVault.ps1`
-- `README-Windows-Release.txt`
 
 Required GitHub Secrets for Android release signing:
 
@@ -406,13 +407,9 @@ No additional `RELEASE_AUTOMATION_TOKEN` secret is required. The changelog
 release workflow now uses the default `GITHUB_TOKEN` with
 `permissions: contents: write`.
 
-Windows release packaging uses a runner-generated self-signed certificate for
-test distribution. The release workflow publishes both a portable zip and an
-MSIX package. The portable zip can be extracted and launched directly with
-`ComponentVault.WinUI.exe`. The MSIX path still ships with the matching `.cer`
-certificate plus an install script that must be run from an elevated
-PowerShell window. The script imports the certificate into
-`Cert:\LocalMachine\TrustedPeople` before calling `Add-AppxPackage`.
+Windows releases contain a self-contained WinUI 3 ZIP. MSIX packages,
+self-signed certificates and certificate-install scripts are no longer published.
+The application update page selects the Windows portable ZIP.
 
 GitHub Actions now pins Android builds to Java 21, Gradle `8.11.1`, and SDK
 Build Tools `35.0.0`. The local `.\scripts\android-gradle.ps1` helper exists
@@ -421,7 +418,7 @@ same repository wrapper version.
 
 When downloading from the GitHub Actions run page instead of a tagged GitHub
 Release, first extract the outer workflow artifact archive, then use the inner
-`component-vault-windows-portable-x64.zip` or the MSIX install set.
+`component-vault-windows-portable-x64.zip`.
 
 The release workflow also publishes a zipped `admin-web/dist` bundle for
 static deployment of the separated web admin.
@@ -526,7 +523,7 @@ image; missing historical movements are never inferred.
 Android and Windows Settings / About now show application identity, installed
 version, the GPLv3 license, project and release links, and manual GitHub update
 checks. They compare numeric versions from this repository's latest public
-stable Release, show notes, and offer the matching APK/MSIX/portable asset.
+stable Release, show notes, and offer the matching APK or Windows portable ZIP.
 Downloads open through the system browser; installation remains a user action.
 See [About and application updates](docs/app-updates.md).
 

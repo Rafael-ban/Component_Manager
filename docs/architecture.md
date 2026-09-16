@@ -185,8 +185,9 @@ See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
   the user's local app data directory.
 - User-facing copy is now organized around Chinese-first WinUI pages while
   retaining Windows-native layout and interaction patterns.
-- Release distribution now supports both a test-signed MSIX install flow and a
-  portable unpackaged publish that can be zipped and launched directly.
+- Release distribution uses a self-contained unpackaged WinUI 3 ZIP; no MSIX
+  signing or certificate installation is required. CI checks actual window
+  startup as well as compilation, including the archived release layout.
 - Navigation uses `NavigationView` with `Home`, `Inventory`, `Records`, and
   `Project BOM` in the main list and one `Settings` footer destination.
 - `Home` is the summary landing page. `Inventory` uses a dense desktop workspace
@@ -517,3 +518,28 @@ repository-specific asset URL validation determine the update UI. Installers
 open only after a user click through the system browser. No background updater,
 self-replacement, auto-install or new database tables are needed for this flow.
 See [application updates](app-updates.md) for platform-specific installation.
+
+## Emergency release: catalog names and Android connection routing
+
+Catalog metadata keeps the model and official description separately. New imports
+prefer the model for the editable component name; user-customized names are not
+rewritten. `ComponentPayload.name` accepts 1–4000 characters so earlier imports
+containing long descriptions can synchronize without truncation. SQLite stores
+names as TEXT, so this API compatibility change needs no database rebuild.
+
+Android stores an optional external URL in its existing preferences. Each sync
+first probes the configured primary address with `/auth/ping`; when a distinct
+fallback is present the primary connect/read timeout is 3 seconds. Only transport
+failures trigger the external probe. HTTP authentication/validation and malformed
+response errors remain visible. Once selected, the endpoint is fixed for that
+push/pull cycle; a failure preserves the local queue. The next cycle retries the
+primary. Routing does not modify the saved primary URL or reset the sync cursor.
+Both addresses must refer to the same service/database. Windows address fallback
+is deferred; its existing single-address sync behavior remains unchanged.
+
+BOM automatic matching requires exact SKU when provided, otherwise exact model
+and optional package. Ambiguous matches require selection. Android preserves raw
+matching rows separately from aggregated commit rows; Windows retains selection
+groups for original rows. Editing a match remains possible after several rows
+have been assigned to the same inventory item. Stock validation and deductions
+use aggregated quantities, preserving the existing transactional commit path.

@@ -68,6 +68,8 @@ internal fun BomImportScreen(
     var preview by remember { mutableStateOf<BomReleasePreview?>(null) }
     var hubPreview by remember { mutableStateOf<ComponentHubParseResult?>(null) }
     var selections by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var searchQueries by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var expandedSearches by remember { mutableStateOf<Set<String>>(emptySet()) }
     var message by remember { mutableStateOf("") }
     var messageIsError by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
@@ -85,6 +87,8 @@ internal fun BomImportScreen(
         preview = null
         hubPreview = null
         selections = emptyMap()
+        searchQueries = emptyMap()
+        expandedSearches = emptySet()
         message = ""
         messageIsError = false
         releaseApplied = false
@@ -118,6 +122,7 @@ internal fun BomImportScreen(
             productionSets = sets,
             sheetName = selectedSheet,
             selections = selections,
+            searchQueries = searchQueries,
         ) { result ->
             busy = false
             result.onSuccess { preview = it; message = "预览完成，共 ${it.lines.size} 项。"; messageIsError = false }
@@ -155,6 +160,8 @@ internal fun BomImportScreen(
             preview = null
             hubPreview = null
             selections = emptyMap()
+            searchQueries = emptyMap()
+            expandedSearches = emptySet()
             releaseId = UUID.randomUUID().toString()
             batchId = UUID.randomUUID().toString()
             releaseApplied = false
@@ -272,7 +279,12 @@ internal fun BomImportScreen(
                             FilterChip(
                                 selected = selectedSheet == sheet.name,
                                 enabled = !busy && !releaseApplied,
-                                onClick = { selectedSheet = sheet.name; selections = emptyMap() },
+                                onClick = {
+                                    selectedSheet = sheet.name
+                                    selections = emptyMap()
+                                    searchQueries = emptyMap()
+                                    expandedSearches = emptySet()
+                                },
                                 label = { Text(sheet.name) },
                             )
                         }
@@ -310,25 +322,85 @@ internal fun BomImportScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(current.lines, key = { it.requirement.identity.canonicalKey }) { line ->
+                items(current.matchingLines, key = { "match:${it.requirement.identity.canonicalKey}" }) { line ->
+                    val requirementKey = line.requirement.identity.canonicalKey
+                    val selectionKeys = line.selectionKeys
+                    val searchExpanded = requirementKey in expandedSearches
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), Arrangement.spacedBy(4.dp)) {
                             Text(line.requirement.sku ?: line.requirement.model ?: "未识别物料")
                             Text("需求 ${line.requirement.requiredQuantity} / 库存 ${line.availableQuantity}")
                             if (line.componentId == null) {
-                                Text(if (line.candidates.isEmpty()) "未匹配" else "请选择匹配项")
-                                line.candidates.forEach { candidate ->
+                                Text(
+                                    stringResource(
+                                        if (line.candidates.isEmpty()) R.string.bom_match_none
+                                        else R.string.bom_match_choose,
+                                    ),
+                                )
+                                if (!searchExpanded) line.candidates.forEach { candidate ->
                                     TextButton(enabled = !busy, onClick = {
-                                        selections = selections +
-                                            (line.requirement.identity.canonicalKey to candidate.inventoryId)
+                                        selections = selections + selectionKeys.associateWith { candidate.inventoryId }
                                         requestPreview()
-                                    }) { Text("${candidate.sku} ${candidate.displayName.orEmpty()}") }
+                                    }) { Text(candidate.matchingLabel()) }
                                 }
                             } else {
-                                Text("匹配：${line.componentSku}")
-                                line.allocationPlan.forEach { allocation ->
-                                    Text("库位 ${allocation.locationId}：扣减 ${allocation.quantity}")
+                                Text(stringResource(R.string.bom_match_selected, line.componentSku.orEmpty()))
+                            }
+                            OutlinedButton(
+                                enabled = !busy,
+                                onClick = {
+                                    expandedSearches = if (searchExpanded) {
+                                        expandedSearches - requirementKey
+                                    } else {
+                                        expandedSearches + requirementKey
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(stringResource(R.string.bom_match_manual))
+                            }
+                            if (searchExpanded) {
+                                OutlinedTextField(
+                                    value = selectionKeys.firstNotNullOfOrNull(searchQueries::get).orEmpty(),
+                                    onValueChange = { query ->
+                                        searchQueries = searchQueries + selectionKeys.associateWith { query }
+                                    },
+                                    label = { Text(stringResource(R.string.bom_match_search_label)) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Button(
+                                    enabled = !busy && selectionKeys.firstNotNullOfOrNull(searchQueries::get).orEmpty().isNotBlank(),
+                                    onClick = ::requestPreview,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text(stringResource(R.string.bom_match_search_action)) }
+                                line.candidates
+                                    .filterNot { it.inventoryId == line.componentId }
+                                    .forEach { candidate ->
+                                        TextButton(
+                                            enabled = !busy,
+                                            onClick = {
+                                                selections = selections + selectionKeys.associateWith { candidate.inventoryId }
+                                                requestPreview()
+                                            },
+                                        ) { Text(candidate.matchingLabel()) }
+                                    }
+                                if (selectionKeys.firstNotNullOfOrNull(searchQueries::get).orEmpty().isNotBlank() &&
+                                    line.candidates.none { it.inventoryId != line.componentId }
+                                ) {
+                                    Text(stringResource(R.string.bom_match_search_empty))
                                 }
+                            }
+                        }
+                    }
+                }
+                items(current.lines, key = { "commit:${it.requirement.identity.canonicalKey}" }) { line ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), Arrangement.spacedBy(4.dp)) {
+                            Text("提交扣减：${line.componentSku ?: "未匹配"}")
+                            Text("合计需求 ${line.requirement.requiredQuantity} / 库存 ${line.availableQuantity}")
+                            line.allocationPlan.forEach { allocation ->
+                                Text(stringResource(R.string.bom_allocation_line, allocation.locationId, allocation.quantity))
                             }
                         }
                     }
@@ -436,6 +508,14 @@ internal fun BomImportScreen(
         )
     }
 }
+
+private fun com.componentvault.android.data.bom.InventoryMatchCandidate.matchingLabel(): String =
+    listOfNotNull(
+        sku,
+        model?.takeIf(String::isNotBlank),
+        packageName?.takeIf(String::isNotBlank),
+        displayName?.takeIf(String::isNotBlank),
+    ).distinct().joinToString(" · ")
 
 @Composable
 private fun ImportTaskCard(title: String, description: String, onClick: () -> Unit) {

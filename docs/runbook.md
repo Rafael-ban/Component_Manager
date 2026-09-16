@@ -1,15 +1,41 @@
 # Runbook
 
-## Read-only inventory browser deployment
+## Admin console deployment and API token
 
-Deploy the server and matching admin-web bundle together when adopting the
-searched inventory page. It uses authenticated `GET /admin-api/components` and
-`GET /admin-api/components/{id}`; the old overview APIs remain supported. No new
-environment variables or database schema changes are required for this UI stage.
-Smoke-check a known SKU, a later results page, a missing result, and token expiry
-followed by login back to the original inventory query. Native clients remain
-the inventory writers. See [API parameters](integration-guide.md) and
-[UI verification](ui-consistency-implementation.md).
+The admin console remains read-only for inventory in this emergency release.
+Optional browser inventory writing is deferred to a later version.
+
+For Docker, copy the repository-root `.env.example` to `.env`, set `API_TOKEN`,
+and add the actual browser origin to `ADMIN_WEB_ORIGINS` (for example
+`http://192.168.31.160:8081`). Run `docker compose up -d --build` to apply changes.
+A `.env` in `server/` is not the Compose root environment file. For a direct
+server launch, explicitly export the variables or run uvicorn with
+`--env-file .env` from `server/`; editing a file alone does not update a running
+process. The bundled requirements include support for uvicorn environment files.
+
+The web console is served on port 8081 and the API on port 8787. On another phone
+or PC, use the server host address, not `localhost`. An optional
+`VITE_DEFAULT_API_BASE_URL` configures the public API default during web build;
+without it, the web login suggests its own host with port 8787. HTTPS reverse
+proxy deployments should configure their HTTPS API URL and allowed web origin.
+
+### API token discovery
+
+The token is the deployment's `API_TOKEN`, not a GitHub access token and not a
+random value generated on every startup. Check the Compose root `.env` / container
+environment, or the environment used to launch uvicorn. Both native clients and
+the web login use the same value. Authenticated web settings can show/copy the
+current browser session token; they do not expose an unauthenticated token API.
+After changing the server token, update client settings and sign in again.
+
+### Upgrade from the HTTP 422 long-name failure
+
+Upgrade the server as well as the client. Component names imported by previous
+versions may contain product descriptions longer than 200 characters. The server
+now accepts names up to 4000 characters, preserving their full contents. New
+catalog imports prefer the model and store official product descriptions in the
+description field. Existing custom names are not rewritten. Retry synchronization
+after upgrading; clearing app data is unnecessary and would discard local data.
 
 ## Multi-location inventory upgrade
 
@@ -100,7 +126,7 @@ Admin web is available at:
 
 ### Server
 
-- `API_TOKEN`: required shared token for all authenticated endpoints
+- `API_TOKEN`: shared token for all authenticated endpoints
 - `DATABASE_PATH`: SQLite file path used by the FastAPI service
 - `APP_HOST`: host binding for direct local development
 - `APP_PORT`: port binding for direct local development
@@ -347,19 +373,15 @@ The workflow decodes the keystore into a runner-local temp file and exports:
 - `component-vault-android-release.apk`
 - `component-vault-admin-web.zip`
 - `component-vault-windows-portable-x64.zip`
-- `component-vault-windows-x64.msix`
-- `component-vault-windows-test-certificate.cer`
-- `Install-ComponentVault.ps1`
-- `README-Windows-Release.txt`
 
 On changelog-driven releases, reusable workflow calls, and `v*` tag runs that
-publish a release, the workflow also attaches the Windows portable zip, the
-MSIX install set, the Android APK, and the `admin-web` static bundle to the
+publish a release, the workflow attaches the Windows portable ZIP, the Android APK, and the
+`admin-web` static bundle to the
 GitHub Release.
 
 ### Installing The Windows Release
 
-GitHub Release now ships two Windows distribution modes.
+GitHub Release ships a self-contained WinUI 3 ZIP, without an MSIX package.
 
 Portable zip:
 
@@ -374,15 +396,11 @@ If the executable fails during startup, check:
 
 - `%LOCALAPPDATA%\ComponentVault\logs\startup.log`
 
-MSIX package:
-
-1. Download `component-vault-windows-x64.msix`
-2. Download `component-vault-windows-test-certificate.cer`
-3. Open PowerShell as Administrator
-4. Run `Install-ComponentVault.ps1`
-
-The script imports the certificate into `Cert:\LocalMachine\TrustedPeople` and
-then runs `Add-AppxPackage` for the MSIX package.
+Keep the runtime DLLs and resources beside the executable. Updating means closing
+the app, extracting the new ZIP into a new application folder, and launching it.
+Do not delete `%LOCALAPPDATA%\ComponentVault` when updating. Existing MSIX users
+should export a backup from the old installation before uninstalling it; verify
+that the ZIP build contains the expected inventory before removing any old data.
 
 ### Legacy Flutter
 
@@ -516,33 +534,18 @@ curl -X POST http://localhost:8787/auth/ping `
 - If all platform builds succeed but publication is skipped, inspect the prepare
   job's resolved tag and publish flag. Reusable workflows inherit the caller's
   event context; supplied release inputs must take precedence over branch-push
-  event handling. A tag page without APK/MSIX assets is not a completed release.
+  event handling. A tag page without APK/portable ZIP assets is not a completed release.
 - Fix: verify that `.github/workflows/release.yml` supports `workflow_call`,
   confirm all Android signing secrets are configured, and rerun the workflow
   after inspecting the failing build job.
 
-### Windows MSIX install is blocked by certificate trust
+### An older Windows MSIX reports certificate error 0x800B010A
 
-- Symptom: Windows refuses to install the MSIX package or says the publisher is
-  untrusted.
-- Cause: the test signing certificate from the release has not been imported
-  into `Cert:\LocalMachine\TrustedPeople`, or the install script was not run
-  from an elevated PowerShell session.
-- Fix: download `component-vault-windows-test-certificate.cer` and run
-  `Install-ComponentVault.ps1` as Administrator, or manually import the
-  certificate into `Cert:\LocalMachine\TrustedPeople` before installing the
-  MSIX package.
-
-### Windows artifact is downloaded and extracted but nothing obvious runs
-
-- Symptom: the GitHub Actions Windows artifact is unpacked, but there is no
-  direct executable at the root or the user expects the MSIX file itself to
-  behave like a portable app.
-- Cause: the Windows release now contains both a packaged MSIX flow and a
-  separate portable zip; the artifact root is only a bundle of release files.
-- Fix: either extract `component-vault-windows-portable-x64.zip` and run
-  `ComponentVault.WinUI.exe`, or use `Install-ComponentVault.ps1` for the MSIX
-  package flow.
+Use the current `component-vault-windows-portable-x64.zip` release instead.
+The new distribution does not require importing a publisher certificate.
+If downloading from Actions, extract the outer artifact and then the inner
+application ZIP; run `ComponentVault.WinUI.exe` from the extracted application
+folder, not from inside the archive.
 
 ### Windows client exits during startup
 
@@ -630,7 +633,7 @@ topic/deletion behavior.
 ### Native About and release checks
 
 Settings / About checks the latest stable Release in `Rafael-ban/Component_Manager`
-only after a user click. The APK, MSIX and portable filenames must match the
+only after a user click. The APK and portable ZIP filenames must match the
 release workflow. A missing package, HTTP 404, rate limit or network failure is
 shown in the UI; users can still open the fixed release page. Applications do
 not silently install or import signing certificates. See [application updates](app-updates.md)

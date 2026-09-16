@@ -66,6 +66,31 @@ class ComponentImportModelsTest {
     }
 
     @Test
+    fun officialModelWinsOverDescriptionButDoesNotReplaceCustomName() {
+        val imported = ComponentImportCandidate(
+            sourceType = ComponentImportSourceType.JlcQr,
+            rawPayload = "{pc:C1,pm:MODEL-1}",
+            sourceLabel = "JLC package QR",
+            sku = "C1",
+            name = "MODEL-1",
+            model = "MODEL-1",
+        ).withOfficialMetadata(
+            ComponentOfficialMetadata(
+                source = "lcsc_public_web",
+                name = "A very long marketplace description",
+                description = "A very long marketplace description",
+                model = "MODEL-1",
+            ),
+        )
+        assertEquals("MODEL-1", imported.name)
+
+        val custom = imported.copy(name = "My controller").withOfficialMetadata(
+            ComponentOfficialMetadata(name = "Marketplace description", model = "MODEL-2"),
+        )
+        assertEquals("My controller", custom.name)
+    }
+
+    @Test
     fun recognitionMetadataPromotesVendorIntoBrandWhenBrandIsMissing() {
         val candidate = ComponentImportCandidate(
             sourceType = ComponentImportSourceType.JlcQr,

@@ -123,6 +123,7 @@ data class ComponentOfficialMetadata(
     val source: String? = null,
     val sku: String? = null,
     val name: String? = null,
+    val description: String? = null,
     val packageName: String? = null,
     val category: String? = null,
     val model: String? = null,
@@ -301,11 +302,13 @@ fun ComponentImportCandidate.withOfficialMetadata(
     val metadataOrigin = if (metadata.source in setOf("lcsc_public_web", "lcsc_domestic_web")) {
         ComponentImportFieldOrigin.PublicWeb
     } else ComponentImportFieldOrigin.Server
+    val officialCanonicalName = metadata.model?.takeIf { it.isNotBlank() }
+        ?: metadata.name?.takeIf { it.isNotBlank() }
     val resolvedName = when {
-        metadata.name.isNullOrBlank() -> name
-        name.isBlank() -> metadata.name
-        name.isLikelyModelLike(sku = sku, model = model) -> metadata.name
-        name.equals(sku, ignoreCase = true) -> metadata.name
+        officialCanonicalName == null -> name
+        name.isBlank() -> officialCanonicalName
+        name.isLikelyModelLike(sku = sku, model = model) -> officialCanonicalName
+        name.equals(sku, ignoreCase = true) -> officialCanonicalName
         else -> name
     }.orEmpty()
 
@@ -338,6 +341,7 @@ fun ComponentImportCandidate.withOfficialMetadata(
         metadata.matchedBy?.let { addIfMissing("官方查询：匹配方式 ${it.uppercase()}") }
         metadata.categoryPath?.let { addIfMissing("官方分类路径：$it") }
         metadata.officialUrl?.let { addIfMissing("官方链接：$it") }
+        metadata.description?.let { addIfMissing("官方描述：$it") }
         trustedProductImageUrl(metadata.imageUrl)?.let { addIfMissing("商品图片：$it") }
         metadata.datasheetUrl?.let { addIfMissing("数据手册：$it") }
         metadata.parameters.forEach { (key, value) -> addIfMissing("参数：$key：$value") }
@@ -371,7 +375,7 @@ fun ComponentImportCandidate.withOfficialMetadata(
             } else {
                 fieldOrigins.sku
             },
-            name = if (resolvedName != name && !metadata.name.isNullOrBlank()) {
+            name = if (resolvedName != name && officialCanonicalName != null) {
                 metadataOrigin
             } else {
                 fieldOrigins.name

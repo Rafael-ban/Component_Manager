@@ -33,7 +33,10 @@ class AllocationPayload(BaseModel):
 class ComponentPayload(BaseModel):
     id: str = Field(min_length=1)
     sku: str = Field(min_length=1, max_length=120)
-    name: str = Field(min_length=1, max_length=200)
+    # SQLite stores TEXT without a 200-character boundary. Imported legacy rows
+    # can contain a full English description here, so sync accepts them without
+    # truncating or rewriting business data.
+    name: str = Field(min_length=1, max_length=4000)
     category: str = Field(min_length=1, max_length=120)
     package_name: str = Field(min_length=1, max_length=120)
     location: str = Field(min_length=1, max_length=120)

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bom_match_none">未匹配库存</string>
+    <string name="bom_match_choose">请选择匹配的库存元件</string>
+    <string name="bom_match_selected">已匹配：%1$s</string>
+    <string name="bom_allocation_line">库位 %1$s：扣减 %2$d</string>
+    <string name="bom_match_manual">选择其他已有元件</string>
+    <string name="bom_match_search_label">搜索 SKU、型号、封装或名称</string>
+    <string name="bom_match_search_action">搜索库存</string>
+    <string name="bom_match_search_empty">没有符合条件的在用库存元件。</string>
+</resources>

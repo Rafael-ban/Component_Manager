@@ -13,6 +13,7 @@ public sealed class BomPlanningService
     {
         var issues = new List<BomIssue>();
         var candidates = new Dictionary<int, IReadOnlyList<BomMatchCandidate>>();
+        var selectionGroups = new Dictionary<int, IReadOnlyList<int>>();
         if (string.IsNullOrWhiteSpace(options.ProjectName))
         {
             issues.Add(new(null, "invalid_project", "项目名称不能为空。"));
@@ -35,9 +36,9 @@ public sealed class BomPlanningService
             var sku = Normalize(row.Sku);
             var part = Normalize(row.SupplierPartNumber);
             var package = Normalize(row.PackageName);
-            if (sku.Length == 0 && (part.Length == 0 || package.Length == 0))
+            if (sku.Length == 0 && part.Length == 0)
             {
-                issues.Add(new(row.RowNumber, "missing_identity", "需要 SKU，或供应商型号与封装。"));
+                issues.Add(new(row.RowNumber, "missing_identity", "需要 SKU 或供应商型号。"));
                 continue;
             }
 
@@ -68,6 +69,7 @@ public sealed class BomPlanningService
         foreach (var aggregate in aggregates.Values)
         {
             var row = aggregate.Row;
+            selectionGroups[aggregate.SourceRows[0]] = aggregate.SourceRows;
             var selectedId = selectedComponentIds?.GetValueOrDefault(aggregate.SourceRows[0]);
             var exact = selectedId is null
                 ? FindExactMatches(active, row)
@@ -131,7 +133,7 @@ public sealed class BomPlanningService
         {
             issues.Add(new(null, "empty_bom", "BOM 中没有可读取的数据行。"));
         }
-        return new(options.ProjectName.Trim(), options.BatchQuantity, lines, issues, candidates);
+        return new(options.ProjectName.Trim(), options.BatchQuantity, lines, issues, candidates, selectionGroups);
     }
 
     private static IReadOnlyList<ComponentRecord> FindExactMatches(
@@ -148,8 +150,46 @@ public sealed class BomPlanningService
         var part = Normalize(row.SupplierPartNumber);
         var package = Normalize(row.PackageName);
         return inventory.Where(item =>
-            Normalize(item.PackageName) == package && ExtractPartNumbers(item.Description).Contains(part)
+            ExtractPartNumbers(item.Description).Contains(part) &&
+            (package.Length == 0 || Normalize(item.PackageName) == package)
         ).ToArray();
+    }
+
+    public IReadOnlyList<BomMatchCandidate> SearchInventory(
+        IReadOnlyList<ComponentRecord> inventory,
+        string? query,
+        int limit = 50
+    )
+    {
+        var normalized = Normalize(query);
+        if (normalized.Length == 0 || limit <= 0) return [];
+        return inventory.Where(item => !item.Deleted)
+            .Select(item => new
+            {
+                Item = item,
+                Model = ExtractPartNumbers(item.Description).FirstOrDefault(),
+            })
+            .Select(item => new
+            {
+                item.Item,
+                item.Model,
+                Fields = new[] { item.Item.Sku, item.Model, item.Item.PackageName, item.Item.Name }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)).Select(Normalize).ToArray(),
+            })
+            .Select(item => new
+            {
+                item.Item,
+                item.Model,
+                Rank = item.Fields.Any(value => value == normalized) ? 0
+                    : item.Fields.Any(value => value.StartsWith(normalized, StringComparison.Ordinal)) ? 1
+                    : item.Fields.Any(value => value.Contains(normalized, StringComparison.Ordinal)) ? 2 : 3,
+            })
+            .Where(item => item.Rank < 3)
+            .OrderBy(item => item.Rank).ThenBy(item => item.Item.Sku, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Item.Id, StringComparer.Ordinal)
+            .Take(limit)
+            .Select(item => new BomMatchCandidate(item.Item.Id, item.Item.Sku, item.Item.Name, item.Item.PackageName, item.Model))
+            .ToArray();
     }
 
     private static IReadOnlyList<ComponentRecord> FindFuzzyCandidates(
@@ -172,7 +212,7 @@ public sealed class BomPlanningService
     }
 
     private static BomMatchCandidate ToCandidate(ComponentRecord component) =>
-        new(component.Id, component.Sku, component.Name, component.PackageName);
+        new(component.Id, component.Sku, component.Name, component.PackageName, ExtractPartNumbers(component.Description).FirstOrDefault());
 
     private static HashSet<string> ExtractPartNumbers(string description)
     {

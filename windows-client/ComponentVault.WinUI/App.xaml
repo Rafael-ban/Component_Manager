@@ -12,7 +12,6 @@
             <Color x:Key="VaultAccentColor">#FF0F766E</Color>
             <Color x:Key="VaultWarningColor">#FFB25A00</Color>
 
-            <SolidColorBrush x:Key="VaultBackgroundBrush" Color="{ThemeResource ApplicationPageBackgroundThemeColor}" />
             <SolidColorBrush x:Key="VaultSurfaceBrush" Color="{ThemeResource CardBackgroundFillColorDefault}" />
             <SolidColorBrush x:Key="VaultBorderBrush" Color="{ThemeResource CardStrokeColorDefault}" />
             <SolidColorBrush x:Key="VaultAccentBrush" Color="{StaticResource VaultAccentColor}" />

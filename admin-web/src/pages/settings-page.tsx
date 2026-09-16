@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,8 +13,12 @@ import { Separator } from "@/components/ui/separator";
 import { useAdminResource } from "@/hooks/use-admin-resource";
 import type { AdminSettingsResponse } from "@/lib/types";
 import { MqttSettingsCard } from "@/components/mqtt-settings-card";
+import { useAuth } from "@/hooks/use-auth";
 
 export function SettingsPage() {
+  const { session } = useAuth();
+  const [showToken, setShowToken] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { data, error, loading, reload } = useAdminResource<AdminSettingsResponse>(
     "/admin-api/settings",
   );
@@ -25,6 +31,18 @@ export function SettingsPage() {
           Runtime configuration and access posture read from the same FastAPI process.
         </p>
       </header>
+
+      <Alert>
+        <AlertTitle>当前登录使用的 API 令牌</AlertTitle>
+        <AlertDescription className="mt-2 space-y-3">
+          <p className="break-all font-mono">{showToken ? session?.token : "•".repeat(Math.min(session?.token.length ?? 12, 24))}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => setShowToken((value) => !value)}>{showToken ? "隐藏" : "显示"}</Button>
+            <Button type="button" size="sm" variant="outline" onClick={async () => { if (!session) return; setCopied(await copyText(session.token)); }}>{copied ? "已复制" : "复制令牌"}</Button>
+          </div>
+          <p>这是浏览器当前会话已经持有的值。服务端令牌来自 <code>API_TOKEN</code> 环境变量；需要更换时，请在启动脚本、容器环境或部署平台 Secrets 中重设并重启服务。</p>
+        </AlertDescription>
+      </Alert>
 
       {error ? (
         <Alert variant="destructive">
@@ -114,4 +132,19 @@ export function SettingsPage() {
       <MqttSettingsCard />
     </section>
   );
+}
+
+async function copyText(value: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try { await navigator.clipboard.writeText(value); return true; } catch { /* LAN HTTP fallback below. */ }
+  }
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+  return copied;
 }
