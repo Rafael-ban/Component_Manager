@@ -25,4 +25,35 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.10" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
   </ItemGroup>
+
+  <!--
+    The WinUI compiler copies generated XBF files to OutputPath, but the .NET
+    publish pipeline does not include those files for an unpackaged app.
+    Publish them at their application-relative paths so ms-appx XAML URIs can
+    resolve in the portable distribution.
+  -->
+  <Target Name="IncludeWinUiXamlInPublish"
+          AfterTargets="ComputeFilesToPublish"
+          DependsOnTargets="ComputeProcessXamlFiles"
+          Condition="'$(WindowsPackageType)' == 'None'">
+    <ItemGroup>
+      <_WinUiCompiledXaml Include="@(ProcessedXamlFiles->'%(FullPath)')" />
+    </ItemGroup>
+
+    <AssignTargetPath Files="@(_WinUiCompiledXaml)" RootFolder="$(OutputPath)\">
+      <Output TaskParameter="AssignedFiles" ItemName="_WinUiXamlFilesToPublish" />
+    </AssignTargetPath>
+
+    <Error Condition="'@(_WinUiXamlFilesToPublish)' == ''"
+           Text="The WinUI compiler produced no XAML resources for the portable publish." />
+
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(_WinUiXamlFilesToPublish)" />
+      <ResolvedFileToPublish Include="@(_WinUiXamlFilesToPublish)">
+        <RelativePath>%(_WinUiXamlFilesToPublish.TargetPath)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 </Project>
