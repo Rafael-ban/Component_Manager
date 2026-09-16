@@ -197,6 +197,9 @@ jobs:
         shell: pwsh
         run: |
           $publishDir = Join-Path $env:GITHUB_WORKSPACE 'windows-client\artifacts\portable-ci'
+          Get-ChildItem -LiteralPath $publishDir -Recurse -File |
+            Where-Object { $_.Extension -in '.xbf', '.pri' } |
+            ForEach-Object { "{0} ({1} bytes)" -f [IO.Path]::GetRelativePath($publishDir, $_.FullName), $_.Length }
           $executable = Join-Path $publishDir 'ComponentVault.WinUI.exe'
           $marker = Join-Path $env:RUNNER_TEMP 'component-vault-startup-ready'
           Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
@@ -223,3 +226,13 @@ jobs:
               Stop-Process -Id $process.Id -Force
             }
           }
+
+      - name: Upload Windows startup resources on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-startup-resources
+          path: |
+            windows-client/artifacts/portable-ci/**/*.pri
+            windows-client/artifacts/portable-ci/**/*.xbf
+          if-no-files-found: warn

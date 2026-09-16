@@ -27,10 +27,9 @@
   </ItemGroup>
 
   <!--
-    The WinUI compiler and the self-contained SDK place application and runtime
-    XBF files in OutputPath, but the .NET publish pipeline does not include
-    them for an unpackaged app. Publish the complete set at application-relative
-    paths so both app and WinUI theme ms-appx URIs resolve in the portable app.
+    The WinUI compiler places application XBF files in OutputPath, but the .NET
+    publish pipeline does not include them for an unpackaged app. Keep their
+    application-relative paths so ms-appx URIs resolve in the portable app.
   -->
   <Target Name="IncludeWinUiXamlInPublish"
           AfterTargets="ComputeFilesToPublish"
@@ -53,6 +52,28 @@
       <ResolvedFileToPublish Remove="@(_WinUiXamlFilesToPublish)" />
       <ResolvedFileToPublish Include="@(_WinUiXamlFilesToPublish)">
         <RelativePath>%(_WinUiXamlFilesToPublish.TargetPath)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <!--
+    MRT Core generates the app PRI for unpackaged builds, including the merged
+    Windows App SDK resource maps, but its targets do not add that PRI to the
+    .NET publish list. This mirrors the MSIX target's publish wiring.
+  -->
+  <Target Name="IncludeProjectPriInPortablePublish"
+          AfterTargets="ComputeResolvedFilesToPublishList"
+          DependsOnTargets="$(GenerateProjectPriFile)"
+          Condition="'$(WindowsPackageType)' == 'None'">
+    <Error Condition="'$(CopyBuildOutputToPublishDirectory)' == 'true' and !Exists('$(ProjectPriFullPath)')"
+           Text="The MRT Core project PRI was not generated for the portable publish." />
+
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(ProjectPriFullPath)"
+                             Condition="'$(CopyBuildOutputToPublishDirectory)' == 'true' and Exists('$(ProjectPriFullPath)')">
+        <RelativePath>$(ProjectPriFileName)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
       </ResolvedFileToPublish>
