@@ -15,9 +15,7 @@
             IsTitleBarAutoPaddingEnabled="True"
             OpenPaneLength="224"
             CompactPaneLength="48"
-            PaneDisplayMode="Auto"
-            SelectionChanged="OnSelectionChanged"
-            BackRequested="OnBackRequested">
+            PaneDisplayMode="Auto">
             <NavigationView.Header>
                 <Grid Margin="0,0,16,8" MinHeight="48">
                     <Grid.ColumnDefinitions>

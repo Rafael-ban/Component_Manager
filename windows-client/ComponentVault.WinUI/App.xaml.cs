@@ -82,6 +82,7 @@ public partial class App : Application
 
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
+        StartupDiagnostics.LogMessage("ui-unhandled-message", e.Message);
         var logPath = StartupDiagnostics.LogException("ui-unhandled", e.Exception);
         if (IsStartupSmokeRequested())
         {
