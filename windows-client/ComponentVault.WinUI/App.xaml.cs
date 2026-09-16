@@ -12,6 +12,7 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        ConfigureStartupSmokeDiagnostics();
         UnhandledException += OnUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnCurrentDomainUnhandledException;
     }
@@ -48,6 +49,21 @@ public partial class App : Application
     }
 
     public Window? Window { get; private set; }
+
+    private void ConfigureStartupSmokeDiagnostics()
+    {
+        if (!IsStartupSmokeRequested())
+        {
+            return;
+        }
+
+        DebugSettings.IsXamlResourceReferenceTracingEnabled = true;
+        DebugSettings.IsBindingTracingEnabled = true;
+        DebugSettings.XamlResourceReferenceFailed += (_, args) =>
+            StartupDiagnostics.LogMessage("xaml-resource", args.Message);
+        DebugSettings.BindingFailed += (_, args) =>
+            StartupDiagnostics.LogMessage("xaml-binding", args.Message);
+    }
 
     private void PrepareStartupSmokeIfRequested()
     {

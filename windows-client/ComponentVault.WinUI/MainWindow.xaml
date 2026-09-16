@@ -44,7 +44,6 @@
                             Text="{Binding ShellSyncSummary}" />
                         <Button
                             x:Name="SyncNowButton"
-                            x:Uid="MainWindowSyncNowButton"
                             Style="{StaticResource AccentButtonStyle}"
                             Click="OnSyncNowClicked"
                             IsEnabled="{Binding CanRunSyncActions}">

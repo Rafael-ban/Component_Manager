@@ -10,6 +10,11 @@ internal static class StartupDiagnostics
 
     public static string LogException(string area, Exception exception)
     {
+        return LogMessage(area, exception.ToString());
+    }
+
+    public static string LogMessage(string area, string message)
+    {
         var logDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "ComponentVault",
@@ -20,7 +25,7 @@ internal static class StartupDiagnostics
         var logPath = Path.Combine(logDirectory, "startup.log");
         var builder = new StringBuilder();
         builder.AppendLine($"[{DateTimeOffset.UtcNow:O}] {area}");
-        builder.AppendLine(exception.ToString());
+        builder.AppendLine(message);
         builder.AppendLine();
         File.AppendAllText(logPath, builder.ToString(), Encoding.UTF8);
         return logPath;

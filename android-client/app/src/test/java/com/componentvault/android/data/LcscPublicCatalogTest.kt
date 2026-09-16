@@ -3,6 +3,7 @@ package com.componentvault.android.data
 import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import com.componentvault.android.model.ComponentImportFieldOrigin
