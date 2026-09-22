@@ -5,6 +5,22 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.7.2] - 2026-09-22
+
+<!-- Add unreleased notes below this line. -->
+
+- Fix duplicate storage-location creation on Android and Windows: creating an
+  existing code now reports an error instead of renaming the original location
+  or reviving a deleted one. Trim surrounding whitespace before checking.
+- Separate location creation from explicit editing. Editing requires an active
+  existing code and preserves inventory allocations; failed saves remain in the
+  editor. Existing data and database schemas are unchanged. Previously overwritten
+  names must be corrected manually using their original location codes.
+- Add SQLite regressions for duplicate creation, deleted-code protection and
+  inventory preservation in native clients; verify the server's existing HTTP 409
+  behavior preserves locations, component quantities, allocations and movements.
+
+
 ## [0.7.1] - 2026-09-22
 
 <!-- Add unreleased notes below this line. -->
