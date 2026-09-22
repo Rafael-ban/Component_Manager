@@ -11,6 +11,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlin.math.roundToInt
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -115,7 +116,7 @@ class M1SppTestLabelRendererTest {
 
     @Test
     fun profilePersistsAsOneLocalSettingsRecordAndFallsBackFromCorruption() {
-        val preferences = RuntimeEnvironment.getApplication<Application>()
+        val preferences = RuntimeEnvironment.getApplication()
             .getSharedPreferences("m1-test-profile", 0)
         val profile = M1TestPaperProfile(25f, 40f, 270, -1.5f, 2.25f)
         profile.save(preferences)
