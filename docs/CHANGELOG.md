@@ -5,6 +5,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.7.3] - 2026-09-22
+
+<!-- Add unreleased notes below this line. -->
+
 - Add an opt-in Android M1 connection test in label-preview Bluetooth diagnostics.
   Paired Classic/dual-mode printers use SPP to query the model and, only after an
   M1 match, status. Keep the original BLE service-information mode and provide a
@@ -19,6 +23,7 @@ bump: patch
   addresses, arbitrary names, serial numbers and raw replies are excluded.
 - Document the verified Hanma 3.3.4-cn / 3.4.6-cn M1 SPP and POLI/LZO paths,
   plus the installation and feedback steps for this read-only connection test.
+
 
 ## [0.7.2] - 2026-09-22
 
