@@ -1,6 +1,8 @@
 # 蓝牙标签机：当前进度与测试
 
-本轮是连接诊断阶段，尚未完成 M1 或其他品牌的直接出纸支持。
+当前发布版提供连接诊断，尚未完成 M1 或其他品牌的直接出纸支持。
+2026-09-22 已继续完成两份汉码 APK 的 M1 静态路径分析，详见
+[M1 APK 分析记录](m1-apk-analysis.md)；它不改变发布版的打印能力。
 Android 的入口为 **元件详情 → 标签预览 → 蓝牙标签机诊断**。
 原有标签尺寸、PNG/PDF 和标签 Excel 导出不变。Windows 当前继续使用已有导出流程。
 
@@ -56,10 +58,13 @@ Android 的入口为 **元件详情 → 标签预览 → 蓝牙标签机诊断**
 
 本轮未复制这些项目代码，也未引入其依赖。后续复用时应逐个核实许可证和适用机型。
 
-### 下一步需要的证据
+### APK 分析后下一步需要的证据
 
-优先取得明确支持 M1 的厂商 SDK，或检查官方汉码安装包中的 M1 设备分派和发送路径；
-若仍不足，再采集汉码正常连接并打印一张测试标签时的 HCI 记录。
+用户已提供清单版本为 3.3.4-cn 和 3.4.6-cn 的汉码 APK。
+两版随包 M1 配置均通过 `print_mode=5` 选择 `ESC_POLI`，实际调用 LZO 分包位图路径；
+3.4.6 的交互连接流程明确使用 Classic SPP，和报告中的缓存服务相符。
+下一步先验证 SPP 名称/状态查询，再验证单张标签；若与静态证据不符，
+再采集汉码正常连接并打印测试标签时的 HCI 记录。无需为继续研究重复提交 APK。
 安装包是否加壳与蓝牙负载是否加密是不同问题，不能从“APK 未加密”推出通信明文。
 仅重复运行当前服务诊断不会提供缺失的命令字节。
 
@@ -71,14 +76,14 @@ Android 的入口为 **元件详情 → 标签预览 → 蓝牙标签机诊断**
 | --- | --- | --- |
 | [HPRT M1 官方页面](https://www.hprt.com/Product/Label-Maker-M1.html) | 203 dpi、蓝牙连接和产品资料入口 | 支持蓝牙；未声明具体传输协议 |
 | [M1 专属 SDK 目录](https://download.hprt.com/hprt/files/product_down_file/model/290/classify/47.html) | 厂商 SDK 获取入口 | 2026-09-22 查询时没有可下载条目 |
-| [汉码官方下载页](https://hm.hprt.com/download/)（来自[汉印 APP 目录](https://www.hprt.com.cn/APP/)） | Android App 获取入口，可用于确定实际发送路径 | 本轮未取得可验证的 APK 直链及版本；用户手机上已安装版本更适合对照 |
+| [汉码官方下载页](https://hm.hprt.com/download/)（来自[汉印 APP 目录](https://www.hprt.com.cn/APP/)） | Android App 获取入口 | 官方直链未确定；另已静态分析用户提供的 3.3.4-cn / 3.4.6-cn，见 APK 分析记录 |
 | [niimblue](https://github.com/MultiMote/niimblue)（MIT） | NIIMBOT 的连接、协议与标签工作流 | 无汉印 M1 支持记录 |
 | [phomymo](https://github.com/transcriptionstream/phomymo)（MIT） | Phomemo 的多协议与多机型适配 | 无汉印 M1 支持记录 |
 | [phomemo-tools](https://github.com/vivier/phomemo-tools)（GPL-3.0） | Linux/CUPS 与部分 Phomemo 协议 | 无汉印 M1 支持记录 |
 
 后续按具有明确证据的品牌协议逐个适配，不把“蓝牙打印”视为通用协议。
-M1 需要进一步取得适用 SDK/协议资料或实机通信证据；取得厂商 SDK 后也需核对其分发许可。
-不会把 HT300/HT330、ESC/POS、TSPL 或其他品牌命令直接当作 M1 指令发送。
+M1 已有静态协议线索，仍需实际会话和出纸验证；取得厂商 SDK 后也需核对其分发许可。
+不能把 HT300/HT330、通用 ESC/POS、TSPL 或其他品牌驱动直接当作 M1 驱动。
 Android 实现参考官方 [权限](https://developer.android.com/develop/connectivity/bluetooth/bt-permissions)、
 [扫描](https://developer.android.com/develop/connectivity/bluetooth/ble/find-ble-devices) 与
 [GATT 连接](https://developer.android.com/develop/connectivity/bluetooth/ble/connect-gatt-server) 契约。
