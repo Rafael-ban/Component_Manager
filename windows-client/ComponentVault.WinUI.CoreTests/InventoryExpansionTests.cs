@@ -74,6 +74,50 @@ public sealed class InventoryExpansionTests : IDisposable
     }
 
     [Fact]
+    public void LocationCreate_RejectsTrimmedDuplicateWithoutChangingInventoryOrRevivingTombstone()
+    {
+        var store = Store("location-duplicate.db");
+        var component = store.SaveComponent(Draft("C-LOCATION", "A", 2));
+        Assert.True(store.UpdateStorageLocation("A", "Original A").IsSuccess);
+        var originalLocation = Assert.Single(store.GetStorageLocations());
+        var originalComponent = Assert.Single(store.GetComponents());
+
+        var duplicate = store.CreateStorageLocation("  A  ", "Replacement A");
+
+        Assert.False(duplicate.IsSuccess);
+        var activeLocation = Assert.Single(store.GetStorageLocations());
+        Assert.Equal("Original A", activeLocation.Name);
+        Assert.Equal(originalLocation.UpdatedAt, activeLocation.UpdatedAt);
+        var unchangedComponent = Assert.Single(store.GetComponents());
+        Assert.Equal(originalComponent.UpdatedAt, unchangedComponent.UpdatedAt);
+        Assert.Equal(2, Assert.Single(unchangedComponent.Allocations).Quantity);
+
+        Assert.True(store.CreateStorageLocation("B", "Original A").IsSuccess);
+        Assert.True(store.RecordMovement(new MovementEntryDraft
+        {
+            ComponentId = component.Id, MovementType = "transfer", Quantity = 2,
+            LocationId = "A", DestinationLocationId = "B", Reason = "move",
+        }).IsSuccess);
+        Assert.True(store.DeleteStorageLocation("A").IsSuccess);
+        var tombstone = store.GetStorageLocations(includeDeleted: true).Single(location => location.Id == "A");
+
+        var missingEdit = store.UpdateStorageLocation("MISSING", "Missing");
+        var tombstoneEdit = store.UpdateStorageLocation(" A ", "Edited A");
+        var tombstoneDuplicate = store.CreateStorageLocation(" A ", "Revived A");
+
+        Assert.False(missingEdit.IsSuccess);
+        Assert.False(tombstoneEdit.IsSuccess);
+        Assert.False(tombstoneDuplicate.IsSuccess);
+        var unchangedTombstone = store.GetStorageLocations(includeDeleted: true).Single(location => location.Id == "A");
+        Assert.True(unchangedTombstone.Deleted);
+        Assert.Equal("Original A", unchangedTombstone.Name);
+        Assert.Equal(tombstone.UpdatedAt, unchangedTombstone.UpdatedAt);
+        var finalComponent = Assert.Single(store.GetComponents());
+        Assert.Equal(2, finalComponent.Allocations.Single(allocation => allocation.LocationId == "B").Quantity);
+        Assert.Equal(0, finalComponent.Allocations.Single(allocation => allocation.LocationId == "A").Quantity);
+    }
+
+    [Fact]
     public void OwnWorkbook_RoundTripsExactContractAndImportsNewOnly()
     {
         var source = Store("source.db");

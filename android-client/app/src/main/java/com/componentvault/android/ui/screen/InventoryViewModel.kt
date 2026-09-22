@@ -41,6 +41,7 @@ import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.OverviewUiState
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.StorageLocationRecord
+import com.componentvault.android.model.StorageLocationSaveIntent
 import com.componentvault.android.model.ComponentAllocationRecord
 import com.componentvault.android.model.SyncConfiguration
 import kotlinx.coroutines.launch
@@ -319,9 +320,14 @@ class InventoryViewModel(
         }
     }
 
-    fun saveStorageLocation(id: String, name: String, onComplete: (OperationResult) -> Unit = {}) {
+    fun saveStorageLocation(
+        id: String,
+        name: String,
+        intent: StorageLocationSaveIntent,
+        onComplete: (OperationResult) -> Unit = {},
+    ) {
         viewModelScope.launch {
-            val result = repository.saveStorageLocation(id, name)
+            val result = repository.saveStorageLocation(id, name, intent)
             reloadState(result.message)
             onComplete(result)
         }

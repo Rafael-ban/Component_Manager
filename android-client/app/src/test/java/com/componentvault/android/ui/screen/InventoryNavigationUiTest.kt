@@ -59,7 +59,7 @@ class InventoryNavigationUiTest {
         val visible = mutableStateOf(true)
         compose.setContent {
             MaterialTheme {
-                if (visible.value) StorageLocationsScreen(emptyList(), { visible.value = false }, { _, _, _ -> }, { _, _ -> })
+                if (visible.value) StorageLocationsScreen(emptyList(), { visible.value = false }, { _, _, _, _ -> }, { _, _ -> })
                 else Text("Settings parent")
             }
         }
@@ -70,7 +70,11 @@ class InventoryNavigationUiTest {
 
     @Test
     fun hundredPackageDraftCanScrollToLastEntryAndEditIt() {
-        runBlocking { InventoryRepository(context).saveStorageLocation("A", "A") }
+        runBlocking {
+            InventoryRepository(context).saveStorageLocation(
+                "A", "A", com.componentvault.android.model.StorageLocationSaveIntent.Create,
+            )
+        }
         val rows = (1..100).map { index ->
             BatchJlcRow(
                 id = UUID.nameUUIDFromBytes("package-$index".toByteArray()).toString(),

@@ -7,6 +7,11 @@ data class StorageLocationRecord(
     val deleted: Boolean = false,
 )
 
+enum class StorageLocationSaveIntent {
+    Create,
+    Edit,
+}
+
 data class ComponentAllocationRecord(
     val componentId: String,
     val locationId: String,

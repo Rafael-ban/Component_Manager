@@ -529,6 +529,13 @@ Existing location strings become stable location IDs. Active SKU uniqueness is
 unchanged. Allocation quantities are non-negative and sum to component quantity;
 all writers (forms, movements, BOM, migration and pull) maintain this invariant.
 
+Native location creation and editing are distinct operations: creation rejects
+an existing primary key (including tombstones), while editing only renames an
+active location. Each check and write shares a transaction; neither operation
+replaces a location row or modifies allocations. Server admin creation already
+rejects duplicate IDs. Sync continues to apply location metadata using LWW;
+this local creation guard does not change the sync protocol or database schema.
+
 The server stores the same allocation relation and an `inventory_managed` flag.
 The wire protocol carries full allocations inside each component snapshot and
 complete location metadata on pull. This prevents independent per-bin LWW writes

@@ -147,6 +147,7 @@ jobs:
           --tests 'com.componentvault.android.data.BatchJlcModelsTest'
           --tests 'com.componentvault.android.data.ScannedBarcodeSelectorTest'
           --tests 'com.componentvault.android.data.StockAllocationMathTest'
+          --tests 'com.componentvault.android.data.StorageLocationPersistenceTest'
           --tests 'com.componentvault.android.data.InventoryWorkbookCodecTest'
           --tests 'com.componentvault.android.data.LabelWorkbookExporterTest'
           --tests 'com.componentvault.android.data.GitHubReleaseUpdateTest'

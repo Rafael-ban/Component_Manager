@@ -160,25 +160,57 @@ public sealed class InventoryStore
 
     public OperationResult SaveStorageLocation(string id, string name)
     {
-        if (string.IsNullOrWhiteSpace(id)) return OperationResult.Failure("库位编码不能为空。");
-        var normalized = NormalizeLocationId(id);
-        if (normalized.Length > 120 || string.IsNullOrWhiteSpace(name) || name.Trim().Length > 200)
-            return OperationResult.Failure("库位编码或名称无效。");
+        return CreateStorageLocation(id, name);
+    }
+
+    public OperationResult CreateStorageLocation(string id, string name)
+    {
+        var validation = ValidateStorageLocation(id, name);
+        if (!validation.IsSuccess) return validation;
+        var normalized = id.Trim();
         using var connection = OpenConnection();
         using var transaction = connection.BeginTransaction();
         var updatedAt = UtcNow();
-        UpsertLocalLocation(connection, normalized, name.Trim(), updatedAt);
-        using (var update = connection.CreateCommand())
+        using (var insert = connection.CreateCommand())
         {
-            update.CommandText = "UPDATE storage_locations SET name=$name,updated_at=$updated_at,deleted=0 WHERE id=$id";
-            update.Parameters.AddWithValue("$name", name.Trim());
-            update.Parameters.AddWithValue("$updated_at", updatedAt);
-            update.Parameters.AddWithValue("$id", normalized);
-            update.ExecuteNonQuery();
+            insert.CommandText = "INSERT INTO storage_locations(id,name,updated_at,deleted) VALUES($id,$name,$updated_at,0) ON CONFLICT(id) DO NOTHING";
+            insert.Parameters.AddWithValue("$id", normalized);
+            insert.Parameters.AddWithValue("$name", name.Trim());
+            insert.Parameters.AddWithValue("$updated_at", updatedAt);
+            if (insert.ExecuteNonQuery() == 0)
+                return OperationResult.Failure("库位编码已存在；原库位数据已保留。");
         }
         EnqueueEntity(connection, "storage_location", normalized, updatedAt);
         transaction.Commit();
-        return OperationResult.Success("库位已保存。");
+        return OperationResult.Success("库位已新建。");
+    }
+
+    public OperationResult UpdateStorageLocation(string id, string name)
+    {
+        var validation = ValidateStorageLocation(id, name);
+        if (!validation.IsSuccess) return validation;
+        var normalized = id.Trim();
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        var updatedAt = UtcNow();
+        using var update = connection.CreateCommand();
+        update.CommandText = "UPDATE storage_locations SET name=$name,updated_at=$updated_at WHERE id=$id AND deleted=0";
+        update.Parameters.AddWithValue("$name", name.Trim());
+        update.Parameters.AddWithValue("$updated_at", updatedAt);
+        update.Parameters.AddWithValue("$id", normalized);
+        if (update.ExecuteNonQuery() == 0)
+            return OperationResult.Failure("未找到可编辑的有效库位。");
+        EnqueueEntity(connection, "storage_location", normalized, updatedAt);
+        transaction.Commit();
+        return OperationResult.Success("库位已更新。");
+    }
+
+    private static OperationResult ValidateStorageLocation(string id, string name)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return OperationResult.Failure("库位编码不能为空。");
+        if (id.Trim().Length > 120 || string.IsNullOrWhiteSpace(name) || name.Trim().Length > 200)
+            return OperationResult.Failure("库位编码或名称无效。");
+        return OperationResult.Success(string.Empty);
     }
 
     public OperationResult DeleteStorageLocation(string id)

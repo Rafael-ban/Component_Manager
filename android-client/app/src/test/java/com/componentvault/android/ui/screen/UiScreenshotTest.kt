@@ -91,7 +91,7 @@ class UiScreenshotTest {
     fun captureStorageLocationListLight() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = false) {
-                StorageLocationsScreen(sampleLocations, {}, { _, _, _ -> }, { _, _ -> })
+                StorageLocationsScreen(sampleLocations, {}, { _, _, _, _ -> }, { _, _ -> })
             }
         }
 
@@ -134,7 +134,7 @@ class UiScreenshotTest {
     fun captureStorageLocationListDark() {
         compose.setContent {
             ComponentVaultTheme(darkTheme = true) {
-                StorageLocationsScreen(sampleLocations, {}, { _, _, _ -> }, { _, _ -> })
+                StorageLocationsScreen(sampleLocations, {}, { _, _, _, _ -> }, { _, _ -> })
             }
         }
 

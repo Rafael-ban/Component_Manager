@@ -80,6 +80,8 @@ connects to it over HTTP.
 - Independent storage locations support one component in multiple bins and
   transactional partial/full transfers. A component's quantity equals the sum
   of its location allocations; transfers do not count as consumption.
+  Creating a location rejects an existing code, including deleted codes;
+  renaming is an explicit edit and never changes allocations or stock quantities.
 - Native clients share an Excel backup format and import LCSC_android_erp
   schema-version-1 workbooks through a conflict preview. Restore adds new
   records; it does not silently overwrite existing inventory. See

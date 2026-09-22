@@ -549,9 +549,15 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public OperationResult SaveStorageLocation(string id, string name)
+    public OperationResult CreateStorageLocation(string id, string name)
     {
-        var result = _store.SaveStorageLocation(id, name);
+        var result = _store.CreateStorageLocation(id, name);
+        if (result.IsSuccess) { Refresh(); ScheduleAutoSync(); }
+        return result;
+    }
+    public OperationResult UpdateStorageLocation(string id, string name)
+    {
+        var result = _store.UpdateStorageLocation(id, name);
         if (result.IsSuccess) { Refresh(); ScheduleAutoSync(); }
         return result;
     }

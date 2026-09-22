@@ -182,6 +182,53 @@ def test_location_and_component_idempotency_replays_current_state(
         assert _create_component(client, {**COMPONENT, "name": "Different"}).status_code == 409
 
 
+def test_duplicate_location_creation_preserves_inventory(
+    tmp_path: Path, monkeypatch
+) -> None:
+    with _client(tmp_path, monkeypatch, True) as client:
+        assert _create_location(client).status_code == 201
+        component = _create_component(client).json()
+        moved = client.post(
+            f"/admin-api/components/{component['id']}/movements",
+            headers=HEADERS,
+            json=_movement(component, quantity=15),
+        )
+        assert moved.status_code == 200, moved.text
+        before = client.get("/sync/pull", headers=HEADERS).json()
+
+        duplicate = _create_location(client, {
+            **LOCATION, "request_id": "duplicate-location-new-request",
+            "name": "Replacement shelf",
+        })
+        assert duplicate.status_code == 409
+        after = client.get("/sync/pull", headers=HEADERS).json()
+        for key in ("storage_locations", "components", "stock_movements"):
+            assert after[key] == before[key]
+        assert after["components"][0]["quantity"] == 15
+
+
+def test_duplicate_location_creation_does_not_revive_deleted_location(
+    tmp_path: Path, monkeypatch
+) -> None:
+    with _client(tmp_path, monkeypatch, True) as client:
+        assert _create_location(client).status_code == 201
+        with _connect(tmp_path / "sync.db") as connection:
+            connection.execute("UPDATE storage_locations SET deleted = 1 WHERE id = 'A'")
+            before = dict(connection.execute(
+                "SELECT * FROM storage_locations WHERE id = 'A'"
+            ).fetchone())
+        duplicate = _create_location(client, {
+            **LOCATION, "request_id": "deleted-location-new-request",
+            "name": "Replacement shelf",
+        })
+        assert duplicate.status_code == 409
+        with _connect(tmp_path / "sync.db") as connection:
+            after = dict(connection.execute(
+                "SELECT * FROM storage_locations WHERE id = 'A'"
+            ).fetchone())
+        assert after == before
+
+
 def test_edit_and_movement_retries_do_not_repeat_writes(
     tmp_path: Path, monkeypatch
 ) -> None:

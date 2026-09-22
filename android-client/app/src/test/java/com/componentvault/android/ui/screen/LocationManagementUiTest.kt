@@ -20,6 +20,7 @@ import androidx.compose.ui.test.performTextReplacement
 import com.componentvault.android.R
 import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.StorageLocationRecord
+import com.componentvault.android.model.StorageLocationSaveIntent
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,9 +50,10 @@ class LocationManagementUiTest {
                 StorageLocationsScreen(
                     locations = locations.value,
                     onDismiss = {},
-                    onSave = { code, name, complete ->
+                    onSave = { code, name, intent, complete ->
                         attemptedCode = code
                         attemptedName = name
+                        assertEquals(StorageLocationSaveIntent.Create, intent)
                         attempts++
                         if (attempts == 1) complete(OperationResult(false, "Code already exists"))
                         else {
@@ -88,9 +90,10 @@ class LocationManagementUiTest {
                 StorageLocationsScreen(
                     locations = listOf(location),
                     onDismiss = {},
-                    onSave = { code, name, complete ->
+                    onSave = { code, name, intent, complete ->
                         savedCode = code
                         savedName = name
+                        assertEquals(StorageLocationSaveIntent.Edit, intent)
                         complete(OperationResult(true, "Saved", code))
                     },
                     onDelete = { _, _ -> },
@@ -111,7 +114,7 @@ class LocationManagementUiTest {
         var dismissed = false
         compose.setContent {
             MaterialTheme {
-                StorageLocationsScreen(emptyList(), { dismissed = true }, { _, _, _ -> }, { _, _ -> })
+                StorageLocationsScreen(emptyList(), { dismissed = true }, { _, _, _, _ -> }, { _, _ -> })
             }
         }
         compose.onNodeWithTag("locations_add").performClick()
@@ -131,7 +134,7 @@ class LocationManagementUiTest {
                 StorageLocationsScreen(
                     emptyList(),
                     { dismissed = true },
-                    { _, _, complete -> completion = complete },
+                    { _, _, _, complete -> completion = complete },
                     { _, _ -> },
                 )
             }
@@ -153,7 +156,7 @@ class LocationManagementUiTest {
         }
         compose.setContent {
             MaterialTheme {
-                StorageLocationsScreen(locations, {}, { _, _, _ -> }, { _, _ -> })
+                StorageLocationsScreen(locations, {}, { _, _, _, _ -> }, { _, _ -> })
             }
         }
         compose.onNodeWithTag("locations_list")

@@ -116,7 +116,9 @@ public sealed partial class ComponentsView : Page
         };
         dialog.PrimaryButtonClick += (_, args) =>
         {
-            var result = viewModel.SaveStorageLocation(idBox.Text, nameBox.Text);
+            var result = selector.SelectedItem is StorageLocationRecord selected
+                ? viewModel.UpdateStorageLocation(selected.Id, nameBox.Text)
+                : viewModel.CreateStorageLocation(idBox.Text, nameBox.Text);
             if (!result.IsSuccess) { error.Text = result.Message; args.Cancel = true; }
         };
         await dialog.ShowAsync();

@@ -32,12 +32,13 @@ import androidx.compose.ui.unit.dp
 import com.componentvault.android.R
 import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.StorageLocationRecord
+import com.componentvault.android.model.StorageLocationSaveIntent
 
 @Composable
 internal fun StorageLocationsScreen(
     locations: List<StorageLocationRecord>,
     onDismiss: () -> Unit,
-    onSave: (String, String, (OperationResult) -> Unit) -> Unit,
+    onSave: (String, String, StorageLocationSaveIntent, (OperationResult) -> Unit) -> Unit,
     onDelete: (String, (OperationResult) -> Unit) -> Unit,
 ) {
     var editor by remember { mutableStateOf<LocationEditor?>(null) }
@@ -137,7 +138,8 @@ internal fun StorageLocationsScreen(
             onDismiss = { if (!busy) editor = null },
             onSave = { code, name, setError ->
                 busy = true
-                onSave(code, name) { result ->
+                val intent = if (value.isEditing) StorageLocationSaveIntent.Edit else StorageLocationSaveIntent.Create
+                onSave(code, name, intent) { result ->
                     busy = false
                     if (result.isSuccess) {
                         editor = null

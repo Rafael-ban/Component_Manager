@@ -29,6 +29,7 @@ import com.componentvault.android.model.MovementScanMatchStatus
 import com.componentvault.android.model.MovementScanResolutionUiState
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.StorageLocationRecord
+import com.componentvault.android.model.StorageLocationSaveIntent
 import com.componentvault.android.model.ComponentAllocationRecord
 import com.componentvault.android.model.SyncConfiguration
 import com.componentvault.android.model.isJlcSource
@@ -992,21 +993,53 @@ class InventoryRepository(
         }
     }
 
-    suspend fun saveStorageLocation(id: String, name: String): OperationResult = withContext(Dispatchers.IO) {
+    suspend fun saveStorageLocation(
+        id: String,
+        name: String,
+        intent: StorageLocationSaveIntent,
+    ): OperationResult = withContext(Dispatchers.IO) {
         runCatching {
             val code = id.trim()
             val displayName = name.trim()
             require(code.isNotEmpty() && code.length <= 120 && displayName.isNotEmpty() && displayName.length <= 200)
             databaseHelper.writableDatabase.use { db ->
-                val now = utcNow()
-                val existingName = db.rawQuery("SELECT name FROM storage_locations WHERE id = ?", arrayOf(code))
-                    .use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
-                if (existingName == null) ensureStorageLocation(db, code, now)
-                db.update("storage_locations", ContentValues().apply {
-                    put("name", displayName); put("updated_at", now); put("deleted", 0)
-                }, "id = ?", arrayOf(code))
+                db.beginTransaction()
+                try {
+                    val existingDeleted = db.rawQuery(
+                        "SELECT deleted FROM storage_locations WHERE id = ?",
+                        arrayOf(code),
+                    ).use { cursor -> if (cursor.moveToFirst()) cursor.getInt(0) != 0 else null }
+                    val now = utcNow()
+                    when (intent) {
+                        StorageLocationSaveIntent.Create -> {
+                            check(existingDeleted == null) { "库位编号已存在。" }
+                            val inserted = db.insertOrThrow("storage_locations", null, ContentValues().apply {
+                                put("id", code)
+                                put("name", displayName)
+                                put("updated_at", now)
+                                put("deleted", 0)
+                            })
+                            check(inserted != -1L) { "库位新增失败。" }
+                        }
+                        StorageLocationSaveIntent.Edit -> {
+                            check(existingDeleted == false) { "库位不存在或已删除。" }
+                            val updated = db.update("storage_locations", ContentValues().apply {
+                                put("name", displayName)
+                                put("updated_at", now)
+                            }, "id = ? AND deleted = 0", arrayOf(code))
+                            check(updated == 1) { "库位不存在或已删除。" }
+                        }
+                    }
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
             }
-            OperationResult(true, "库位已保存。", code)
+            OperationResult(
+                true,
+                if (intent == StorageLocationSaveIntent.Create) "库位已新增。" else "库位已更新。",
+                code,
+            )
         }.getOrElse { OperationResult(false, it.message ?: "库位保存失败。") }
     }
 
@@ -2164,7 +2197,7 @@ class InventoryRepository(
     private fun ensureStorageLocation(db: SQLiteDatabase, id: String, updatedAt: String) {
         require(id.isNotBlank() && id.length <= 120) { "Invalid storage location code." }
         val deleted=db.rawQuery("SELECT deleted FROM storage_locations WHERE id = ?",arrayOf(id)).use{it.moveToFirst()&&it.getInt(0)==1}
-        check(!deleted){"库位已删除，请先在库位管理中恢复或改用其他库位。"}
+        check(!deleted) { "库位已删除，请改用其他编号的库位。" }
         db.insertWithOnConflict(
             "storage_locations",
             null,

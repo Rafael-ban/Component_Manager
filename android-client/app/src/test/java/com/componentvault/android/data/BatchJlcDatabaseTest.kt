@@ -3,6 +3,7 @@ package com.componentvault.android.data
 import android.app.Application
 import android.database.sqlite.SQLiteDatabase
 import com.componentvault.android.model.ComponentDraft
+import com.componentvault.android.model.StorageLocationSaveIntent
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -25,8 +26,8 @@ class BatchJlcDatabaseTest {
         val helper = InventoryDatabaseHelper(context)
         try { context.deleteDatabase(helper.databaseName) } finally { helper.close() }
         repository = InventoryRepository(context)
-        assertTrue(repository.saveStorageLocation("A", "A").isSuccess)
-        assertTrue(repository.saveStorageLocation("B", "B").isSuccess)
+        assertTrue(repository.saveStorageLocation("A", "A", StorageLocationSaveIntent.Create).isSuccess)
+        assertTrue(repository.saveStorageLocation("B", "B", StorageLocationSaveIntent.Create).isSuccess)
         assertTrue(repository.saveComponent(ComponentDraft(
             sku = "C70565", name = "Existing part", category = "IC",
             packageName = "SOT-23", location = "A", description = "Keep existing data",
