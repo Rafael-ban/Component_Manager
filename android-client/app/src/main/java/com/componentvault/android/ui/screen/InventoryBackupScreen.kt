@@ -34,8 +34,8 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun InventoryBackupScreen(
     viewModel: InventoryViewModel,
-    onDismiss: () -> Unit,
     components: List<ComponentRecord> = emptyList(),
+    onDismiss: () -> Unit,
 ) {
     val state = viewModel.backupUiState
     val context = LocalContext.current
