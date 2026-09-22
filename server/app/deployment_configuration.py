@@ -105,10 +105,8 @@ def _write_configuration(payload: dict[str, object]) -> None:
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
-        try:
-            temporary.chmod(0o600)
-        except OSError:
-            pass
+        # Use the normal file-creation umask and mounted-directory ACLs so NAS
+        # administrators can inspect the configuration alongside the database.
         os.replace(temporary, path)
     except OSError as error:
         try:

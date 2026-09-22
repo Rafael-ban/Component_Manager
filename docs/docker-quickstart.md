@@ -46,6 +46,9 @@ services:
 
 部署后可在 File Station 看到这些持久文件：
 
+数据目录由你管理，请使用私有目录。`config.json` 含 API Token；新文件遵循容器
+的默认 umask 与挂载目录的访问规则，不额外设为仅容器 root 可读。
+
 | 路径 | 内容 |
 | --- | --- |
 | `data/component_vault.db` | 库存、同步状态，以及从 Web 设置页保存的 MQTT 配置 |
