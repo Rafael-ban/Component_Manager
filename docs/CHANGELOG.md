@@ -5,6 +5,37 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.7.1] - 2026-09-22
+
+<!-- Add unreleased notes below this line. -->
+
+- Fix domestic LCSC lookup false positives by parsing valid product data before
+  verification-page markers. Distinguish verification blocks, rate limits and
+  network failures; pause repeated domestic requests across batch SKUs while
+  retaining international fallback and an explicit domestic retry action.
+- Add a built-in server setup page at port 8787, independent of the optional
+  inventory Web image. First-run configuration saves API Token, allowed Web
+  origins and the inventory-write switch atomically to config.json. Later
+  changes require the current token, and non-empty environment overrides remain
+  authoritative. Preserve old inventory and legacy token behavior on upgrade.
+- Add authenticated viewing of bounded, timestamped application logs, persisted
+  beside the database and also sent to container output. Logs exclude credentials,
+  request bodies, query strings and barcode contents.
+- Improve API Token discovery with show/copy actions in native settings and Web
+  login, plus direct links from the Web console to server configuration and logs.
+- Reconcile implementation and deployment documentation. Add a Synology / Docker
+  quickstart covering image selection, first-run setup, File Station mappings,
+  config/database/log locations, effective Token recovery, environment overrides
+  and upgrades. Explain the public Python-image GPG_KEY fingerprint and separate
+  ordinary deployment from Docker Hub publishing credentials.
+- Complete the first comparison of NIIMBOT, Phomemo and official HPRT M1 resources.
+  Add opt-in Android Bluetooth service diagnostics in label preview to collect
+  device-test evidence. This does not send print commands or claim M1 printing
+  support; direct printing still requires a verified protocol and device tests.
+- Extend CI with Compose profile/variable validation and container first-run,
+  authentication, mounted configuration/logs and restart-persistence checks.
+
+
 ## [0.7.0] - 2026-09-22
 
 <!-- Add unreleased notes below this line. -->
