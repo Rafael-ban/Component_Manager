@@ -17,7 +17,7 @@ ENV_KEYS = ("API_TOKEN", "ADMIN_WEB_ORIGINS", "WEB_INVENTORY_ENABLED")
 
 def render(compose_file: Path, env_file: str) -> dict:
     command = [
-        "docker", "compose", "--env-file", env_file,
+        "docker", "compose", "--profile", "*", "--env-file", env_file,
         "-f", str(compose_file), "config", "--format", "json",
     ]
     environment = os.environ.copy()
