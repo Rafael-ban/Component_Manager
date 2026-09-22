@@ -1,4 +1,7 @@
 <resources>
+    <string name="printer_m1_paper_summary">纸张与位置：%1$s × %2$s mm</string>
+    <string name="printer_m1_confirm_paper">请装入 %1$s × %2$s mm 间隙标签纸，第一个尺寸为沿打印头的宽，第二个为走纸方向的高，并关闭汉码。此次仅发送一张含 M1 TEST 和测试二维码的固定标签。中断后请先检查出纸情况再决定是否重试，应用不会自动重发。</string>
+    <string name="printer_m1_failure_title">测试打印未完成</string>
     <string name="printer_probe_title">蓝牙标签机诊断</string>
     <string name="printer_probe_service_mode">服务信息</string>
     <string name="printer_probe_m1_mode">M1 测试</string>

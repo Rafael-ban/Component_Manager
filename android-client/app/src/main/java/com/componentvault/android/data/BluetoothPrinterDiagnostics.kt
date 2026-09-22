@@ -236,7 +236,11 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
     }
 
     /** Copies [bitmap] before returning; the caller may recycle it immediately after this call. */
-    fun printM1Test(candidate: PrinterDeviceCandidate, bitmap: Bitmap) {
+    fun printM1Test(
+        candidate: PrinterDeviceCandidate,
+        bitmap: Bitmap,
+        paperProfile: M1TestPaperProfile? = null,
+    ) {
         stop()
         printResult = M1TestPrintResult.None
         report = buildString {
@@ -246,6 +250,15 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             appendLine("print_stage=preflight")
             appendLine("paired=${candidate.paired}")
             appendLine("device_type=${candidate.type}")
+            appendLine("bitmap_width_dots=${bitmap.width}")
+            appendLine("bitmap_height_dots=${bitmap.height}")
+            paperProfile?.let { profile ->
+                appendLine("paper_width_mm=${profile.widthMm}")
+                appendLine("paper_height_mm=${profile.heightMm}")
+                appendLine("rotation_degrees=${profile.rotationDegrees}")
+                appendLine("offset_x_mm=${profile.offsetXmm}")
+                appendLine("offset_y_mm=${profile.offsetYmm}")
+            }
         }
         if (!candidate.paired || candidate.type !in setOf(
                 BluetoothDevice.DEVICE_TYPE_CLASSIC,
@@ -303,33 +316,48 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             scheduleSppDeadline(session, MODEL_STAGE_TIMEOUT_MS, "model_query")
             output.write(M1SppProtocol.queryModel)
             output.flush()
-            var modelReply = readAvailable(input, MODEL_QUERY_TIMEOUT_MS, session)
-            if (modelReply.isEmpty() && isCurrentSpp(session)) {
+            var modelQueryReply = readM1QueryReply(input, MODEL_QUERY_TIMEOUT_MS, session)
+            var modelAsyncFrames = modelQueryReply.asyncStatusCodes.size
+            if (modelQueryReply.reply.isEmpty() && !modelQueryReply.overflowed && isCurrentSpp(session)) {
                 output.write(M1SppProtocol.queryModelFallback)
                 output.flush()
-                modelReply = readAvailable(input, FALLBACK_QUERY_TIMEOUT_MS, session)
+                modelQueryReply = readM1QueryReply(input, FALLBACK_QUERY_TIMEOUT_MS, session)
+                modelAsyncFrames += modelQueryReply.asyncStatusCodes.size
             }
             cancelSppDeadline(session)
-            val modelResult = M1SppProtocol.parseModelReply(modelReply)
+            val modelReply = modelQueryReply.reply
+            val modelResult = if (modelQueryReply.overflowed) {
+                M1SppProtocol.ModelResult.Mismatch
+            } else M1SppProtocol.parseModelReply(modelReply)
             postSpp(session) {
+                report += "model_query_stage=complete\n"
                 report += "query_model=${modelResult.name.lowercase()}\n"
                 report += "model_reply_bytes=${modelReply.size}\n"
+                report += "model_async_frames=$modelAsyncFrames\n"
+                report += "model_reply_overflow=${modelQueryReply.overflowed}\n"
                 if (modelResult == M1SppProtocol.ModelResult.Matched) report += "model=M1\n"
             }
             if (modelResult != M1SppProtocol.ModelResult.Matched) {
-                rejectPrint(session, if (modelReply.isEmpty()) "model_no_response" else "model_unrecognized_response")
+                rejectPrint(session, when {
+                    modelQueryReply.overflowed -> "model_reply_too_large"
+                    modelReply.isEmpty() -> "model_no_response"
+                    else -> "model_unrecognized_response"
+                })
                 return
             }
 
             scheduleSppDeadline(session, STATUS_STAGE_TIMEOUT_MS, "status_query")
             output.write(M1SppProtocol.queryStatus)
             output.flush()
-            val statusReply = readAvailable(input, STATUS_QUERY_TIMEOUT_MS, session)
+            val statusReply = readM1QueryReply(input, STATUS_QUERY_TIMEOUT_MS, session)
             cancelSppDeadline(session)
-            val statusResult = M1SppProtocol.classifyStatusReply(statusReply)
+            val statusResult = statusReply.classifyStatus()
             val statusCode = (statusResult as? M1SppProtocol.StatusResult.Received)?.code
             postSpp(session) {
-                report += "status_reply_bytes=${statusReply.size}\n"
+                report += "status_query_stage=complete\n"
+                report += "status_reply_bytes=${statusReply.reply.size}\n"
+                report += "status_async_frames=${statusReply.asyncStatusCodes.size}\n"
+                report += "status_reply_overflow=${statusReply.overflowed}\n"
                 if (statusResult is M1SppProtocol.StatusResult.Received) {
                     report += "status_code=${statusResult.code}\n"
                     report += "status_source=${statusResult.source.name.lowercase()}\n"
@@ -435,23 +463,33 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             scheduleSppDeadline(session, MODEL_STAGE_TIMEOUT_MS, "model_query")
             output.write(M1SppProtocol.queryModel)
             output.flush()
-            var modelReply = readAvailable(input, MODEL_QUERY_TIMEOUT_MS, session)
-            if (modelReply.isEmpty() && isCurrentSpp(session)) {
+            var modelQueryReply = readM1QueryReply(input, MODEL_QUERY_TIMEOUT_MS, session)
+            var modelAsyncFrames = modelQueryReply.asyncStatusCodes.size
+            if (modelQueryReply.reply.isEmpty() && !modelQueryReply.overflowed && isCurrentSpp(session)) {
                 output.write(M1SppProtocol.queryModelFallback)
                 output.flush()
-                modelReply = readAvailable(input, FALLBACK_QUERY_TIMEOUT_MS, session)
+                modelQueryReply = readM1QueryReply(input, FALLBACK_QUERY_TIMEOUT_MS, session)
+                modelAsyncFrames += modelQueryReply.asyncStatusCodes.size
             }
             cancelSppDeadline(session)
-            val modelResult = M1SppProtocol.parseModelReply(modelReply)
+            val modelReply = modelQueryReply.reply
+            val modelResult = if (modelQueryReply.overflowed) {
+                M1SppProtocol.ModelResult.Mismatch
+            } else M1SppProtocol.parseModelReply(modelReply)
             postSpp(session) {
+                report += "model_query_stage=complete\n"
                 report += "query_model=${modelResult.name.lowercase()}\n"
                 report += "model_reply_bytes=${modelReply.size}\n"
+                report += "model_async_frames=$modelAsyncFrames\n"
+                report += "model_reply_overflow=${modelQueryReply.overflowed}\n"
                 if (modelResult == M1SppProtocol.ModelResult.Matched) report += "model=M1\n"
             }
             if (modelResult != M1SppProtocol.ModelResult.Matched) {
-                val detail = if (modelResult == M1SppProtocol.ModelResult.NoResponse) {
-                    "error=model_no_response"
-                } else "error=model_unrecognized_response"
+                val detail = when {
+                    modelQueryReply.overflowed -> "error=model_reply_too_large"
+                    modelResult == M1SppProtocol.ModelResult.NoResponse -> "error=model_no_response"
+                    else -> "error=model_unrecognized_response"
+                }
                 val terminalStatus = if (modelResult == M1SppProtocol.ModelResult.NoResponse) {
                     PrinterProbeStatus.TimedOut
                 } else PrinterProbeStatus.ConnectionFailed
@@ -462,11 +500,14 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             scheduleSppDeadline(session, STATUS_STAGE_TIMEOUT_MS, "status_query")
             output.write(M1SppProtocol.queryStatus)
             output.flush()
-            val statusReply = readAvailable(input, STATUS_QUERY_TIMEOUT_MS, session)
+            val statusReply = readM1QueryReply(input, STATUS_QUERY_TIMEOUT_MS, session)
             cancelSppDeadline(session)
-            val statusResult = M1SppProtocol.classifyStatusReply(statusReply)
+            val statusResult = statusReply.classifyStatus()
             postSpp(session) {
-                report += "status_reply_bytes=${statusReply.size}\n"
+                report += "status_query_stage=complete\n"
+                report += "status_reply_bytes=${statusReply.reply.size}\n"
+                report += "status_async_frames=${statusReply.asyncStatusCodes.size}\n"
+                report += "status_reply_overflow=${statusReply.overflowed}\n"
                 when (statusResult) {
                     M1SppProtocol.StatusResult.NoResponse ->
                         finish(PrinterProbeStatus.TimedOut, "status_query=no_response")
@@ -513,6 +554,30 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             }
         }
         return result.toByteArray()
+    }
+
+    private fun readM1QueryReply(
+        input: java.io.InputStream,
+        timeoutMs: Long,
+        session: SppSession,
+    ): M1QueryReply {
+        val demultiplexer = session.queryReplyDemultiplexer
+        val buffer = ByteArray(256)
+        val deadline = System.nanoTime() + timeoutMs * 1_000_000
+        var replyQuietSince = 0L
+        while (System.nanoTime() < deadline && isCurrentSpp(session)) {
+            val available = input.available()
+            if (available > 0) {
+                val count = input.read(buffer, 0, minOf(buffer.size, available))
+                if (count < 0) break
+                demultiplexer.append(buffer, count)
+                if (demultiplexer.hasReply()) replyQuietSince = System.nanoTime()
+            } else {
+                if (demultiplexer.hasReply() && System.nanoTime() - replyQuietSince >= READ_QUIET_MS * 1_000_000) break
+                Thread.sleep(READ_POLL_MS)
+            }
+        }
+        return demultiplexer.take()
     }
 
     private fun scheduleSppDeadline(session: SppSession, delayMs: Long, stage: String) {
@@ -608,6 +673,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
 
         private class SppSession(val generation: Int, val isPrint: Boolean = false) {
             val sockets = CancelableResourceSlot<BluetoothSocket> { socket -> runCatching { socket.close() } }
+            val queryReplyDemultiplexer = M1QueryReplyDemultiplexer()
             @Volatile var deadline: Runnable? = null
             @Volatile var framesSent = 0
             @Volatile var bytesSent = 0

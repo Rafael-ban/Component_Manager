@@ -1,7 +1,9 @@
 package com.componentvault.android.data
 
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import org.junit.Test
 
 class M1SppProtocolTest {
@@ -91,9 +93,120 @@ class M1SppProtocolTest {
     }
 
     @Test
+    fun queryDemultiplexerRemovesAsyncFramesBeforeAndAfterModel() {
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append(asyncStatus(0x00) + "M1".toByteArray() + asyncStatus(0x01))
+
+        val result = demultiplexer.finish()
+
+        assertEquals("M1", result.reply.toString(Charsets.US_ASCII))
+        assertEquals(listOf(0x00, 0x01), result.asyncStatusCodes)
+        assertEquals(M1SppProtocol.ModelResult.Matched, M1SppProtocol.parseModelReply(result.reply))
+    }
+
+    @Test
+    fun queryDemultiplexerRemovesAsyncFrameMixedBetweenModelBytes() {
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append("M".toByteArray() + asyncStatus(0x00) + "1".toByteArray())
+
+        assertEquals("M1", demultiplexer.finish().reply.toString(Charsets.US_ASCII))
+    }
+
+    @Test
+    fun queryDemultiplexerRetainsSplitFrameUntilComplete() {
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append("Mpooli_".toByteArray())
+        assertTrue(demultiplexer.hasReply())
+        demultiplexer.append("sta=".toByteArray())
+        assertEquals("M", demultiplexer.snapshot().reply.toString(Charsets.US_ASCII))
+        demultiplexer.append(byteArrayOf(0x10) + "1".toByteArray())
+
+        val result = demultiplexer.finish()
+        assertEquals("M1", result.reply.toString(Charsets.US_ASCII))
+        assertEquals(listOf(0x10), result.asyncStatusCodes)
+    }
+
+    @Test
+    fun queryDemultiplexerRetainsPartialFrameAcrossQueryReads() {
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append("M1pooli_".toByteArray())
+
+        val modelRead = demultiplexer.take()
+        assertEquals("M1", modelRead.reply.toString(Charsets.US_ASCII))
+        assertEquals(emptyList(), modelRead.asyncStatusCodes)
+
+        demultiplexer.append("sta=".toByteArray() + byteArrayOf(0x01) + byteArrayOf(0x00, 0x00, 0x7f))
+        val statusRead = demultiplexer.take()
+        assertEquals(listOf(0x01), statusRead.asyncStatusCodes)
+        assertEquals(byteArrayOf(0x00, 0x00, 0x7f).toList(), statusRead.reply.toList())
+        assertEquals(
+            M1SppProtocol.StatusResult.Received(0x00, M1SppProtocol.StatusResult.Source.Query),
+            statusRead.classifyStatus(),
+        )
+    }
+
+    @Test
+    fun statusOnlyDoesNotBecomeOrdinaryReplyAtTimeout() {
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append(asyncStatus(0x00))
+
+        assertFalse(demultiplexer.hasReply())
+        val result = demultiplexer.finish()
+        assertEquals(0, result.reply.size)
+        assertEquals(
+            M1SppProtocol.StatusResult.Received(0x00, M1SppProtocol.StatusResult.Source.Async),
+            result.classifyStatus(),
+        )
+    }
+
+    @Test
+    fun queryStatusTakesPriorityOverEarlierAsyncStatus() {
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append(asyncStatus(0x00) + byteArrayOf(0x01, 0x00, 0x7f))
+
+        assertEquals(
+            M1SppProtocol.StatusResult.Received(0x01, M1SppProtocol.StatusResult.Source.Query),
+            demultiplexer.finish().classifyStatus(),
+        )
+    }
+
+    @Test
+    fun invalidOrdinaryStatusIsNotHiddenByAsyncReadyStatus() {
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append(asyncStatus(0x00) + "unknown".toByteArray())
+
+        assertEquals(M1SppProtocol.StatusResult.Invalid, demultiplexer.take().classifyStatus())
+    }
+
+    @Test
+    fun oversizedReplyFailsExplicitlyWithoutAcceptingTruncatedPrefix() {
+        val demultiplexer = M1QueryReplyDemultiplexer(maxReplyBytes = 2)
+        demultiplexer.append("M1extra".toByteArray())
+
+        val result = demultiplexer.take()
+        assertTrue(result.overflowed)
+        assertEquals(M1SppProtocol.StatusResult.Invalid, result.classifyStatus())
+    }
+
+    @Test
+    fun queryDemultiplexerPreservesUnknownAndBinaryBytesAndRejectsM11() {
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        val unknown = byteArrayOf(0x01, 0x00, 0x7f) + "pooli_stxM11".toByteArray()
+        demultiplexer.append(unknown)
+
+        val result = demultiplexer.finish()
+        assertEquals(unknown.toList(), result.reply.toList())
+        assertEquals(emptyList(), result.asyncStatusCodes)
+        assertEquals(M1SppProtocol.ModelResult.Mismatch, M1SppProtocol.parseModelReply("M11".toByteArray()))
+    }
+
+    @Test
     fun statusBitsExposeOnlyKnownFlags() {
         assertEquals(listOf("paper_out", "cover_open", "locate_failed"), M1SppProtocol.statusBits(0x51))
     }
 }
 
 private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+
+private fun asyncStatus(code: Int): ByteArray =
+    "pooli_sta=".toByteArray(Charsets.US_ASCII) + byteArrayOf(code.toByte())

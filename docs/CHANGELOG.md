@@ -1,6 +1,7 @@
 # Changelog
 
 Dev 预发布单独记录，不触发正式版版本递增：
+[0.7.4-dev.2：M1 查询回复与纸张适配](releases/0.7.4-dev.2.md)、
 [0.7.4-dev.1：M1 单张打印与更新通道](releases/0.7.4-dev.1.md)。
 
 ## [Unreleased]

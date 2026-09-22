@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
@@ -22,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +45,7 @@ import com.componentvault.android.data.PrinterProbeStatus
 import com.componentvault.android.data.PrinterDeviceCandidate
 import com.componentvault.android.data.ComponentLabelTemplate
 import com.componentvault.android.data.M1TestLabelRenderer
+import com.componentvault.android.data.M1TestPaperProfile
 import com.componentvault.android.data.M1TestPrintResult
 
 @Composable
@@ -54,9 +57,25 @@ internal fun BluetoothPrinterDiagnosticsDialog(
     val clipboard = LocalClipboardManager.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val probe = remember { BluetoothPrinterDiagnostics(context) }
+    val paperPreferences = remember { context.getSharedPreferences("m1_test_paper", android.content.Context.MODE_PRIVATE) }
+    var paperProfile by remember(labelTemplate.id) { mutableStateOf(M1TestPaperProfile.load(paperPreferences, labelTemplate)) }
+    var showPaperSettings by remember { mutableStateOf(false) }
     var m1Mode by remember { mutableStateOf(false) }
     var lastRunWasM1 by remember { mutableStateOf(false) }
     var printCandidate by remember { mutableStateOf<PrinterDeviceCandidate?>(null) }
+    val listState = rememberLazyListState()
+    var showPrintFailure by remember { mutableStateOf(false) }
+    LaunchedEffect(probe.status, probe.printResult) {
+        if (probe.status == PrinterProbeStatus.Connecting || probe.status == PrinterProbeStatus.Printing ||
+            probe.printResult != M1TestPrintResult.None) {
+            listState.animateScrollToItem(0)
+        }
+    }
+    LaunchedEffect(probe.printResult) {
+        showPrintFailure = probe.printResult in setOf(
+            M1TestPrintResult.Rejected, M1TestPrintResult.Partial, M1TestPrintResult.Interrupted,
+        )
+    }
     DisposableEffect(probe, lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) probe.stop()
@@ -96,7 +115,7 @@ internal fun BluetoothPrinterDiagnosticsDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.printer_probe_title)) },
         text = {
-            LazyColumn(modifier = Modifier.heightIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(state = listState, modifier = Modifier.heightIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
@@ -114,6 +133,13 @@ internal fun BluetoothPrinterDiagnosticsDialog(
                     }
                 }
                 item { Text(stringResource(if (m1Mode) R.string.printer_probe_m1_intro else R.string.printer_probe_intro)) }
+                if (m1Mode) {
+                    item {
+                        OutlinedButton(onClick = { showPaperSettings = true }, enabled = !probe.busy, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.printer_m1_paper_summary, paperProfile.widthMm.toString(), paperProfile.heightMm.toString()))
+                        }
+                    }
+                }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(when (probe.printResult) {
@@ -169,12 +195,9 @@ internal fun BluetoothPrinterDiagnosticsDialog(
                     if (m1Mode && supportsSpp) {
                         OutlinedButton(
                             onClick = { printCandidate = candidate },
-                            enabled = !probe.busy && M1TestLabelRenderer.supports(labelTemplate),
+                            enabled = !probe.busy,
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.printer_m1_test_one)) }
-                        if (!M1TestLabelRenderer.supports(labelTemplate)) {
-                            Text(stringResource(R.string.printer_m1_choose_paper), style = MaterialTheme.typography.bodySmall)
-                        }
                     }
                     }
                 }
@@ -197,16 +220,50 @@ internal fun BluetoothPrinterDiagnosticsDialog(
         AlertDialog(
             onDismissRequest = { printCandidate = null },
             title = { Text(stringResource(R.string.printer_m1_test_one)) },
-            text = { Text(stringResource(R.string.printer_m1_confirm, labelTemplate.physicalHeightMm.toInt())) },
+            text = { Text(stringResource(R.string.printer_m1_confirm_paper, paperProfile.widthMm.toString(), paperProfile.heightMm.toString())) },
             confirmButton = {
                 TextButton(onClick = {
                     printCandidate = null
                     lastRunWasM1 = true
-                    val bitmap = M1TestLabelRenderer.render(labelTemplate)
-                    try { probe.printM1Test(candidate, bitmap) } finally { bitmap.recycle() }
+                    val bitmap = M1TestLabelRenderer.render(paperProfile)
+                    try { probe.printM1Test(candidate, bitmap, paperProfile) } finally { bitmap.recycle() }
                 }) { Text(stringResource(R.string.printer_m1_print_now)) }
             },
             dismissButton = { TextButton(onClick = { printCandidate = null }) { Text(stringResource(R.string.printer_probe_close)) } },
+        )
+    }
+    if (showPaperSettings) {
+        M1TestPaperSettingsDialog(
+            current = paperProfile,
+            onSave = {
+                paperProfile = it
+                it.save(paperPreferences)
+                showPaperSettings = false
+            },
+            onDismiss = { showPaperSettings = false },
+        )
+    }
+    if (showPrintFailure) {
+        AlertDialog(
+            onDismissRequest = { showPrintFailure = false },
+            title = { Text(stringResource(R.string.printer_m1_failure_title)) },
+            text = {
+                LazyColumn(modifier = Modifier.heightIn(max = 320.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    item { Text(stringResource(
+                        if (probe.printResult == M1TestPrintResult.Rejected) R.string.printer_m1_rejected
+                        else R.string.printer_m1_interrupted,
+                    )) }
+                    item { Text(probe.report, style = MaterialTheme.typography.bodySmall) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPrintFailure = false }) { Text(stringResource(R.string.printer_probe_close)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    clipboard.setText(AnnotatedString("Component Vault ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\nstatus=${probe.status}\n${probe.report}"))
+                }) { Text(stringResource(R.string.printer_probe_copy)) }
+            },
         )
     }
 }

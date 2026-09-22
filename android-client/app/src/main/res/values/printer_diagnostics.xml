@@ -1,4 +1,7 @@
 <resources>
+    <string name="printer_m1_paper_summary">Paper and alignment: %1$s × %2$s mm</string>
+    <string name="printer_m1_confirm_paper">Load %1$s × %2$s mm die-cut labels. The first dimension is the width across the print head; the second is the feed direction. Close Hanma. This sends one fixed M1 TEST label with a test QR code. If interrupted, check output before trying again; data is never resent automatically.</string>
+    <string name="printer_m1_failure_title">Test printing did not complete</string>
     <string name="printer_probe_title">Bluetooth printer diagnostics</string>
     <string name="printer_probe_service_mode">Services</string>
     <string name="printer_probe_m1_mode">M1 tests</string>

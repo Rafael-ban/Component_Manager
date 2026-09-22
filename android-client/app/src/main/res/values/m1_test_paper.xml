@@ -1,0 +1,20 @@
+<resources>
+    <string name="m1_paper_title">M1 test paper</string>
+    <string name="m1_paper_local_only">This profile only changes the local test bitmap. It does not calibrate the printer or send paper, density, or offset settings.</string>
+    <string name="m1_paper_width">Print-head width (mm)</string>
+    <string name="m1_paper_width_range">20–48 mm; 48 mm is about 384 dots at 203 dpi</string>
+    <string name="m1_paper_height">Feed height (mm)</string>
+    <string name="m1_paper_height_range">10–100 mm</string>
+    <string name="m1_paper_rotation">Content rotation</string>
+    <string name="m1_paper_rotation_hint">Rotation changes the content inside the same physical paper canvas; it does not change the print-head width limit.</string>
+    <string name="m1_paper_offset_x">Across head X (mm)</string>
+    <string name="m1_paper_offset_x_range">−48 to 48</string>
+    <string name="m1_paper_offset_y">Along feed Y (mm)</string>
+    <string name="m1_paper_offset_y_range">−100 to 100</string>
+    <string name="m1_paper_offset_hint">Offsets deliberately move and clip content at the paper edge. Check the preview before printing.</string>
+    <string name="m1_paper_preview">Clipping preview</string>
+    <string name="m1_paper_preview_description">M1 test paper clipping preview</string>
+    <string name="m1_paper_invalid">Enter width 20–48 mm, height 10–100 mm, and offsets within the shown ranges.</string>
+    <string name="m1_paper_save">Save</string>
+    <string name="m1_paper_cancel">Cancel</string>
+</resources>

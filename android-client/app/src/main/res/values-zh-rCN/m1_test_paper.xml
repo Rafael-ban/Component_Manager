@@ -1,0 +1,20 @@
+<resources>
+    <string name="m1_paper_title">M1 测试纸张</string>
+    <string name="m1_paper_local_only">此配置仅调整本地测试位图，不会校准打印机，也不会发送纸型、浓度或偏移设置命令。</string>
+    <string name="m1_paper_width">沿打印头宽度（mm）</string>
+    <string name="m1_paper_width_range">20–48 mm；203 dpi 下 48 mm 约为 384 点</string>
+    <string name="m1_paper_height">沿走纸方向高度（mm）</string>
+    <string name="m1_paper_height_range">10–100 mm</string>
+    <string name="m1_paper_rotation">内容旋转</string>
+    <string name="m1_paper_rotation_hint">旋转只改变同一物理纸面内的内容方向，不会改变打印头宽度限制。</string>
+    <string name="m1_paper_offset_x">横跨打印头 X（mm）</string>
+    <string name="m1_paper_offset_x_range">−48 到 48</string>
+    <string name="m1_paper_offset_y">沿走纸方向 Y（mm）</string>
+    <string name="m1_paper_offset_y_range">−100 到 100</string>
+    <string name="m1_paper_offset_hint">偏移会有意移动内容，并在纸张边缘发生裁切；打印前请检查预览。</string>
+    <string name="m1_paper_preview">裁切预览</string>
+    <string name="m1_paper_preview_description">M1 测试纸张裁切预览</string>
+    <string name="m1_paper_invalid">请输入 20–48 mm 宽度、10–100 mm 高度，并让偏移保持在显示范围内。</string>
+    <string name="m1_paper_save">保存</string>
+    <string name="m1_paper_cancel">取消</string>
+</resources>

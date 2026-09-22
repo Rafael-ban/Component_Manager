@@ -100,6 +100,91 @@ internal object M1SppProtocol {
     }
 }
 
+internal data class M1QueryReply(
+    val reply: ByteArray,
+    val asyncStatusCodes: List<Int>,
+    val overflowed: Boolean = false,
+) {
+    fun classifyStatus(): M1SppProtocol.StatusResult {
+        if (overflowed) return M1SppProtocol.StatusResult.Invalid
+        val queryResult = M1SppProtocol.classifyStatusReply(reply)
+        if (queryResult is M1SppProtocol.StatusResult.Received) return queryResult
+        if (reply.isNotEmpty()) return queryResult
+        return asyncStatusCodes.lastOrNull()?.let {
+            M1SppProtocol.StatusResult.Received(it, M1SppProtocol.StatusResult.Source.Async)
+        } ?: queryResult
+    }
+}
+
+/** Removes only complete, known asynchronous status frames while retaining all other reply bytes. */
+internal class M1QueryReplyDemultiplexer(private val maxReplyBytes: Int = 512) {
+    private val pending = ByteArrayOutputStream()
+    private val reply = ByteArrayOutputStream()
+    private val asyncStatusCodes = mutableListOf<Int>()
+    private val marker = "pooli_sta=".toByteArray(Charsets.US_ASCII)
+    private var overflowed = false
+
+    fun append(bytes: ByteArray, count: Int = bytes.size) {
+        if (count <= 0) return
+        pending.write(bytes, 0, count)
+        drain(final = false)
+    }
+
+    fun hasReply(): Boolean = reply.size() > 0 || overflowed
+
+    fun snapshot(): M1QueryReply = M1QueryReply(reply.toByteArray(), asyncStatusCodes.toList(), overflowed)
+
+    fun take(): M1QueryReply {
+        val result = snapshot()
+        reply.reset()
+        asyncStatusCodes.clear()
+        overflowed = false
+        return result
+    }
+
+    fun finish(): M1QueryReply {
+        drain(final = true)
+        return take()
+    }
+
+    private fun drain(final: Boolean) {
+        val source = pending.toByteArray()
+        pending.reset()
+        var cursor = 0
+        while (cursor < source.size) {
+            val markerIndex = source.indexOf(marker, cursor)
+            if (markerIndex >= 0) {
+                if (markerIndex > cursor) writeReply(source, cursor, markerIndex - cursor)
+                val valueIndex = markerIndex + marker.size
+                if (valueIndex >= source.size) {
+                    pending.write(source, markerIndex, source.size - markerIndex)
+                    return
+                }
+                asyncStatusCodes += source[valueIndex].toInt() and 0xff
+                cursor = valueIndex + 1
+                continue
+            }
+
+            val remaining = source.copyOfRange(cursor, source.size)
+            val retained = if (final) 0 else longestMarkerPrefixSuffix(remaining, marker)
+            val ordinaryCount = remaining.size - retained
+            if (ordinaryCount > 0) writeReply(remaining, 0, ordinaryCount)
+            if (retained > 0) pending.write(remaining, ordinaryCount, retained)
+            return
+        }
+    }
+
+    private fun writeReply(bytes: ByteArray, offset: Int, count: Int) {
+        if (overflowed || count <= 0) return
+        val remainingCapacity = maxReplyBytes - reply.size()
+        if (count > remainingCapacity) {
+            overflowed = true
+            return
+        }
+        reply.write(bytes, offset, count)
+    }
+}
+
 /** Stream parser for asynchronous `pooli_sta=` frames; it accepts split and coalesced reads. */
 internal class M1AsyncStatusParser {
     private val pending = ByteArrayOutputStream()

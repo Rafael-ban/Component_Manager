@@ -70,8 +70,12 @@ commands. A separate, explicitly confirmed test-label action rechecks the model
 and status, then sends one fixed 203-dpi raster in complete-row blocks of at most
 3072 raw bytes. Blocks use independently implemented literal-only LZO1X and the
 M1 POLI header, followed by a single label feed. No vendor binary or JNI is used.
-The existing 40 × 10 / 40 × 30 mm templates are supported for this test; dynamic
-text strips and normal component-label printing are not enabled. Socket write
+The existing 40 × 10 / 40 × 30 mm templates supply defaults for a device-local
+test paper profile with dimensions, rotation and image offsets. It changes the
+raster only; no firmware paper-type or calibration commands are sent. Normal
+component-label printing is not enabled. Query reads separate known asynchronous
+status frames from ordinary model/status replies, preserving split frames across
+query boundaries. Socket write
 completion means sent/unconfirmed, not physical print completion. Interrupted
 jobs are never automatically resent.
 Reports retain partial stages and status codes, but exclude arbitrary device

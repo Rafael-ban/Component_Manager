@@ -331,8 +331,9 @@ preferences and supports:
   payloads for JLC-sourced items and warehouse QR payloads for other items
 - opt-in Bluetooth diagnostics from label preview: service discovery, M1 Classic
   SPP model/status queries and a separately confirmed single M1 test label using
-  the existing 40 × 10 / 40 × 30 mm QR template sizes. Actual output still needs
-  device validation; see [M1 device test steps](docs/printer-compatibility.md)
+  the existing QR template defaults or a local paper-size/rotation/offset profile.
+  First output is device-confirmed; sizing and repeated printing still need
+  validation. See [M1 device test steps](docs/printer-compatibility.md).
 - user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
   templates, with linked QR dimensions, larger text treatment, direct
   label-sized export, physical-aspect preview rendering, and fixed per-size
