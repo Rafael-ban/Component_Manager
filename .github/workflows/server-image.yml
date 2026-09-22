@@ -99,6 +99,12 @@ jobs:
           cache-from: type=gha,scope=web-image
           cache-to: type=gha,mode=max,scope=web-image
 
+      - name: Verify Compose first-run configuration schema
+        run: python tools/deployment/verify-compose-config.py
+
+      - name: Verify server first-run setup and persistence
+        run: bash tools/deployment/verify-first-run.sh component-vault-server:ci
+
       - name: Verify API startup, authentication and mounted database
         run: |
           mkdir -p "$RUNNER_TEMP/component-vault-data"

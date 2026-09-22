@@ -3,15 +3,17 @@
 ## Docker Hub image deployment
 
 Use `docker-compose.hub.yml` to pull a published API image instead of building
-the server locally. Set `COMPONENT_VAULT_IMAGE` and `API_TOKEN` in the root `.env`.
+the server locally. Copy `.env.example` to the root `.env`; an existing deployment
+may continue supplying its `API_TOKEN` there. The Compose defaults target API `0.7.1` and Web
+`web-0.7.1` images; check their published tags before pulling. Override the image
+variables only to select another fixed, published tag.
 The server image listens on port 8787 and stores SQLite under `/data`; preserve
 the Compose project name and `component_vault_data` volume when upgrading.
-The admin Web app remains a separate image. After a Web tag is actually present,
-set `COMPONENT_VAULT_WEB_IMAGE` and start the optional profile with
-`docker compose -f docker-compose.hub.yml --profile web up -d`. Planned 0.7.0
-tags are API `0.7.0`/`latest` and Web `web-0.7.0`/`web-latest` in the same
-repository. Docker Hub credentials are not currently configured, so these tags
-must not be treated as published until the workflow and Hub Tags page confirm them.
+The admin Web app remains a separate image. Start the optional profile with
+`docker compose -f docker-compose.hub.yml --profile web up -d`. The 0.7.0
+tags API `0.7.0`/`latest` and Web `web-0.7.0`/`web-latest` are published in the
+same repository. The verified release and digest details are recorded in the
+Docker Hub guide.
 
 Repository maintainers configure Actions variables `DOCKERHUB_USERNAME` and
 `DOCKERHUB_IMAGE`, plus secret `DOCKERHUB_TOKEN`. CI always validates a container
@@ -19,6 +21,7 @@ without registry credentials. Release automation pushes only when both variables
 and the token are configured; otherwise it explicitly skips Docker publishing.
 A manual `Server Docker Image` run with `push_image=true` can publish an existing
 release afterward; normal CI never pushes an image. Follow the complete
+[Docker quickstart and API Token lookup](docker-quickstart.md), or the complete
 [Docker Hub setup, verification and upgrade instructions](dockerhub.md).
 
 ## Admin console deployment and API token
@@ -32,9 +35,12 @@ Turning the flag off blocks later browser writes but does not reverse completed
 inventory movements. Exact request retries are safe; after a 409 stale-version
 response, refresh the component before deciding whether to submit a new request ID.
 
-For Docker, copy the repository-root `.env.example` to `.env`, set `API_TOKEN`,
-and add the actual browser origin to `ADMIN_WEB_ORIGINS` (for example
-`http://192.168.31.160:8081`). Run `docker compose up -d --build` to apply changes.
+For a new Docker deployment, copy the repository-root `.env.example` to `.env`
+and leave `API_TOKEN`, `ADMIN_WEB_ORIGINS`, and `WEB_INVENTORY_ENABLED` empty.
+Start the API, then open `http://server:8787/setup`; the same-origin first-run
+page stores these settings under `/data/config.json`. Existing deployments may
+keep non-empty environment values, which take precedence and remain read-only in
+the setup UI. Run `docker compose up -d --build` to apply environment changes.
 A `.env` in `server/` is not the Compose root environment file. For a direct
 server launch, explicitly export the variables or run uvicorn with
 `--env-file .env` from `server/`; editing a file alone does not update a running
@@ -49,10 +55,11 @@ proxy deployments should configure their HTTPS API URL and allowed web origin.
 ### API token discovery
 
 The token is the deployment's `API_TOKEN`, not a GitHub access token and not a
-random value generated on every startup. Check the Compose root `.env` / container
-environment, or the environment used to launch uvicorn. Both native clients and
-the web login use the same value. Authenticated web settings can show/copy the
-current browser session token; they do not expose an unauthenticated token API.
+random value generated on every startup. Check the authenticated `/setup` page,
+Compose root `.env` / container environment, `/data/config.json`, or the
+environment used to launch uvicorn. Both native clients and the web login use the
+same value. Only the unconfigured first-run state permits anonymous setup; after
+save, viewing or changing settings and logs requires the current token.
 After changing the server token, update client settings and sign in again.
 
 ### Upgrade from the HTTP 422 long-name failure
@@ -153,10 +160,12 @@ Admin web is available at:
 
 ### Server
 
-- `API_TOKEN`: shared token for all authenticated endpoints
-- `DATABASE_PATH`: SQLite file path used by the FastAPI service
-- `APP_HOST`: host binding for direct local development
-- `APP_PORT`: port binding for direct local development
+- `API_TOKEN`: optional environment-provided shared token for authenticated endpoints
+- `DATABASE_PATH`: SQLite file path; Compose fixes it to `/data/component_vault.db`
+- `CONFIG_PATH`: optional override for `config.json`; defaults beside SQLite
+- `LOG_DIR`: optional application log directory; defaults to `logs` beside SQLite
+- `APP_HOST`, `APP_PORT`: host and port for direct local development; the
+  container command already binds `0.0.0.0:8787`
 - `ADMIN_WEB_ORIGINS`: comma-separated origins allowed to call the API from the
   separated admin web app
 - `LCSC_OPENAPI_KEY`: optional LCSC OpenAPI key used by
@@ -176,6 +185,29 @@ Admin web is available at:
   default `false`
 - `WEB_INVENTORY_ENABLED`: enables authenticated Web inventory writes, default
   `false`
+- `MQTT_ENABLED`, `MQTT_HOST`, `MQTT_PORT`, `MQTT_TLS`, `MQTT_USERNAME`,
+  `MQTT_PASSWORD`, `MQTT_TOPIC_PREFIX`, `MQTT_CLIENT_ID`: optional MQTT defaults.
+  `MQTT_HOST` is required only when MQTT is enabled. MQTT settings saved from
+  the authenticated Web page live in SQLite and override these defaults after
+  the API restarts.
+
+`.env.example` groups the first-run/common values before the advanced LCSC,
+remote-rule and MQTT values. Docker Compose passes all server settings that
+`server/app/config.py` accepts; users do not need to invent or mount another
+configuration file. Persistent API state under `/data` consists of SQLite,
+`config.json`, and bounded rolling logs at `/data/logs/server.log`. Uvicorn keeps
+writing to stdout/stderr as well, so Docker and NAS log viewers continue to work.
+The API does not store
+component image files: lookup `official_url` values point to external product
+pages, so there is no image directory to map.
+
+The default named volume remains the supported upgrade path. For a fresh install,
+operators who specifically need host-visible files may replace the API mapping
+with `./data:/data`. Existing deployments must take a consistent SQLite backup
+while writes are stopped and restore it into the bind mount before switching;
+changing the mount alone exposes an empty database and does not migrate or delete
+the old named volume. See the [Docker quickstart](docker-quickstart.md) for the
+mapping example and Token lookup commands.
 
 ## Versioning Workflow
 
@@ -504,8 +536,9 @@ curl -X POST http://localhost:8787/auth/ping `
 - Symptom: login succeeds locally in one environment but browser requests fail
   with CORS errors.
 - Cause: the browser origin is missing from `ADMIN_WEB_ORIGINS`.
-- Fix: add the origin to `ADMIN_WEB_ORIGINS`, restart the FastAPI service, and
-  retry from the admin web console.
+- Fix: add the Web page origin (usually port 8081, not API port 8787) to
+  `ADMIN_WEB_ORIGINS`. For Compose, run `up -d` so the API container is recreated
+  with the new environment; `docker compose restart` alone does not reload `.env`.
 
 ### Android release workflow fails immediately
 

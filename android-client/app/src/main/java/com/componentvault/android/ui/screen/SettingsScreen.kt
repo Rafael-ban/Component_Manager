@@ -833,8 +833,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
     when (section) {
         SettingsSection.Sync -> {
             item {
-                val context = LocalContext.current
-                var tokenCopied by remember(apiToken) { mutableStateOf(false) }
                 SectionPane(
                     title = strings.settings.connectionTitle.takeIf { showSectionHeading },
                     supporting = strings.settings.connectionSubtitle,
@@ -858,6 +856,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
                 }
             }
             item {
+                val context = LocalContext.current
+                var tokenCopied by remember(apiToken) { mutableStateOf(false) }
                 SectionPane(
                     title = strings.settings.authTitle,
                     supporting = strings.settings.authSubtitle,

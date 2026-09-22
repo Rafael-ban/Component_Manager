@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>服务端配置 · Component Vault</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#f4f7f7;--panel:#fff;--text:#162c2b;--muted:#4f6563;--line:#cddad8;--accent:#086b60;--soft:#e1f1ed;--error:#9f2828;--radius:16px;font:16px/1.6 system-ui,"Microsoft YaHei",sans-serif}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}main{max-width:960px;margin:auto;padding:40px 20px 64px}header{margin-bottom:24px}h1{font-size:clamp(26px,4vw,36px);line-height:1.25;margin:8px 0 12px}h2{font-size:20px;margin:0 0 8px}p{margin:8px 0;color:var(--muted)}.brand{color:var(--accent);font-weight:650;font-size:14px;letter-spacing:.06em}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin:16px 0}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.field{margin:20px 0}label{display:block;font-weight:600;margin-bottom:8px}input,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);font:inherit}textarea{resize:vertical;min-height:104px}input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}.check{display:flex;gap:12px;align-items:center;font-weight:500}.hint{font-size:14px}.primary,button{border-radius:8px;min-height:44px;padding:10px 16px;font:inherit;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button:disabled{opacity:.55;cursor:default}button:hover:not(:disabled){filter:brightness(.94)}:focus-visible{outline:3px solid var(--accent);outline-offset:3px}code{overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;background:var(--bg);padding:16px;border-radius:8px;font-size:13px}.notice{border-left:4px solid var(--accent);background:var(--soft);padding:12px 16px;border-radius:8px;color:var(--text)}.error{border-color:var(--error);color:var(--error)}[hidden]{display:none!important}dl{display:grid;grid-template-columns:110px 1fr;gap:8px 16px;margin-bottom:0}dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}.step{font-size:13px;font-weight:650;color:var(--accent)}footer{margin-top:24px;font-size:13px;color:var(--muted)}a{color:var(--accent)}@media(max-width:520px){main{padding:24px 16px}.card{padding:20px}dl{grid-template-columns:1fr;gap:4px}dd{margin-bottom:12px}.row>button{flex:1}}@media(prefers-color-scheme:dark){:root{--bg:#101a19;--panel:#182624;--text:#e1edea;--muted:#aabeb9;--line:#3a504a;--accent:#328e7f;--soft:#203d36;--error:#ffb4ab}}
+  </style>
+</head>
+<body><main>
+  <header><div class="brand">COMPONENT VAULT / 服务端</div><h1 id="heading">连接与配置</h1><p>设置访问令牌，查看配置文件与运行日志。库存保存在你自己的服务器上。</p></header>
+  <div id="message" class="notice" role="status" aria-live="polite">正在检查服务端状态…</div>
+  <section id="loginCard" class="card" hidden>
+    <h2>登录服务端配置</h2><p>使用 Android、Windows 或管理台连接此服务端时填写的 API Token。</p>
+    <form id="loginForm"><div class="field"><label for="loginToken">当前 API Token</label><input id="loginToken" type="password" autocomplete="current-password" required></div>
+      <div class="row"><button class="primary" type="submit">登录</button><button type="button" data-toggle="loginToken">显示令牌</button></div>
+    </form>
+    <details class="field"><summary>找不到 API Token？</summary><p class="hint">环境变量部署：群晖 Container Manager → 本应用 API 容器 → 详情 → 环境变量 → <code>API_TOKEN</code>；也可查看部署目录的 <code>.env</code>。网页配置部署：查看映射目录中的 <code>config.json</code> 的 <code>API_TOKEN</code>。非部署者请联系管理员。<code>GPG_KEY</code> 是基础镜像的公钥指纹，无需填写。</p></details>
+  </section>
+  <form id="configuration" hidden>
+    <section class="card"><div class="step">01 / 连接凭据</div><h2>API Token</h2><p id="tokenHelp">生成一个令牌并保存。手机、Windows 和 Web 管理台使用同一个值连接。</p>
+      <div class="field"><label for="apiToken">访问令牌</label><input id="apiToken" type="password" autocomplete="new-password" placeholder="至少 16 个字符"><p id="tokenLock" class="hint" hidden>由 API_TOKEN 环境变量控制。要更改它，请在容器配置中修改并重新创建容器。</p></div>
+      <div class="row"><button type="button" id="generate">生成令牌</button><button type="button" data-toggle="apiToken">显示令牌</button><button type="button" id="copyToken" disabled>复制令牌</button></div>
+    </section>
+    <section class="card"><div class="step">02 / 可选功能</div><h2>Web 管理台</h2><p>首次配置页无需安装额外镜像。完整库存管理台是独立 Web 镜像，通常使用 8081 端口。</p>
+      <div class="field"><label for="origins">允许访问 API 的管理台地址</label><textarea id="origins" placeholder="http://192.168.1.10:8081" aria-describedby="originHelp"></textarea><p id="originHelp" class="hint">每行一个浏览器管理台的地址（协议、主机、端口），不填 API 的 8787 地址，也不带页面路径。仅使用原生客户端时可保持默认。</p><p id="originLock" class="hint" hidden>由 ADMIN_WEB_ORIGINS 环境变量控制。</p></div>
+      <label class="check"><input id="webWrites" type="checkbox">允许已登录的 Web 管理台修改库存</label><p id="writesLock" class="hint" hidden>由 WEB_INVENTORY_ENABLED 环境变量控制。</p>
+    </section>
+    <div class="row"><button id="save" class="primary" type="submit">保存配置</button><button id="logout" type="button" hidden>退出配置</button></div>
+  </form>
+  <section id="filesCard" class="card" hidden><h2>文件位置与运行日志</h2><p>群晖使用目录映射后，可在 File Station 的对应目录找到这些文件。使用 Docker named volume 时，文件由 Docker 管理。</p><dl><dt>配置文件</dt><dd><code id="configPath"></code></dd><dt>运行日志</dt><dd><code id="logPath"></code></dd></dl><p id="overrides" class="hint"></p><p class="hint">环境变量的非空值优先于配置文件。数据库、MQTT 配置和元件资料继续保留在原数据目录中。</p><button id="loadLogs" type="button">查看最近日志</button><pre id="logs" tabindex="0" hidden></pre></section>
+  <footer>Component Vault · Rafael-Ikaros · <a href="https://github.com/Rafael-ban/Component_Manager" target="_blank" rel="noopener noreferrer">项目与部署教程</a></footer>
+</main>
+<script>
+  const el = id => document.getElementById(id);
+  // Resolve relative to the page so a reverse-proxy path prefix also works.
+  const base = location.pathname.replace(/\/$/, '').replace(/\/setup$/, '');
+  let token = '', configured = false, locked = [];
+  function message(text, error = false) { el('message').textContent = text; el('message').classList.toggle('error', error); }
+  async function request(path, options = {}) {
+    const response = await fetch(base + path, {...options, headers: {...(token ? {Authorization:'Bearer ' + token} : {}), ...(options.body ? {'Content-Type':'application/json'} : {})}, signal: AbortSignal.timeout(15000)});
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : '请求未成功，请检查配置。HTTP ' + response.status);
+    return body;
+  }
+  function renderConfig(data) {
+    el('configuration').hidden = false; el('loginCard').hidden = true;
+    el('filesCard').hidden = !configured; el('logout').hidden = !configured;
+    locked = data.environment_overrides || [];
+    el('apiToken').value = configured ? token : el('apiToken').value;
+    el('apiToken').type = 'password';
+    el('apiToken').readOnly = locked.includes('API_TOKEN');
+    el('generate').disabled = locked.includes('API_TOKEN');
+    el('apiToken').required = !configured;
+    el('tokenLock').hidden = !locked.includes('API_TOKEN');
+    el('copyToken').disabled = !el('apiToken').value;
+    el('origins').value = (data.admin_web_origins || ['http://localhost:8081']).join('\n');
+    el('origins').disabled = locked.includes('ADMIN_WEB_ORIGINS');
+    el('originLock').hidden = !el('origins').disabled;
+    el('webWrites').checked = data.web_inventory_enabled || false;
+    el('webWrites').disabled = locked.includes('WEB_INVENTORY_ENABLED');
+    el('writesLock').hidden = !el('webWrites').disabled;
+    el('configPath').textContent = data.config_path || '';
+    el('logPath').textContent = data.log_path || '';
+    el('overrides').textContent = locked.length ? '由环境变量控制：' + locked.join('、') : '当前设置可在此网页中修改。';
+    el('heading').textContent = configured ? '服务端配置' : '欢迎，先配置你的服务端';
+  }
+  async function start() {
+    try { const state = await request('/setup/status'); configured = state.configured;
+      if (configured) { el('loginCard').hidden = false; message('服务端已配置。登录后可查看文件位置和日志。'); }
+      else { renderConfig({}); message('首次设置：请先生成或填写 API Token，保存后初始化入口将关闭。'); }
+    } catch { message('暂时无法读取服务端状态，请刷新页面重试。', true); }
+  }
+  el('loginForm').onsubmit = async event => { event.preventDefault(); const button = event.submitter; button.disabled = true;
+    token = el('loginToken').value.trim();
+    try { renderConfig(await request('/setup/config')); el('loginToken').value = ''; message('已登录。令牌默认隐藏，可按需显示或复制。'); }
+    catch (error) { token = ''; message(error.message, true); } finally { button.disabled = false; }
+  };
+  el('generate').onclick = () => {
+    if (!globalThis.crypto?.getRandomValues) { message('当前浏览器无法生成随机令牌，请手动填写至少 16 个字符。', true); return; }
+    el('apiToken').value = Array.from(crypto.getRandomValues(new Uint8Array(24)), n => n.toString(16).padStart(2, '0')).join('');
+    el('copyToken').disabled = false; message('已生成令牌，保存配置后才会生效。');
+  };
+  el('apiToken').oninput = () => { el('copyToken').disabled = !el('apiToken').value; };
+  document.querySelectorAll('[data-toggle]').forEach(button => { button.onclick = () => {
+    const input = el(button.dataset.toggle); input.type = input.type === 'password' ? 'text' : 'password'; button.textContent = input.type === 'password' ? '显示令牌' : '隐藏令牌';
+  }; });
+  el('copyToken').onclick = async () => {
+    const value = el('apiToken').value;
+    let copied = false;
+    try { await navigator.clipboard.writeText(value); copied = true; } catch {
+      const input = document.createElement('textarea'); input.value = value; input.style.position = 'fixed'; input.style.opacity = '0'; document.body.append(input); input.select();
+      try { copied = document.execCommand('copy'); } catch {} finally { input.remove(); }
+    }
+    message(copied ? '令牌已复制。请保存到自己的客户端或密码管理器。' : '浏览器未允许复制，请显示令牌后手动选择复制。', !copied);
+  };
+  el('configuration').onsubmit = async event => {
+    event.preventDefault(); el('save').disabled = true;
+    const newToken = el('apiToken').value.trim();
+    if ((!configured || newToken !== token) && newToken.length < 16) { message('新的 API Token 至少需要 16 个字符。', true); el('save').disabled = false; return; }
+    message('正在保存配置…');
+    try {
+      const data = await request('/setup/config', {method:'POST', body:JSON.stringify({api_token: configured && newToken === token ? '' : newToken, admin_web_origins:el('origins').value.split(/[\n,]+/).map(x=>x.trim()).filter(Boolean), web_inventory_enabled:el('webWrites').checked})});
+      token = newToken || token; configured = true; renderConfig(data);
+      message('配置已保存。将 API 地址与此令牌填入客户端即可连接；修改令牌后，其他客户端也需更新。');
+    } catch (error) {
+      message(error.message + ' 若连接中断，请刷新后使用刚填写的令牌登录，确认是否已保存。', true);
+    } finally { el('save').disabled = false; }
+  };
+  el('logout').onclick = () => { token = ''; el('apiToken').value = ''; el('logs').textContent = ''; el('configuration').hidden = true; el('filesCard').hidden = true; el('loginCard').hidden = false; message('已退出配置。'); };
+  el('loadLogs').onclick = async () => {
+    el('loadLogs').disabled = true;
+    try { const data = await request('/setup/logs'); el('logs').hidden = false; el('logs').textContent = data.lines?.join('\n') || '暂无运行日志。'; }
+    catch (error) { message(error.message, true); } finally { el('loadLogs').disabled = false; }
+  };
+  start();
+</script></body></html>

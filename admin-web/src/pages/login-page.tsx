@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { LockKeyhole, Server } from "lucide-react";
+import { Copy, Eye, EyeOff, LockKeyhole, Server } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
+import { copyText, serverSetupUrl } from "@/lib/clipboard";
 
 const DEFAULT_API_BASE_URL = import.meta.env.VITE_DEFAULT_API_BASE_URL
   || `${window.location.protocol}//${window.location.hostname}:8787`;
@@ -23,6 +24,8 @@ export function LoginPage() {
   const { login, session } = useAuth();
   const [apiBaseUrl, setApiBaseUrl] = useState(session?.apiBaseUrl ?? DEFAULT_API_BASE_URL);
   const [token, setToken] = useState(session?.token ?? "");
+  const [showToken, setShowToken] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const routeState = location.state as { from?: unknown; reason?: unknown } | null;
@@ -114,17 +117,39 @@ export function LoginPage() {
               <label className="block space-y-2">
                 <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
                   <LockKeyhole className="h-4 w-4" />
-                  Bearer 令牌
+                  API Token
                 </span>
                 <Input
-                  type="password"
+                  type={showToken ? "text" : "password"}
                   autoComplete="current-password"
                   value={token}
-                  onChange={(event) => setToken(event.target.value)}
-                  placeholder="change-me"
+                  onChange={(event) => { setToken(event.target.value); setTokenCopied(false); }}
+                  placeholder="粘贴部署时设置的 API_TOKEN"
                 />
-                <p className="text-xs text-muted-foreground">令牌是服务部署时配置的 <code>API_TOKEN</code>，不是 GitHub token。可从启动脚本、容器环境或部署平台 Secrets 获取或重设。</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setShowToken((value) => !value)}>
+                    {showToken ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+                    {showToken ? "隐藏令牌" : "显示令牌"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!token.trim()}
+                    onClick={async () => {
+                      const copied = await copyText(token);
+                      setTokenCopied(copied);
+                      if (!copied) setError("浏览器未允许复制，请显示令牌后手动复制。");
+                    }}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    {tokenCopied ? "已复制" : "复制令牌"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">API Token 由部署者设置。可在服务端配置页显示与复制当前令牌；也可查看 API 容器的 <code>API_TOKEN</code> 环境变量、部署目录的 <code>.env</code>，或映射目录中 <code>config.json</code> 的 <code>API_TOKEN</code>。它不是 <code>GPG_KEY</code> 或 <code>DOCKERHUB_TOKEN</code>。非部署者请联系管理员。</p>
               </label>
+
+              {serverSetupUrl(apiBaseUrl) ? <a className="block text-sm font-medium text-teal-700 underline" href={serverSetupUrl(apiBaseUrl)} target="_blank" rel="noopener noreferrer">首次部署？打开服务端配置与日志</a> : null}
 
               {error ? (
                 <Alert variant="destructive">

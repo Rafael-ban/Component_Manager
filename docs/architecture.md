@@ -17,10 +17,18 @@ always builds and starts amd64 validation images, checks API/auth/database
 startup, then fetches the Web index and its emitted JS/CSS assets. When Docker
 Hub variables and token are configured, releases publish API tags `<version>`
 and `latest`, plus Web tags `web-<version>` and `web-latest`, for amd64/arm64.
-The credentials are not currently configured, so planned `0.7.0` examples do
-not prove those tags exist. SQLite persists under `/data`.
+The 0.7.0 API and Web tags were verified published. Each subsequent release must
+still verify its own publication. SQLite persists under `/data`.
 `docker-compose.hub.yml` retains the source Compose data volume and exposes the
 Web image through the optional `web` profile. See [Docker Hub operations](dockerhub.md).
+
+The API provides a separate, small `/setup` page on its own origin for first-run
+configuration and authenticated operational logs. It does not replace the React
+inventory console. Initialization persists Token, allowed origins and the Web
+write switch to `config.json` beside SQLite. Non-empty environment overrides
+remain authoritative. Configuration writes are atomic; initializing twice cannot
+replace a configured server without its current token. Logs under `logs/` are
+bounded and contain operational events, not request bodies or credentials.
 
 ## Android Client
 
@@ -44,6 +52,19 @@ Blocked/unavailable/unmatched/invalid responses retain explicit fallback reasons
 International keyword search is unavailable in the current public-page adapter,
 so that path explicitly identifies its use of domestic search. No server or
 OpenAPI key is introduced by this routing change.
+
+Domestic lookup first parses valid product data before checking verification-page
+markers. An app-session gate pauses further domestic attempts after a verification
+block (120 seconds), a network failure (30 seconds), or a bounded Retry-After rate
+limit. Different SKUs can still use the international fallback; explicit retry
+clears the pause. Browser sessions are independent and browser verification does
+not guarantee that native requests will be accepted. No challenge bypass is used.
+
+Android label preview includes an opt-in Bluetooth diagnostic dialog. It lists
+nearby BLE and system-paired devices, inspects service UUIDs for the selected
+device, and disconnects after completion, timeout, cancellation or leaving the
+foreground. It sends no print commands and copies no names, addresses or label
+contents into reports. See [printer status and device test steps](printer-compatibility.md).
 
 Android catalog cache keys include the preferred source. Only a primary-source
 success is persisted; fallback results never suppress a subsequent attempt at

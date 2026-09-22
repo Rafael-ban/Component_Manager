@@ -1,15 +1,17 @@
 # Pull the published API image instead of building from source.
-# Set COMPONENT_VAULT_IMAGE to your Docker Hub repository and release tag.
+# Override COMPONENT_VAULT_IMAGE only when deploying another fixed release tag.
 services:
   api:
-    image: ${COMPONENT_VAULT_IMAGE:?Set COMPONENT_VAULT_IMAGE to namespace/repository:version in .env}
+    image: ${COMPONENT_VAULT_IMAGE:-rafaelikaros/component_manager:0.7.1}
     ports:
       - "8787:8787"
     environment:
-      API_TOKEN: ${API_TOKEN:?Set API_TOKEN in .env before starting the server}
+      API_TOKEN: ${API_TOKEN:-}
       DATABASE_PATH: /data/component_vault.db
-      ADMIN_WEB_ORIGINS: ${ADMIN_WEB_ORIGINS:-http://localhost:8081}
-      WEB_INVENTORY_ENABLED: ${WEB_INVENTORY_ENABLED:-false}
+      CONFIG_PATH: ${CONFIG_PATH:-}
+      LOG_DIR: ${LOG_DIR:-}
+      ADMIN_WEB_ORIGINS: ${ADMIN_WEB_ORIGINS:-}
+      WEB_INVENTORY_ENABLED: ${WEB_INVENTORY_ENABLED:-}
       MQTT_ENABLED: ${MQTT_ENABLED:-false}
       MQTT_HOST: ${MQTT_HOST:-}
       MQTT_PORT: ${MQTT_PORT:-1883}
@@ -18,6 +20,13 @@ services:
       MQTT_PASSWORD: ${MQTT_PASSWORD:-}
       MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-component-vault}
       MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-component-vault-server}
+      LCSC_OPENAPI_KEY: ${LCSC_OPENAPI_KEY:-}
+      LCSC_OPENAPI_SECRET: ${LCSC_OPENAPI_SECRET:-}
+      LCSC_OPENAPI_BASE_URL: ${LCSC_OPENAPI_BASE_URL:-https://ips.lcsc.com}
+      LCSC_LOOKUP_CACHE_TTL_SECONDS: ${LCSC_LOOKUP_CACHE_TTL_SECONDS:-43200}
+      IMPORT_RULES_REMOTE_URL: ${IMPORT_RULES_REMOTE_URL:-}
+      IMPORT_RULES_REFRESH_HOURS: ${IMPORT_RULES_REFRESH_HOURS:-24}
+      ENABLE_WEB_FALLBACK_RESOLVERS: ${ENABLE_WEB_FALLBACK_RESOLVERS:-false}
     volumes:
       - component_vault_data:/data
     restart: unless-stopped
@@ -25,7 +34,7 @@ services:
   admin-web:
     profiles:
       - web
-    image: ${COMPONENT_VAULT_WEB_IMAGE:-rafaelikaros/component_manager:web-0.7.0}
+    image: ${COMPONENT_VAULT_WEB_IMAGE:-rafaelikaros/component_manager:web-0.7.1}
     depends_on:
       - api
     ports:

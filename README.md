@@ -47,12 +47,16 @@ connects to it over HTTP.
 - Soft delete for synchronized entities.
 - Inventory history recorded as stock movements.
 - Self-hosted API secured by a shared API token.
+- The API also serves a small setup and log page at `/setup` (port 8787),
+  independently of the full inventory Web console. First-run configuration saves
+  to `/data/config.json`; later access requires the current token. Non-empty
+  deployment environment variables override the corresponding saved fields.
 - Separate API and Web images support Docker Hub distribution for `linux/amd64`
   and `linux/arm64`; API uses `<version>`/`latest`, while Web uses
   `web-<version>`/`web-latest`. SQLite uses the persistent API `/data` mount.
-  These tags are available only after Docker Hub credentials are configured and
-  a publish workflow succeeds; planned `0.7.0` examples are not proof of publication.
-  See [Docker Hub deployment and release setup](docs/dockerhub.md).
+  API `0.7.0` and Web `web-0.7.0` were verified published. Later tags still require
+  successful publishing checks. Start with the [Docker / Synology quickstart](docs/docker-quickstart.md);
+  maintainers can use the [Docker Hub release setup](docs/dockerhub.md).
   Historical 0.5.2 follow-up analysis is retained in
   [the 0.6.0 feature reconciliation](docs/remaining-features-0.6.md).
 - Separated admin web console backed by token-protected `/admin-api/*`.
@@ -499,6 +503,17 @@ Latest healthy-host verification snapshot:
 
 ## Docker Deployment
 
+For a NAS or an existing Docker installation, use the
+[Docker / Synology quickstart](docs/docker-quickstart.md). Mount the API's `/data`
+directory to retain the database, `config.json`, and bounded `logs/server.log`.
+New installations can leave `API_TOKEN` empty and open `http://server:8787/setup`
+to configure access before using clients. The setup API closes anonymous writes
+after initialization; existing environment-configured installations still require
+their current token. No Docker Hub publishing credentials are needed to deploy.
+The full inventory Web app remains optional on port 8081.
+
+To build from source:
+
 ```powershell
 docker compose up --build
 ```
@@ -515,6 +530,8 @@ The separated admin web container is available at:
 - `API_TOKEN`: shared bearer token required by `/auth/ping`, `/sync/push`, and
   `/sync/pull`, and `/admin-api/*`
 - `DATABASE_PATH`: SQLite file path used by the FastAPI service
+- `CONFIG_PATH`: optional configuration file location; defaults beside the database
+- `LOG_DIR`: optional application log directory; defaults to `logs` beside the database
 - `APP_HOST`: bind host for local development
 - `APP_PORT`: bind port for local development
 - `ADMIN_WEB_ORIGINS`: comma-separated browser origins allowed to call the API

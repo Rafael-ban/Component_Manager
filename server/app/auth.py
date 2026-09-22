@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Annotated
+import secrets
 
 from fastapi import Depends, Header, HTTPException, status
 
@@ -13,7 +14,13 @@ def require_token(
     settings: Settings = Depends(get_settings),
 ) -> None:
     token = _extract_token(authorization=authorization, x_api_token=x_api_token)
-    if token != settings.api_token:
+    if (
+        not settings.api_token
+        or not token
+        or not secrets.compare_digest(
+            token.encode("utf-8"), settings.api_token.encode("utf-8")
+        )
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API token",
@@ -31,4 +38,3 @@ def _extract_token(
         return authorization.removeprefix("Bearer ").strip()
 
     return None
-

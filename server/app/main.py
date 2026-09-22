@@ -12,10 +12,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .admin.api import router as admin_router
 from .auth import require_token
+from .application_logging import (
+    close_application_logger,
+    configure_application_logger,
+    log_event,
+)
 from .config import get_settings
 from .database import _connect, get_db, init_db
 from .mqtt import MqttPublisher
 from .mqtt_configuration import configuration_response, save_mqtt_configuration
+from .deployment_configuration import router as deployment_configuration_router
 from .repositories import (
     pull_sync_snapshot,
     save_sync_payload,
@@ -33,6 +39,7 @@ from .schemas import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_application_logger()
     settings = get_settings()
     init_db(settings)
     if not settings.mqtt_enabled:
@@ -47,10 +54,30 @@ async def lifespan(app: FastAPI):
     publisher = MqttPublisher(settings)
     app.state.mqtt_publisher = publisher
     publisher.start()
+    log_event("startup")
     try:
         yield
     finally:
         publisher.stop()
+        close_application_logger()
+
+
+class DynamicCORSMiddleware:
+    """Apply current saved origins to each request without restarting."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        settings = get_settings()
+        middleware = CORSMiddleware(
+            self.app,
+            allow_origins=list(settings.admin_web_origins),
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "PUT", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", "X-API-Token"],
+        )
+        await middleware(scope, receive, send)
 
 
 def create_app() -> FastAPI:
@@ -62,6 +89,19 @@ def create_app() -> FastAPI:
         request: Request,
         error: RequestValidationError,
     ) -> JSONResponse:
+        if request.url.path == "/setup/config":
+            fields = sorted({
+                ".".join(str(part) for part in item.get("loc", ())[1:])
+                or "request"
+                for item in error.errors()
+            })
+            return JSONResponse(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                content={
+                    "detail": "Deployment configuration validation failed.",
+                    "fields": fields,
+                },
+            )
         if request.url.path != "/admin-api/mqtt/config":
             from fastapi.exception_handlers import request_validation_exception_handler
 
@@ -77,14 +117,31 @@ def create_app() -> FastAPI:
                 "fields": fields,
             },
         )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=list(settings.admin_web_origins),
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-API-Token"],
-    )
+    app.add_middleware(DynamicCORSMiddleware)
+    app.include_router(deployment_configuration_router)
     app.include_router(admin_router)
+
+    @app.middleware("http")
+    async def application_request_log(request: Request, call_next):
+        try:
+            response = await call_next(request)
+        except Exception:
+            route = request.scope.get("route")
+            log_event(
+                "request",
+                method=request.method,
+                route=getattr(route, "name", "unmatched"),
+                status=500,
+            )
+            raise
+        route = request.scope.get("route")
+        log_event(
+            "request",
+            method=request.method,
+            route=getattr(route, "name", "unmatched"),
+            status=response.status_code,
+        )
+        return response
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:

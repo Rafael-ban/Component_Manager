@@ -1,8 +1,10 @@
 # Docker Hub 镜像发布与部署教程
 
-本文分为两部分：仓库维护者在 Docker Hub 和 GitHub 中配置镜像发布，以及部署者从 Docker Hub 拉取独立的 API / Web 镜像。
+普通部署者请先看 [Docker 快速部署与 API Token 查找](docker-quickstart.md)。拉取公开镜像不需要 Docker Hub 登录、Docker Hub Token 或 GitHub PAT；快速入门包含生成、查找和忘记 `API_TOKEN` 时的处理方法。
 
-`v0.6.0` 首次发布时 Docker Hub 任务因凭据未配置而 skipped。`v0.7.0` 正式发布时，仓库已具备发布配置，[发布任务](https://github.com/Rafael-ban/Component_Manager/actions/runs/35722942557) 成功。2026-09-22 已直接核对 Docker Hub：API `0.7.0` 与 Web `web-0.7.0` 均为 active，并包含 `linux/amd64`、`linux/arm64`；可以直接按第七节开始部署。前六节保留给首次配置、Token 轮换和手动补发使用，不需要重复生成现有凭据。
+本文保留仓库维护者的发布配置、发布验证，以及部署者的升级、迁移和备份细节。
+
+`v0.6.0` 首次发布时 Docker Hub 任务因凭据未配置而 skipped。`v0.7.0` 正式发布时，仓库已具备发布配置，[发布任务](https://github.com/Rafael-ban/Component_Manager/actions/runs/35722942557) 成功。2026-09-22 已直接核对 Docker Hub：API `0.7.0` 与 Web `web-0.7.0` 均为 active，并包含 `linux/amd64`、`linux/arm64`。前六节只供维护者首次配置、Token 轮换和手动补发；普通部署者不需要这些发布凭据。
 
 已核对的版本 digest：
 
@@ -27,7 +29,9 @@ GitHub 用户名和 Docker Hub namespace 不要求相同。填写 `DOCKERHUB_IMA
 还要区分两种完全不同的凭据：
 
 - `DOCKERHUB_TOKEN` 是 Docker Hub Personal Access Token，只供 GitHub Actions 登录 Docker Hub 并推送镜像。
-- `API_TOKEN` 是本项目服务端 API 的访问令牌，由部署者写入 `.env`，供 Android、Windows 和 Web 客户端登录服务端。
+- `API_TOKEN` 是本项目服务端 API 的访问令牌，供 Android、Windows 和 Web 客户端登录服务端。新安装可通过 `/setup` 生成并保存，已有部署也可继续由 `.env` 提供。
+
+在 `python:3.12-slim` 基础镜像信息中看到的 `GPG_KEY` 也不是本项目凭据。它是 Docker 官方 Python 镜像构建源码时使用的 40 位十六进制公钥指纹，不是私钥，也不能当作 `API_TOKEN`。可在 [Docker Library Python 的 3.12 slim-bookworm Dockerfile](https://raw.githubusercontent.com/docker-library/python/master/3.12/slim-bookworm/Dockerfile) 核对其来源。
 
 不要把任何真实 Token 写进源码、Compose 文件、Issue、日志或聊天消息。
 
@@ -155,28 +159,26 @@ docker pull rafaelikaros/component_manager:web-0.7.0
 部署机需要 Docker Engine 与 Docker Compose 2，命令应为 `docker compose`。Windows 用户可使用 Docker Desktop，并切换到 Linux containers，因为本项目发布的是 Linux 容器镜像。
 
 先执行 `docker version` 和 `docker compose version`，确认能连接 Docker 服务且 Compose 可用。
-必须先完成上一节的镜像上传验证，再进行拉取部署。
-
-镜像确认发布后，从对应的 `v0.7.0` tag 下载 `docker-compose.hub.yml` 和 `.env.example`。发布前可先准备配置，但不要尝试拉取尚不存在的 tag。
+当前 `0.7.0` 与 `web-0.7.0` 已发布，可直接部署。从对应的 `v0.7.0` tag 下载 `docker-compose.hub.yml` 和 `.env.example`。
 
 把两个文件放到一个固定部署目录，例如 `component-manager-server/`。将 `.env.example` 复制为同目录的 `.env`。如果目录中已经有 `.env`，先备份和对比，不要直接覆盖现有 Token、CORS 或 MQTT 配置。
 
-至少设置：
+新安装将以下三项保持为空，以便通过首次配置页管理：
 
 ```dotenv
-COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.7.0
-COMPONENT_VAULT_WEB_IMAGE=rafaelikaros/component_manager:web-0.7.0
-API_TOKEN=replace-with-your-own-random-token
-ADMIN_WEB_ORIGINS=http://192.168.1.10:8081
-WEB_INVENTORY_ENABLED=false
+API_TOKEN=
+ADMIN_WEB_ORIGINS=
+WEB_INVENTORY_ENABLED=
 ```
 
-把 `API_TOKEN` 的占位值换成自己的随机值。PowerShell 可执行
-`[guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')`，
-Linux 可执行 `openssl rand -hex 32`，把输出存入自己的 `.env`，无需发送给其他人。
-确认文件名为 `.env` 而非 `.env.txt`。
+Compose 已默认固定到已发布的 API `0.7.0` 与 Web `web-0.7.0`。只有在切换到另一个已发布版本时，才需要在 `.env` 覆盖 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE`。
 
-`ADMIN_WEB_ORIGINS` 填浏览器访问 Web 管理页时的来源，格式是 `scheme://host:port`，例如 `http://192.168.1.10:8081`。它不是服务端 API URL，不要填 `http://192.168.1.20:8787`，除非浏览器中的 Web 页面本身确实由该 origin 提供。多个 Web 来源用逗号分隔。
+确认文件名为 `.env` 而非 `.env.txt`。API 启动后打开
+`http://服务器IP:8787/setup`，生成或填写 Token、Web 页面 origin 和库存写入开关。
+设置保存在 `/data/config.json`；首次保存后，后续查看或修改需要当前 Token。
+已有部署可保留 `.env` 中的非空值，它们优先于配置文件且在网页中只读。
+
+`ADMIN_WEB_ORIGINS` 填浏览器访问 Web 管理页时的来源，格式是 `scheme://host:port`，例如 `http://192.168.1.10:8081`。它不是服务端 API URL，不要填 `http://192.168.1.20:8787`，除非浏览器中的 Web 页面本身确实由该 origin 提供。多个 Web 来源用逗号分隔。API 自带的 `/setup` 页面与 API 同源，不依赖这项 CORS 设置。
 
 ## 八、拉取并启动服务端
 
@@ -200,7 +202,7 @@ curl http://服务器IP:8787/health
 随后在 Android 或 Windows 客户端中填写：
 
 - 服务端地址：`http://服务器IP:8787`
-- API Token：与部署目录 `.env` 中 `API_TOKEN` 完全一致
+- API Token：与 `/setup` 中当前生效值完全一致
 
 完成一次带 Token 的连接或同步测试，才能确认鉴权和网络路径都可用。
 手机中的地址不能用 `localhost`，应使用手机能访问的服务器 IP 或域名；服务器防火墙需允许对应的 8787 端口。
@@ -216,7 +218,8 @@ Web 页面位于 `http://服务器IP:8081/`。若 Web 镜像尚未发布，仍�
 Release 下载 `component-vault-admin-web.zip` 并用静态服务器单独部署。无论采用
 哪种方式，都要把实际页面 origin 加入 `ADMIN_WEB_ORIGINS`。
 
-Web 库存写入默认关闭。在 `.env` 中设置 `WEB_INVENTORY_ENABLED=true` 后，重新执行
+Web 库存写入默认关闭。可在已认证的 `/setup` 配置页启用；若该值由 `.env`
+接管，则在 `.env` 中设置 `WEB_INVENTORY_ENABLED=true`。环境变量修改后重新执行
 `docker compose -f docker-compose.hub.yml --profile web up -d`，让 Compose 按新环境变量重建 API 容器；
 仅执行 `docker compose restart` 不会应用 `.env` 的修改。
 生效后，已通过共享 Token 登录的浏览器才能新增库位/元件、编辑资料和记录出入库。
@@ -265,6 +268,6 @@ docker compose -p 原项目名 -f docker-compose.hub.yml up -d
 | `pull` 超时 | Docker Hub 网络、DNS 或代理问题 | 先用 `docker pull` 单独诊断网络，再重试 Compose |
 | Web 请求 API 出现 CORS 错误 | `ADMIN_WEB_ORIGINS` 填成 API 地址或遗漏实际 Web origin | 填浏览器地址栏中 Web 页面的 scheme、host 和 port |
 | 换目录后库存为空 | Compose project name 变化，创建了新的空 volume | 回到原目录，或用 `-p 原项目名` 指向原 project |
-| `/health` 正常但客户端 401 | 客户端 Token 与 `.env` 的 `API_TOKEN` 不一致 | 更新客户端 Token 后重试；无需给 `/health` 加 Token |
+| `/health` 正常但客户端 401 | 客户端 Token 与 `/setup` 当前生效的 `API_TOKEN` 不一致 | 更新客户端 Token 后重试；无需给 `/health` 加 Token |
 
 排障时先看 `docker compose ... ps` 和 `logs`，再区分是镜像发布、镜像拉取、容器启动、鉴权还是浏览器 CORS 问题，避免用删除 volume 作为通用重试手段。

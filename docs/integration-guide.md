@@ -13,9 +13,31 @@ Examples in this document assume `http://localhost:8787`.
 - The server also accepts `X-API-Token`, but the client uses bearer auth.
 - The separated `admin-web/` console authenticates through `POST /auth/ping`
   and then calls `/admin-api/*`.
-- Android JLC import enrichment also uses bearer auth against
-  `GET /admin-api/part-lookup`, while `GET /admin-api/lcsc/lookup` remains a
-  direct compatibility route.
+- Native JLC import enrichment queries public catalogs directly without a
+  server token. The separate server-side `GET /admin-api/part-lookup` and
+  `GET /admin-api/lcsc/lookup` helpers remain authenticated.
+
+## Deployment configuration
+
+From 0.7.1, `GET /` redirects to the built-in `GET /setup` page. It is served on
+the API's own origin, so initial setup does not depend on the React admin app.
+`GET /setup/status` returns only `{ "configured": true | false }` anonymously.
+`GET /setup/config` and `GET /setup/logs` require the current Bearer token.
+
+`POST /setup/config` accepts `api_token`, `admin_web_origins` (an array of HTTP(S)
+origins), and `web_inventory_enabled`. A fresh, unconfigured deployment accepts
+its first write without a token. Once configured, all further writes require
+the current token; a concurrent stale initial write receives 409. Later updates
+can leave `api_token` empty to retain it. Non-empty environment overrides lock
+the corresponding field; attempts to change it receive 409. Responses never
+return the token. Configuration and authentication changes take effect after a
+successful atomic save; the browser supplies the new token on later requests.
+
+The configuration response includes effective origins, the Web write switch,
+`environment_overrides`, `config_path`, and `log_path`. The logs response contains
+up to 200 recent application event lines. It does not include request bodies,
+queries or credentials. File locations and recovery steps are in the
+[Docker quickstart](docker-quickstart.md).
 
 ## Endpoints
 

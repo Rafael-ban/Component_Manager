@@ -14,6 +14,7 @@ import { useAdminResource } from "@/hooks/use-admin-resource";
 import type { AdminSettingsResponse } from "@/lib/types";
 import { MqttSettingsCard } from "@/components/mqtt-settings-card";
 import { useAuth } from "@/hooks/use-auth";
+import { copyText, serverSetupUrl } from "@/lib/clipboard";
 
 export function SettingsPage() {
   const { session } = useAuth();
@@ -40,7 +41,8 @@ export function SettingsPage() {
             <Button type="button" size="sm" variant="outline" onClick={() => setShowToken((value) => !value)}>{showToken ? "隐藏" : "显示"}</Button>
             <Button type="button" size="sm" variant="outline" onClick={async () => { if (!session) return; setCopied(await copyText(session.token)); }}>{copied ? "已复制" : "复制令牌"}</Button>
           </div>
-          <p>这是浏览器当前会话已经持有的值。服务端令牌来自 <code>API_TOKEN</code> 环境变量；需要更换时，请在启动脚本、容器环境或部署平台 Secrets 中重设并重启服务。</p>
+          <p>这是浏览器当前会话持有的值。服务端令牌来自 <code>API_TOKEN</code> 环境变量或数据目录的 <code>config.json</code>。配置页提供文件位置、有效配置和最近运行日志。</p>
+          {session && serverSetupUrl(session.apiBaseUrl) ? <a className="block underline" href={serverSetupUrl(session.apiBaseUrl)} target="_blank" rel="noopener noreferrer">打开服务端配置与日志</a> : null}
         </AlertDescription>
       </Alert>
 
@@ -132,19 +134,4 @@ export function SettingsPage() {
       <MqttSettingsCard />
     </section>
   );
-}
-
-async function copyText(value: string): Promise<boolean> {
-  if (navigator.clipboard?.writeText) {
-    try { await navigator.clipboard.writeText(value); return true; } catch { /* LAN HTTP fallback below. */ }
-  }
-  const input = document.createElement("textarea");
-  input.value = value;
-  input.style.position = "fixed";
-  input.style.opacity = "0";
-  document.body.appendChild(input);
-  input.select();
-  const copied = document.execCommand("copy");
-  input.remove();
-  return copied;
 }
