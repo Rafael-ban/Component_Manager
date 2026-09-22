@@ -10,6 +10,7 @@ object BomParser {
         bytes: ByteArray,
         projectName: String,
         productionSets: Int,
+        mapping: BomColumnMapping? = null,
     ): BomParseResult {
         validateRequest(bytes, projectName, productionSets)
         val text = decodeUtf8(bytes).removePrefix("\uFEFF")
@@ -19,6 +20,7 @@ object BomParser {
             rows = rows.mapIndexed { index, values -> TabularRow(index + 1, values) },
             sheetName = sheet.name,
             productionSets = productionSets,
+            mapping = mapping,
         )
         return BomParseResult(
             projectName = projectName.trim(),
@@ -28,6 +30,13 @@ object BomParser {
             requirements = requirements,
             fileSha256 = ImportHash.sha256(bytes),
         )
+    }
+
+    fun inspectCsv(bytes: ByteArray): BomTableInspection {
+        checkFileSize(bytes)
+        val rows = CsvTableReader.read(decodeUtf8(bytes).removePrefix("\uFEFF"))
+            .mapIndexed { index, values -> TabularRow(index + 1, values) }
+        return BomRowsMapper.inspect(rows, BomSheet("CSV", 0))
     }
 
     fun listXlsxSheets(bytes: ByteArray): List<BomSheet> {
@@ -40,6 +49,7 @@ object BomParser {
         projectName: String,
         productionSets: Int,
         sheetName: String? = null,
+        mapping: BomColumnMapping? = null,
     ): BomParseResult {
         validateRequest(bytes, projectName, productionSets)
         val workbook = XlsxWorkbookReader.read(
@@ -62,9 +72,17 @@ object BomParser {
             productionSets = productionSets,
             availableSheets = workbook.sheets,
             selectedSheet = selectedSheet,
-            requirements = BomRowsMapper.map(rows, selectedSheet.name, productionSets),
+            requirements = BomRowsMapper.map(rows, selectedSheet.name, productionSets, mapping),
             fileSha256 = ImportHash.sha256(bytes),
         )
+    }
+
+    fun inspectXlsx(bytes: ByteArray, sheetName: String? = null): BomTableInspection {
+        checkFileSize(bytes)
+        val workbook = XlsxWorkbookReader.read(bytes, true, sheetName)
+        val sheet = (if (sheetName == null) workbook.sheets.firstOrNull { !it.hidden } ?: workbook.sheets.firstOrNull() else workbook.sheets.firstOrNull { it.name == sheetName })
+            ?: throw LocalImportException(LocalImportErrorCode.SHEET_NOT_FOUND, "找不到工作表。", sheetName)
+        return BomRowsMapper.inspect(workbook.rowsBySheetName[sheet.name].orEmpty(), sheet)
     }
 
     private fun validateRequest(bytes: ByteArray, projectName: String, productionSets: Int) {
@@ -174,19 +192,47 @@ internal object BomRowsMapper {
         ColumnKind.PACKAGE to setOf("package", "packagecase", "封装", "封装规格", "footprint", "encapstandard"),
         ColumnKind.QUANTITY to setOf("qty", "quantity", "数量", "用量", "单套用量", "需求数量"),
         ColumnKind.NAME to setOf("name", "名称", "品名", "元件名称", "description", "描述"),
+        ColumnKind.REFERENCE to setOf("reference", "references", "refdes", "designator", "位号", "参考位号"),
     )
 
-    fun map(rows: List<TabularRow>, sheetName: String, productionSets: Int): List<BomRequirement> {
+    fun inspect(rows: List<TabularRow>, sheet: BomSheet): BomTableInspection {
         val headerIndex = rows.indexOfFirst { row -> row.values.any(String::isNotBlank) }
         if (headerIndex < 0) {
             throw LocalImportException(
                 LocalImportErrorCode.MISSING_REQUIRED_COLUMN,
                 "工作表没有表头。",
-                sheetName,
+                sheet.name,
             )
         }
         val headers = rows[headerIndex].values.map(String::trim)
+        val columns = detectColumns(headers)
+        return BomTableInspection(sheet, headers, rows[headerIndex].rowNumber, columns.toMapping())
+    }
+
+    fun map(rows: List<TabularRow>, sheetName: String, productionSets: Int, mapping: BomColumnMapping? = null): List<BomRequirement> {
+        val inspection = inspect(rows, BomSheet(sheetName, 0))
+        val headerIndex = rows.indexOfFirst { it.rowNumber == inspection.headerRowNumber }
+        val headers = inspection.headers
+        val selected = mapping ?: inspection.automaticMapping
+        selected.validate(headers.size)
         val columns = buildMap {
+            selected.sku?.let { put(ColumnKind.SKU, it) }
+            selected.model?.let { put(ColumnKind.MODEL, it) }
+            selected.packageName?.let { put(ColumnKind.PACKAGE, it) }
+            selected.quantity?.let { put(ColumnKind.QUANTITY, it) }
+            selected.name?.let { put(ColumnKind.NAME, it) }
+            selected.reference?.let { put(ColumnKind.REFERENCE, it) }
+        }
+        if (columns[ColumnKind.QUANTITY] == null) missingColumn(sheetName, "数量/qty")
+        if (columns[ColumnKind.SKU] == null && columns[ColumnKind.MODEL] == null) missingColumn(sheetName, "料号/SKU 或 型号/MPN")
+
+        val dataRows = rows.drop(headerIndex + 1).filter { row -> row.values.any(String::isNotBlank) }
+        if (dataRows.size > LocalImportLimits.MAX_DATA_ROWS) throw LocalImportException(LocalImportErrorCode.TOO_MANY_ROWS, "BOM 数据行超过 5000 行限制。", sheetName)
+
+        return mapDataRows(dataRows, headers, columns, sheetName, productionSets)
+    }
+
+    private fun detectColumns(headers: List<String>): Map<ColumnKind, Int> = buildMap {
             headers.forEachIndexed { index, header ->
                 val normalized = normalizeHeader(header)
                 aliases.entries.firstOrNull { normalized in it.value }?.key?.let { kind ->
@@ -194,19 +240,10 @@ internal object BomRowsMapper {
                 }
             }
         }
-        if (columns[ColumnKind.QUANTITY] == null) missingColumn(sheetName, "数量/qty")
-        if (columns[ColumnKind.SKU] == null && columns[ColumnKind.MODEL] == null) {
-            missingColumn(sheetName, "料号/SKU/product code 或 型号/MPN/model")
-        }
 
-        val dataRows = rows.drop(headerIndex + 1).filter { row -> row.values.any(String::isNotBlank) }
-        if (dataRows.size > LocalImportLimits.MAX_DATA_ROWS) {
-            throw LocalImportException(
-                LocalImportErrorCode.TOO_MANY_ROWS,
-                "BOM 数据行超过 5000 行限制。",
-                sheetName,
-            )
-        }
+    private fun Map<ColumnKind, Int>.toMapping() = BomColumnMapping(get(ColumnKind.SKU), get(ColumnKind.MODEL), get(ColumnKind.PACKAGE), get(ColumnKind.QUANTITY), get(ColumnKind.NAME), get(ColumnKind.REFERENCE))
+
+    private fun mapDataRows(dataRows: List<TabularRow>, headers: List<String>, columns: Map<ColumnKind, Int>, sheetName: String, productionSets: Int): List<BomRequirement> {
 
         data class Accumulator(
             var sku: String?,
@@ -336,5 +373,5 @@ internal object BomRowsMapper {
         )
     }
 
-    private enum class ColumnKind { SKU, MODEL, PACKAGE, QUANTITY, NAME }
+    private enum class ColumnKind { SKU, MODEL, PACKAGE, QUANTITY, NAME, REFERENCE }
 }

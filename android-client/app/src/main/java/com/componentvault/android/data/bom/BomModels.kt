@@ -38,6 +38,30 @@ data class BomSheet(
     val hidden: Boolean = false,
 )
 
+data class BomColumnMapping(
+    val sku: Int? = null,
+    val model: Int? = null,
+    val packageName: Int? = null,
+    val quantity: Int? = null,
+    val name: Int? = null,
+    val reference: Int? = null,
+) {
+    fun validate(columnCount: Int) {
+        require(quantity != null) { "请选择需求数量列。" }
+        require(sku != null || model != null) { "请至少选择 SKU 或型号列。" }
+        listOfNotNull(sku, model, packageName, quantity, name, reference).forEach {
+            require(it in 0 until columnCount) { "列映射超出表头范围。" }
+        }
+    }
+}
+
+data class BomTableInspection(
+    val sheet: BomSheet,
+    val headers: List<String>,
+    val headerRowNumber: Int,
+    val automaticMapping: BomColumnMapping,
+)
+
 data class BomSourceRow(
     val sheetName: String,
     val rowNumber: Int,

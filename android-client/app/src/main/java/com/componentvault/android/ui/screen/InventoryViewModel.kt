@@ -755,11 +755,7 @@ class InventoryViewModel(
 
         return InventoryScreenUiState(
             filters = filters,
-            availableCategories = allComponentsCache
-                .map { it.category }
-                .filter { it.isNotBlank() }
-                .distinct()
-                .sortedBy { it.lowercase() },
+            availableCategories = CategoryFilterSemantics.options(allComponentsCache.map { it.category }),
             availableLocations = allComponentsCache
                 .map { it.location }
                 .filter { it.isNotBlank() }
@@ -794,10 +790,11 @@ class InventoryViewModel(
             val matchesQuery = filters.query.isBlank() ||
                 component.name.contains(filters.query, ignoreCase = true) ||
                 component.sku.contains(filters.query, ignoreCase = true) ||
-                component.category.contains(filters.query, ignoreCase = true) ||
+                CategoryFilterSemantics.matchesSearch(component.category, filters.query) ||
                 component.packageName.contains(filters.query, ignoreCase = true) ||
                 component.location.contains(filters.query, ignoreCase = true)
-            val matchesCategory = filters.category.isNullOrBlank() || component.category == filters.category
+            val matchesCategory = filters.category.isNullOrBlank() ||
+                CategoryFilterSemantics.sameCategory(component.category, filters.category.orEmpty())
             val matchesLocation = filters.location.isNullOrBlank() || component.location == filters.location
 
             matchesLowStock && matchesQuery && matchesCategory && matchesLocation
@@ -1045,12 +1042,22 @@ class InventoryViewModel(
         }
     }
 
+    fun inspectBom(bytes: ByteArray, fileName: String, sheetName: String?, onComplete: (Result<com.componentvault.android.data.bom.BomTableInspection>) -> Unit) {
+        viewModelScope.launch {
+            onComplete(runCatching { withContext(Dispatchers.Default) {
+                if (fileName.endsWith(".xlsx", true)) com.componentvault.android.data.bom.BomParser.inspectXlsx(bytes, sheetName)
+                else com.componentvault.android.data.bom.BomParser.inspectCsv(bytes)
+            } })
+        }
+    }
+
     fun previewBom(
         bytes: ByteArray,
         fileName: String,
         projectName: String,
         productionSets: Int,
         sheetName: String?,
+        mapping: com.componentvault.android.data.bom.BomColumnMapping? = null,
         selections: Map<String, String> = emptyMap(),
         searchQueries: Map<String, String> = emptyMap(),
         onComplete: (Result<BomReleasePreview>) -> Unit,
@@ -1058,10 +1065,10 @@ class InventoryViewModel(
         viewModelScope.launch {
             onComplete(runCatching {
                 val parsed: BomParseResult = withContext(Dispatchers.Default) { if (fileName.endsWith(".xlsx", true)) {
-                    BomParser.parseXlsx(bytes, projectName, productionSets, sheetName)
+                    BomParser.parseXlsx(bytes, projectName, productionSets, sheetName, mapping)
                 } else {
                     require(fileName.endsWith(".csv", true)) { "仅支持 CSV 或 XLSX BOM。" }
-                    BomParser.parseCsv(bytes, projectName, productionSets)
+                    BomParser.parseCsv(bytes, projectName, productionSets, mapping)
                 } }
                 repository.previewBomRelease(parsed, selections, searchQueries)
             })

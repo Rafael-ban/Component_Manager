@@ -7,17 +7,20 @@
 - `admin-web/` is a separated React + `shadcn/ui` operations console.
 - `client/` remains as a legacy Flutter reference only.
 - `server/` is a FastAPI service for single-user self-hosted sync and
-  read-only inventory admin APIs plus authenticated MQTT configuration writes.
+  inventory admin APIs, optional authenticated Web inventory writes, and MQTT
+  configuration writes.
 - Android, Windows, and server all use SQLite in the current architecture, and
   each runtime is now implemented against live storage.
 
-The API container is built from `server/Dockerfile` independently of the admin
-web app. `server-image.yml` is reused by CI for a local image build and API/auth
-startup verification, and by release automation for an optional Docker Hub push
-once repository variables and its token are configured. Stable releases publish
-version and `latest` tags for amd64/arm64; SQLite persists under the mounted
-`/data` directory. `docker-compose.hub.yml` retains the same named data volume as
-the source-build Compose deployment. See [Docker Hub operations](dockerhub.md).
+The API and admin Web containers are built independently. `server-image.yml`
+always builds and starts amd64 validation images, checks API/auth/database
+startup, then fetches the Web index and its emitted JS/CSS assets. When Docker
+Hub variables and token are configured, releases publish API tags `<version>`
+and `latest`, plus Web tags `web-<version>` and `web-latest`, for amd64/arm64.
+The credentials are not currently configured, so planned `0.7.0` examples do
+not prove those tags exist. SQLite persists under `/data`.
+`docker-compose.hub.yml` retains the source Compose data volume and exposes the
+Web image through the optional `web` profile. See [Docker Hub operations](dockerhub.md).
 
 ## Android Client
 
@@ -321,7 +324,7 @@ from server/MQTT payloads and inventory Excel exports. See
 - Initial pages cover:
   - dashboard metrics
   - searched and paginated active inventory
-  - read-only component details
+  - component details and optional inventory operations
   - recent stock movements
   - runtime and sync posture details
 - Inventory reads `GET /admin-api/components` with bounded page/page-size,
@@ -330,18 +333,25 @@ from server/MQTT payloads and inventory Excel exports. See
   `updated_at DESC, id ASC` ordering. `GET /admin-api/components/{id}` returns
   reliable component fields and location allocations. Both exclude deleted
   components; the original `/admin-api/inventory` overview remains unchanged.
-- Inventory and sync pages emphasize low-stock watchlists, sync posture, and
-  read-only operational checks for administrators.
+- Inventory and sync pages emphasize low-stock watchlists and sync posture.
+  With `WEB_INVENTORY_ENABLED=false` inventory stays read-only. When enabled,
+  authenticated users can create locations and zero-stock components, edit
+  metadata, and record inbound/outbound movements.
 - The admin web app authenticates with the same shared bearer token already
   used by sync clients.
-- The admin surface focuses on monitoring, inventory posture, and runtime
-  checks rather than replacing API-driven client editing flows.
+- Admin writes use `expected_updated_at` compare-and-swap and a persistent
+  `admin_operation_receipts` row keyed by `request_id`. Receipt, component,
+  allocation, movement, sync revision, and MQTT outbox changes share one short
+  transaction. Exact retries return current entity state; reusing a request ID
+  for different operation, target, or payload returns HTTP 409.
 - It reflects live server SQLite content through dedicated `/admin-api/*`
   snapshot endpoints.
 - Inventory query and page state live in the URL. A 401 clears the invalid
   local session, explains why login is required, and restores only an
   allowlisted internal Dashboard, Inventory, Sync or Settings path after token
   validation; inventory query parameters are retained.
+- Desktop and narrow/mobile layouts expose the same operations with responsive
+  forms, explicit pending/error states, and refreshed component versions after writes.
 
 ## Sync Flow
 
@@ -395,6 +405,7 @@ The native clients persist these sync settings locally:
 
 - `device_id`
 - `server_base_url`
+- `fallback_server_base_url` (Windows; optional)
 - `api_token`
 - `auto_sync_enabled`
 - `last_synced_at`
@@ -543,7 +554,8 @@ publisher status and a connection form, without adding a route. GET/POST
 `/admin-api/mqtt/config` read/save a single `mqtt_configuration` SQLite row.
 Saved MQTT settings override environment defaults at the next process startup;
 saving does not hot-swap the publisher. Configuration responses omit passwords
-and report whether a restart is required. Inventory admin APIs remain read-only.
+and report whether a restart is required. Optional inventory writes are
+independently gated by `WEB_INVENTORY_ENABLED` and do not change MQTT settings.
 See [MQTT](mqtt.md).
 
 Native Settings / About use standalone GitHub Release parsers and anonymous
@@ -554,7 +566,7 @@ open only after a user click through the system browser. No background updater,
 self-replacement, auto-install or new database tables are needed for this flow.
 See [application updates](app-updates.md) for platform-specific installation.
 
-## Emergency release: catalog names and Android connection routing
+## Catalog-name compatibility and native connection routing
 
 Catalog metadata keeps the model and official description separately. New imports
 prefer the model for the editable component name; user-customized names are not
@@ -569,8 +581,11 @@ failures trigger the external probe. HTTP authentication/validation and malforme
 response errors remain visible. Once selected, the endpoint is fixed for that
 push/pull cycle; a failure preserves the local queue. The next cycle retries the
 primary. Routing does not modify the saved primary URL or reset the sync cursor.
-Both addresses must refer to the same service/database. Windows address fallback
-is deferred; its existing single-address sync behavior remains unchanged.
+Both addresses must refer to the same service/database. Windows now follows the
+same boundary: it probes primary first, falls back only for DNS, connection, or
+timeout failures, fixes the endpoint for the complete push/pull run, and never
+switches and replays a failed write. Its optional address is added to older
+settings databases with an empty default, and sync status shows the endpoint used.
 
 BOM automatic matching requires exact SKU when provided, otherwise exact model
 and optional package. Ambiguous matches require selection. Android preserves raw
@@ -578,3 +593,7 @@ matching rows separately from aggregated commit rows; Windows retains selection
 groups for original rows. Editing a match remains possible after several rows
 have been assigned to the same inventory item. Stock validation and deductions
 use aggregated quantities, preserving the existing transactional commit path.
+Both clients let the user map SKU, model, package, quantity, name, and reference
+source columns before preview. Missing results can be exported as UTF-8 CSV with
+an Excel UTF-8 BOM; export is read-only and contains SKU, model, required,
+available, missing quantity, and match status.

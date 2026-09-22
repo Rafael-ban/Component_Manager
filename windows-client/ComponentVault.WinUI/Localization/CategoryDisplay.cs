@@ -1,4 +1,5 @@
 using System.Globalization;
+using ComponentVault.WinUI.Services.Catalog;
 
 namespace ComponentVault.WinUI.Localization;
 
@@ -46,7 +47,9 @@ internal static class CategoryDisplay
             ["Protection"] = "保护器件",
         };
 
-    internal static string Localize(string? category)
+    internal static string Localize(string? category) => Localize(category, CultureInfo.CurrentUICulture);
+
+    internal static string Localize(string? category, CultureInfo culture)
     {
         var normalized = category?.Trim();
         if (string.IsNullOrWhiteSpace(normalized))
@@ -54,9 +57,15 @@ internal static class CategoryDisplay
             return category ?? string.Empty;
         }
 
-        if (!CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("zh", StringComparison.OrdinalIgnoreCase))
+        if (!culture.TwoLetterISOLanguageName.Equals("zh", StringComparison.OrdinalIgnoreCase))
         {
             return normalized;
+        }
+
+        var officialCategory = LcscPublicCatalog.NormalizeCategory(normalized);
+        if (!officialCategory.Equals(normalized, StringComparison.Ordinal))
+        {
+            return officialCategory;
         }
 
         return string.Join(

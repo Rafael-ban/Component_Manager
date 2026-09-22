@@ -46,6 +46,7 @@ public sealed partial class SettingsView : Page
         }
 
         ServerUrlTextBox.Text = sync.ServerBaseUrl;
+        FallbackServerUrlTextBox.Text = sync.FallbackServerBaseUrl;
         ApiTokenBox.Password = sync.ApiToken;
         DeviceIdTextBox.Text = sync.DeviceId;
         LastSyncedTextBox.Text = sync.LastSyncedAt;
@@ -63,6 +64,7 @@ public sealed partial class SettingsView : Page
 
         var result = viewModel.SaveSyncConfiguration(
             ServerUrlTextBox.Text,
+            FallbackServerUrlTextBox.Text,
             ApiTokenBox.Password,
             AutoSyncToggle.IsOn
         );
@@ -85,6 +87,7 @@ public sealed partial class SettingsView : Page
 
         var result = await viewModel.TestConnectionAsync(
             ServerUrlTextBox.Text,
+            FallbackServerUrlTextBox.Text,
             ApiTokenBox.Password,
             AutoSyncToggle.IsOn
         );
@@ -106,6 +109,7 @@ public sealed partial class SettingsView : Page
 
         if (!viewModel.SyncConfiguration.MatchesConnectionDraft(
                 ServerUrlTextBox.Text,
+                FallbackServerUrlTextBox.Text,
                 ApiTokenBox.Password,
                 AutoSyncToggle.IsOn))
         {

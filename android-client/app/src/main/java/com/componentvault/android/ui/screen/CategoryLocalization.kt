@@ -2,6 +2,7 @@ package com.componentvault.android.ui.screen
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.componentvault.android.data.OfficialCategoryNormalizer
 import java.util.Locale
 
 private val zhCategoryMap = linkedMapOf(
@@ -57,6 +58,10 @@ internal fun localizedCategoryLabel(category: String, locale: Locale): String {
     }
     if (!locale.language.equals("zh", ignoreCase = true)) {
         return normalized
+    }
+    val officialCategory = OfficialCategoryNormalizer.normalize(normalized)
+    if (officialCategory != normalized) {
+        return officialCategory
     }
     return normalized
         .split('/')

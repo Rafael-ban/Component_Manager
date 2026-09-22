@@ -86,6 +86,13 @@ export interface AdminComponentListResponse {
 export interface AdminComponentDetail extends AdminComponentListItem {
   description: string | null;
   allocations: Array<{ location_id: string; quantity: number }>;
+  inventory_managed: boolean;
+}
+
+export interface AdminStorageLocation {
+  id: string;
+  name: string;
+  updated_at: string;
 }
 
 export interface AdminSyncResponse {
@@ -96,6 +103,7 @@ export interface AdminSyncResponse {
 }
 
 export interface AdminSettingsResponse {
+  web_inventory_enabled: boolean;
   runtime_configuration: AdminKeyValueItem[];
   access_posture: AdminKeyValueItem[];
   next_backend_additions: string[];

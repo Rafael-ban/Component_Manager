@@ -3,7 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, SecretStr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 
 
 class HealthResponse(BaseModel):
@@ -196,6 +203,112 @@ class AdminComponentAllocation(BaseModel):
 class AdminComponentDetail(AdminComponentListItem):
     description: str | None = None
     allocations: list[AdminComponentAllocation] = Field(default_factory=list)
+    inventory_managed: bool = False
+
+
+class AdminStorageLocation(BaseModel):
+    id: str
+    name: str
+    updated_at: datetime
+
+
+class AdminStorageLocationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str = Field(min_length=8, max_length=120)
+    id: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1, max_length=200)
+
+    @field_validator("request_id", "name")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Value must not be blank.")
+        return normalized
+
+    @field_validator("id")
+    @classmethod
+    def validate_location_code(cls, value: str) -> str:
+        if not value.strip() or value != value.strip():
+            raise ValueError("Location code must not be blank or padded.")
+        return value
+
+
+class AdminComponentCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str = Field(min_length=8, max_length=120)
+    sku: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1, max_length=4000)
+    category: str = Field(min_length=1, max_length=120)
+    package_name: str = Field(min_length=1, max_length=120)
+    description: str | None = None
+    min_stock: int = Field(default=0, ge=0, le=2147483647, strict=True)
+    location_id: str = Field(min_length=1, max_length=120)
+
+    @field_validator("request_id", "sku", "name", "category", "package_name")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Value must not be blank.")
+        return normalized
+
+    @field_validator("location_id")
+    @classmethod
+    def validate_location_code(cls, value: str) -> str:
+        if not value.strip() or value != value.strip():
+            raise ValueError("Location code must not be blank or padded.")
+        return value
+
+
+class AdminComponentUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str = Field(min_length=8, max_length=120)
+    expected_updated_at: datetime
+    sku: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1, max_length=4000)
+    category: str = Field(min_length=1, max_length=120)
+    package_name: str = Field(min_length=1, max_length=120)
+    description: str | None = None
+    min_stock: int = Field(default=0, ge=0, le=2147483647, strict=True)
+
+    @field_validator("request_id", "sku", "name", "category", "package_name")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Value must not be blank.")
+        return normalized
+
+
+class AdminStockMovementCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str = Field(min_length=8, max_length=120)
+    expected_updated_at: datetime
+    movement_type: Literal["inbound", "outbound"]
+    quantity: int = Field(gt=0, le=2147483647, strict=True)
+    reason: str = Field(min_length=1, max_length=160)
+    note: str | None = None
+    location_id: str | None = Field(default=None, min_length=1, max_length=120)
+
+    @field_validator("request_id", "reason")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Value must not be blank.")
+        return normalized
+
+    @field_validator("location_id")
+    @classmethod
+    def validate_location_code(cls, value: str | None) -> str | None:
+        if value is not None and (not value.strip() or value != value.strip()):
+            raise ValueError("Location code must not be blank or padded.")
+        return value
 
 
 class AdminSyncResponse(BaseModel):
@@ -206,6 +319,7 @@ class AdminSyncResponse(BaseModel):
 
 
 class AdminSettingsResponse(BaseModel):
+    web_inventory_enabled: bool = False
     runtime_configuration: list[AdminKeyValueItem] = Field(default_factory=list)
     access_posture: list[AdminKeyValueItem] = Field(default_factory=list)
     next_backend_additions: list[str] = Field(default_factory=list)

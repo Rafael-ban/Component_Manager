@@ -1,0 +1,6 @@
+dist
+node_modules
+*.tsbuildinfo
+.git
+.gitignore
+README.md

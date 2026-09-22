@@ -6,7 +6,12 @@ Use `docker-compose.hub.yml` to pull a published API image instead of building
 the server locally. Set `COMPONENT_VAULT_IMAGE` and `API_TOKEN` in the root `.env`.
 The server image listens on port 8787 and stores SQLite under `/data`; preserve
 the Compose project name and `component_vault_data` volume when upgrading.
-The admin web app remains a separate deployment.
+The admin Web app remains a separate image. After a Web tag is actually present,
+set `COMPONENT_VAULT_WEB_IMAGE` and start the optional profile with
+`docker compose -f docker-compose.hub.yml --profile web up -d`. Planned 0.7.0
+tags are API `0.7.0`/`latest` and Web `web-0.7.0`/`web-latest` in the same
+repository. Docker Hub credentials are not currently configured, so these tags
+must not be treated as published until the workflow and Hub Tags page confirm them.
 
 Repository maintainers configure Actions variables `DOCKERHUB_USERNAME` and
 `DOCKERHUB_IMAGE`, plus secret `DOCKERHUB_TOKEN`. CI always validates a container
@@ -18,8 +23,14 @@ release afterward; normal CI never pushes an image. Follow the complete
 
 ## Admin console deployment and API token
 
-The admin console remains read-only for inventory in this emergency release.
-Optional browser inventory writing is deferred to a later version.
+The admin console is read-only by default. Set `WEB_INVENTORY_ENABLED=true` on
+the API only when authenticated browser users should create locations and
+components, edit metadata, and record inbound/outbound movements. Writes use
+`expected_updated_at` concurrency checks and persistent `request_id` receipts;
+quantity and allocations cannot be changed through the metadata form.
+Turning the flag off blocks later browser writes but does not reverse completed
+inventory movements. Exact request retries are safe; after a 409 stale-version
+response, refresh the component before deciding whether to submit a new request ID.
 
 For Docker, copy the repository-root `.env.example` to `.env`, set `API_TOKEN`,
 and add the actual browser origin to `ADMIN_WEB_ORIGINS` (for example
@@ -163,6 +174,8 @@ Admin web is available at:
 - `ENABLE_WEB_FALLBACK_RESOLVERS`: enables public LCSC product-page fallback
   for `/admin-api/part-lookup` when OpenAPI credentials are unavailable,
   default `false`
+- `WEB_INVENTORY_ENABLED`: enables authenticated Web inventory writes, default
+  `false`
 
 ## Versioning Workflow
 

@@ -24,6 +24,7 @@ class Settings:
     import_rules_remote_url: str
     import_rules_refresh_hours: int
     enable_web_fallback_resolvers: bool
+    web_inventory_enabled: bool = False
     mqtt_enabled: bool = False
     mqtt_host: str = ""
     mqtt_port: int = 1883
@@ -166,5 +167,6 @@ def get_settings() -> Settings:
             "ENABLE_WEB_FALLBACK_RESOLVERS",
             "false",
         ).strip().lower() in {"1", "true", "yes", "on"},
+        web_inventory_enabled=_bool_env("WEB_INVENTORY_ENABLED"),
         **mqtt_settings,
     )

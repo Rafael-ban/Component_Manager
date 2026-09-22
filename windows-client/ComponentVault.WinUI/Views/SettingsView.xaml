@@ -68,8 +68,12 @@
                             <TextBox
                                 x:Uid="SettingsServerUrlTextBox"
                                 x:Name="ServerUrlTextBox"
-                                Header="服务器地址"
+                                Header="优先服务器地址（局域网）"
                                 PlaceholderText="http://localhost:8787" />
+                            <TextBox
+                                x:Name="FallbackServerUrlTextBox"
+                                Header="备用服务器地址（外网，可选）"
+                                PlaceholderText="https://sync.example.com" />
                             <PasswordBox
                                 x:Name="ApiTokenBox"
                                 Header="API 令牌" />
@@ -83,7 +87,7 @@
                                 IsOn="False" />
                             <TextBlock
                                 Style="{StaticResource CaptionTextStyle}"
-                                Text="写入始终先保存到本地 SQLite，再按此配置同步。"
+                                Text="写入始终先保存到本地 SQLite。每轮同步先探测优先地址；仅 DNS、连接或超时失败时尝试备用地址。选定后本轮 push/pull 固定使用同一地址，写入失败不会换址重放。两个地址必须连接同一服务端和数据库。"
                                 TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>

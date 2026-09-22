@@ -4,6 +4,7 @@ public sealed class SyncConfiguration
 {
     public required string DeviceId { get; init; }
     public required string ServerBaseUrl { get; init; }
+    public required string FallbackServerBaseUrl { get; init; }
     public required string ApiToken { get; init; }
     public required bool AutoSyncEnabled { get; init; }
     public required string LastSyncedAt { get; init; }
@@ -11,12 +12,14 @@ public sealed class SyncConfiguration
 
     public SyncConfiguration WithDraftConnection(
         string serverBaseUrl,
+        string fallbackServerBaseUrl,
         string apiToken,
         bool autoSyncEnabled
     ) => new()
     {
         DeviceId = DeviceId,
         ServerBaseUrl = NormalizeServerBaseUrl(serverBaseUrl),
+        FallbackServerBaseUrl = NormalizeServerBaseUrl(fallbackServerBaseUrl),
         ApiToken = apiToken.Trim(),
         AutoSyncEnabled = autoSyncEnabled,
         LastSyncedAt = LastSyncedAt,
@@ -25,9 +28,11 @@ public sealed class SyncConfiguration
 
     public bool MatchesConnectionDraft(
         string serverBaseUrl,
+        string fallbackServerBaseUrl,
         string apiToken,
         bool autoSyncEnabled
     ) => string.Equals(ServerBaseUrl, NormalizeServerBaseUrl(serverBaseUrl), StringComparison.Ordinal)
+        && string.Equals(FallbackServerBaseUrl, NormalizeServerBaseUrl(fallbackServerBaseUrl), StringComparison.Ordinal)
         && string.Equals(ApiToken, apiToken.Trim(), StringComparison.Ordinal)
         && AutoSyncEnabled == autoSyncEnabled;
 

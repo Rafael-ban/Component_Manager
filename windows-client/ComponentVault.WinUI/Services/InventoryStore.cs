@@ -296,6 +296,7 @@ public sealed class InventoryStore
             SELECT
                 device_id,
                 server_base_url,
+                fallback_server_base_url,
                 api_token,
                 auto_sync_enabled,
                 COALESCE(last_synced_at, '') AS last_synced_at,
@@ -311,17 +312,19 @@ public sealed class InventoryStore
         {
             DeviceId = reader.GetString(0),
             ServerBaseUrl = reader.GetString(1),
-            ApiToken = reader.GetString(2),
-            AutoSyncEnabled = reader.GetInt32(3) == 1,
-            LastSyncedAt = string.IsNullOrWhiteSpace(reader.GetString(4))
+            FallbackServerBaseUrl = reader.GetString(2),
+            ApiToken = reader.GetString(3),
+            AutoSyncEnabled = reader.GetInt32(4) == 1,
+            LastSyncedAt = string.IsNullOrWhiteSpace(reader.GetString(5))
                 ? "从未同步"
-                : reader.GetString(4),
-            LastSyncMessage = reader.GetString(5),
+                : reader.GetString(5),
+            LastSyncMessage = reader.GetString(6),
         };
     }
 
     public OperationResult SaveSyncConfiguration(
         string serverBaseUrl,
+        string fallbackServerBaseUrl,
         string apiToken,
         bool autoSyncEnabled
     )
@@ -330,6 +333,7 @@ public sealed class InventoryStore
         EnsureDefaultSettings(connection);
 
         var normalizedUrl = NormalizeServerBaseUrl(serverBaseUrl);
+        var normalizedFallbackUrl = NormalizeServerBaseUrl(fallbackServerBaseUrl);
         var normalizedToken = apiToken.Trim();
 
         using var command = connection.CreateCommand();
@@ -338,6 +342,7 @@ public sealed class InventoryStore
             UPDATE sync_settings
             SET
                 server_base_url = $server_base_url,
+                fallback_server_base_url = $fallback_server_base_url,
                 api_token = $api_token,
                 auto_sync_enabled = $auto_sync_enabled,
                 last_sync_cursor = CASE
@@ -347,6 +352,7 @@ public sealed class InventoryStore
             WHERE id = 1
             """;
         command.Parameters.AddWithValue("$server_base_url", normalizedUrl);
+        command.Parameters.AddWithValue("$fallback_server_base_url", normalizedFallbackUrl);
         command.Parameters.AddWithValue("$api_token", normalizedToken);
         command.Parameters.AddWithValue("$auto_sync_enabled", autoSyncEnabled ? 1 : 0);
         command.ExecuteNonQuery();
@@ -877,7 +883,7 @@ public sealed class InventoryStore
         UpdateStoredSyncStatus(
             connection,
             result.PullResponse.ServerTime,
-            $"同步完成。上传 元器件:{result.AcceptedComponents} 变动:{result.AcceptedStockMovements}；下载 元器件:{result.PullResponse.Components.Count} 变动:{result.PullResponse.StockMovements.Count}。",
+            $"同步完成{(string.IsNullOrWhiteSpace(result.UsedServerBaseUrl) ? string.Empty : $"（{result.UsedServerBaseUrl}）")}。上传 元器件:{result.AcceptedComponents} 变动:{result.AcceptedStockMovements}；下载 元器件:{result.PullResponse.Components.Count} 变动:{result.PullResponse.StockMovements.Count}。",
             preserveTimestamp: false
         );
 
@@ -994,6 +1000,7 @@ public sealed class InventoryStore
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 device_id TEXT NOT NULL,
                 server_base_url TEXT NOT NULL DEFAULT '',
+                fallback_server_base_url TEXT NOT NULL DEFAULT '',
                 api_token TEXT NOT NULL DEFAULT '',
                 auto_sync_enabled INTEGER NOT NULL DEFAULT 0,
                 last_sync_cursor INTEGER,
@@ -1028,6 +1035,7 @@ public sealed class InventoryStore
         }
 
         EnsureColumnExists(connection, "sync_settings", "last_sync_cursor", "INTEGER");
+        EnsureColumnExists(connection, "sync_settings", "fallback_server_base_url", "TEXT NOT NULL DEFAULT ''");
         EnsureColumnExists(connection, "components", "base_updated_at", "TEXT");
         EnsureColumnExists(connection, "stock_movements", "location_id", "TEXT");
         EnsureColumnExists(connection, "stock_movements", "destination_location_id", "TEXT");
@@ -1105,6 +1113,7 @@ public sealed class InventoryStore
                 id,
                 device_id,
                 server_base_url,
+                fallback_server_base_url,
                 api_token,
                 auto_sync_enabled,
                 last_synced_at,
@@ -1113,6 +1122,7 @@ public sealed class InventoryStore
             VALUES (
                 1,
                 $device_id,
+                '',
                 '',
                 '',
                 0,

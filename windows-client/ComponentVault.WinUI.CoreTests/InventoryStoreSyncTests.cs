@@ -63,6 +63,7 @@ public sealed class InventoryStoreSyncTests : IDisposable
         store.ApplySyncResult(CreateSuccess(syncCursor: 1), [equivalentSnapshot], string.Empty);
 
         Assert.Empty(store.CreateSyncEnvelope().QueuedEntities);
+        Assert.Contains("https://used.example", store.GetSyncConfiguration().LastSyncMessage);
     }
 
     [Fact]
@@ -103,7 +104,10 @@ public sealed class InventoryStoreSyncTests : IDisposable
 
         store.ApplySyncResult(CreateSuccess(syncCursor: 13), [], string.Empty);
 
-        store.SaveSyncConfiguration("https://new-server.example/", "token", true);
+        store.SaveSyncConfiguration(string.Empty, "https://fallback.example/", "token", true);
+        Assert.Equal(13, store.CreateSyncEnvelope().Cursor);
+
+        store.SaveSyncConfiguration("https://new-server.example/", "", "token", true);
         Assert.Null(store.CreateSyncEnvelope().Cursor);
     }
 
@@ -111,11 +115,11 @@ public sealed class InventoryStoreSyncTests : IDisposable
     public void ApplySyncResult_RejectsResponseAfterServerChanges()
     {
         var store = CreateStore();
-        store.SaveSyncConfiguration("https://old.example/", "token", true);
+        store.SaveSyncConfiguration("https://old.example/", "", "token", true);
         store.SaveComponent(CreateDraft("queued"));
         var snapshot = store.CreateSyncEnvelope();
 
-        store.SaveSyncConfiguration("https://new.example/", "token", true);
+        store.SaveSyncConfiguration("https://new.example/", "", "token", true);
         var applied = store.ApplySyncResult(
             CreateSuccess(syncCursor: 99),
             snapshot.QueuedEntities,
@@ -141,22 +145,65 @@ public sealed class InventoryStoreSyncTests : IDisposable
     public void ConnectionDraft_DoesNotPersistOrReplaceSavedConfiguration()
     {
         var store = CreateStore();
-        store.SaveSyncConfiguration("https://saved.example/", "saved-token", true);
+        store.SaveSyncConfiguration("https://saved.example/", "https://fallback.example/", "saved-token", true);
         var saved = store.GetSyncConfiguration();
 
-        var draft = saved.WithDraftConnection(" https://draft.example/ ", " draft-token ", false);
+        var draft = saved.WithDraftConnection(" https://draft.example/ ", " https://draft-fallback.example/ ", " draft-token ", false);
 
         Assert.Equal("https://draft.example", draft.ServerBaseUrl);
+        Assert.Equal("https://draft-fallback.example", draft.FallbackServerBaseUrl);
         Assert.Equal("draft-token", draft.ApiToken);
         Assert.False(draft.AutoSyncEnabled);
         Assert.Equal(saved.DeviceId, draft.DeviceId);
-        Assert.False(saved.MatchesConnectionDraft("https://draft.example/", "draft-token", false));
-        Assert.True(saved.MatchesConnectionDraft(" https://saved.example/ ", " saved-token ", true));
+        Assert.False(saved.MatchesConnectionDraft("https://draft.example/", "https://draft-fallback.example/", "draft-token", false));
+        Assert.True(saved.MatchesConnectionDraft(" https://saved.example/ ", " https://fallback.example/ ", " saved-token ", true));
 
         var persisted = store.GetSyncConfiguration();
         Assert.Equal("https://saved.example", persisted.ServerBaseUrl);
+        Assert.Equal("https://fallback.example", persisted.FallbackServerBaseUrl);
         Assert.Equal("saved-token", persisted.ApiToken);
         Assert.True(persisted.AutoSyncEnabled);
+    }
+
+    [Fact]
+    public void Initialize_OldSettingsWithoutFallback_AddsEmptyFallbackAndPreservesValues()
+    {
+        Directory.CreateDirectory(_testRoot);
+        var databasePath = Path.Combine(_testRoot, "legacy-settings.db");
+        using (var connection = new SqliteConnection($"Data Source={databasePath}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                CREATE TABLE sync_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    device_id TEXT NOT NULL,
+                    server_base_url TEXT NOT NULL DEFAULT '',
+                    api_token TEXT NOT NULL DEFAULT '',
+                    auto_sync_enabled INTEGER NOT NULL DEFAULT 0,
+                    last_sync_cursor INTEGER,
+                    last_synced_at TEXT,
+                    last_sync_message TEXT NOT NULL DEFAULT ''
+                );
+                INSERT INTO sync_settings VALUES (
+                    1, 'legacy-device', 'https://legacy.example', 'legacy-token', 1, 42,
+                    '2026-09-01T00:00:00Z', 'legacy status'
+                );
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        var store = new InventoryStore(databasePath);
+        store.Initialize();
+
+        var settings = store.GetSyncConfiguration();
+        Assert.Equal("legacy-device", settings.DeviceId);
+        Assert.Equal("https://legacy.example", settings.ServerBaseUrl);
+        Assert.Equal(string.Empty, settings.FallbackServerBaseUrl);
+        Assert.Equal("legacy-token", settings.ApiToken);
+        Assert.True(settings.AutoSyncEnabled);
+        Assert.Equal("legacy status", settings.LastSyncMessage);
+        Assert.Equal(42, store.CreateSyncEnvelope().Cursor);
     }
 
     private InventoryStore CreateStore()
@@ -185,6 +232,7 @@ public sealed class InventoryStoreSyncTests : IDisposable
         {
             IsSuccess = true,
             Message = "ok",
+            UsedServerBaseUrl = "https://used.example",
             PullResponse = new SyncPullResponse
             {
                 ServerTime = "2026-09-15T00:00:00Z",

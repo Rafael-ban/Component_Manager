@@ -1,8 +1,8 @@
 # Docker Hub 镜像发布与部署教程
 
-本文分为两部分：仓库维护者在 Docker Hub 和 GitHub 中配置镜像发布，以及部署者从 Docker Hub 拉取服务端镜像。
+本文分为两部分：仓库维护者在 Docker Hub 和 GitHub 中配置镜像发布，以及部署者从 Docker Hub 拉取独立的 API / Web 镜像。
 
-当前项目版本 `v0.6.0` 已发布到 GitHub。`v0.6.0` 首次发布时 Docker Hub 任务因凭据未配置而 skipped，因此不能仅凭 GitHub Release 成功就断言 Docker Hub 已有镜像。完成本文配置并补发、验证成功后，才应向用户公布镜像可用。
+`v0.6.0` 首次发布时 Docker Hub 任务因凭据未配置而 skipped；当前凭据仍未配置。本轮计划版本为 `v0.7.0`，工作流已经能够向同一仓库发布 API 标签 `0.7.0`/`latest` 和 Web 标签 `web-0.7.0`/`web-latest`，但这些只是预期名称。不能仅凭 GitHub Release 或代码存在就断言镜像已发布；必须先完成配置并在 Actions 与 Docker Hub Tags 页面验证成功。
 
 ## 先分清账号、仓库和两种 Token
 
@@ -15,7 +15,7 @@
 | Docker Hub repository | `component_manager` |
 | 完整镜像名 | `rafaelikaros/component_manager` |
 
-GitHub 用户名和 Docker Hub namespace 不要求相同。填写 `DOCKERHUB_IMAGE` 时使用 `rafaelikaros/component_manager`，末尾不要加 `/`，也不要在这里附加 `:0.6.0` 或 `:latest`。
+GitHub 用户名和 Docker Hub namespace 不要求相同。填写 `DOCKERHUB_IMAGE` 时使用 `rafaelikaros/component_manager`，末尾不要加 `/`，也不要附加版本或 `latest`；API 与 Web 共用这个仓库，通过不同 tag 区分。
 
 还要区分两种完全不同的凭据：
 
@@ -87,28 +87,30 @@ GitHub Variables 的官方说明见 [Store information in variables](https://doc
 
 GitHub Secrets 的官方说明见 [Using secrets in GitHub Actions](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)。
 
-## 五、补发 v0.6.0 镜像
+## 五、发布计划中的 v0.7.0 API 与 Web 镜像
 
 配置完成后，打开 [Server Docker Image 工作流](https://github.com/Rafael-ban/Component_Manager/actions/workflows/server-image.yml)：
 
 1. 左侧选择 **Server Docker Image**。
 2. 点击 **Run workflow**。
 3. **Use workflow from** 选择 `master`。
-4. `source_ref` 填 `v0.6.0`。
-5. `release_tag` 填 `v0.6.0`。
+4. `source_ref` 填已经存在且经过验证的 `v0.7.0` tag。
+5. `release_tag` 填 `v0.7.0`。
 6. `push_image` 选择 `true` 或勾选发布选项。
 7. 点击 **Run workflow**。
 
 手动运行 workflow 的官方说明见 [Manually running a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)。
 
-`source_ref` 决定实际构建哪一份源码，`release_tag` 决定镜像版本 tag。发布时两者应指向同一版本，避免把另一版源码错误标成 `0.6.0`。
+`source_ref` 决定实际构建哪一份源码，`release_tag` 决定镜像版本 tag。发布时两者应指向同一版本。
 
 这次补发会同时推送：
 
-- `rafaelikaros/component_manager:0.6.0`
+- `rafaelikaros/component_manager:0.7.0`
 - `rafaelikaros/component_manager:latest`
+- `rafaelikaros/component_manager:web-0.7.0`
+- `rafaelikaros/component_manager:web-latest`
 
-因此，用旧版本做补发时要特别留意：`latest` 也会被改为该旧版本。本次 `v0.6.0` 是当前发布版本时可以这样补发；以后补发历史版本前，先判断是否允许 `latest` 回退。
+因此，用旧版本做补发时要特别留意：API `latest` 和 Web `web-latest` 都会被改为该旧版本。补发历史版本前先判断是否允许两个浮动标签一起回退。
 
 普通 CI 或手动运行但 `push_image=false` 时，只构建并检查镜像，不会登录或推送。自动 Release 在用户名、镜像名或 Token 不完整时，会保留原生客户端与 Web 发布，并跳过 Docker Hub 镜像任务。但直接手动运行 **Server Docker Image** 且设置 `push_image=true` 时，缺少任一项配置都会明确失败，不会静默跳过。
 
@@ -118,22 +120,25 @@ GitHub Secrets 的官方说明见 [Using secrets in GitHub Actions](https://docs
 
 1. **Validate publishing configuration** 成功。
 2. **Verify API startup, authentication and mounted database** 成功。
-3. **Login to Docker Hub** 成功，而不是 skipped。
-4. **Publish multi-platform image** 成功，而不是 skipped。
+3. **Verify web startup and bundled assets** 成功。
+4. **Login to Docker Hub** 成功，而不是 skipped。
+5. **Publish multi-platform API image** 和 **Publish multi-platform web image** 成功。
 
 再到 Docker Hub 仓库的 **Tags** 页面确认：
 
-- 存在 `0.6.0`；
-- 存在 `latest`；
+- 存在 `0.7.0` 和 `latest`；
+- 存在 `web-0.7.0` 和 `web-latest`；
 - manifest 包含 `linux/amd64` 和 `linux/arm64`。
 
-工作流会在 `linux/amd64` 上实际启动容器，验证 `/health`、鉴权和挂载数据库。`linux/arm64` 会参与多平台构建与发布，但当前 workflow 不会在 ARM 机器上实际启动。
+工作流会在 `linux/amd64` 上实际启动两个容器，验证 API `/health`、鉴权、挂载数据库，以及 Web 首页生成的 JS/CSS 资源。`linux/arm64` 会参与多平台构建与发布，但当前 workflow 不会在 ARM 机器上实际启动。
 
 如本地已安装 Docker，可选执行：
 
 ```sh
-docker buildx imagetools inspect rafaelikaros/component_manager:0.6.0
-docker pull rafaelikaros/component_manager:0.6.0
+docker buildx imagetools inspect rafaelikaros/component_manager:0.7.0
+docker buildx imagetools inspect rafaelikaros/component_manager:web-0.7.0
+docker pull rafaelikaros/component_manager:0.7.0
+docker pull rafaelikaros/component_manager:web-0.7.0
 ```
 
 发布者完成上述网页配置和 Actions 补发只需要浏览器，本地无需安装 Docker；这些本地命令只是额外核验手段。
@@ -145,16 +150,18 @@ docker pull rafaelikaros/component_manager:0.6.0
 先执行 `docker version` 和 `docker compose version`，确认能连接 Docker 服务且 Compose 可用。
 必须先完成上一节的镜像上传验证，再进行拉取部署。
 
-从 GitHub tag `v0.6.0` 对应源码下载 [`docker-compose.hub.yml`](https://github.com/Rafael-ban/Component_Manager/blob/v0.6.0/docker-compose.hub.yml) 和 [`.env.example`](https://github.com/Rafael-ban/Component_Manager/blob/v0.6.0/.env.example)。
+镜像确认发布后，从对应的 `v0.7.0` tag 下载 `docker-compose.hub.yml` 和 `.env.example`。发布前可先准备配置，但不要尝试拉取尚不存在的 tag。
 
 把两个文件放到一个固定部署目录，例如 `component-manager-server/`。将 `.env.example` 复制为同目录的 `.env`。如果目录中已经有 `.env`，先备份和对比，不要直接覆盖现有 Token、CORS 或 MQTT 配置。
 
 至少设置：
 
 ```dotenv
-COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.6.0
+COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.7.0
+COMPONENT_VAULT_WEB_IMAGE=rafaelikaros/component_manager:web-0.7.0
 API_TOKEN=replace-with-your-own-random-token
 ADMIN_WEB_ORIGINS=http://192.168.1.10:8081
+WEB_INVENTORY_ENABLED=false
 ```
 
 把 `API_TOKEN` 的占位值换成自己的随机值。PowerShell 可执行
@@ -191,15 +198,28 @@ curl http://服务器IP:8787/health
 完成一次带 Token 的连接或同步测试，才能确认鉴权和网络路径都可用。
 手机中的地址不能用 `localhost`，应使用手机能访问的服务器 IP 或域名；服务器防火墙需允许对应的 8787 端口。
 
-端口 `8787` 只提供 FastAPI 服务，不包含 Web 管理界面。Web 管理页需要从 GitHub Release 下载 `component-vault-admin-web.zip`，解压后用静态 Web Server 单独部署，并把它的实际 origin 加入 `ADMIN_WEB_ORIGINS`。`v0.6.0` 的库存管理 Web 页面是只读的。
+端口 `8787` 只提供 FastAPI。确认 Web tag 已发布后，可启动可选 profile：
+
+```sh
+docker compose -f docker-compose.hub.yml --profile web pull
+docker compose -f docker-compose.hub.yml --profile web up -d
+```
+
+Web 页面位于 `http://服务器IP:8081/`。若 Web 镜像尚未发布，仍可从 GitHub
+Release 下载 `component-vault-admin-web.zip` 并用静态服务器单独部署。无论采用
+哪种方式，都要把实际页面 origin 加入 `ADMIN_WEB_ORIGINS`。
+
+Web 库存写入默认关闭。只有明确设置 `WEB_INVENTORY_ENABLED=true` 并重启 API
+后，已通过共享 Token 登录的浏览器才能新增库位/元件、编辑资料和记录出入库。
+关闭开关会停止后续 Web 写入，不会撤销已经提交的库存变动。
 
 ## 九、更新、迁移与备份
 
-更新时将 `.env` 中镜像固定到 Docker Hub 已实际发布的版本。当前补发使用下面的值；
-未来更新时只把 `0.6.0` 换成已验证存在的新版本 tag：
+更新时将 `.env` 中两个镜像都固定到 Docker Hub 已实际发布的版本：
 
 ```dotenv
-COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.6.0
+COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.7.0
+COMPONENT_VAULT_WEB_IMAGE=rafaelikaros/component_manager:web-0.7.0
 ```
 
 然后在原部署目录执行：
@@ -219,7 +239,7 @@ docker compose -f docker-compose.hub.yml ps
 docker compose -p 原项目名 -f docker-compose.hub.yml up -d
 ```
 
-旧部署若还包含 Web 服务，切换到只含 API 的 `docker-compose.hub.yml` 前，先确认旧 Web 的静态文件、端口与启动方式；不要在迁移 API 时顺手删除仍在使用的 Web。
+旧部署若已有静态 Web 服务，启用 Hub Compose 的 `web` profile 前先确认端口与 origin，避免与旧服务同时占用 8081。API-only 部署无需启用 profile。
 
 数据库位于容器 `/data/component_vault.db`，保存在 named volume 中。备份 SQLite 时需要一致 snapshot：优先使用 SQLite backup 机制；若只能复制文件，应先暂停写入或停止容器，再完整复制 `/data` 中的数据库相关文件，避免只复制主 `.db` 而遗漏仍有数据的 WAL 文件。
 回退应用版本前还需确认数据库结构兼容，不能假设旧程序能够打开已经被新版迁移的数据库。
@@ -230,8 +250,8 @@ docker compose -p 原项目名 -f docker-compose.hub.yml up -d
 | --- | --- | --- |
 | Actions 登录时报 `unauthorized` / authentication failed | Token 错误、过期或已撤销 | 重新生成 Read & Write Token，更新 `DOCKERHUB_TOKEN` |
 | 推送时报 `denied` | namespace/repository 不匹配，或 Token 没有 Write 权限 | 核对 `rafaelikaros/component_manager` 与 Token 权限 |
-| 拉取时报 `manifest unknown` | tag 尚未发布或拼写错误 | 在 Docker Hub Tags 核对 `0.6.0` 是否真实存在 |
-| `v0.6.0` 拉不到但 `0.6.0` 存在 | 镜像 tag 会去掉 Git tag 的前缀 `v` | 部署时使用 `:0.6.0` |
+| 拉取时报 `manifest unknown` | tag 尚未发布或拼写错误 | 在 Docker Hub Tags 核对 `0.7.0` / `web-0.7.0` 是否真实存在 |
+| `v0.7.0` 拉不到但 `0.7.0` 存在 | API tag 去掉 Git tag 的 `v`；Web 另加 `web-` | 使用 `:0.7.0` 或 `:web-0.7.0` |
 | GitHub Actions 全绿但 Hub 没有镜像 | 跑的是普通 CI、`push_image=false`，或自动 Release 跳过了镜像任务 | 检查 Login/Publish 是否 skipped，按第五节补发 |
 | `pull` 超时 | Docker Hub 网络、DNS 或代理问题 | 先用 `docker pull` 单独诊断网络，再重试 Compose |
 | Web 请求 API 出现 CORS 错误 | `ADMIN_WEB_ORIGINS` 填成 API 地址或遗漏实际 Web origin | 填浏览器地址栏中 Web 页面的 scheme、host 和 port |

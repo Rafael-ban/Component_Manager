@@ -88,6 +88,15 @@ SCHEMA_STATEMENTS = (
         updated_at TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS admin_operation_receipts (
+        request_id TEXT PRIMARY KEY,
+        operation TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
 )
 
 

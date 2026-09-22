@@ -27,7 +27,7 @@ export function AppShell() {
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Component Vault</h1>
               <p className="text-sm text-muted-foreground">
-                自托管同步服务的库存核对与 MQTT 配置。
+                库存默认只读，服务端启用后可操作；同时支持 MQTT 配置。
               </p>
             </div>
           </div>

@@ -36,6 +36,7 @@ public sealed class DesignMainViewModel
         {
             DeviceId = "windows-preview-device",
             ServerBaseUrl = "https://lab.example.net:8787",
+            FallbackServerBaseUrl = "https://sync.example.net",
             ApiToken = "preview-sync-token",
             AutoSyncEnabled = true,
             LastSyncedAt = "2026-05-08T10:18:00Z",

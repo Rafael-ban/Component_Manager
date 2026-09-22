@@ -10,6 +10,7 @@ services:
       APP_HOST: 0.0.0.0
       APP_PORT: "8787"
       ADMIN_WEB_ORIGINS: ${ADMIN_WEB_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081}
+      WEB_INVENTORY_ENABLED: ${WEB_INVENTORY_ENABLED:-false}
       MQTT_ENABLED: ${MQTT_ENABLED:-false}
       MQTT_HOST: ${MQTT_HOST:-}
       MQTT_PORT: ${MQTT_PORT:-1883}

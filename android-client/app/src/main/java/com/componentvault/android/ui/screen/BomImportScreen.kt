@@ -41,6 +41,9 @@ import androidx.compose.ui.unit.dp
 import com.componentvault.android.R
 import com.componentvault.android.data.bom.BomReleasePreview
 import com.componentvault.android.data.bom.BomSheet
+import com.componentvault.android.data.bom.BomColumnMapping
+import com.componentvault.android.data.bom.BomTableInspection
+import com.componentvault.android.data.bom.BomShortageCsvExporter
 import com.componentvault.android.data.bom.ComponentHubParseResult
 import com.componentvault.android.data.bom.LocalImportLimits
 import java.io.ByteArrayOutputStream
@@ -65,6 +68,8 @@ internal fun BomImportScreen(
     var productionSets by remember { mutableStateOf("1") }
     var sheets by remember { mutableStateOf<List<BomSheet>>(emptyList()) }
     var selectedSheet by remember { mutableStateOf<String?>(null) }
+    var inspection by remember { mutableStateOf<BomTableInspection?>(null) }
+    var columnMapping by remember { mutableStateOf<BomColumnMapping?>(null) }
     var preview by remember { mutableStateOf<BomReleasePreview?>(null) }
     var hubPreview by remember { mutableStateOf<ComponentHubParseResult?>(null) }
     var selections by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
@@ -84,6 +89,8 @@ internal fun BomImportScreen(
         fileName = ""
         sheets = emptyList()
         selectedSheet = null
+        inspection = null
+        columnMapping = null
         preview = null
         hubPreview = null
         selections = emptyMap()
@@ -121,12 +128,36 @@ internal fun BomImportScreen(
             projectName = projectName,
             productionSets = sets,
             sheetName = selectedSheet,
+            mapping = columnMapping,
             selections = selections,
             searchQueries = searchQueries,
         ) { result ->
             busy = false
             result.onSuccess { preview = it; message = "预览完成，共 ${it.lines.size} 项。"; messageIsError = false }
                 .onFailure { message = it.message ?: "BOM 解析失败。"; messageIsError = true }
+        }
+    }
+
+    fun inspectSelected(bytes: ByteArray = fileBytes ?: return) {
+        busy = true
+        viewModel.inspectBom(bytes, fileName, selectedSheet) { result ->
+            busy = false
+            result.onSuccess { inspection = it; columnMapping = it.automaticMapping }
+                .onFailure { message = it.message ?: "无法读取 BOM 表头。"; messageIsError = true }
+        }
+    }
+
+    val exportPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        val current = preview
+        if (uri == null || current == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) {
+                context.contentResolver.openOutputStream(uri, "w")!!.use { it.write(BomShortageCsvExporter.export(current)) }
+            } }.onSuccess {
+                val count = BomShortageCsvExporter.shortageCount(current)
+                message = if (count == 0) "已导出 CSV；当前预览无缺料。" else "已导出 CSV，含 $count 项缺料或未匹配记录。"
+                messageIsError = false
+            }.onFailure { message = it.message ?: "CSV 导出失败。"; messageIsError = true }
         }
     }
 
@@ -162,6 +193,8 @@ internal fun BomImportScreen(
             selections = emptyMap()
             searchQueries = emptyMap()
             expandedSearches = emptySet()
+            inspection = null
+            columnMapping = null
             releaseId = UUID.randomUUID().toString()
             batchId = UUID.randomUUID().toString()
             releaseApplied = false
@@ -173,12 +206,13 @@ internal fun BomImportScreen(
                     result.onSuccess {
                         sheets = it
                         selectedSheet = it.firstOrNull { sheet -> !sheet.hidden }?.name
+                        inspectSelected(bytes)
                     }.onFailure { message = it.message ?: "无法读取工作表。"; messageIsError = true }
                 }
             } else {
-                busy = false
                 sheets = emptyList()
                 selectedSheet = null
+                inspectSelected(bytes)
             }
         }.onFailure { busy = false; message = it.message ?: "无法读取文件。"; messageIsError = true }
         }
@@ -281,14 +315,24 @@ internal fun BomImportScreen(
                                 enabled = !busy && !releaseApplied,
                                 onClick = {
                                     selectedSheet = sheet.name
+                                    inspection = null
+                                    columnMapping = null
                                     selections = emptyMap()
                                     searchQueries = emptyMap()
                                     expandedSearches = emptySet()
+                                    inspectSelected()
                                 },
                                 label = { Text(sheet.name) },
                             )
                         }
                     }
+                }
+                if (selectedMode == BomImportMode.Bom && inspection != null) item {
+                    BomColumnMappingEditor(
+                        inspection = inspection!!,
+                        mapping = columnMapping ?: inspection!!.automaticMapping,
+                        onChange = { columnMapping = it; preview = null },
+                    )
                 }
                 if (fileBytes != null) item {
                     Button(
@@ -329,6 +373,14 @@ internal fun BomImportScreen(
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), Arrangement.spacedBy(4.dp)) {
                             Text(line.requirement.sku ?: line.requirement.model ?: "未识别物料")
+                            val details = listOfNotNull(
+                                line.requirement.name?.takeIf(String::isNotBlank),
+                                line.requirement.model?.takeIf { it.isNotBlank() && it != line.requirement.sku },
+                                line.requirement.packageName?.takeIf(String::isNotBlank),
+                                columnMapping?.reference?.let { index -> inspection?.headers?.getOrNull(index) }
+                                    ?.let { header -> line.requirement.sourceRows.flatMap { it.fields[header].orEmpty().split(',', ';') }.filter(String::isNotBlank).distinct().joinToString("、").takeIf(String::isNotBlank) },
+                            )
+                            if (details.isNotEmpty()) Text(details.joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("需求 ${line.requirement.requiredQuantity} / 库存 ${line.availableQuantity}")
                             if (line.componentId == null) {
                                 Text(
@@ -411,6 +463,11 @@ internal fun BomImportScreen(
                 onClick = { confirmKind = "bom" },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("核对并批量出库") }
+            OutlinedButton(
+                enabled = !busy,
+                onClick = { exportPicker.launch("${fileName.substringBeforeLast('.').ifBlank { "bom" }}-缺料.csv") },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (BomShortageCsvExporter.shortageCount(current) == 0) "导出 CSV（无缺料）" else "导出缺料 CSV") }
             if (releaseApplied) {
                 OutlinedButton(
                     onClick = {
@@ -516,6 +573,42 @@ private fun com.componentvault.android.data.bom.InventoryMatchCandidate.matching
         packageName?.takeIf(String::isNotBlank),
         displayName?.takeIf(String::isNotBlank),
     ).distinct().joinToString(" · ")
+
+@Composable
+private fun BomColumnMappingEditor(
+    inspection: BomTableInspection,
+    mapping: BomColumnMapping,
+    onChange: (BomColumnMapping) -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("列映射", style = MaterialTheme.typography.titleMedium)
+            Text("自动识别后仍可按列位置调整；重复表头也能分别选择。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            MappingRow("SKU", inspection.headers, mapping.sku, true) { onChange(mapping.copy(sku = it)) }
+            MappingRow("型号", inspection.headers, mapping.model, true) { onChange(mapping.copy(model = it)) }
+            MappingRow("需求数量 *", inspection.headers, mapping.quantity, false) { onChange(mapping.copy(quantity = it)) }
+            MappingRow("封装", inspection.headers, mapping.packageName, true) { onChange(mapping.copy(packageName = it)) }
+            MappingRow("名称", inspection.headers, mapping.name, true) { onChange(mapping.copy(name = it)) }
+            MappingRow("位号", inspection.headers, mapping.reference, true) { onChange(mapping.copy(reference = it)) }
+            if (mapping.quantity == null || mapping.sku == null && mapping.model == null) {
+                Text("需求数量列必选，并且至少选择 SKU 或型号列。", color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MappingRow(label: String, headers: List<String>, selected: Int?, optional: Boolean, onSelect: (Int?) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (optional) item { FilterChip(selected == null, { onSelect(null) }, label = { Text("不使用") }) }
+            items(headers.indices.toList()) { index ->
+                FilterChip(selected == index, { onSelect(index) }, label = { Text("${index + 1}. ${headers[index].ifBlank { "未命名" }}") })
+            }
+        }
+    }
+}
 
 @Composable
 private fun ImportTaskCard(title: String, description: String, onClick: () -> Unit) {

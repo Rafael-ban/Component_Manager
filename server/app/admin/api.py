@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import sqlite3
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..auth import require_token
 from ..config import Settings, get_settings
+from ..database import get_db
 from ..lcsc import LookupConfigurationError, LookupRequestError, lookup_lcsc_product
 from ..part_lookup import (
     RecognitionRulesRefreshError,
@@ -13,12 +16,17 @@ from ..part_lookup import (
 )
 from ..schemas import (
     AdminComponentDetail,
+    AdminComponentCreate,
+    AdminComponentUpdate,
     AdminComponentListResponse,
     AdminDashboardResponse,
     AdminInventoryResponse,
     AdminKeyValueItem,
     AdminMetricSnapshot,
     AdminSettingsResponse,
+    AdminStockMovementCreate,
+    AdminStorageLocation,
+    AdminStorageLocationCreate,
     AdminSyncResponse,
     LcscLookupResponse,
     PartLookupResponse,
@@ -29,6 +37,15 @@ from .data import (
     load_admin_component,
     load_admin_components,
     load_admin_snapshot,
+)
+from .operations import (
+    AdminOperationConflict,
+    AdminOperationNotFound,
+    create_component,
+    create_storage_location,
+    list_storage_locations,
+    record_stock_movement,
+    update_component,
 )
 
 router = APIRouter(
@@ -119,6 +136,87 @@ def get_component_detail(
     return AdminComponentDetail.model_validate(component)
 
 
+@router.get(
+    "/storage-locations",
+    response_model=list[AdminStorageLocation],
+)
+def get_storage_locations(
+    connection: sqlite3.Connection = Depends(get_db),
+) -> list[AdminStorageLocation]:
+    return [
+        AdminStorageLocation.model_validate(item)
+        for item in list_storage_locations(connection)
+    ]
+
+
+@router.post(
+    "/storage-locations",
+    response_model=AdminStorageLocation,
+    status_code=status.HTTP_201_CREATED,
+)
+def post_storage_location(
+    draft: AdminStorageLocationCreate,
+    settings: Settings = Depends(get_settings),
+    connection: sqlite3.Connection = Depends(get_db),
+) -> AdminStorageLocation:
+    _require_web_inventory(settings)
+    return _run_admin_operation(
+        AdminStorageLocation,
+        lambda: create_storage_location(connection, draft),
+    )
+
+
+@router.post(
+    "/components",
+    response_model=AdminComponentDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+def post_component(
+    draft: AdminComponentCreate,
+    settings: Settings = Depends(get_settings),
+    connection: sqlite3.Connection = Depends(get_db),
+) -> AdminComponentDetail:
+    _require_web_inventory(settings)
+    return _run_admin_operation(
+        AdminComponentDetail,
+        lambda: create_component(connection, settings, draft),
+    )
+
+
+@router.put(
+    "/components/{component_id}",
+    response_model=AdminComponentDetail,
+)
+def put_component(
+    component_id: str,
+    draft: AdminComponentUpdate,
+    settings: Settings = Depends(get_settings),
+    connection: sqlite3.Connection = Depends(get_db),
+) -> AdminComponentDetail:
+    _require_web_inventory(settings)
+    return _run_admin_operation(
+        AdminComponentDetail,
+        lambda: update_component(connection, settings, component_id, draft),
+    )
+
+
+@router.post(
+    "/components/{component_id}/movements",
+    response_model=AdminComponentDetail,
+)
+def post_component_movement(
+    component_id: str,
+    draft: AdminStockMovementCreate,
+    settings: Settings = Depends(get_settings),
+    connection: sqlite3.Connection = Depends(get_db),
+) -> AdminComponentDetail:
+    _require_web_inventory(settings)
+    return _run_admin_operation(
+        AdminComponentDetail,
+        lambda: record_stock_movement(connection, settings, component_id, draft),
+    )
+
+
 @router.get("/sync", response_model=AdminSyncResponse)
 def get_sync(
     settings: Settings = Depends(get_settings),
@@ -145,6 +243,7 @@ def get_settings_overview(
     settings: Settings = Depends(get_settings),
 ) -> AdminSettingsResponse:
     return AdminSettingsResponse(
+        web_inventory_enabled=settings.web_inventory_enabled,
         runtime_configuration=[
             AdminKeyValueItem(label="App name", value=settings.app_name),
             AdminKeyValueItem(label="Host", value=settings.app_host),
@@ -320,6 +419,33 @@ def _attention_items(settings: Settings) -> list[str]:
 
     return [
         token_item,
-        "Clients still own all inventory writes; this admin API is read-only.",
+        (
+            "Authenticated web inventory writes are enabled."
+            if settings.web_inventory_enabled
+            else "Web inventory writes are disabled; clients own inventory writes."
+        ),
         "Sync visibility is derived from the latest accepted server-side rows.",
     ]
+
+
+def _require_web_inventory(settings: Settings) -> None:
+    if not settings.web_inventory_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Web inventory writes are disabled.",
+        )
+
+
+def _run_admin_operation(model, operation):
+    try:
+        return model.model_validate(operation())
+    except AdminOperationNotFound as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+    except AdminOperationConflict as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error

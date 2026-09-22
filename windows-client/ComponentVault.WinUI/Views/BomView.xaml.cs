@@ -5,6 +5,7 @@ using ComponentVault.WinUI.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Storage.Pickers;
+using Windows.Storage;
 using WinRT.Interop;
 
 namespace ComponentVault.WinUI.Views;
@@ -16,6 +17,8 @@ public sealed partial class BomView : Page
     private readonly Dictionary<int, string> _selections = [];
     private BomDocument? _document;
     private BomPreview? _preview;
+    private BomTableInspection? _inspection;
+    private BomColumnMapping? _mapping;
     private string? _filePath;
     private string _releaseId = Guid.NewGuid().ToString("N");
     private string _batchId = NewBatchId();
@@ -42,7 +45,21 @@ public sealed partial class BomView : Page
                 if (names.Count > 1) sheet = await ChooseSheetAsync(names);
                 if (names.Count > 1 && sheet is null) return;
             }
-            _document = _reader.Read(file.Path, sheet);
+            _inspection = _reader.Inspect(file.Path, sheet);
+            _mapping = _inspection.AutomaticMapping;
+            if (_mapping.Quantity is null || _mapping.Sku is null && _mapping.Model is null)
+            {
+                _document = null;
+                _selections.Clear();
+                ResetBatchIdentity();
+                MappingButton.IsEnabled = true;
+                ExportButton.IsEnabled = false;
+                ConfirmButton.IsEnabled = false;
+                SummaryText.Text = $"{_inspection.SourceName} · 未自动识别必需列，请调整列映射。";
+                await ShowMessageAsync("需要列映射", "请选择需求数量列，并至少选择 SKU 或型号列。原文件已保留，可直接继续映射。");
+                return;
+            }
+            _document = _reader.Read(file.Path, sheet, _mapping);
             _selections.Clear();
             ResetBatchIdentity();
             RefreshPreview();
@@ -57,11 +74,19 @@ public sealed partial class BomView : Page
         var batches = double.IsFinite(value) && value >= 1 && value <= int.MaxValue && value == Math.Truncate(value)
             ? (int)value : 0;
         _preview = ViewModel.CreateBomPreview(_document, ProjectNameBox.Text, batches, _selections);
-        PreviewList.ItemsSource = _preview.Lines.Select(line => $"{line.ComponentSku} · 单批 {line.UnitQuantity} · 总需 {line.RequiredQuantity} · 库存 {line.AvailableQuantity} · 扣料 {AllocationPlan(line)}")
+        PreviewList.ItemsSource = _preview.Lines.Select(line => $"{PreviewIdentity(line)} · 单批 {line.UnitQuantity} · 总需 {line.RequiredQuantity} · 库存 {line.AvailableQuantity} · 扣料 {AllocationPlan(line)}")
             .Concat(_preview.Issues.Select(issue => $"第 {issue.RowNumber?.ToString() ?? "-"} 行 · {issue.Message}")).ToArray();
         SummaryText.Text = $"{_document.SourceName}{(_document.WorksheetName is null ? "" : $" / {_document.WorksheetName}")} · {_preview.Lines.Count} 个匹配 · {_preview.Issues.Count} 个阻止项";
         ResolveButton.IsEnabled = _preview.SelectionGroups is { Count: > 0 };
+        MappingButton.IsEnabled = _inspection is not null && !_confirmed;
+        ExportButton.IsEnabled = _preview is not null;
         ConfirmButton.IsEnabled = _preview.CanConfirm && !_confirmed;
+    }
+
+    private string PreviewIdentity(BomConsumptionLine line)
+    {
+        var source = _document?.Rows.FirstOrDefault(row => line.SourceRows.Contains(row.RowNumber));
+        return string.Join(" · ", new[] { line.ComponentSku, source?.SupplierPartNumber, source?.PackageName }.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct());
     }
 
     private string AllocationPlan(BomConsumptionLine line)
@@ -154,6 +179,45 @@ public sealed partial class BomView : Page
         RefreshPreview();
     }
 
+    private async void OnMappingClicked(object sender, RoutedEventArgs e)
+    {
+        if (_inspection is null || _filePath is null) return;
+        var panel = new StackPanel { Spacing = 8, Width = 520 };
+        var choices = _inspection.Headers.Select((header, index) => new ColumnChoice(index, $"{index + 1}. {(string.IsNullOrWhiteSpace(header) ? "未命名" : header)}")).ToArray();
+        ComboBox Add(string label, int? selected, bool optional)
+        {
+            panel.Children.Add(new TextBlock { Text = label });
+            var items = optional ? new[] { new ColumnChoice(null, "不使用") }.Concat(choices).ToArray() : choices;
+            var box = new ComboBox { ItemsSource = items, DisplayMemberPath = nameof(ColumnChoice.Label), SelectedItem = items.FirstOrDefault(item => item.Index == selected), HorizontalAlignment = HorizontalAlignment.Stretch };
+            panel.Children.Add(box); return box;
+        }
+        var sku = Add("SKU", _mapping?.Sku, true); var model = Add("型号", _mapping?.Model, true);
+        var quantity = Add("需求数量（必选）", _mapping?.Quantity, false); var package = Add("封装", _mapping?.Package, true);
+        var name = Add("名称", _mapping?.Name, true); var reference = Add("位号", _mapping?.Reference, true);
+        var dialog = new ContentDialog { Title = "调整 BOM 列映射", Content = panel, PrimaryButtonText = "重新预览", CloseButtonText = "取消", XamlRoot = XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        try
+        {
+            _mapping = new(((ColumnChoice?)sku.SelectedItem)?.Index, ((ColumnChoice?)model.SelectedItem)?.Index, ((ColumnChoice?)package.SelectedItem)?.Index, ((ColumnChoice?)quantity.SelectedItem)?.Index, ((ColumnChoice?)name.SelectedItem)?.Index, ((ColumnChoice?)reference.SelectedItem)?.Index);
+            _mapping.Validate(_inspection.Headers.Count);
+            _document = _reader.Read(_filePath, _inspection.WorksheetName, _mapping);
+            _selections.Clear(); ResetBatchIdentity(); RefreshPreview();
+        }
+        catch (Exception exception) { await ShowMessageAsync("列映射无效", exception.Message); }
+    }
+
+    private async void OnExportClicked(object sender, RoutedEventArgs e)
+    {
+        if (_document is null || _preview is null) return;
+        var picker = new FileSavePicker { SuggestedFileName = $"{Path.GetFileNameWithoutExtension(_document.SourceName)}-缺料" };
+        picker.FileTypeChoices.Add("CSV", new List<string> { ".csv" });
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(((App)Application.Current).Window));
+        var file = await picker.PickSaveFileAsync(); if (file is null) return;
+        await FileIO.WriteBytesAsync(file, BomShortageCsvExporter.Export(_document, _preview));
+        var count = BomShortageCsvExporter.ShortageCount(_document, _preview);
+        await ShowMessageAsync("CSV 已导出", count == 0 ? "当前预览没有缺料。" : $"已导出 {count} 项缺料或未匹配记录。");
+    }
+
     private void ResetBatchIdentity()
     {
         _releaseId = Guid.NewGuid().ToString("N");
@@ -171,4 +235,6 @@ public sealed partial class BomView : Page
     }
 
     private async Task ShowMessageAsync(string title, string message) => await new ContentDialog { Title = title, Content = message, CloseButtonText = "关闭", XamlRoot = XamlRoot }.ShowAsync();
+
+    private sealed record ColumnChoice(int? Index, string Label);
 }

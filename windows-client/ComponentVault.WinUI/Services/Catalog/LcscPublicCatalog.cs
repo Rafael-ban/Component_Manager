@@ -22,7 +22,23 @@ public sealed class LcscDomesticBlockedException : IOException
 public static partial class LcscPublicCatalog
 {
     private static readonly ConcurrentDictionary<string, string> ImageCache = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly IReadOnlyDictionary<string, string> ExactCategories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    private static readonly IReadOnlyDictionary<string, string> KnownCategorySegments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Capacitors"] = "电容器", ["Ceramic Capacitors"] = "陶瓷电容器",
+        ["Aluminum Electrolytic Capacitors"] = "铝电解电容器", ["Tantalum Capacitors"] = "钽电容器", ["Film Capacitors"] = "薄膜电容器",
+        ["Resistors"] = "电阻器", ["Chip Resistor - Surface Mount"] = "贴片电阻", ["Through Hole Resistors"] = "直插电阻", ["Current Sense Resistors"] = "采样电阻",
+        ["Inductors, Coils, Chokes"] = "电感器/线圈/扼流圈", ["Fixed Inductors"] = "固定电感器", ["Ferrite Beads and Chips"] = "磁珠",
+        ["Integrated Circuits (ICs)"] = "集成电路", ["Embedded"] = "嵌入式处理器及控制器", ["Microcontrollers"] = "微控制器",
+        ["Power Management (PMIC)"] = "电源管理芯片", ["Voltage Regulators - Linear"] = "线性稳压器", ["DC DC Switching Regulators"] = "DC-DC开关稳压器",
+        ["Voltage Regulators - Linear, Low Drop Out (LDO) Regulators"] = "线性稳压器（LDO）",
+        ["Memory"] = "存储器", ["Logic"] = "逻辑器件", ["Amplifiers"] = "放大器", ["Operational Amplifiers"] = "运算放大器",
+        ["Diodes"] = "二极管", ["Rectifiers"] = "整流器", ["Transistors"] = "晶体管", ["MOSFETs"] = "MOS管",
+        ["Optoelectronics"] = "光电器件", ["LED Indication - Discrete"] = "LED指示器件", ["Sensors"] = "传感器", ["Temperature Sensors"] = "温度传感器",
+        ["Connectors, Interconnects"] = "连接器", ["Headers, Male Pins"] = "排针", ["Rectangular Connectors - Housings"] = "矩形连接器外壳", ["Terminal Blocks"] = "接线端子",
+        ["Crystals, Oscillators, Resonators"] = "晶体/振荡器/谐振器", ["Crystals"] = "晶体", ["Oscillators"] = "振荡器",
+        ["LED Drivers"] = "LED驱动器", ["LED Drivers ICs"] = "LED驱动芯片",
+    };
+    private static readonly IReadOnlyDictionary<string, string> LegacyExactCategories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         ["crystals, oscillators, resonators/crystals"] = "晶体",
         ["capacitors/ceramic capacitors"] = "电容",
@@ -57,7 +73,10 @@ public static partial class LcscPublicCatalog
     {
         var path = CleanText(officialPath) ?? string.Empty;
         if (path.Length == 0 || path.Any(character => character is >= '\u4e00' and <= '\u9fff')) return path;
-        return ExactCategories.GetValueOrDefault(path, path);
+        if (LegacyExactCategories.TryGetValue(path, out var legacyCategory)) return legacyCategory;
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length == 0) return path;
+        return KnownCategorySegments.GetValueOrDefault(segments[^1], path);
     }
 
     public static string? CachedImageUrl(string? sku) => NormalizeSku(sku) is { } normalized && ImageCache.TryGetValue(normalized, out var value) ? value : null;

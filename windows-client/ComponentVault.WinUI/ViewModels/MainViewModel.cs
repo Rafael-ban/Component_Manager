@@ -614,11 +614,12 @@ public sealed class MainViewModel : ObservableObject
 
     public OperationResult SaveSyncConfiguration(
         string serverBaseUrl,
+        string fallbackServerBaseUrl,
         string apiToken,
         bool autoSyncEnabled
     )
     {
-        var result = _store.SaveSyncConfiguration(serverBaseUrl, apiToken, autoSyncEnabled);
+        var result = _store.SaveSyncConfiguration(serverBaseUrl, fallbackServerBaseUrl, apiToken, autoSyncEnabled);
         Refresh();
         ScheduleAutoSync();
         return result;
@@ -662,6 +663,7 @@ public sealed class MainViewModel : ObservableObject
 
     public async Task<OperationResult> TestConnectionAsync(
         string serverBaseUrl,
+        string fallbackServerBaseUrl,
         string apiToken,
         bool autoSyncEnabled
     )
@@ -671,6 +673,7 @@ public sealed class MainViewModel : ObservableObject
         {
             var draft = SyncConfiguration.WithDraftConnection(
                 serverBaseUrl,
+                fallbackServerBaseUrl,
                 apiToken,
                 autoSyncEnabled
             );
@@ -767,7 +770,7 @@ public sealed class MainViewModel : ObservableObject
 
         if (SelectedComponentCategoryFilter != AllCategoriesOption)
         {
-            filtered = filtered.Where(component => component.Category == SelectedComponentCategoryFilter);
+            filtered = filtered.Where(component => CategoryFilterSemantics.SameCategory(component.Category, SelectedComponentCategoryFilter));
         }
 
         if (SelectedComponentLocationFilter != AllLocationsOption)
@@ -781,7 +784,7 @@ public sealed class MainViewModel : ObservableObject
             filtered = filtered.Where(component =>
                 component.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
                 || component.Sku.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || component.Category.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || CategoryFilterSemantics.MatchesSearch(component.Category, query)
                 || component.Location.Contains(query, StringComparison.OrdinalIgnoreCase)
             );
         }
@@ -852,17 +855,23 @@ public sealed class MainViewModel : ObservableObject
 
     private void UpdateInventoryFilterOptions()
     {
-        var categoryOptions = _allComponents
-            .Select(component => component.Category)
-            .Where(category => !string.IsNullOrWhiteSpace(category))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(category => category, StringComparer.OrdinalIgnoreCase);
+        var categoryOptions = CategoryFilterSemantics.Options(_allComponents.Select(component => component.Category));
         ReplaceCollection(
             InventoryCategoryOptions,
             new[] { AllCategoriesOption }.Concat(categoryOptions)
         );
 
-        if (!InventoryCategoryOptions.Contains(_selectedComponentCategoryFilter))
+        if (_selectedComponentCategoryFilter != AllCategoriesOption)
+        {
+            var equivalentOption = categoryOptions.FirstOrDefault(option =>
+                CategoryFilterSemantics.SameCategory(option, _selectedComponentCategoryFilter));
+            if (equivalentOption is not null && !_selectedComponentCategoryFilter.Equals(equivalentOption, StringComparison.Ordinal))
+            {
+                _selectedComponentCategoryFilter = equivalentOption;
+                OnPropertyChanged(nameof(SelectedComponentCategoryFilter));
+            }
+        }
+        if (!InventoryCategoryOptions.Contains(_selectedComponentCategoryFilter, StringComparer.OrdinalIgnoreCase))
         {
             _selectedComponentCategoryFilter = AllCategoriesOption;
             OnPropertyChanged(nameof(SelectedComponentCategoryFilter));

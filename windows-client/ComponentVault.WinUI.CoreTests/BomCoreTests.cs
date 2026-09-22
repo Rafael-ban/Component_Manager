@@ -155,6 +155,45 @@ public sealed class BomCoreTests : IDisposable
     }
 
     [Fact]
+    public void CsvReader_ManualMappingUsesColumnIndexesForDuplicateArbitraryHeaders()
+    {
+        Directory.CreateDirectory(_testRoot);
+        var path = Path.Combine(_testRoot, "manual.csv");
+        File.WriteAllText(path, "任意,重复,重复,位号\n备注,C-77,2,R1");
+        var reader = new BomFileReader();
+        var inspection = reader.Inspect(path);
+        Assert.Equal(["任意", "重复", "重复", "位号"], inspection.Headers);
+
+        var row = Assert.Single(reader.Read(path, mapping: new(1, null, null, 2, null, 3)).Rows);
+        Assert.Equal("C-77", row.Sku);
+        Assert.Equal(2, row.Quantity);
+        Assert.Throws<InvalidDataException>(() => reader.Read(path, mapping: new(1, null, null, null)));
+    }
+
+    [Fact]
+    public void ShortageCsv_QuotesChineseAndFormulaDataAndIncludesUnmatchedRows()
+    {
+        var document = Document(new(2, "=C1", "型号\"甲", null, 2), new(3, "C2", null, null, 1));
+        var preview = new BomPreview("项目", 1, [new("id", "=C1", 2, 2, 5, "now", [2])], [new(3, "unmatched", "未匹配")], new Dictionary<int, IReadOnlyList<BomMatchCandidate>>());
+        var bytes = BomShortageCsvExporter.Export(document, preview);
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes.Take(3));
+        var text = System.Text.Encoding.UTF8.GetString(bytes[3..]);
+        Assert.Contains("\"'=C1\"", text);
+        Assert.Contains("\"型号\"\"甲\"", text);
+        Assert.Contains("未匹配", text);
+        Assert.Equal(1, BomShortageCsvExporter.ShortageCount(document, preview));
+    }
+
+    [Fact]
+    public void ShortageCsv_ReportsZeroWhenPreviewIsFullyStocked()
+    {
+        var document = Document(new(2, "C1", "M1", null, 2));
+        var preview = new BomPreview("P", 1, [new("id", "C1", 2, 2, 5, "now", [2])], [], new Dictionary<int, IReadOnlyList<BomMatchCandidate>>());
+        Assert.Equal(0, BomShortageCsvExporter.ShortageCount(document, preview));
+        Assert.Contains("库存充足", System.Text.Encoding.UTF8.GetString(BomShortageCsvExporter.Export(document, preview)));
+    }
+
+    [Fact]
     public void Preview_AggregatesDifferentKeysResolvedToSameComponent()
     {
         var component = Component("c1", "C1", 20, "型号：MPN-1\n品牌：MPN-1", "0603");

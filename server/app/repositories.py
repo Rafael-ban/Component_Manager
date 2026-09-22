@@ -56,27 +56,44 @@ def save_sync_payload(
         with connection:
             # Serialize the LWW read/check/write as well as revision allocation.
             connection.execute("BEGIN IMMEDIATE")
-            validate_inventory_push(connection, payload)
-            save_locations(connection, payload.storage_locations)
-            accepted_components = save_components(
+            result = save_sync_payload_in_transaction(
                 connection,
-                payload.components,
+                payload,
                 mqtt_topic_prefix=mqtt_topic_prefix,
             )
-            accepted_stock_movements = save_stock_movements(
-                connection,
-                payload.stock_movements,
-            )
-            invalid_location = connection.execute("""
-                SELECT a.location_id FROM component_allocations a
-                JOIN storage_locations l ON l.id = a.location_id
-                JOIN components c ON c.id = a.component_id
-                WHERE c.deleted = 0 AND l.deleted = 1 AND a.quantity > 0 LIMIT 1
-            """).fetchone()
-            if invalid_location:
-                raise ValueError("A location with positive inventory cannot be deleted.")
     except sqlite3.IntegrityError as error:
         raise ValueError(_integrity_error_message(error)) from error
+    return result
+
+
+def save_sync_payload_in_transaction(
+    connection: sqlite3.Connection,
+    payload: PushRequest,
+    *,
+    mqtt_topic_prefix: str | None = None,
+) -> tuple[int, int]:
+    """Save a push inside a transaction already owned by the caller."""
+    if not connection.in_transaction:
+        raise RuntimeError("An active caller-owned transaction is required.")
+    validate_inventory_push(connection, payload)
+    save_locations(connection, payload.storage_locations)
+    accepted_components = save_components(
+        connection,
+        payload.components,
+        mqtt_topic_prefix=mqtt_topic_prefix,
+    )
+    accepted_stock_movements = save_stock_movements(
+        connection,
+        payload.stock_movements,
+    )
+    invalid_location = connection.execute("""
+        SELECT a.location_id FROM component_allocations a
+        JOIN storage_locations l ON l.id = a.location_id
+        JOIN components c ON c.id = a.component_id
+        WHERE c.deleted = 0 AND l.deleted = 1 AND a.quantity > 0 LIMIT 1
+    """).fetchone()
+    if invalid_location:
+        raise ValueError("A location with positive inventory cannot be deleted.")
     return accepted_components, accepted_stock_movements
 
 

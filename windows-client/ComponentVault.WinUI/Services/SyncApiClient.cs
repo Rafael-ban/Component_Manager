@@ -16,11 +16,18 @@ public sealed class SyncApiClient
     };
 
     public SyncApiClient()
+        : this(
+            new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(15),
+            }
+        )
     {
-        _httpClient = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(15),
-        };
+    }
+
+    internal SyncApiClient(HttpClient httpClient)
+    {
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     }
 
     public async Task<OperationResult> TestConnectionAsync(
@@ -38,24 +45,12 @@ public sealed class SyncApiClient
             return OperationResult.Failure("请先填写 API 令牌。");
         }
 
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post,
-            BuildUri(settings.ServerBaseUrl, "/auth/ping")
-        );
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiToken);
-
         try
         {
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                return OperationResult.Failure(await BuildErrorMessageAsync(response, cancellationToken));
-            }
-
-            var payload = await DeserializeAsync<SyncTokenStatusResponse>(response, cancellationToken);
+            var (serverBaseUrl, payload) = await ResolveServerAsync(settings, cancellationToken);
             if (payload.InventoryProtocol != 1)
                 return OperationResult.Failure("服务器不支持多库位库存协议 inventory_protocol=1；本地待同步内容已保留。");
-            return OperationResult.Success($"连接成功。服务器时间：{payload.ServerTime}");
+            return OperationResult.Success($"连接成功（{serverBaseUrl}）。服务器时间：{payload.ServerTime}");
         }
         catch (Exception exception)
         {
@@ -82,16 +77,16 @@ public sealed class SyncApiClient
 
         try
         {
-            var capability = await PingAsync(settings, cancellationToken);
+            var (serverBaseUrl, capability) = await ResolveServerAsync(settings, cancellationToken);
             if (capability.InventoryProtocol != 1)
                 return SyncRunResult.Failure("服务器不支持多库位库存协议 inventory_protocol=1；同步已停止，本地待同步内容已保留。");
-            var pushResponse = await PushAsync(settings, pushRequest, cancellationToken);
+            var pushResponse = await PushAsync(settings, serverBaseUrl, pushRequest, cancellationToken);
             if (pushResponse.Result is not null)
             {
                 return pushResponse.Result;
             }
 
-            var pullResponse = await PullAsync(settings, cursor, cancellationToken);
+            var pullResponse = await PullAsync(settings, serverBaseUrl, cursor, cancellationToken);
             if (pullResponse.Result is not null)
             {
                 return pullResponse.Result;
@@ -101,6 +96,7 @@ public sealed class SyncApiClient
             {
                 IsSuccess = true,
                 Message = "同步已成功完成。",
+                UsedServerBaseUrl = serverBaseUrl,
                 AcceptedComponents = pushResponse.Payload!.AcceptedComponents,
                 AcceptedStockMovements = pushResponse.Payload.AcceptedStockMovements,
                 PullResponse = pullResponse.Payload!,
@@ -112,10 +108,57 @@ public sealed class SyncApiClient
         }
     }
 
-    private async Task<SyncTokenStatusResponse> PingAsync(SyncConfiguration settings, CancellationToken cancellationToken)
+    private async Task<(string ServerBaseUrl, SyncTokenStatusResponse Capability)> ResolveServerAsync(
+        SyncConfiguration settings,
+        CancellationToken cancellationToken
+    )
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(settings.ServerBaseUrl, "/auth/ping"));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiToken);
+        var hasDistinctFallback = !string.IsNullOrWhiteSpace(settings.FallbackServerBaseUrl)
+            && !string.Equals(
+                settings.ServerBaseUrl,
+                settings.FallbackServerBaseUrl,
+                StringComparison.OrdinalIgnoreCase
+            );
+        if (!hasDistinctFallback)
+        {
+            return (
+                settings.ServerBaseUrl,
+                await PingAsync(settings.ServerBaseUrl, settings.ApiToken, cancellationToken)
+            );
+        }
+
+        try
+        {
+            using var primaryDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            primaryDeadline.CancelAfter(TimeSpan.FromSeconds(3));
+            return (
+                settings.ServerBaseUrl,
+                await PingAsync(settings.ServerBaseUrl, settings.ApiToken, primaryDeadline.Token)
+            );
+        }
+        catch (Exception exception) when (
+            !cancellationToken.IsCancellationRequested
+            && IsConnectionFailure(exception)
+        )
+        {
+            return (
+                settings.FallbackServerBaseUrl,
+                await PingAsync(settings.FallbackServerBaseUrl, settings.ApiToken, cancellationToken)
+            );
+        }
+    }
+
+    private static bool IsConnectionFailure(Exception exception) =>
+        exception is HttpRequestException or IOException or OperationCanceledException;
+
+    private async Task<SyncTokenStatusResponse> PingAsync(
+        string serverBaseUrl,
+        string apiToken,
+        CancellationToken cancellationToken
+    )
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(serverBaseUrl, "/auth/ping"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode) throw new InvalidOperationException(await BuildErrorMessageAsync(response, cancellationToken));
         return await DeserializeAsync<SyncTokenStatusResponse>(response, cancellationToken);
@@ -123,6 +166,7 @@ public sealed class SyncApiClient
 
     private async Task<(SyncPushResponse? Payload, SyncRunResult? Result)> PushAsync(
         SyncConfiguration settings,
+        string serverBaseUrl,
         SyncPushRequest pushRequest,
         CancellationToken cancellationToken
     )
@@ -130,7 +174,7 @@ public sealed class SyncApiClient
         var json = JsonSerializer.Serialize(pushRequest, _jsonOptions);
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
-            BuildUri(settings.ServerBaseUrl, "/sync/push")
+            BuildUri(serverBaseUrl, "/sync/push")
         );
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiToken);
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -149,6 +193,7 @@ public sealed class SyncApiClient
 
     private async Task<(SyncPullResponse? Payload, SyncRunResult? Result)> PullAsync(
         SyncConfiguration settings,
+        string serverBaseUrl,
         long? cursor,
         CancellationToken cancellationToken
     )
@@ -159,7 +204,7 @@ public sealed class SyncApiClient
 
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            BuildUri(settings.ServerBaseUrl, path)
+            BuildUri(serverBaseUrl, path)
         );
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiToken);
 

@@ -1,5 +1,18 @@
 namespace ComponentVault.WinUI.Services.Bom;
 
+public sealed record BomColumnMapping(int? Sku, int? Model, int? Package, int? Quantity, int? Name = null, int? Reference = null)
+{
+    public void Validate(int columnCount)
+    {
+        if (Quantity is null) throw new InvalidDataException("请选择需求数量列。");
+        if (Sku is null && Model is null) throw new InvalidDataException("请至少选择 SKU 或型号列。");
+        if (new[] { Sku, Model, Package, Quantity, Name, Reference }.Where(value => value is not null).Any(value => value < 0 || value >= columnCount))
+            throw new InvalidDataException("列映射超出表头范围。");
+    }
+}
+
+public sealed record BomTableInspection(string SourceName, string? WorksheetName, IReadOnlyList<string> Headers, int HeaderRowNumber, BomColumnMapping AutomaticMapping);
+
 public sealed record BomSourceRow(
     int RowNumber,
     string? Sku,

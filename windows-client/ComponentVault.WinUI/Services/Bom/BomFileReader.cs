@@ -22,22 +22,40 @@ public sealed class BomFileReader
         return ReadWorkbookSheets(archive).Select(sheet => sheet.Name).ToArray();
     }
 
-    public BomDocument Read(string filePath, string? worksheetName = null)
+    public BomDocument Read(string filePath, string? worksheetName = null, BomColumnMapping? mapping = null)
     {
         ValidateFile(filePath, ".csv", ".xlsx");
         return Path.GetExtension(filePath).Equals(".csv", StringComparison.OrdinalIgnoreCase)
-            ? ReadCsv(filePath)
-            : ReadXlsx(filePath, worksheetName);
+            ? ReadCsv(filePath, mapping)
+            : ReadXlsx(filePath, worksheetName, mapping);
     }
 
-    private static BomDocument ReadCsv(string filePath)
+    public BomTableInspection Inspect(string filePath, string? worksheetName = null)
     {
-        using var reader = new StreamReader(filePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        var records = ParseCsvRecords(reader);
-        return BuildDocument(Path.GetFileName(filePath), null, records);
+        ValidateFile(filePath, ".csv", ".xlsx");
+        var raw = Path.GetExtension(filePath).Equals(".csv", StringComparison.OrdinalIgnoreCase)
+            ? ReadCsvRecords(filePath)
+            : ReadXlsxRecords(filePath, worksheetName);
+        var headerIndex = FindHeaderIndex(raw.Records);
+        var headers = raw.Records[headerIndex].Select(value => value.Trim()).ToArray();
+        return new(raw.SourceName, raw.WorksheetName, headers, headerIndex + 1, DetectMapping(headers));
     }
 
-    private static BomDocument ReadXlsx(string filePath, string? worksheetName)
+    private static BomDocument ReadCsv(string filePath, BomColumnMapping? mapping)
+    {
+        var raw = ReadCsvRecords(filePath);
+        return BuildDocument(raw.SourceName, null, raw.Records, mapping);
+    }
+
+    private static RawTable ReadCsvRecords(string filePath) { using var reader = new StreamReader(filePath, Encoding.UTF8, true); return new(Path.GetFileName(filePath), null, ParseCsvRecords(reader)); }
+
+    private static BomDocument ReadXlsx(string filePath, string? worksheetName, BomColumnMapping? mapping)
+    {
+        var raw = ReadXlsxRecords(filePath, worksheetName);
+        return BuildDocument(raw.SourceName, raw.WorksheetName, raw.Records, mapping);
+    }
+
+    private static RawTable ReadXlsxRecords(string filePath, string? worksheetName)
     {
         using var archive = ZipFile.OpenRead(filePath);
         var sheets = ReadWorkbookSheets(archive);
@@ -83,30 +101,24 @@ public sealed class BomFileReader
             var record = Enumerable.Range(0, width).Select(index => values.GetValueOrDefault(index, string.Empty)).ToArray();
             records.Add(record);
         }
-        return BuildDocument(Path.GetFileName(filePath), sheet.Name, records);
+        return new(Path.GetFileName(filePath), sheet.Name, records);
     }
 
     private static BomDocument BuildDocument(
         string sourceName,
         string? worksheetName,
-        IReadOnlyList<IReadOnlyList<string>> records
+        IReadOnlyList<IReadOnlyList<string>> records,
+        BomColumnMapping? mapping = null
     )
     {
-        var headerIndex = records.Select((row, index) => (row, index))
-            .FirstOrDefault(item => FindColumn(item.row, QuantityHeaders) >= 0).index;
-        if (records.Count == 0 || FindColumn(records[headerIndex], QuantityHeaders) < 0)
-        {
-            throw new InvalidDataException("未识别到数量表头。");
-        }
+        var headerIndex = FindHeaderIndex(records);
         var header = records[headerIndex];
-        var skuColumn = FindColumn(header, SkuHeaders);
-        var partColumn = FindColumn(header, PartHeaders);
-        var packageColumn = FindColumn(header, PackageHeaders);
-        var quantityColumn = FindColumn(header, QuantityHeaders);
-        if (skuColumn < 0 && (partColumn < 0 || packageColumn < 0))
-        {
-            throw new InvalidDataException("需要 SKU 表头，或供应商型号与封装表头。");
-        }
+        var selected = mapping ?? DetectMapping(header);
+        selected.Validate(header.Count);
+        var skuColumn = selected.Sku ?? -1;
+        var partColumn = selected.Model ?? -1;
+        var packageColumn = selected.Package ?? -1;
+        var quantityColumn = selected.Quantity!.Value;
 
         var rows = new List<BomSourceRow>();
         for (var index = headerIndex + 1; index < records.Count; index++)
@@ -122,6 +134,22 @@ public sealed class BomFileReader
         }
         return new(sourceName, worksheetName, rows, []);
     }
+
+    private static int FindHeaderIndex(IReadOnlyList<IReadOnlyList<string>> records)
+    {
+        if (records.Count == 0) throw new InvalidDataException("工作表没有表头。");
+        var recognized = records.Select((row, index) => (row, index)).FirstOrDefault(item => FindColumn(item.row, QuantityHeaders) >= 0);
+        if (recognized.row is not null) return recognized.index;
+        var first = records.Select((row, index) => (row, index)).FirstOrDefault(item => item.row.Any(value => !string.IsNullOrWhiteSpace(value)));
+        if (first.row is null) throw new InvalidDataException("工作表没有表头。");
+        return first.index;
+    }
+
+    private static BomColumnMapping DetectMapping(IReadOnlyList<string> header) => new(
+        NullColumn(FindColumn(header, SkuHeaders)), NullColumn(FindColumn(header, PartHeaders)),
+        NullColumn(FindColumn(header, PackageHeaders)), NullColumn(FindColumn(header, QuantityHeaders)));
+
+    private static int? NullColumn(int value) => value < 0 ? null : value;
 
     private static IReadOnlyList<SheetReference> ReadWorkbookSheets(ZipArchive archive)
     {
@@ -231,4 +259,5 @@ public sealed class BomFileReader
     }
 
     private sealed record SheetReference(string Name, string Path);
+    private sealed record RawTable(string SourceName, string? WorksheetName, IReadOnlyList<IReadOnlyList<string>> Records);
 }

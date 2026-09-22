@@ -45,6 +45,25 @@ class BomParserTest {
     }
 
     @Test
+    fun manualMappingHandlesArbitraryAndDuplicateHeadersByColumnIndex() {
+        val csv = "任意,重复,重复,别的\n备注,C-77,2,R1".toByteArray()
+        val inspection = BomParser.inspectCsv(csv)
+        assertEquals(listOf("任意", "重复", "重复", "别的"), inspection.headers)
+
+        val item = BomParser.parseCsv(csv, "P", 3, BomColumnMapping(sku = 1, quantity = 2, reference = 3)).requirements.single()
+
+        assertEquals("C-77", item.sku)
+        assertEquals(6, item.requiredQuantity)
+    }
+
+    @Test
+    fun manualMappingRequiresQuantityAndSkuOrModel() {
+        val csv = "A,B\nC1,2".toByteArray()
+        assertFailsWith<IllegalArgumentException> { BomParser.parseCsv(csv, "P", 1, BomColumnMapping(sku = 0)) }
+        assertFailsWith<IllegalArgumentException> { BomParser.parseCsv(csv, "P", 1, BomColumnMapping(quantity = 1)) }
+    }
+
+    @Test
     fun rejectsNonPositiveFractionalAndOverflowingQuantities() {
         listOf("0", "-1", "1.5", "+1").forEach { quantity ->
             val error = assertFailsWith<LocalImportException> {

@@ -98,7 +98,7 @@ def load_admin_component(
         row = connection.execute(
             """
             SELECT id, sku, name, category, package_name, location, description,
-                   quantity, min_stock, updated_at,
+                   quantity, min_stock, updated_at, inventory_managed,
                    quantity <= min_stock AS low_stock
             FROM components
             WHERE id = ? AND deleted = 0
@@ -108,6 +108,7 @@ def load_admin_component(
         if row is None:
             return None
         result = dict(row)
+        result["inventory_managed"] = bool(result["inventory_managed"])
         result["allocations"] = [
             dict(allocation)
             for allocation in connection.execute(

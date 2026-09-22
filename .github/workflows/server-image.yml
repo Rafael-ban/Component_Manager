@@ -89,6 +89,16 @@ jobs:
           cache-from: type=gha,scope=server-image
           cache-to: type=gha,mode=max,scope=server-image
 
+      - name: Build web image for startup validation
+        uses: docker/build-push-action@v7
+        with:
+          context: ./admin-web
+          platforms: linux/amd64
+          load: true
+          tags: component-vault-web:ci
+          cache-from: type=gha,scope=web-image
+          cache-to: type=gha,mode=max,scope=web-image
+
       - name: Verify API startup, authentication and mounted database
         run: |
           mkdir -p "$RUNNER_TEMP/component-vault-data"
@@ -120,6 +130,26 @@ jobs:
               assert connection.execute('PRAGMA quick_check').fetchone()[0] == 'ok'
           PY
 
+      - name: Verify web startup and bundled assets
+        run: |
+          docker run -d --name component-vault-web-ci \
+            -p 127.0.0.1:18081:80 \
+            component-vault-web:ci
+          trap 'docker logs component-vault-web-ci; docker rm -f component-vault-web-ci' EXIT
+          curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-all-errors --max-time 3 \
+            --output "$RUNNER_TEMP/admin-index.html" http://127.0.0.1:18081/
+          mapfile -t assets < <(
+            grep -oE '(src|href)="/assets/[^"]+"' "$RUNNER_TEMP/admin-index.html" \
+              | cut -d'"' -f2
+          )
+          test "${#assets[@]}" -gt 0
+          printf '%s\n' "${assets[@]}" | grep -qE '\.js($|\?)'
+          printf '%s\n' "${assets[@]}" | grep -qE '\.css($|\?)'
+          for asset in "${assets[@]}"; do
+            curl --fail --silent --show-error --max-time 3 \
+              --output /dev/null "http://127.0.0.1:18081$asset"
+          done
+
       - name: Login to Docker Hub
         if: inputs.push_image
         uses: docker/login-action@v4
@@ -127,9 +157,9 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Resolve image tags
+      - name: Resolve API image tags
         if: inputs.push_image
-        id: tags
+        id: api_tags
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
           IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
@@ -142,16 +172,45 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Publish multi-platform image
+      - name: Resolve web image tags
+        if: inputs.push_image
+        id: web_tags
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          {
+            echo 'tags<<EOF'
+            echo "$IMAGE:web-$version"
+            echo "$IMAGE:web-latest"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish multi-platform API image
         if: inputs.push_image
         uses: docker/build-push-action@v7
         with:
           context: ./server
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.tags.outputs.tags }}
+          tags: ${{ steps.api_tags.outputs.tags }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ inputs.release_tag }}
           cache-from: type=gha,scope=server-image
           cache-to: type=gha,mode=max,scope=server-image
+
+      - name: Publish multi-platform web image
+        if: inputs.push_image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./admin-web
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.web_tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.release_tag }}
+          cache-from: type=gha,scope=web-image
+          cache-to: type=gha,mode=max,scope=web-image

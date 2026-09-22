@@ -13,7 +13,7 @@ Component Vault 已有 Android Compose、Windows WinUI、各端 SQLite 与可选
 | 客户端 | Android / Windows 原生客户端，独立管理网页 | 浏览器页面与 Node 服务 | 保留现有原生架构，移植业务能力 |
 | 数据与同步 | 各端 SQLite、逐实体待同步队列、可选远端同步 | 浏览器 localStorage 即时副本，加 localhost JSON 整库覆盖镜像，无失败重试队列 | 不移植它的存储方式 |
 | 扫码与离线 | CameraX、ML Kit、离线解析、OCR、标签 PNG/PDF、库存流水 | 本次未发现相机扫码实现；已有料号驱动的网页补全 | 当前原生扫码链路继续复用 |
-| 批量表格 | Windows/Android CSV/XLSX BOM 匹配、缺料检查和事务批量出库 | SheetJS 读取 XLS/XLSX，映射料号、型号、数量并生成匹配候选 | 保留本地事务与出库确认 |
+| 批量表格 | Windows/Android CSV/XLSX BOM 列映射、缺料 CSV、匹配和事务批量出库 | SheetJS 读取 XLS/XLSX，映射料号、型号、数量并生成匹配候选 | 保留本地事务与出库确认 |
 | 立创识别 | 原有本地规则、学习映射与可选服务端查询；本阶段新增 Android 直接公开页面查询 | Puppeteer 搜索国内商城，核对编号后提取 DOM 字段 | 借鉴编号校验和失败回退，避免在手机嵌入浏览器抓取服务 |
 | 库位 | `location` 字符串、筛选与标签 | 字母前缀加数字的库位排序；未发现独立货架层级实体 | 后续可补自然排序与前缀建议 |
 | MQTT | 可选服务端库存状态发布，SQLite outbox、retained QoS 1，供 HA/看板订阅 | 通用 MQTT WebSocket 管理器，无元器件/库位业务调用点 | 按本项目同步事务实现库存发布；库位灯与设备命令另属功能范围 |
@@ -71,7 +71,8 @@ SQLite 事务留在各端库存存储层。缺料或冲突时整批回滚，本�
 国内搜索仍有验证页限制，提供浏览器入口；中文界面优先国内查询，不可用时显示原因并尝试国际站。
 
 格式、操作步骤、文件限制与兼容范围见 [BOM 与迁移指南](bom-and-migration.md)。
-截至 0.6.0，缺料 CSV 导出、任意表头映射编辑器、XLS reader 和跨设备工程版本账本仍未做。
+两端现已支持 SKU、型号、封装、数量、名称和位号列映射，以及只读的缺料 CSV
+导出。旧 `.xls` reader 和跨设备工程版本账本仍未实现。
 MQTT 库存事件发布已在后续阶段实现，见下节；它不包含远程指令写库存或打印机控制。
 完整已做/待做清单见 [后续更新建议](remaining-features-0.6.md)。
 

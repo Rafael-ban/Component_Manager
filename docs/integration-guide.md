@@ -187,7 +187,7 @@ Returns low-stock watchlist data plus the latest server-side component rows.
 
 ### `GET /admin-api/components` and `GET /admin-api/components/{id}`
 
-Both endpoints require the existing bearer token and only read inventory.
+Both endpoints require the existing bearer token and read inventory.
 The overview endpoint above is unchanged.
 
 The list accepts `q` (up to 200 characters; literal substring search across SKU,
@@ -201,8 +201,9 @@ Each item exposes `id`, `sku`, `name`, `category`, `package_name`, `location`,
 `quantity`, `min_stock`, `updated_at` and `low_stock`. An empty result has no items
 and `page_count=0`. Out-of-range page numbers can return an empty page.
 
-The detail endpoint returns the same component fields plus `description` and
-`allocations` (`location_id`, `quantity`), or 404 for missing/deleted components.
+The detail endpoint returns the same component fields plus `description`,
+`inventory_managed`, and `allocations` (`location_id`, `quantity`), or 404 for
+missing/deleted components.
 Empty allocations mean no independent allocation data was provided, not zero
 component quantity. Invalid query values return 422; missing/invalid tokens 401.
 
@@ -219,7 +220,42 @@ console.
 ### `GET /admin-api/settings`
 
 Returns runtime configuration and operational endpoint details used by the
-admin console.
+admin console. `web_inventory_enabled` tells the UI whether inventory write
+controls may be shown. The default is `false`.
+
+### Optional Web inventory writes
+
+The following endpoints require the normal bearer token. Write endpoints also
+require `WEB_INVENTORY_ENABLED=true`; when the flag is false they return HTTP 403:
+
+- `GET /admin-api/storage-locations`: list active locations; this read remains available.
+- `POST /admin-api/storage-locations`: create `{request_id,id,name}`.
+- `POST /admin-api/components`: create a zero-stock component at an explicitly
+  selected `location_id`.
+- `PUT /admin-api/components/{id}`: edit metadata without accepting quantity or
+  allocation fields.
+- `POST /admin-api/components/{id}/movements`: record an `inbound` or `outbound`
+  movement.
+
+Create, edit, and movement requests use a caller-generated `request_id` of 8–120
+characters. Edit and movement requests also require the component's current
+`expected_updated_at`. A successful retry with the same operation, target, and
+canonical payload returns the current entity state without repeating the write.
+Reusing the ID with different content, a stale expected version, a duplicate SKU,
+or insufficient stock returns HTTP 409. Missing targets return 404; malformed or
+extra write fields return 422.
+
+New Web components start at quantity zero and contain one zero-quantity allocation
+for the chosen active location. The component's compatibility `location` field
+stores the location code; use the location list to display its name. Managed
+inventory inbound can add an allocation at any active location; outbound requires
+an existing allocation with enough quantity. Legacy `inventory_managed=false`
+rows retain their scalar quantity and original location text: omit `location_id`
+to adjust them in place. The server never guesses a legacy allocation.
+
+The receipt, component snapshot, allocation changes, movement, sync revision, and
+MQTT outbox entry commit in one short SQLite transaction. Retries return current
+state rather than promising a stored response snapshot.
 
 ### `GET /admin-api/part-lookup`
 
@@ -434,11 +470,13 @@ preserves names imported as long product descriptions by previous versions;
 other field constraints are unchanged. A client-only update cannot fix an old
 server's 200-character limit: upgrade the server and then retry the queued sync.
 
-Android's optional external URL is another route to the same server/database.
-It is selected before inventory writes, following a primary transport failure on
-`POST /auth/ping`. An HTTP 401, 409 or 422 is a server response, not a signal to
-switch addresses. Push and pull within a cycle always use the chosen endpoint.
-No new sync endpoint or protocol version is introduced.
+Android and Windows can save an optional external/fallback URL for another route
+to the same server/database. Each sync probes primary before inventory writes and
+tries fallback only for DNS, connection, or timeout failure on `POST /auth/ping`.
+An HTTP 401, 409 or 422 is a server response, not a signal to switch addresses.
+Push and pull within a cycle always use the chosen endpoint; a failed write is not
+replayed against the other address. The next cycle retries primary. No new sync
+endpoint or protocol version is introduced.
 
 `API_TOKEN` comes from the server deployment environment. With Docker Compose,
 the repository-root `.env` supplies it; for direct uvicorn launches explicitly

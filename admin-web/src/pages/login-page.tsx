@@ -41,7 +41,7 @@ export function LoginPage() {
             <CardTitle className="text-3xl">Component Vault 管理台</CardTitle>
             <CardDescription className="max-w-xl text-base">
               连接自托管 FastAPI 同步服务，使用与同步 API 相同的 Bearer
-              令牌进行只读库存核对与 MQTT 配置。
+              令牌核对库存与配置 MQTT。库存默认只读；服务端启用 Web 库存操作后，可创建库位、元件并办理入出库。
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 text-sm text-slate-600">

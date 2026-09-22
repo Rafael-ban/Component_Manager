@@ -13,12 +13,14 @@ connects to it over HTTP.
 - `admin-web/`: separated React + `shadcn/ui` admin console for server
   operations and inventory verification.
 - `client/`: legacy Flutter reference kept for migration and field parity.
-- `server/`: FastAPI sync service with project-local virtual environment and
-  read-only inventory admin APIs plus authenticated MQTT configuration writes.
+- `server/`: FastAPI sync service with project-local virtual environment,
+  inventory admin APIs, optional authenticated Web inventory writes, and MQTT
+  configuration writes.
 - `.github/workflows/`: GitHub Actions CI and release artifact automation.
 - `docs/`: architecture, integration, and operations notes.
 - `docker-compose.yml`: self-hosted API deployment entrypoint.
-- `docker-compose.hub.yml`: deploy the published API image without building locally.
+- `docker-compose.hub.yml`: deploy published API and optional Web images without
+  building locally, after those tags have actually been published.
 
 ## Key Behaviors
 
@@ -28,35 +30,47 @@ connects to it over HTTP.
   actions without clearing data. Do not clear app storage to work around an
   upgrade failure; install the fixed update over the existing installation.
 - Manual sync and optional auto sync.
-- Android accepts an optional external address for the same server; connection
-  failures on the preferred address trigger a pre-sync external probe. Server
-  validation/authentication errors do not trigger address switching.
+- Android and Windows accept an optional external address for the same server;
+  DNS, connection, or timeout failures on the preferred address trigger a
+  pre-sync external probe. HTTP authentication, validation, and conflict
+  responses do not trigger address switching. The selected endpoint remains
+  fixed for the complete push/pull cycle and the next cycle retries primary.
 - Catalog imports use the part model as the name and retain product descriptions
   separately. The server accepts legacy component names up to 4000 characters.
 - Catalog lookup follows the app language: Chinese prefers domestic LCSC and
   English prefers international LCSC. Fallbacks display their source and reason;
   changing Android language invalidates catalog caches. Keyword search uses the
   domestic catalog with an explicit notice when the preferred site is international.
-- BOM previews automatically select unambiguous SKU/model matches and support
-  manual search of existing inventory before confirming deductions.
+- BOM previews automatically select unambiguous SKU/model matches, allow users
+  to map SKU/model/quantity columns, and support manual inventory selection.
+  Missing demand can be exported as an Excel-friendly UTF-8 CSV without changing stock.
 - Soft delete for synchronized entities.
 - Inventory history recorded as stock movements.
 - Self-hosted API secured by a shared API token.
-- The API image supports Docker Hub distribution for `linux/amd64` and
-  `linux/arm64`, with a persistent `/data` mount and a built-in health check.
+- Separate API and Web images support Docker Hub distribution for `linux/amd64`
+  and `linux/arm64`; API uses `<version>`/`latest`, while Web uses
+  `web-<version>`/`web-latest`. SQLite uses the persistent API `/data` mount.
+  These tags are available only after Docker Hub credentials are configured and
+  a publish workflow succeeds; planned `0.7.0` examples are not proof of publication.
   See [Docker Hub deployment and release setup](docs/dockerhub.md).
-  Remaining work from the 0.5.2 plans and proposed milestones are tracked in
+  Historical 0.5.2 follow-up analysis is retained in
   [the 0.6.0 feature reconciliation](docs/remaining-features-0.6.md).
 - Separated admin web console backed by token-protected `/admin-api/*`.
+  Inventory and storage-location writes are available only when
+  `WEB_INVENTORY_ENABLED=true`; the default remains read-only. Writes use
+  optimistic `expected_updated_at` checks and persistent `request_id` receipts.
 - JLC imports use local parsing and direct public product lookup without a
   server or API key. Official category paths take precedence over local guesses;
   product images appear on the right of inventory rows. User edits are preserved.
+  Known official English categories use the same Chinese display mapping for
+  current and historical rows, including filters; unknown and custom values remain unchanged.
 - Android prioritizes QR scanning and direct C-number entry. Optional packaging
   OCR uses a CameraX photo with sensor rotation and bundled ML Kit; it no longer
   recognizes a screen-resolution preview or offers the unavailable Paddle engine.
 - Windows and Android support project BOM CSV/XLSX preview, stock matching and
-  transactional batch depletion, plus component-hub JSON migration with conflict
-  preview. See [BOM and migration guide](docs/bom-and-migration.md).
+  configurable source-column mapping, missing-demand CSV export, transactional
+  batch depletion, and component-hub JSON migration with conflict preview. See
+  [BOM and migration guide](docs/bom-and-migration.md).
 - Active components enforce unique `sku`.
 - Component `quantity` and `min_stock` are non-negative.
 - Independent storage locations support one component in multiple bins and
@@ -378,9 +392,12 @@ cmd /c npm run dev
 The login screen validates the shared API token through `POST /auth/ping`,
 stores the configured API base URL and token in browser local storage, and then
 uses `/admin-api/components` and `/admin-api/components/{id}` for searched,
-paginated read-only inventory and details, plus `/admin-api/dashboard`,
+paginated inventory and details, plus `/admin-api/dashboard`,
 `/admin-api/inventory`, `/admin-api/sync`, and
-`/admin-api/settings` for read-only monitoring. The Android client also uses
+`/admin-api/settings` for monitoring. When the server reports
+`web_inventory_enabled=true`, the inventory page can create storage locations
+and components, edit component metadata, and record inbound/outbound movements.
+The Android client also uses
 `/admin-api/part-lookup` for optional supplier metadata enrichment during JLC
 import flows, while `/admin-api/lcsc/lookup` remains available for direct
 compatibility use.
@@ -514,6 +531,8 @@ The separated admin web container is available at:
 - `ENABLE_WEB_FALLBACK_RESOLVERS`: enables public LCSC web-page fallback for
   `/admin-api/part-lookup` when OpenAPI credentials are unavailable, default
   `false`
+- `WEB_INVENTORY_ENABLED`: enables authenticated admin-web inventory and
+  storage-location writes, default `false`
 
 ## Sync Contract
 
@@ -548,7 +567,12 @@ See [About and application updates](docs/app-updates.md).
 - `POST /sync/push`: upload the latest local entity state.
 - `GET /sync/pull?since=<iso8601>`: download all remote changes after the
   provided timestamp.
-- `GET /admin-api/*`: read-only admin snapshots for the separated web console.
+- `GET /admin-api/*`: admin snapshots for the separated web console.
+- `GET/POST /admin-api/storage-locations`: list active locations or create one;
+  POST is disabled unless `WEB_INVENTORY_ENABLED=true`.
+- `POST /admin-api/components`, `PUT /admin-api/components/{id}`, and
+  `POST /admin-api/components/{id}/movements`: optional Web create, metadata
+  edit, and inbound/outbound operations with request receipts and optimistic versions.
 - `GET /admin-api/part-lookup?...`: token-protected hybrid recognition endpoint
   that applies bundled server rules first and then optional LCSC OpenAPI or
   public-web lookup.

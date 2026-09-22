@@ -83,6 +83,9 @@ jobs:
       - name: Install admin web dependencies
         run: npm ci
 
+      - name: Test admin web
+        run: npm test
+
       - name: Build admin web
         run: npm run build
 
@@ -159,6 +162,9 @@ jobs:
           --tests 'com.componentvault.android.ui.screen.ImportFlowUiTest'
           --tests 'com.componentvault.android.ui.screen.UiScreenshotTest'
           --tests 'com.componentvault.android.data.SettingsConnectionTest'
+          --tests 'com.componentvault.android.data.OfficialCategoryNormalizerTest'
+          --tests 'com.componentvault.android.ui.screen.CategoryLocalizationTest'
+          --tests 'com.componentvault.android.ui.screen.CategoryFilterSemanticsTest'
           --tests 'com.componentvault.android.data.bom.*'
 
       - name: Upload Android UI review and test reports
