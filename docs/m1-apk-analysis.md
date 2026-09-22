@@ -1,5 +1,23 @@
 # 汉码 APK 与 M1 打印路径静态分析
 
+## Dev.3 连续打印调查补充（2026-09-23）
+
+Dev.2 四份报告在不同图像尺寸下均为 `stage=connected`、
+`query_model=noresponse`、普通/异步回复均为 0、`print_tested=not_sent`。
+这排除了第二张图像发送或排版阶段，尚不能单凭报告认定打印机固件故障。
+
+本地 APK 证据：`BasePrintManager.connectBluetooth` 在已有打开的 port 和识别信息时
+直接复用；`ESCPOLIPrinterManager.printBitmap` 每张结束仅调用 `setConnectState(0)`，
+显式 `disConnect` 才调用 `PortClose`。该状态 setter 属于 SDK 的读写协调，不能当作
+发给打印机的结束命令。原客户端每张 finally 关闭 socket 是明确的生命周期差异。
+
+`BTOperator.writeData` 的 Classic SPP 路径使用默认 1024 字节 write/flush 分块。
+该分块改变发送粒度，不改变 RFCOMM 字节流，不足以单独认定根因。
+图像头（含压缩长度）及 `setPollForm(960)` 与现有实现逐字段一致。
+
+Dev.3 据此保留页面内连接并加入打印后只读探测，仍需真实设备验证。
+不通过跳过型号检查、自动补发图像或添加未经证实的初始化命令掩盖无响应。
+
 核对日期：2026-09-22。本文记录用户提供的两个安装包中的可复核事实，
 用于设计 Component Vault 的 M1 测试驱动。后续已据此接入主动 SPP 型号/状态查询，
 操作见 [设备测试步骤](printer-compatibility.md)。仍没有直接打印功能；

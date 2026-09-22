@@ -1,16 +1,17 @@
 <resources>
+    <string name="printer_m1_sent_connection_lost">标签数据已发送，但打印后的型号查询没有取得有效回复。请先检查实际出纸并复制报告；应用不会自动补打。</string>
     <string name="printer_m1_paper_summary">纸张与位置：%1$s × %2$s mm</string>
     <string name="printer_m1_confirm_paper">请装入 %1$s × %2$s mm 间隙标签纸，第一个尺寸为沿打印头的宽，第二个为走纸方向的高，并关闭汉码。此次仅发送一张含 M1 TEST 和测试二维码的固定标签。中断后请先检查出纸情况再决定是否重试，应用不会自动重发。</string>
     <string name="printer_m1_failure_title">测试打印未完成</string>
     <string name="printer_probe_title">蓝牙标签机诊断</string>
     <string name="printer_probe_service_mode">服务信息</string>
     <string name="printer_probe_m1_mode">M1 测试</string>
-    <string name="printer_probe_m1_intro">先在系统蓝牙设置中配对 M1，关闭其他打印 App 后扫描。读取型号与状态不会出纸；单独点击测试标签按钮并确认纸张尺寸后，会发送一张固定测试标签，实际出纸效果仍需验证。</string>
+    <string name="printer_probe_m1_intro">先在系统蓝牙设置中配对 M1，关闭其他打印 App 后扫描。单独点击测试标签并确认后，只发送一张。打印后会查询型号，并保留连接供下一次点击使用；空闲 60 秒、停止或离开页面后断开。连续测试时请留在此页面，不必重新扫描。实际出纸仍需确认。</string>
     <string name="printer_m1_test_one">打印一张 M1 测试标签</string>
     <string name="printer_m1_choose_paper">请先在标签预览中选择已有的 40 × 10 或 40 × 30 mm 二维码模板。</string>
     <string name="printer_m1_confirm">请装入 40 × %1$d mm 间隙标签纸，并关闭汉码。此次仅发送一张含 M1 TEST 和测试二维码的固定标签，不打印所选元件。中断后请先检查打印机再决定是否重试，应用不会自动重发。</string>
     <string name="printer_m1_print_now">打印一张</string>
-    <string name="printer_m1_printing">正在发送一张测试标签… 停止无法撤回已经发送的数据。</string>
+    <string name="printer_m1_printing">正在发送标签并检查打印后连接… 停止无法撤回已经发送的数据。</string>
     <string name="printer_m1_sent">数据已发送，请确认实际出纸并扫描测试二维码。这不是打印机的完成回执。</string>
     <string name="printer_m1_interrupted">发送已中断，打印机可能已收到部分数据。请先检查出纸情况，再决定是否重试。不会自动重发。</string>
     <string name="printer_m1_rejected">未发送测试标签，请查看报告中的型号、打印机状态与失败阶段。</string>

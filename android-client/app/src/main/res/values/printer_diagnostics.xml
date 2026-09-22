@@ -1,16 +1,17 @@
 <resources>
+    <string name="printer_m1_sent_connection_lost">Label data was sent, but the model query afterward did not return a valid reply. Check actual output and copy the report. The app will not reprint automatically.</string>
     <string name="printer_m1_paper_summary">Paper and alignment: %1$s × %2$s mm</string>
     <string name="printer_m1_confirm_paper">Load %1$s × %2$s mm die-cut labels. The first dimension is the width across the print head; the second is the feed direction. Close Hanma. This sends one fixed M1 TEST label with a test QR code. If interrupted, check output before trying again; data is never resent automatically.</string>
     <string name="printer_m1_failure_title">Test printing did not complete</string>
     <string name="printer_probe_title">Bluetooth printer diagnostics</string>
     <string name="printer_probe_service_mode">Services</string>
     <string name="printer_probe_m1_mode">M1 tests</string>
-    <string name="printer_probe_m1_intro">Pair your M1 in system Bluetooth settings and close other printer apps before scanning. Reading model/status does not print. The separate test-label button sends one fixed test label after you confirm the paper size; actual output still needs device testing.</string>
+    <string name="printer_probe_m1_intro">Pair your M1 and close other printer apps before scanning. Each confirmed test sends one label, then queries the model and keeps the connection for your next click. Stop, leaving this screen or 60 seconds idle disconnects it. Stay here without rescanning to test consecutive prints. Check actual paper output.</string>
     <string name="printer_m1_test_one">Print one M1 test label</string>
     <string name="printer_m1_choose_paper">Select the existing 40 × 10 or 40 × 30 mm QR template in label preview first.</string>
     <string name="printer_m1_confirm">Load 40 × %1$d mm die-cut labels and close Hanma. This sends one fixed M1 TEST label with a test QR code, not the selected component. If interrupted, check the printer before trying again; data is never resent automatically.</string>
     <string name="printer_m1_print_now">Print one label</string>
-    <string name="printer_m1_printing">Sending one test label… Stopping cannot retract data already sent.</string>
+    <string name="printer_m1_printing">Sending the label and checking the connection afterward… Stopping cannot retract data already sent.</string>
     <string name="printer_m1_sent">Data sent. Check actual output and scan the test QR code. This is not a printer completion acknowledgement.</string>
     <string name="printer_m1_interrupted">Sending was interrupted; the printer may have received some data. Check output before trying again. No automatic resend.</string>
     <string name="printer_m1_rejected">Test label was not sent. Check the model, printer status and failure stage in the report.</string>

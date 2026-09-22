@@ -28,10 +28,66 @@ internal class CancelableResourceSlot<T>(private val closeResource: (T) -> Unit)
         resource?.let(closeResource)
         resource = null
     }
+
+    @Synchronized
+    fun releaseCurrent(): T? = resource.also { resource = null }
+}
+
+internal class ReusableResourceSlot<T>(private val closeResource: (T) -> Unit) {
+    private var key: String? = null
+    private var resource: T? = null
+
+    @Synchronized
+    fun get(expectedKey: String): T? = resource?.takeIf { key == expectedKey }
+
+    @Synchronized
+    fun getIfCurrent(expectedKey: String, isCurrent: () -> Boolean): T? =
+        if (isCurrent()) resource?.takeIf { key == expectedKey } else null
+
+    @Synchronized
+    fun replace(newKey: String, newResource: T) {
+        val previous = resource
+        key = newKey
+        resource = newResource
+        if (previous !== newResource) previous?.let(closeResource)
+    }
+
+    @Synchronized
+    fun installIfCurrent(newKey: String, newResource: T, isCurrent: () -> Boolean): Boolean {
+        if (!isCurrent()) {
+            closeResource(newResource)
+            return false
+        }
+        val previous = resource
+        key = newKey
+        resource = newResource
+        if (previous !== newResource) previous?.let(closeResource)
+        return true
+    }
+
+    @Synchronized
+    fun closeIfOwned(expected: T): Boolean {
+        if (resource !== expected) return false
+        resource = null
+        key = null
+        closeResource(expected)
+        return true
+    }
+
+    @Synchronized
+    fun closeCurrent() {
+        val previous = resource
+        resource = null
+        key = null
+        previous?.let(closeResource)
+    }
 }
 
 internal fun sessionMayDeliver(expectedGeneration: Int, currentGeneration: Int, isActiveSession: Boolean): Boolean =
     expectedGeneration == currentGeneration && isActiveSession
+
+internal fun postPrintModelFailureResult(bytesSent: Int): M1TestPrintResult =
+    if (bytesSent > 0) M1TestPrintResult.SentConnectionLost else M1TestPrintResult.Rejected
 
 internal object M1SppProtocol {
     val sppUuid = java.util.UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")

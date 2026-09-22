@@ -19,7 +19,6 @@ import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import java.io.ByteArrayOutputStream
 
 internal data class PrinterDeviceCandidate(
     val device: BluetoothDevice,
@@ -35,7 +34,7 @@ internal enum class PrinterProbeStatus {
     PermissionRequired, ScanFailed, ConnectionFailed, TimedOut, Stopped,
 }
 
-internal enum class M1TestPrintResult { None, SentUnconfirmed, Partial, Interrupted, Rejected }
+internal enum class M1TestPrintResult { None, SentUnconfirmed, SentConnectionLost, Partial, Interrupted, Rejected }
 
 /** Builds the shareable portion of a probe report without device identity or label data. */
 internal fun buildPrinterProbeReportHeader(
@@ -62,6 +61,9 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
     private var gatt: BluetoothGatt? = null
     @Volatile private var sppSession: SppSession? = null
     @Volatile private var generation = 0
+    private val sppOwnershipLock = Any()
+    private val m1Connections = ReusableResourceSlot<M1Connection> { it.close() }
+    private var m1IdleCloseTask: Runnable? = null
 
     var candidates by mutableStateOf<List<PrinterDeviceCandidate>>(emptyList())
         private set
@@ -202,7 +204,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
     }
 
     fun inspectM1Spp(candidate: PrinterDeviceCandidate) {
-        stop()
+        prepareM1Operation(candidate.address)
         printResult = M1TestPrintResult.None
         val currentGeneration = generation
         report = buildString {
@@ -218,14 +220,16 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
                 BluetoothDevice.DEVICE_TYPE_DUAL,
             )
         ) {
-            report += "error=unsupported_device\n"
-            status = PrinterProbeStatus.Unsupported
+            finish(PrinterProbeStatus.Unsupported, "error=unsupported_device")
             return
         }
         try {
-            if (adapter?.isEnabled != true) { status = PrinterProbeStatus.BluetoothOff; return }
+            if (adapter?.isEnabled != true) {
+                finish(PrinterProbeStatus.BluetoothOff, "error=bluetooth_off")
+                return
+            }
             status = PrinterProbeStatus.Connecting
-            val session = SppSession(currentGeneration)
+            val session = SppSession(currentGeneration, candidate.address)
             sppSession = session
             Thread({ runM1SppProbe(candidate, session) }, "m1-spp-probe").start()
         } catch (_: SecurityException) {
@@ -241,7 +245,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         bitmap: Bitmap,
         paperProfile: M1TestPaperProfile? = null,
     ) {
-        stop()
+        prepareM1Operation(candidate.address)
         printResult = M1TestPrintResult.None
         report = buildString {
             appendLine("android_sdk=${Build.VERSION.SDK_INT}")
@@ -265,27 +269,25 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
                 BluetoothDevice.DEVICE_TYPE_DUAL,
             )
         ) {
-            report += "error=unsupported_device\n"
+            finish(PrinterProbeStatus.Unsupported, "error=unsupported_device")
             printResult = M1TestPrintResult.Rejected
-            status = PrinterProbeStatus.Unsupported
             return
         }
         val frames = try {
             M1SppPrintProtocol.frames(bitmap)
         } catch (_: RuntimeException) {
-            report += "error=invalid_bitmap\n"
+            finish(PrinterProbeStatus.ConnectionFailed, "error=invalid_bitmap")
             printResult = M1TestPrintResult.Rejected
-            status = PrinterProbeStatus.ConnectionFailed
             return
         }
         try {
             if (adapter?.isEnabled != true) {
+                finish(PrinterProbeStatus.BluetoothOff, "error=bluetooth_off")
                 printResult = M1TestPrintResult.Rejected
-                status = PrinterProbeStatus.BluetoothOff
                 return
             }
             status = PrinterProbeStatus.Connecting
-            val session = SppSession(generation, isPrint = true)
+            val session = SppSession(generation, candidate.address, isPrint = true)
             sppSession = session
             Thread({ runM1TestPrint(candidate, frames, session) }, "m1-spp-test-print").start()
         } catch (_: SecurityException) {
@@ -297,22 +299,109 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         }
     }
 
-    private fun runM1TestPrint(candidate: PrinterDeviceCandidate, frames: List<M1PrintFrame>, session: SppSession) {
-        try {
-            val socket = candidate.device.createInsecureRfcommSocketToServiceRecord(M1SppProtocol.sppUuid)
-            if (!session.sockets.attach(socket) || !isCurrentSpp(session)) {
-                session.sockets.cancel()
-                return
+    private fun prepareM1Operation(address: String) {
+        stopScan()
+        timeoutTask?.let(handler::removeCallbacks)
+        timeoutTask = null
+        val connection = gatt
+        gatt = null
+        runCatching { connection?.disconnect() }
+        runCatching { connection?.close() }
+        val previous = synchronized(sppOwnershipLock) {
+            generation++
+            m1IdleCloseTask?.let(handler::removeCallbacks)
+            m1IdleCloseTask = null
+            sppSession.also {
+                sppSession = null
+                it?.connection?.let(m1Connections::closeIfOwned)
+                if (m1Connections.get(address) == null) m1Connections.closeCurrent()
             }
-            runCatching { adapter?.cancelDiscovery() }
-            scheduleSppDeadline(session, CONNECT_TIMEOUT_MS, "connect")
-            socket.connect()
-            cancelSppDeadline(session)
-            if (!isCurrentSpp(session)) return
-            postSpp(session) { report += "stage=connected\n" }
+        }
+        previous?.let(::cancelSppDeadline)
+        previous?.sockets?.cancel()
+        if (previous != null) {
+            if (previous.isPrint && busy) {
+                appendPrintProgress(previous)
+                val interrupted = interruptedPrintResult(previous.bytesAttempted)
+                report += "print_tested=${interrupted.name.lowercase()}\n"
+                report += "print_result=${interrupted.name.lowercase()}\n"
+                printResult = interrupted
+            }
+        }
+    }
 
-            val output = socket.outputStream
-            val input = socket.inputStream
+    private fun acquireM1Connection(
+        candidate: PrinterDeviceCandidate,
+        session: SppSession,
+    ): M1Connection? {
+        synchronized(sppOwnershipLock) {
+            val retained = m1Connections.getIfCurrent(candidate.address) { isCurrentSpp(session) }
+            if (retained == null && !isCurrentSpp(session)) return null
+            retained?.let {
+                if (retained.socket.isConnected && isCurrentSpp(session)) {
+                    session.connection = retained
+                    postSpp(session) {
+                        report += "connection_reused=true\n"
+                        report += "stage=connected\n"
+                    }
+                    return retained
+                }
+                m1Connections.closeIfOwned(retained)
+            }
+        }
+
+        val socket = candidate.device.createInsecureRfcommSocketToServiceRecord(M1SppProtocol.sppUuid)
+        if (!session.sockets.attach(socket) || !isCurrentSpp(session)) {
+            session.sockets.cancel()
+            return null
+        }
+        runCatching { adapter?.cancelDiscovery() }
+        scheduleSppDeadline(session, CONNECT_TIMEOUT_MS, "connect")
+        socket.connect()
+        cancelSppDeadline(session)
+        val connection = M1Connection(socket, socket.inputStream, socket.outputStream)
+        synchronized(sppOwnershipLock) {
+            session.sockets.releaseCurrent()
+            if (!m1Connections.installIfCurrent(candidate.address, connection) { isCurrentSpp(session) }) {
+                return null
+            }
+            session.connection = connection
+        }
+        postSpp(session) {
+            report += "connection_reused=false\n"
+            report += "stage=connected\n"
+        }
+        return connection
+    }
+
+    private fun completeM1Operation(session: SppSession, result: PrinterProbeStatus, detail: String) {
+        synchronized(sppOwnershipLock) {
+            if (!isCurrentSpp(session)) return
+            sppSession = null
+        }
+        report += "$detail\n"
+        cancelSppDeadline(session)
+        status = result
+        val connection = session.connection ?: return
+        lateinit var idleClose: Runnable
+        idleClose = Runnable {
+            synchronized(sppOwnershipLock) {
+                if (m1IdleCloseTask === idleClose && sppSession == null && m1Connections.closeIfOwned(connection)) {
+                    m1IdleCloseTask = null
+                    report += "connection_idle_closed=true\n"
+                }
+            }
+        }
+        m1IdleCloseTask = idleClose
+        handler.postDelayed(idleClose, M1_IDLE_TIMEOUT_MS)
+    }
+
+    private fun runM1TestPrint(candidate: PrinterDeviceCandidate, frames: List<M1PrintFrame>, session: SppSession) {
+        var keepConnection = false
+        try {
+            val connection = acquireM1Connection(candidate, session) ?: return
+            val output = connection.output
+            val input = connection.input
             scheduleSppDeadline(session, MODEL_STAGE_TIMEOUT_MS, "model_query")
             output.write(M1SppProtocol.queryModel)
             output.flush()
@@ -382,22 +471,49 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
                 session.framesSent++
             }
             writePrintPart(output, M1SppPrintProtocol.formFeed, session)
-            val postFeedReply = runCatching {
-                readAvailable(input, POST_FEED_READ_TIMEOUT_MS, session)
-            }.getOrDefault(byteArrayOf())
             cancelSppDeadline(session)
-            val postFeedStatus = M1SppProtocol.classifyStatusReply(postFeedReply)
+            val postFeedReply = readM1QueryReply(input, POST_FEED_READ_TIMEOUT_MS, session, fullWindow = true)
+            val postFeedStatus = postFeedReply.classifyStatus()
+            scheduleSppDeadline(session, MODEL_STAGE_TIMEOUT_MS, "post_print_model_query")
+            output.write(M1SppProtocol.queryModel)
+            output.flush()
+            val postPrintModelReply = readM1QueryReply(
+                input,
+                POST_PRINT_MODEL_TIMEOUT_MS,
+                session,
+                fullWindow = true,
+            )
+            val postPrintModelResult = if (postPrintModelReply.overflowed) {
+                M1SppProtocol.ModelResult.Mismatch
+            } else M1SppProtocol.parseModelReply(postPrintModelReply.reply)
+            cancelSppDeadline(session)
+            keepConnection = postPrintModelResult == M1SppProtocol.ModelResult.Matched
             postSpp(session) {
                 appendPrintProgress(session)
-                report += "post_feed_reply_bytes=${postFeedReply.size}\n"
+                report += "post_feed_reply_bytes=${postFeedReply.reply.size}\n"
                 if (postFeedStatus is M1SppProtocol.StatusResult.Received) {
                     report += "post_feed_status_code=${postFeedStatus.code}\n"
                     report += "post_feed_status_source=${postFeedStatus.source.name.lowercase()}\n"
                     M1SppProtocol.statusBits(postFeedStatus.code).forEach { report += "post_feed_status_bit=$it\n" }
                 }
+                report += "post_print_model=${postPrintModelResult.name.lowercase()}\n"
+                report += "post_print_model_reply_bytes=${postPrintModelReply.reply.size}\n"
+                report += "post_print_model_async_frames=${postPrintModelReply.asyncStatusCodes.size}\n"
                 report += "print_tested=sent_unconfirmed\n"
-                finish(PrinterProbeStatus.Complete, "print_result=sent_unconfirmed")
-                printResult = M1TestPrintResult.SentUnconfirmed
+                printResult = if (postPrintModelResult == M1SppProtocol.ModelResult.Matched) {
+                    completeM1Operation(session, PrinterProbeStatus.Complete, "print_result=sent_unconfirmed")
+                    M1TestPrintResult.SentUnconfirmed
+                } else {
+                    val result = postPrintModelFailureResult(session.bytesSent)
+                    report += "print_result=${result.name.lowercase()}\n"
+                    finish(
+                        PrinterProbeStatus.ConnectionFailed,
+                        if (postPrintModelResult == M1SppProtocol.ModelResult.NoResponse) {
+                            "error=post_print_model_no_response"
+                        } else "error=post_print_model_unrecognized_response",
+                    )
+                    result
+                }
             }
         } catch (_: SecurityException) {
             postSpp(session) {
@@ -415,6 +531,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         } finally {
             cancelSppDeadline(session)
             session.sockets.closeCurrent()
+            if (!keepConnection) session.connection?.let(m1Connections::closeIfOwned)
         }
     }
 
@@ -422,9 +539,14 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         if (!isCurrentSpp(session)) return
         session.writeStarted = true
         session.bytesAttempted += bytes.size
-        output.write(bytes)
-        output.flush()
-        session.bytesSent += bytes.size
+        var offset = 0
+        while (offset < bytes.size && isCurrentSpp(session)) {
+            val count = minOf(PRINT_WRITE_CHUNK_BYTES, bytes.size - offset)
+            output.write(bytes, offset, count)
+            output.flush()
+            offset += count
+            session.bytesSent += count
+        }
         session.writeStarted = false
     }
 
@@ -445,21 +567,11 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
     }
 
     private fun runM1SppProbe(candidate: PrinterDeviceCandidate, session: SppSession) {
+        var keepConnection = false
         try {
-            val connectedSocket = candidate.device.createInsecureRfcommSocketToServiceRecord(M1SppProtocol.sppUuid)
-            if (!session.sockets.attach(connectedSocket) || !isCurrentSpp(session)) {
-                session.sockets.cancel()
-                return
-            }
-            runCatching { adapter?.cancelDiscovery() }
-            scheduleSppDeadline(session, CONNECT_TIMEOUT_MS, "connect")
-            connectedSocket.connect()
-            cancelSppDeadline(session)
-            if (!isCurrentSpp(session)) return
-            postSpp(session) { report += "stage=connected\n" }
-
-            val output = connectedSocket.outputStream
-            val input = connectedSocket.inputStream
+            val connection = acquireM1Connection(candidate, session) ?: return
+            val output = connection.output
+            val input = connection.input
             scheduleSppDeadline(session, MODEL_STAGE_TIMEOUT_MS, "model_query")
             output.write(M1SppProtocol.queryModel)
             output.flush()
@@ -503,6 +615,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             val statusReply = readM1QueryReply(input, STATUS_QUERY_TIMEOUT_MS, session)
             cancelSppDeadline(session)
             val statusResult = statusReply.classifyStatus()
+            if (statusResult is M1SppProtocol.StatusResult.Received) keepConnection = true
             postSpp(session) {
                 report += "status_query_stage=complete\n"
                 report += "status_reply_bytes=${statusReply.reply.size}\n"
@@ -518,7 +631,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
                         report += "status_code=${statusResult.code}\n"
                         report += "status_source=${statusResult.source.name.lowercase()}\n"
                         M1SppProtocol.statusBits(statusResult.code).forEach { report += "status_bit=$it\n" }
-                        finish(PrinterProbeStatus.Complete, "status_query=received")
+                        completeM1Operation(session, PrinterProbeStatus.Complete, "status_query=received")
                     }
                 }
             }
@@ -529,39 +642,17 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         } finally {
             cancelSppDeadline(session)
             session.sockets.closeCurrent()
+            if (!keepConnection) session.connection?.let(m1Connections::closeIfOwned)
         }
-    }
-
-    private fun readAvailable(
-        input: java.io.InputStream,
-        timeoutMs: Long,
-        session: SppSession,
-    ): ByteArray {
-        val result = ByteArrayOutputStream()
-        val buffer = ByteArray(256)
-        val deadline = System.nanoTime() + timeoutMs * 1_000_000
-        var quietSince = 0L
-        while (System.nanoTime() < deadline && isCurrentSpp(session)) {
-            val available = input.available()
-            if (available > 0) {
-                val count = input.read(buffer, 0, minOf(buffer.size, available))
-                if (count < 0) break
-                if (result.size() < MAX_REPLY_BYTES) result.write(buffer, 0, minOf(count, MAX_REPLY_BYTES - result.size()))
-                quietSince = System.nanoTime()
-            } else {
-                if (result.size() > 0 && System.nanoTime() - quietSince >= READ_QUIET_MS * 1_000_000) break
-                Thread.sleep(READ_POLL_MS)
-            }
-        }
-        return result.toByteArray()
     }
 
     private fun readM1QueryReply(
         input: java.io.InputStream,
         timeoutMs: Long,
         session: SppSession,
+        fullWindow: Boolean = false,
     ): M1QueryReply {
-        val demultiplexer = session.queryReplyDemultiplexer
+        val demultiplexer = session.connection?.queryReplyDemultiplexer ?: session.queryReplyDemultiplexer
         val buffer = ByteArray(256)
         val deadline = System.nanoTime() + timeoutMs * 1_000_000
         var replyQuietSince = 0L
@@ -573,12 +664,17 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
                 demultiplexer.append(buffer, count)
                 if (demultiplexer.hasReply()) replyQuietSince = System.nanoTime()
             } else {
+                if (fullWindow) {
+                    Thread.sleep(READ_POLL_MS)
+                    continue
+                }
                 if (demultiplexer.hasReply() && System.nanoTime() - replyQuietSince >= READ_QUIET_MS * 1_000_000) break
                 Thread.sleep(READ_POLL_MS)
             }
         }
         return demultiplexer.take()
     }
+
 
     private fun scheduleSppDeadline(session: SppSession, delayMs: Long, stage: String) {
         cancelSppDeadline(session)
@@ -634,7 +730,15 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
     fun stop() = stopInternal(recordPrintInterruption = true)
 
     private fun stopInternal(recordPrintInterruption: Boolean) {
-        generation++
+        val session = synchronized(sppOwnershipLock) {
+            generation++
+            m1IdleCloseTask?.let(handler::removeCallbacks)
+            m1IdleCloseTask = null
+            sppSession.also {
+                sppSession = null
+                m1Connections.closeCurrent()
+            }
+        }
         stopScan()
         timeoutTask?.let(handler::removeCallbacks)
         timeoutTask = null
@@ -642,8 +746,6 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         gatt = null
         runCatching { connection?.disconnect() }
         runCatching { connection?.close() }
-        val session = sppSession
-        sppSession = null
         if (recordPrintInterruption && session?.isPrint == true && busy) {
             appendPrintProgress(session)
             val interrupted = interruptedPrintResult(session.bytesAttempted)
@@ -667,18 +769,35 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         private const val STATUS_STAGE_TIMEOUT_MS = 4_000L
         private const val PRINT_STAGE_TIMEOUT_MS = 15_000L
         private const val POST_FEED_READ_TIMEOUT_MS = 1_000L
+        private const val POST_PRINT_MODEL_TIMEOUT_MS = MODEL_QUERY_TIMEOUT_MS
+        private const val M1_IDLE_TIMEOUT_MS = 60_000L
+        private const val PRINT_WRITE_CHUNK_BYTES = 1_024
         private const val READ_QUIET_MS = 150L
         private const val READ_POLL_MS = 20L
         private const val MAX_REPLY_BYTES = 512
 
-        private class SppSession(val generation: Int, val isPrint: Boolean = false) {
+        private class SppSession(
+            val generation: Int,
+            val address: String,
+            val isPrint: Boolean = false,
+        ) {
             val sockets = CancelableResourceSlot<BluetoothSocket> { socket -> runCatching { socket.close() } }
             val queryReplyDemultiplexer = M1QueryReplyDemultiplexer()
+            @Volatile var connection: M1Connection? = null
             @Volatile var deadline: Runnable? = null
             @Volatile var framesSent = 0
             @Volatile var bytesSent = 0
             @Volatile var bytesAttempted = 0
             @Volatile var writeStarted = false
+        }
+
+        private class M1Connection(
+            val socket: BluetoothSocket,
+            val input: java.io.InputStream,
+            val output: java.io.OutputStream,
+        ) {
+            val queryReplyDemultiplexer = M1QueryReplyDemultiplexer()
+            fun close() = runCatching { socket.close() }.let { Unit }
         }
 
         fun permissions(): Array<String> = if (Build.VERSION.SDK_INT >= 31) {

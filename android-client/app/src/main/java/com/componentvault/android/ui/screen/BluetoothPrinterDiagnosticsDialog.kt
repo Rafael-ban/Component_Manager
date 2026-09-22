@@ -74,6 +74,7 @@ internal fun BluetoothPrinterDiagnosticsDialog(
     LaunchedEffect(probe.printResult) {
         showPrintFailure = probe.printResult in setOf(
             M1TestPrintResult.Rejected, M1TestPrintResult.Partial, M1TestPrintResult.Interrupted,
+            M1TestPrintResult.SentConnectionLost,
         )
     }
     DisposableEffect(probe, lifecycleOwner) {
@@ -144,6 +145,7 @@ internal fun BluetoothPrinterDiagnosticsDialog(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(when (probe.printResult) {
                             M1TestPrintResult.SentUnconfirmed -> stringResource(R.string.printer_m1_sent)
+                            M1TestPrintResult.SentConnectionLost -> stringResource(R.string.printer_m1_sent_connection_lost)
                             M1TestPrintResult.Partial, M1TestPrintResult.Interrupted -> stringResource(R.string.printer_m1_interrupted)
                             M1TestPrintResult.Rejected -> stringResource(R.string.printer_m1_rejected)
                             M1TestPrintResult.None -> statusText
@@ -250,8 +252,11 @@ internal fun BluetoothPrinterDiagnosticsDialog(
             text = {
                 LazyColumn(modifier = Modifier.heightIn(max = 320.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item { Text(stringResource(
-                        if (probe.printResult == M1TestPrintResult.Rejected) R.string.printer_m1_rejected
-                        else R.string.printer_m1_interrupted,
+                        when (probe.printResult) {
+                            M1TestPrintResult.Rejected -> R.string.printer_m1_rejected
+                            M1TestPrintResult.SentConnectionLost -> R.string.printer_m1_sent_connection_lost
+                            else -> R.string.printer_m1_interrupted
+                        },
                     )) }
                     item { Text(probe.report, style = MaterialTheme.typography.bodySmall) }
                 }

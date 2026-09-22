@@ -77,7 +77,11 @@ component-label printing is not enabled. Query reads separate known asynchronous
 status frames from ordinary model/status replies, preserving split frames across
 query boundaries. Socket write
 completion means sent/unconfirmed, not physical print completion. Interrupted
-jobs are never automatically resent.
+jobs are never automatically resent. M1 test printing retains a successful SPP
+connection for the next explicit print in the foreground dialog, releasing it
+on cancellation, error, leaving the screen or 60 seconds idle. Each print still
+checks model/status; after sending it also queries the model before retaining
+the connection. Classic SPP writes are split into at most 1024 bytes per write.
 Reports retain partial stages and status codes, but exclude arbitrary device
 names, addresses, serial numbers and raw replies; a model match is recorded only
 as the fixed value M1. See [device test steps](printer-compatibility.md) and
