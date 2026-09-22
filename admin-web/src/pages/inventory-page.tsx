@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -37,6 +38,8 @@ export function InventoryPage() {
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const [input, setInput] = useState(query);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const searchInputId = useId();
+  const stockFilterId = useId();
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const detailTrigger = useRef<HTMLButtonElement | null>(null);
   const path = useMemo(() => {
@@ -94,8 +97,9 @@ export function InventoryPage() {
       {inventoryEnabled && locations.error ? <Alert variant="destructive"><AlertTitle>无法读取库位</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-3"><span>{locations.error}</span><Button variant="outline" size="sm" onClick={() => void locations.reload()}>重试</Button></AlertDescription></Alert> : null}
 
       <InventoryActions
+        scope="create"
         enabled={inventoryEnabled}
-        component={detail.data}
+        component={null}
         locations={locations.data ?? []}
         onLocationsChanged={() => void locations.reload()}
         onChanged={(value) => {
@@ -108,13 +112,14 @@ export function InventoryPage() {
       <Card className="bg-white/90">
         <CardContent className="pt-6">
           <form className="grid gap-3 md:grid-cols-[minmax(0,1fr),180px,auto]" onSubmit={submitSearch}>
-            <label className="space-y-2">
-              <span className="text-sm font-medium">料号、名称、分类或库位</span>
-              <Input value={input} onChange={(event) => setInput(event.target.value)} placeholder="例如 C30926、连接器或 A-01" />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium">库存状态</span>
+            <div className="space-y-2">
+              <label htmlFor={searchInputId} className="block text-sm font-medium">料号、名称、分类或库位</label>
+              <Input id={searchInputId} value={input} onChange={(event) => setInput(event.target.value)} placeholder="例如 C30926、连接器或 A-01" />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor={stockFilterId} className="block text-sm font-medium">库存状态</label>
               <select
+                id={stockFilterId}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={stockFilter}
                 onChange={(event) => {
@@ -126,7 +131,7 @@ export function InventoryPage() {
                 <option value="low">低库存</option>
                 <option value="healthy">库存充足</option>
               </select>
-            </label>
+            </div>
             <Button className="self-end" type="submit">搜索</Button>
           </form>
         </CardContent>
@@ -214,7 +219,7 @@ export function InventoryPage() {
           <CardContent>
             {detail.error ? <Alert variant="destructive"><AlertTitle>无法读取详情</AlertTitle><AlertDescription>{detail.error}</AlertDescription></Alert> : null}
             {detail.data ? (
-              <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              <><dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
                 <Detail label="料号" value={detail.data.sku} /><Detail label="名称" value={detail.data.name} />
                 <Detail label="分类" value={displayCategory(detail.data.category)} /><Detail label="封装" value={detail.data.package_name} />
                 <Detail label="默认库位" value={locationLabel(detail.data.location)} /><Detail label="库存 / 最低库存" value={`${detail.data.quantity} / ${detail.data.min_stock}`} />
@@ -222,8 +227,20 @@ export function InventoryPage() {
                 <Detail label="说明" value={detail.data.description || "—"} />
                 <Detail label="库位分配" value={detail.data.allocations.length ? detail.data.allocations.map((item) => `${locations.data?.find((location) => location.id === item.location_id)?.name ?? item.location_id}: ${item.quantity}`).join("；") : "未提供独立库位分配"} />
                 <Detail label="更新时间" value={formatDateTime(detail.data.updated_at)} />
-              </dl>
+              </dl></>
             ) : detail.loading ? <p className="text-sm text-muted-foreground" aria-live="polite">正在加载详情…</p> : null}
+            <InventoryActions
+              scope="component"
+              enabled={inventoryEnabled}
+              component={detail.data}
+              locations={locations.data ?? []}
+              onLocationsChanged={() => void locations.reload()}
+              onChanged={(value) => {
+                if (value) setSelectedId(value.id);
+                void reload();
+                void detail.reload();
+              }}
+            />
           </CardContent>
         </Card>
       ) : null}

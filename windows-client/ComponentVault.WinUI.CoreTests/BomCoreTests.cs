@@ -173,7 +173,7 @@ public sealed class BomCoreTests : IDisposable
     [Fact]
     public void ShortageCsv_QuotesChineseAndFormulaDataAndIncludesUnmatchedRows()
     {
-        var document = Document(new(2, "=C1", "型号\"甲", null, 2), new(3, "C2", null, null, 1));
+        var document = Document(new BomSourceRow(2, "=C1", "型号\"甲", null, 2), new BomSourceRow(3, "C2", null, null, 1));
         var preview = new BomPreview("项目", 1, [new("id", "=C1", 2, 2, 5, "now", [2])], [new(3, "unmatched", "未匹配")], new Dictionary<int, IReadOnlyList<BomMatchCandidate>>());
         var bytes = BomShortageCsvExporter.Export(document, preview);
         Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes.Take(3));
@@ -187,7 +187,7 @@ public sealed class BomCoreTests : IDisposable
     [Fact]
     public void ShortageCsv_ReportsZeroWhenPreviewIsFullyStocked()
     {
-        var document = Document(new(2, "C1", "M1", null, 2));
+        var document = Document(new BomSourceRow(2, "C1", "M1", null, 2));
         var preview = new BomPreview("P", 1, [new("id", "C1", 2, 2, 5, "now", [2])], [], new Dictionary<int, IReadOnlyList<BomMatchCandidate>>());
         Assert.Equal(0, BomShortageCsvExporter.ShortageCount(document, preview));
         Assert.Contains("库存充足", System.Text.Encoding.UTF8.GetString(BomShortageCsvExporter.Export(document, preview)));
