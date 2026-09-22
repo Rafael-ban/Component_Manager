@@ -1,0 +1,27 @@
+<resources>
+    <string name="printer_probe_title">Bluetooth printer diagnostics</string>
+    <string name="printer_probe_intro">Test entry: discover nearby BLE devices and system-paired devices, then select your printer to inspect Bluetooth services. This does not print or confirm printer compatibility. Close Hanma or other printer apps first. On Android 11 and earlier, scanning also requires Location to be enabled.</string>
+    <string name="printer_probe_idle">Ready to scan</string>
+    <string name="printer_probe_scanning">Scanning for 10 seconds…</string>
+    <string name="printer_probe_scan_complete">Scan finished. Select your printer.</string>
+    <string name="printer_probe_connecting">Inspecting Bluetooth services, up to 15 seconds…</string>
+    <string name="printer_probe_complete">Service information collected. Printing protocol still needs verification.</string>
+    <string name="printer_probe_bluetooth_off">Turn on Bluetooth, then retry.</string>
+    <string name="printer_probe_unsupported">Bluetooth scanning is unavailable on this device.</string>
+    <string name="printer_probe_permission_required">Bluetooth permission is required. Android 11 and earlier require location permission for scanning.</string>
+    <string name="printer_probe_scan_failed">Could not scan. Wait a moment and try again.</string>
+    <string name="printer_probe_connection_failed">Could not inspect services. Close other printer apps, check the printer is on, then retry.</string>
+    <string name="printer_probe_timeout">Connection timed out. Move closer and retry.</string>
+    <string name="printer_probe_stopped">Stopped. You can scan again.</string>
+    <string name="printer_probe_scan">Scan devices</string>
+    <string name="printer_probe_stop">Stop</string>
+    <string name="printer_probe_settings">Open system settings</string>
+    <string name="printer_probe_empty">No devices found. Switch on the printer and move it closer. A Classic-only device must be paired in system Bluetooth settings first.</string>
+    <string name="printer_probe_unnamed">Unnamed device</string>
+    <string name="printer_probe_paired">Paired</string>
+    <string name="printer_probe_nearby">Nearby</string>
+    <string name="printer_probe_inspect">Inspect services (no printing)</string>
+    <string name="printer_probe_report_hint">Copy this report into feedback and add the printer model yourself. The report excludes device names, Bluetooth addresses and label contents.</string>
+    <string name="printer_probe_copy">Copy diagnostic report</string>
+    <string name="printer_probe_close">Close</string>
+</resources>

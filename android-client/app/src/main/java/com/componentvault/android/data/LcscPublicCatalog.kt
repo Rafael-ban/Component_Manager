@@ -9,6 +9,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import java.util.concurrent.CancellationException
 
 /** Reads public product metadata only; never imports marketplace stock or prices. */
 internal object LcscPublicCatalog {
@@ -109,7 +110,7 @@ internal object LcscPublicCatalog {
             connection.connectTimeout = 6_000
             connection.readTimeout = 6_000
             connection.instanceFollowRedirects = false
-            connection.setRequestProperty("User-Agent", "ComponentVault-Android/0.3")
+            connection.setRequestProperty("User-Agent", "ComponentVault-Android/0.7")
             connection.setRequestProperty("Accept", "text/html")
             val status = connection.responseCode
             AppDiagnostics.record("lookup_international", "http" to status)
@@ -175,9 +176,28 @@ internal class LcscPublicLookup(
 
 /** Exact C-number lookup prefers the Chinese catalog and falls back to the public international page. */
 internal class LcscCombinedLookup(
-    private val domesticFetch: (String) -> String = LcscDomesticCatalog::fetchSearchPage,
+    domesticFetch: ((String) -> String)? = null,
     private val international: LcscPublicLookup = LcscPublicLookup(),
+    domesticGate: LcscDomesticCooldownGate? = null,
 ) {
+    private val domesticFetch: (String) -> String = domesticFetch ?: LcscDomesticCatalog::fetchSearchPage
+    private val domesticGate: LcscDomesticCooldownGate = domesticGate
+        ?: if (domesticFetch == null) LcscDomesticSessionGate else LcscDomesticCooldownGate()
+    fun retryDomesticNow() = domesticGate.clear()
+    fun searchDomestic(keyword: String): List<LcscDomesticProduct> {
+        domesticGate.current()?.let { throw LcscDomesticCoolingDownException(it) }
+        return try {
+            LcscDomesticCatalog.parseSearchPage(domesticFetch(keyword))
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            when (error) {
+                is LcscDomesticBlockedException -> domesticGate.record(LcscDomesticGateReason.Blocked)
+                is LcscDomesticRateLimitedException -> domesticGate.record(LcscDomesticGateReason.RateLimited, error.retryAfterSeconds)
+                is IOException -> if (error !is LcscDomesticResponseException) domesticGate.record(LcscDomesticGateReason.Network)
+            }
+            throw error
+        }
+    }
     fun lookup(
         sku: String,
         preferredSource: LcscCatalogSource = LcscCatalogSource.Domestic,
@@ -191,11 +211,15 @@ internal class LcscCombinedLookup(
             ?: return LcscCatalogLookupResult(null, preferredSource, null, emptyList())
         val attempts = mutableListOf<LcscCatalogAttempt>()
         for (source in LcscCatalogRoutePolicy.order(preferredSource)) {
+            if (source == LcscCatalogSource.Domestic && domesticGate.current() != null) {
+                attempts += LcscCatalogAttempt(source, LcscCatalogFailureKind.CoolingDown)
+                continue
+            }
             try {
                 val metadata = when (source) {
                     LcscCatalogSource.Domestic -> LcscDomesticCatalog.exactMatch(
                         normalized,
-                        LcscDomesticCatalog.parseSearchPage(domesticFetch(normalized)),
+                        searchDomestic(normalized),
                     )?.metadata?.copy(matchedBy = "sku", confidence = "exact")
                     LcscCatalogSource.International -> international.lookup(normalized)
                 }
@@ -209,7 +233,7 @@ internal class LcscCombinedLookup(
                 }
                 attempts += LcscCatalogAttempt(source, LcscCatalogFailureKind.NoMatch)
             } catch (error: Exception) {
-                if (error is InterruptedException) throw error
+                if (error is InterruptedException || error is CancellationException) throw error
                 val failure = LcscCatalogRoutePolicy.classify(error)
                 attempts += LcscCatalogAttempt(source, failure)
                 AppDiagnostics.record(

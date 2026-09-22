@@ -506,9 +506,7 @@ internal fun JlcImportSurface(
                         domesticSearchJob = coroutineScope.launch {
                             runCatching {
                                 withContext(Dispatchers.IO) {
-                                    LcscDomesticCatalog.parseSearchPage(
-                                        LcscDomesticCatalog.fetchSearchPage(keyword),
-                                    )
+                                    repository.searchDomesticCatalog(keyword)
                                 }
                             }.onSuccess { results ->
                                 AppDiagnostics.record("lookup_domestic", "success" to true, "count" to results.size)
@@ -533,9 +531,12 @@ internal fun JlcImportSurface(
                                 AppDiagnostics.record("lookup_domestic", "success" to false, "type" to error.javaClass)
                                 domesticSearchInProgress = false
                                 domesticSearchIsError = true
-                                domesticSearchMessage = if (error is LcscDomesticBlockedException) {
-                                    context.getString(com.componentvault.android.R.string.import_catalog_blocked)
-                                } else context.getString(com.componentvault.android.R.string.catalog_keyword_failed)
+                                domesticSearchMessage = when (error) {
+                                    is LcscDomesticBlockedException -> context.getString(com.componentvault.android.R.string.import_catalog_blocked)
+                                    is com.componentvault.android.data.LcscDomesticRateLimitedException -> context.getString(com.componentvault.android.R.string.catalog_failure_rate_limited)
+                                    is com.componentvault.android.data.LcscDomesticCoolingDownException -> context.getString(com.componentvault.android.R.string.catalog_failure_cooling_down)
+                                    else -> context.getString(com.componentvault.android.R.string.catalog_keyword_failed)
+                                }
                                 LcscPublicCatalog.normalizeSku(keyword)?.let(::applyInternationalFallback)
                             }
                         }
@@ -569,6 +570,38 @@ internal fun JlcImportSurface(
                     )
                 }
                 if (domesticSearchIsError) {
+                    Text(
+                        text = androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.catalog_browser_session_notice),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = {
+                        repository.retryDomesticCatalogNow()
+                        val keyword = partNumberInput.trim()
+                        if (keyword.isNotEmpty()) {
+                            domesticSearchInProgress = true
+                            domesticSearchIsError = false
+                            domesticSearchMessage = context.getString(com.componentvault.android.R.string.import_catalog_searching)
+                            domesticSearchJob?.cancel()
+                            domesticSearchJob = coroutineScope.launch {
+                                runCatching { withContext(Dispatchers.IO) { repository.searchDomesticCatalog(keyword) } }
+                                    .onSuccess { results ->
+                                        domesticSearchInProgress = false
+                                        domesticResults = results
+                                        LcscPublicCatalog.normalizeSku(keyword)?.let { normalized ->
+                                            LcscDomesticCatalog.exactMatch(normalized, results)?.let(::applyDomesticProduct)
+                                                ?: applyInternationalFallback(normalized)
+                                        }
+                                        domesticSearchMessage = if (results.isEmpty()) context.getString(com.componentvault.android.R.string.import_catalog_empty)
+                                        else context.getString(com.componentvault.android.R.string.import_catalog_choose, results.size)
+                                    }.onFailure { error ->
+                                        if (error is CancellationException) return@onFailure
+                                        domesticSearchInProgress = false; domesticSearchIsError = true
+                                        domesticSearchMessage = error.message ?: context.getString(com.componentvault.android.R.string.catalog_keyword_failed)
+                                    }
+                            }
+                        }
+                    }) { Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.catalog_retry_domestic)) }
                     LcscDomesticCatalog.searchUrl(partNumberInput)?.let { searchUrl ->
                         TextButton(onClick = { uriHandler.openUri(searchUrl) }) {
                             Text(androidx.compose.ui.res.stringResource(com.componentvault.android.R.string.import_catalog_open_browser))

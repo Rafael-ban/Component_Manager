@@ -137,6 +137,7 @@ jobs:
           --tests 'com.componentvault.android.data.SyncEndpointResolverTest'
           --tests 'com.componentvault.android.data.LcscPublicCatalogTest'
           --tests 'com.componentvault.android.data.LcscDomesticCatalogTest'
+          --tests 'com.componentvault.android.data.BluetoothPrinterDiagnosticsTest'
           --tests 'com.componentvault.android.data.LcscCatalogRoutePolicyTest'
           --tests 'com.componentvault.android.data.LcscCatalogCacheTest'
           --tests 'com.componentvault.android.data.AppDiagnosticsTest'

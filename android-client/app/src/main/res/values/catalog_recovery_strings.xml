@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_retry_domestic">Retry China lookup</string>
+    <string name="catalog_domestic_retry_cleared">China lookup cooldown cleared. The next lookup will retry.</string>
+    <string name="catalog_browser_session_notice">The browser and app use separate sessions. Completing verification in the browser may not restore app lookup automatically.</string>
+    <string name="catalog_open_domestic_browser">Open China search in browser</string>
+    <string name="catalog_failure_rate_limited">site rate limit</string>
+    <string name="catalog_failure_cooling_down">China lookup temporarily paused</string>
+</resources>

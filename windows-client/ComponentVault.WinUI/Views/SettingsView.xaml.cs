@@ -48,6 +48,9 @@ public sealed partial class SettingsView : Page
         ServerUrlTextBox.Text = sync.ServerBaseUrl;
         FallbackServerUrlTextBox.Text = sync.FallbackServerBaseUrl;
         ApiTokenBox.Password = sync.ApiToken;
+        ApiTokenBox.PasswordRevealMode = PasswordRevealMode.Hidden;
+        ToggleApiTokenButton.Content = "显示令牌";
+        ApiTokenCopyStatusText.Text = string.Empty;
         DeviceIdTextBox.Text = sync.DeviceId;
         LastSyncedTextBox.Text = sync.LastSyncedAt;
         LastResultTextBox.Text = sync.LastSyncMessage;
@@ -155,6 +158,36 @@ public sealed partial class SettingsView : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         var result = viewModel.ImportInventoryWorkbook(file.Path);
         await ShowMessageAsync(result.IsSuccess ? "迁入完成" : "迁入失败", result.Message);
+    }
+
+    private void OnToggleApiTokenClicked(object sender, RoutedEventArgs e)
+    {
+        var showToken = ApiTokenBox.PasswordRevealMode != PasswordRevealMode.Visible;
+        ApiTokenBox.PasswordRevealMode = showToken ? PasswordRevealMode.Visible : PasswordRevealMode.Hidden;
+        ToggleApiTokenButton.Content = showToken ? "隐藏令牌" : "显示令牌";
+    }
+
+    private void OnApiTokenPasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (CopyApiTokenButton is null || ApiTokenCopyStatusText is null) return;
+        CopyApiTokenButton.IsEnabled = !string.IsNullOrWhiteSpace(ApiTokenBox.Password);
+        ApiTokenCopyStatusText.Text = string.Empty;
+    }
+
+    private void OnCopyApiTokenClicked(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(ApiTokenBox.Password)) return;
+        try
+        {
+            var package = new DataPackage();
+            package.SetText(ApiTokenBox.Password);
+            Clipboard.SetContent(package);
+            ApiTokenCopyStatusText.Text = "令牌已复制。";
+        }
+        catch (Exception)
+        {
+            ApiTokenCopyStatusText.Text = "剪贴板暂不可用，请显示令牌后手动复制。";
+        }
     }
 
     private async void OnExportLabelWorkbookClicked(object sender, RoutedEventArgs e)

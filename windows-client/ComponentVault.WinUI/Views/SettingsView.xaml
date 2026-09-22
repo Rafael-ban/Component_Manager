@@ -76,11 +76,27 @@
                                 PlaceholderText="https://sync.example.com" />
                             <PasswordBox
                                 x:Name="ApiTokenBox"
-                                Header="API 令牌" />
+                                Header="API 令牌"
+                                PasswordChanged="OnApiTokenPasswordChanged" />
                             <TextBlock
                                 Style="{StaticResource CaptionTextStyle}"
-                                Text="填写服务端部署时配置的 API_TOKEN（通常来自 .env）；这不是 GitHub Token。"
+                                Text="API Token 是部署者设置的 API_TOKEN。部署者可在 Docker 管理面板中打开本应用的 API 容器，查看环境变量 API_TOKEN；也可查看部署目录的 .env。它不是 GPG_KEY 或 DOCKERHUB_TOKEN，也不需要去 GitHub 申请。非部署者请联系管理员。"
                                 TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button
+                                    x:Name="ToggleApiTokenButton"
+                                    Click="OnToggleApiTokenClicked"
+                                    Content="显示令牌" />
+                                <Button
+                                    x:Name="CopyApiTokenButton"
+                                    Click="OnCopyApiTokenClicked"
+                                    Content="复制令牌"
+                                    IsEnabled="False" />
+                                <TextBlock
+                                    x:Name="ApiTokenCopyStatusText"
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    VerticalAlignment="Center" />
+                            </StackPanel>
                             <ToggleSwitch
                                 x:Name="AutoSyncToggle"
                                 Header="启用自动同步"

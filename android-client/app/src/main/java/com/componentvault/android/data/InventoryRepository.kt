@@ -59,6 +59,8 @@ class InventoryRepository(
     private val inventoryImageStore = InventoryImageStore(appContext)
     private val localPartRecognitionEngine by lazy { LocalPartRecognitionEngine(appContext) }
     private val publicCatalogLookup = LcscCombinedLookup()
+    internal fun retryDomesticCatalogNow() = publicCatalogLookup.retryDomesticNow()
+    internal fun searchDomesticCatalog(keyword: String) = publicCatalogLookup.searchDomestic(keyword)
     private val preferences: SharedPreferences = appContext.getSharedPreferences(
         PREFS_NAME,
         Context.MODE_PRIVATE,
@@ -809,6 +811,8 @@ class InventoryRepository(
         fun failureName(failure: LcscCatalogFailureKind): String = text(
             when (failure) {
                 LcscCatalogFailureKind.Blocked -> R.string.catalog_failure_blocked
+                LcscCatalogFailureKind.RateLimited -> R.string.catalog_failure_rate_limited
+                LcscCatalogFailureKind.CoolingDown -> R.string.catalog_failure_cooling_down
                 LcscCatalogFailureKind.Unreachable -> R.string.catalog_failure_unreachable
                 LcscCatalogFailureKind.NoMatch -> R.string.catalog_failure_no_match
                 LcscCatalogFailureKind.InvalidResponse -> R.string.catalog_failure_invalid_response

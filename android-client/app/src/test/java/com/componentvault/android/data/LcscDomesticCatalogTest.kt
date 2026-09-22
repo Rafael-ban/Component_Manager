@@ -7,6 +7,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import com.componentvault.android.model.withOfficialMetadata
 import java.io.IOException
+import java.util.concurrent.CancellationException
 
 class LcscDomesticCatalogTest {
     private fun page(productCode: String = "C70565", productId: String = "123456") = """
@@ -66,6 +67,52 @@ class LcscDomesticCatalogTest {
         assertFailsWith<LcscDomesticBlockedException> {
             LcscDomesticCatalog.parseSearchPage("<script>var _xvasu='challenge';</script>")
         }
+    }
+
+    @Test fun validProductDataWinsEvenWhenDescriptionContainsSecurityText() {
+        assertEquals("C70565", LcscDomesticCatalog.parseSearchPage(page().replace("YXC 12MHz 晶体", "Security verification part")).single().metadata.sku)
+    }
+
+    @Test fun cooldownSkipsOtherSkusThenExpiresAndManualRetryClearsIt() {
+        var now = 1_000L
+        val gate = LcscDomesticCooldownGate { now }
+        gate.record(LcscDomesticGateReason.Blocked)
+        assertEquals(LcscDomesticGateReason.Blocked, gate.current())
+        now += 120_000
+        assertNull(gate.current())
+        gate.record(LcscDomesticGateReason.Network)
+        gate.clear()
+        assertNull(gate.current())
+    }
+
+    @Test fun httpStatusClassificationDistinguishesSuccessChallengePlainForbiddenAndRateLimit() {
+        assertNull(classifyDomesticHttpResponse(203, "<html>normal</html>", null))
+        assertEquals(LcscDomesticHttpFailure.Blocked, classifyDomesticHttpResponse(403, "var _xvasu='x'", null))
+        assertEquals(LcscDomesticHttpFailure.Http(403), classifyDomesticHttpResponse(403, "Forbidden", null))
+        assertEquals(LcscDomesticHttpFailure.RateLimited(600), classifyDomesticHttpResponse(429, "busy", "999"))
+    }
+
+    @Test fun blockedSkuSkipsDomesticForNextSkuAndCancellationDoesNotStartCooldown() {
+        var calls = 0
+        var now = 0L
+        val gate = LcscDomesticCooldownGate { now }
+        val lookup = LcscCombinedLookup(
+            domesticFetch = { calls++; "<script>var _xvasu='challenge';</script>" },
+            international = LcscPublicLookup(fetch = { "<html></html>" }),
+            domesticGate = gate,
+        )
+        lookup.lookup("C1")
+        lookup.lookup("C2")
+        assertEquals(1, calls)
+        assertFailsWith<LcscDomesticCoolingDownException> { lookup.searchDomestic("C2") }
+        now = 120_000
+        lookup.lookup("C3")
+        assertEquals(2, calls)
+
+        val cancelGate = LcscDomesticCooldownGate { 0L }
+        val cancelled = LcscCombinedLookup(domesticFetch = { throw CancellationException() }, domesticGate = cancelGate)
+        assertFailsWith<CancellationException> { cancelled.lookup("C4") }
+        assertNull(cancelGate.current())
     }
 
     @Test fun missingNextDataAndSchemaDriftAreErrorsInsteadOfEmptyResults() {

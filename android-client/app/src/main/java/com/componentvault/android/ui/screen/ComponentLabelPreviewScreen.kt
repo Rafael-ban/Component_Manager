@@ -30,9 +30,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.ComponentLabelCodec
+import com.componentvault.android.R
 import com.componentvault.android.data.ComponentLabelRenderer
 import com.componentvault.android.data.ComponentLabelTemplate
 import com.componentvault.android.data.ComponentTextLabelTemplate
@@ -80,6 +82,11 @@ internal fun ComponentLabelPreviewSurface(
     }
     var copiesText by remember { mutableStateOf("1") }
     var feedbackMessage by remember { mutableStateOf<String?>(null) }
+    var showPrinterDiagnostics by remember { mutableStateOf(false) }
+
+    if (showPrinterDiagnostics) {
+        BluetoothPrinterDiagnosticsDialog(onDismiss = { showPrinterDiagnostics = false })
+    }
 
     val pngExporter = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("image/png"),
@@ -328,6 +335,10 @@ internal fun ComponentLabelPreviewSurface(
                 ) {
                     Text(strings.importer.actionExportPdf)
                 }
+                OutlinedButton(
+                    onClick = { showPrinterDiagnostics = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.printer_probe_title)) }
             }
         }
         if (!feedbackMessage.isNullOrBlank()) {

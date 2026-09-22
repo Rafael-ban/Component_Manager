@@ -3,7 +3,25 @@ using System.Globalization;
 namespace ComponentVault.WinUI.Services.Catalog;
 
 public enum LcscCatalogSource { Domestic, International }
-public enum LcscCatalogFailureKind { Blocked, Unreachable, NoMatch, InvalidResponse }
+public enum LcscCatalogFailureKind { Blocked, RateLimited, CoolingDown, Unreachable, NoMatch, InvalidResponse }
+public enum LcscDomesticGateReason { Blocked, Network, RateLimited }
+public sealed record LcscDomesticHttpFailure(LcscCatalogFailureKind Kind, int Status, int? RetryAfterSeconds = null);
+
+public sealed class LcscDomesticCooldownGate(Func<DateTimeOffset>? now = null)
+{
+    private readonly Func<DateTimeOffset> _now = now ?? (() => DateTimeOffset.UtcNow);
+    private readonly object _sync = new();
+    private DateTimeOffset _until; private LcscDomesticGateReason? _reason;
+    public LcscDomesticGateReason? Current() { lock (_sync) { if (_reason is not null && _now() < _until) return _reason; _reason = null; _until = default; return null; } }
+    public void Record(Exception error)
+    {
+        if (error is OperationCanceledException) return;
+        var seconds = error switch { LcscDomesticBlockedException => 120, LcscDomesticRateLimitedException rate => Math.Clamp(rate.RetryAfterSeconds ?? 30, 1, 600), _ => 30 };
+        lock (_sync) { _reason = error switch { LcscDomesticBlockedException => LcscDomesticGateReason.Blocked, LcscDomesticRateLimitedException => LcscDomesticGateReason.RateLimited, _ => LcscDomesticGateReason.Network }; _until = _now().AddSeconds(seconds); }
+    }
+    public void RecordNetwork() { lock (_sync) { _reason = LcscDomesticGateReason.Network; _until = _now().AddSeconds(30); } }
+    public void Clear() { lock (_sync) { _reason = null; _until = default; } }
+}
 
 public sealed record LcscCatalogAttempt(LcscCatalogSource Source, LcscCatalogFailureKind Failure);
 
@@ -25,6 +43,8 @@ public sealed record LcscCatalogLookupResult(
             string Failure(LcscCatalogFailureKind failure) => failure switch
             {
                 LcscCatalogFailureKind.Blocked => english ? "site verification blocked the request" : "站点验证阻断",
+                LcscCatalogFailureKind.RateLimited => english ? "site rate limit" : "站点限流",
+                LcscCatalogFailureKind.CoolingDown => english ? "domestic lookup cooling down" : "国内查询冷却中",
                 LcscCatalogFailureKind.Unreachable => english ? "network or site unavailable" : "网络或站点不可达",
                 LcscCatalogFailureKind.NoMatch => english ? "no exact match" : "未找到精确匹配",
                 _ => english ? "unexpected site response" : "站点响应格式异常",
@@ -47,6 +67,15 @@ public sealed record LcscCatalogSearchResult(
 
 public static class LcscCatalogRoutePolicy
 {
+    public static LcscDomesticHttpFailure? ClassifyDomesticHttpResponse(int status, string body, int? retryAfterSeconds)
+    {
+        if (status is >= 200 and <= 299) return null;
+        var challenge = status is 403 or 429 or 503 && new[] { "_xvasu", "_xvtsc", "_xvpfs", "_xvpts", "Security verification" }
+            .Any(token => body.Contains(token, StringComparison.OrdinalIgnoreCase));
+        if (challenge) return new(LcscCatalogFailureKind.Blocked, status);
+        if (status == 429) return new(LcscCatalogFailureKind.RateLimited, status, Math.Clamp(retryAfterSeconds ?? 30, 1, 600));
+        return new(LcscCatalogFailureKind.Unreachable, status);
+    }
     public static LcscCatalogSource PreferredSource(CultureInfo culture) =>
         culture.TwoLetterISOLanguageName.Equals("zh", StringComparison.OrdinalIgnoreCase)
             ? LcscCatalogSource.Domestic : LcscCatalogSource.International;
@@ -59,6 +88,8 @@ public static class LcscCatalogRoutePolicy
     public static LcscCatalogFailureKind Classify(Exception exception) => exception switch
     {
         LcscDomesticBlockedException => LcscCatalogFailureKind.Blocked,
+        LcscDomesticRateLimitedException => LcscCatalogFailureKind.RateLimited,
+        LcscDomesticCoolingDownException => LcscCatalogFailureKind.CoolingDown,
         InvalidDataException => LcscCatalogFailureKind.InvalidResponse,
         HttpRequestException or TaskCanceledException => LcscCatalogFailureKind.Unreachable,
         _ => LcscCatalogFailureKind.InvalidResponse,

@@ -18,6 +18,7 @@ internal data class LcscDomesticProduct(
 )
 
 internal class LcscDomesticBlockedException : IOException("LCSC verification page returned")
+internal class LcscDomesticRateLimitedException(val retryAfterSeconds: Long?) : IOException("LCSC rate limited")
 internal class LcscDomesticResponseException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
 /** Public Chinese LCSC search. It deliberately does not emulate or bypass verification cookies. */
@@ -33,9 +34,12 @@ internal object LcscDomesticCatalog {
     }
 
     fun parseSearchPage(html: String): List<LcscDomesticProduct> {
-        if (looksLikeVerificationPage(html)) throw LcscDomesticBlockedException()
         val payload = nextDataPattern.find(html)?.groupValues?.get(1)?.trim()
-            ?.takeIf(String::isNotEmpty) ?: throw LcscDomesticResponseException("LCSC response is missing __NEXT_DATA__")
+            ?.takeIf(String::isNotEmpty)
+        if (payload == null) {
+            if (looksLikeVerificationPage(html)) throw LcscDomesticBlockedException()
+            throw LcscDomesticResponseException("LCSC response is missing __NEXT_DATA__")
+        }
         val records = runCatching {
             JSONObject(payload).optJSONObject("props")
                 ?.optJSONObject("pageProps")
@@ -61,23 +65,31 @@ internal object LcscDomesticCatalog {
             connection.connectTimeout = 8_000
             connection.readTimeout = 8_000
             connection.instanceFollowRedirects = true
-            connection.setRequestProperty("User-Agent", "ComponentVault-Android/0.3")
+            connection.setRequestProperty("User-Agent", "ComponentVault-Android/0.7")
             connection.setRequestProperty("Accept", "text/html,application/xhtml+xml")
             connection.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9")
             val status = connection.responseCode
             AppDiagnostics.record("lookup_domestic", "http" to status)
-            if (status !in 200..299) throw IOException("HTTP $status")
-            return connection.inputStream.use { input ->
+            val input = if (status in 200..299) connection.inputStream else connection.errorStream
+            val body = input?.use { input ->
                 val output = ByteArrayOutputStream()
                 val buffer = ByteArray(8192)
                 while (true) {
                     val count = input.read(buffer)
                     if (count < 0) break
-                    if (output.size() + count > 4 * 1024 * 1024) throw IOException("Search page too large")
+                    val limit = if (status in 200..299) 4 * 1024 * 1024 else 64 * 1024
+                    if (output.size() + count > limit) break
                     output.write(buffer, 0, count)
                 }
                 output.toString(Charsets.UTF_8.name())
+            }.orEmpty()
+            when (val failure = classifyDomesticHttpResponse(status, body, connection.getHeaderField("Retry-After"))) {
+                null -> Unit
+                LcscDomesticHttpFailure.Blocked -> throw LcscDomesticBlockedException()
+                is LcscDomesticHttpFailure.RateLimited -> throw LcscDomesticRateLimitedException(failure.retryAfterSeconds)
+                is LcscDomesticHttpFailure.Http -> throw IOException("HTTP ${failure.status}")
             }
+            return body
         } finally {
             connection.disconnect()
         }
@@ -160,7 +172,7 @@ internal object LcscDomesticCatalog {
         ?.replace("&nbsp;", " ")?.replace("&amp;", "&")
         ?.replace(Regex("\\s+"), " ")?.trim()?.takeIf(String::isNotEmpty)
 
-    private fun looksLikeVerificationPage(html: String): Boolean =
+    internal fun looksLikeVerificationPage(html: String): Boolean =
         listOf("_xvasu", "_xvtsc", "_xvpfs", "_xvpts", "Security verification")
             .any { html.contains(it, ignoreCase = true) }
 }

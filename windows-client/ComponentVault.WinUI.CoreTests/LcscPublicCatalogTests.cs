@@ -207,6 +207,76 @@ public sealed class LcscPublicCatalogTests
             LcscPublicCatalog.ParseChinaSearchPage("<script>var _xvasu='token';</script>"));
     }
 
+    [Fact]
+    public void ParseChinaSearchPage_ValidProductWinsOverSecurityWords()
+    {
+        Assert.Single(LcscPublicCatalog.ParseChinaSearchPage(DomesticRoutePage.Replace("中文型号", "Security verification component")));
+    }
+
+    [Fact]
+    public void DomesticCooldown_IsBoundedAndCanBeCleared()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var gate = new LcscDomesticCooldownGate(() => now);
+        gate.Record(new LcscDomesticBlockedException());
+        Assert.Equal(LcscDomesticGateReason.Blocked, gate.Current());
+        now = now.AddSeconds(120);
+        Assert.Null(gate.Current());
+        gate.Record(new LcscDomesticRateLimitedException(999));
+        now = now.AddSeconds(599);
+        Assert.Equal(LcscDomesticGateReason.RateLimited, gate.Current());
+        gate.Clear();
+        Assert.Null(gate.Current());
+        gate.Record(new OperationCanceledException());
+        Assert.Null(gate.Current());
+    }
+
+    [Fact]
+    public void DomesticHttpClassification_Covers203ChallengePlain403And429()
+    {
+        Assert.Null(LcscCatalogRoutePolicy.ClassifyDomesticHttpResponse(203, "normal", null));
+        Assert.Equal(LcscCatalogFailureKind.Blocked, LcscCatalogRoutePolicy.ClassifyDomesticHttpResponse(403, "_xvasu", null)!.Kind);
+        Assert.Equal(LcscCatalogFailureKind.Unreachable, LcscCatalogRoutePolicy.ClassifyDomesticHttpResponse(403, "Forbidden", null)!.Kind);
+        var limited = LcscCatalogRoutePolicy.ClassifyDomesticHttpResponse(429, "busy", 999)!;
+        Assert.Equal(LcscCatalogFailureKind.RateLimited, limited.Kind);
+        Assert.Equal(600, limited.RetryAfterSeconds);
+    }
+
+    [Fact]
+    public async Task LookupDetailedAsync_BlockedSkuSkipsDomesticForNextSkuUntilExpiry()
+    {
+        var calls = 0; var now = DateTimeOffset.UnixEpoch;
+        var lookup = new LcscPublicLookup((uri, _, _) =>
+        {
+            if (uri.Host == "so.szlcsc.com") { calls++; return Task.FromResult("<script>_xvasu</script>"); }
+            return Task.FromResult("<html></html>");
+        }, () => System.Globalization.CultureInfo.GetCultureInfo("zh-CN"), () => now);
+        await lookup.LookupDetailedAsync("C1");
+        await lookup.LookupDetailedAsync("C2");
+        Assert.Equal(1, calls);
+        now = now.AddSeconds(120);
+        await lookup.LookupDetailedAsync("C3");
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task LookupDetailedAsync_UserCancellationDoesNotStartDomesticCooldown()
+    {
+        var calls = 0;
+        var lookup = new LcscPublicLookup((uri, _, token) =>
+        {
+            if (uri.Host == "so.szlcsc.com") calls++;
+            token.ThrowIfCancellationRequested();
+            return Task.FromResult(DomesticRoutePage);
+        }, () => System.Globalization.CultureInfo.GetCultureInfo("zh-CN"), () => DateTimeOffset.UnixEpoch);
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => lookup.LookupDetailedAsync("C1", cancellationToken: cancelled.Token));
+        var result = await lookup.LookupDetailedAsync("C88002");
+        Assert.Equal(2, calls);
+        Assert.Equal(LcscCatalogSource.Domestic, result.ResolvedSource);
+    }
+
     [Theory]
     [InlineData("http://atta.szlcsc.com/a.pdf")]
     [InlineData("https://atta.szlcsc.com.evil.example/a.pdf")]

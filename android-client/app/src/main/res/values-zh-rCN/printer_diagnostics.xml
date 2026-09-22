@@ -1,0 +1,27 @@
+<resources>
+    <string name="printer_probe_title">蓝牙标签机诊断</string>
+    <string name="printer_probe_intro">测试入口：查找附近 BLE 设备和系统已配对设备，选择自己的标签机后读取蓝牙服务信息。此操作不出纸，也不表示已兼容打印。请先关闭汉码等其他打印 App。Android 11 及以下还需开启系统定位才能扫描。</string>
+    <string name="printer_probe_idle">准备扫描</string>
+    <string name="printer_probe_scanning">正在查找设备，持续 10 秒…</string>
+    <string name="printer_probe_scan_complete">扫描结束，请选择自己的标签机。</string>
+    <string name="printer_probe_connecting">正在读取蓝牙服务，最长等待 15 秒…</string>
+    <string name="printer_probe_complete">已取得服务信息，打印协议仍需验证。</string>
+    <string name="printer_probe_bluetooth_off">请开启蓝牙后重试。</string>
+    <string name="printer_probe_unsupported">当前设备无法使用蓝牙扫描。</string>
+    <string name="printer_probe_permission_required">需要允许蓝牙权限。Android 11 及以下扫描还需要定位权限。</string>
+    <string name="printer_probe_scan_failed">扫描未成功，请稍等片刻后重试。</string>
+    <string name="printer_probe_connection_failed">无法读取服务，请关闭其他打印 App，确认打印机已开机后重试。</string>
+    <string name="printer_probe_timeout">连接超时，请靠近打印机后重试。</string>
+    <string name="printer_probe_stopped">已停止，可以重新扫描。</string>
+    <string name="printer_probe_scan">扫描设备</string>
+    <string name="printer_probe_stop">停止</string>
+    <string name="printer_probe_settings">打开系统设置</string>
+    <string name="printer_probe_empty">未找到设备，请打开打印机并靠近手机。仅支持经典蓝牙的设备需要先在系统蓝牙设置中配对。</string>
+    <string name="printer_probe_unnamed">未命名设备</string>
+    <string name="printer_probe_paired">已配对</string>
+    <string name="printer_probe_nearby">附近设备</string>
+    <string name="printer_probe_inspect">读取服务信息（不会打印）</string>
+    <string name="printer_probe_report_hint">可复制以下报告到反馈中，并手动补充打印机型号。报告不包含设备名称、蓝牙地址或标签内容。</string>
+    <string name="printer_probe_copy">复制诊断报告</string>
+    <string name="printer_probe_close">关闭</string>
+</resources>

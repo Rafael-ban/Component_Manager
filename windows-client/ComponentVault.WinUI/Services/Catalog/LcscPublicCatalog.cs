@@ -18,6 +18,14 @@ public sealed class LcscDomesticBlockedException : IOException
 {
     public LcscDomesticBlockedException() : base("LCSC verification page returned") { }
 }
+public sealed class LcscDomesticRateLimitedException(int? retryAfterSeconds) : IOException("LCSC rate limited")
+{
+    public int? RetryAfterSeconds { get; } = retryAfterSeconds;
+}
+public sealed class LcscDomesticCoolingDownException(LcscDomesticGateReason reason) : IOException("LCSC domestic lookup cooling down")
+{
+    public LcscDomesticGateReason Reason { get; } = reason;
+}
 
 public static partial class LcscPublicCatalog
 {
@@ -94,9 +102,12 @@ public static partial class LcscPublicCatalog
 
     public static IReadOnlyList<LcscProductMetadata> ParseChinaSearchPage(string html)
     {
-        if (LooksLikeVerificationPage(html)) throw new LcscDomesticBlockedException();
         var match = NextDataPattern().Match(html);
-        if (!match.Success) throw new InvalidDataException("国内商城页面缺少 __NEXT_DATA__ 搜索数据。");
+        if (!match.Success)
+        {
+            if (LooksLikeVerificationPage(html)) throw new LcscDomesticBlockedException();
+            throw new InvalidDataException("国内商城页面缺少 __NEXT_DATA__ 搜索数据。");
+        }
         try
         {
             using var document = JsonDocument.Parse(match.Groups[1].Value, new JsonDocumentOptions { MaxDepth = 64 });
@@ -259,28 +270,38 @@ public sealed class LcscPublicLookup
     private readonly HttpClient _client;
     private readonly Func<Uri, DiagnosticEvent, CancellationToken, Task<string>> _getPage;
     private readonly Func<System.Globalization.CultureInfo> _culture;
+    private readonly LcscDomesticCooldownGate _domesticGate;
+    private static readonly LcscDomesticCooldownGate SessionDomesticGate = new();
     private static readonly ConcurrentDictionary<string, (DateTimeOffset At, LcscProductMetadata? Value)> ExactCache = new();
 
     public LcscPublicLookup() : this(null, null) { }
 
     public LcscPublicLookup(
         Func<Uri, DiagnosticEvent, CancellationToken, Task<string>>? getPage,
-        Func<System.Globalization.CultureInfo>? culture)
+        Func<System.Globalization.CultureInfo>? culture,
+        Func<DateTimeOffset>? now = null)
     {
         _client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true }) { Timeout = TimeSpan.FromSeconds(8) };
-        _client.DefaultRequestHeaders.UserAgent.ParseAdd("ComponentVault-Windows/0.3");
+        _client.DefaultRequestHeaders.UserAgent.ParseAdd("ComponentVault-Windows/0.7");
         _client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("zh-CN,zh;q=0.9");
         _getPage = getPage ?? GetPageAsync;
         _culture = culture ?? (() => System.Globalization.CultureInfo.CurrentUICulture);
+        _domesticGate = getPage is null && now is null ? SessionDomesticGate : new LcscDomesticCooldownGate(now);
     }
+
+    public void RetryDomesticNow() => _domesticGate.Clear();
 
     public async Task<IReadOnlyList<LcscProductMetadata>> SearchChinaAsync(string keyword, CancellationToken cancellationToken = default)
     {
+        if (_domesticGate.Current() is { } coolingReason) throw new LcscDomesticCoolingDownException(coolingReason);
         var uri = LcscPublicCatalog.ChinaSearchUri(keyword) ?? throw new ArgumentException("Search keyword is empty.", nameof(keyword));
         AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Started);
         IReadOnlyList<LcscProductMetadata> results;
         try { results=LcscPublicCatalog.ParseChinaSearchPage(await _getPage(uri,DiagnosticEvent.CatalogDomestic,cancellationToken)); }
-        catch(LcscDomesticBlockedException exception){AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Blocked,exceptionType:exception.GetType());throw;}
+        catch(LcscDomesticBlockedException exception){_domesticGate.Record(exception);AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Blocked,exceptionType:exception.GetType());throw;}
+        catch(LcscDomesticRateLimitedException exception){_domesticGate.Record(exception);throw;}
+        catch(HttpRequestException){_domesticGate.RecordNetwork();throw;}
+        catch(TaskCanceledException) when (!cancellationToken.IsCancellationRequested){_domesticGate.RecordNetwork();throw;}
         catch(InvalidDataException exception){AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Parser,exceptionType:exception.GetType());throw;}
         AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Success);
         foreach (var item in results) LcscPublicCatalog.CacheImage(item.Sku, item.ImageUrl);
@@ -311,6 +332,11 @@ public sealed class LcscPublicLookup
         var attempts = new List<LcscCatalogAttempt>();
         foreach (var source in LcscCatalogRoutePolicy.Order(preferred))
         {
+            if (source == LcscCatalogSource.Domestic && _domesticGate.Current() is not null)
+            {
+                attempts.Add(new LcscCatalogAttempt(source, LcscCatalogFailureKind.CoolingDown));
+                continue;
+            }
             try
             {
                 LcscProductMetadata? metadata = source == LcscCatalogSource.Domestic
@@ -328,7 +354,7 @@ public sealed class LcscPublicLookup
                 }
                 attempts.Add(new LcscCatalogAttempt(source, LcscCatalogFailureKind.NoMatch));
             }
-            catch (Exception exception) when (exception is LcscDomesticBlockedException or InvalidDataException or HttpRequestException or TaskCanceledException)
+            catch (Exception exception) when (exception is LcscDomesticBlockedException or LcscDomesticRateLimitedException or LcscDomesticCoolingDownException or InvalidDataException or HttpRequestException or TaskCanceledException)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 attempts.Add(new LcscCatalogAttempt(source, LcscCatalogRoutePolicy.Classify(exception)));
@@ -363,7 +389,19 @@ public sealed class LcscPublicLookup
         catch(HttpRequestException exception) when(exception.InnerException is System.Net.Sockets.SocketException){AppDiagnostics.Record(activity,DiagnosticOutcome.Dns,exceptionType:exception.GetType());throw;}
         catch(HttpRequestException exception) when(exception.InnerException is System.Security.Authentication.AuthenticationException){AppDiagnostics.Record(activity,DiagnosticOutcome.Tls,exceptionType:exception.GetType());throw;}
         catch(HttpRequestException exception){AppDiagnostics.Record(activity,DiagnosticOutcome.Failed,exceptionType:exception.GetType());throw;}
-        using(response){if(!response.IsSuccessStatusCode){AppDiagnostics.Record(activity,DiagnosticOutcome.Http,(int)response.StatusCode);response.EnsureSuccessStatusCode();}
+        using(response){if(!response.IsSuccessStatusCode){
+        AppDiagnostics.Record(activity,DiagnosticOutcome.Http,(int)response.StatusCode);
+        var errorBody = await ReadLimitedAsync(response.Content, 64 * 1024, timeout.Token);
+        var domestic = uri.Host.Equals("so.szlcsc.com", StringComparison.OrdinalIgnoreCase);
+        int? retryAfter = response.Headers.RetryAfter?.Delta is { } delta
+            ? (int)delta.TotalSeconds
+            : response.Headers.RetryAfter?.Date is { } date
+                ? (int)Math.Ceiling((date - DateTimeOffset.UtcNow).TotalSeconds)
+                : null;
+        var failure = domestic ? LcscCatalogRoutePolicy.ClassifyDomesticHttpResponse((int)response.StatusCode, errorBody, retryAfter) : null;
+        if (failure?.Kind == LcscCatalogFailureKind.Blocked) throw new LcscDomesticBlockedException();
+        if (failure?.Kind == LcscCatalogFailureKind.RateLimited) throw new LcscDomesticRateLimitedException(failure.RetryAfterSeconds);
+        response.EnsureSuccessStatusCode();}
         if (response.Content.Headers.ContentLength is > MaxPageBytes) throw new InvalidDataException("商品页面超过 4 MiB 限制。");
         using var body = await response.Content.ReadAsStreamAsync(timeout.Token);
         using var output = new MemoryStream();
@@ -375,5 +413,12 @@ public sealed class LcscPublicLookup
             output.Write(buffer, 0, count);
         }
         return Encoding.UTF8.GetString(output.ToArray());}
+    }
+
+    private static async Task<string> ReadLimitedAsync(HttpContent content, int limit, CancellationToken token)
+    {
+        using var input = await content.ReadAsStreamAsync(token); using var output = new MemoryStream(); var buffer = new byte[4096];
+        int count; while ((count = await input.ReadAsync(buffer.AsMemory(0, Math.Min(buffer.Length, limit - (int)output.Length)), token)) > 0) { output.Write(buffer, 0, count); if (output.Length >= limit) break; }
+        return Encoding.UTF8.GetString(output.ToArray());
     }
 }

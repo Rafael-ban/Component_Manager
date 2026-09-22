@@ -303,8 +303,10 @@ public sealed partial class ComponentsView : Page
         var skuActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         var lookupButton = new Button { Content = AppStrings.Get("Components_Catalog_ExactLookup") };
         var chinaSearchButton = new Button { Content = AppStrings.Get("Components_Catalog_OpenSearch") };
+        var retryDomesticButton = new Button { Content = "重试国内查询 / Retry China lookup" };
         skuActions.Children.Add(lookupButton);
         skuActions.Children.Add(chinaSearchButton);
+        skuActions.Children.Add(retryDomesticButton);
         var skuPanel = new StackPanel { Spacing = 6 };
         skuPanel.Children.Add(skuBox);
         skuPanel.Children.Add(skuActions);
@@ -326,6 +328,12 @@ public sealed partial class ComponentsView : Page
         Grid.SetColumn(searchButton, 1);
         searchRow.Children.Add(searchButton);
         panel.Children.Add(searchRow);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "浏览器与 App 使用独立会话；在浏览器完成验证不保证 App 自动恢复。 Browser and app sessions are separate; browser verification may not restore app lookup.",
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.72,
+        });
 
         var candidateList = new ListView
         {
@@ -363,6 +371,22 @@ public sealed partial class ComponentsView : Page
         panel.Children.Add(CreateSectionHeader("备注", "填写用途、风险或替代料信息。"));
         panel.Children.Add(CreateField("描述 / 备注", descriptionBox));
         panel.Children.Add(errorText);
+
+        retryDomesticButton.Click += async (_, _) =>
+        {
+            _catalogLookup.RetryDomesticNow();
+            var normalized = LcscPublicCatalog.NormalizeSku(skuBox.Text);
+            if (normalized is null) { errorText.Text = "请输入有效立创 C 编号后重试。 Enter a valid LCSC C-number before retrying."; return; }
+            retryDomesticButton.IsEnabled = false;
+            try
+            {
+                var lookup = await _catalogLookup.LookupDetailedAsync(normalized, LcscCatalogSource.Domestic);
+                if (lookup.Metadata is { } metadata) ApplyMetadata(metadata, skuBox, nameBox, categoryBox, packageBox, descriptionBox);
+                errorText.Text = lookup.UserMessage;
+            }
+            catch (Exception exception) { errorText.Text = exception.Message; }
+            finally { retryDomesticButton.IsEnabled = true; }
+        };
 
         lookupButton.Click += async (_, _) =>
         {
@@ -439,6 +463,8 @@ public sealed partial class ComponentsView : Page
             {
                 errorText.Text = AppStrings.Get("Components_Catalog_VerificationRequired");
             }
+            catch (LcscDomesticRateLimitedException) { errorText.Text = "国内立创请求过于频繁，已短暂限流。 China lookup is rate limited; retry after the cooldown."; }
+            catch (LcscDomesticCoolingDownException) { errorText.Text = "国内查询暂时暂停，可使用“重试国内查询”立即重试。 China lookup is paused; use Retry China lookup to retry now."; }
             catch (Exception) { errorText.Text = "国内立创关键词搜索失败，请稍后重试或在浏览器中打开搜索。"; }
             finally { searchButton.IsEnabled = true; }
         };

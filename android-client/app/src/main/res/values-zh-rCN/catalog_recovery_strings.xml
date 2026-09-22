@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_retry_domestic">重试国内查询</string>
+    <string name="catalog_domestic_retry_cleared">已清除国内查询冷却，下次查询将重新尝试。</string>
+    <string name="catalog_browser_session_notice">浏览器与 App 使用独立会话；在浏览器完成验证不保证 App 自动恢复。</string>
+    <string name="catalog_open_domestic_browser">在浏览器打开国内搜索</string>
+    <string name="catalog_failure_rate_limited">站点限流</string>
+    <string name="catalog_failure_cooling_down">国内查询暂时暂停</string>
+</resources>

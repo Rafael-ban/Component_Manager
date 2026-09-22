@@ -1,5 +1,7 @@
 <resources>
-    <string name="settings_api_token_help">Use API_TOKEN from the server .env file or deployment environment. Ask the server owner for it. This is not a GitHub token.</string>
+    <string name="settings_api_token_help">The deployer sets API_TOKEN. In a Docker management panel, open this app’s API container and find the API_TOKEN environment variable, or check the deployment directory’s .env file. It is not GPG_KEY or DOCKERHUB_TOKEN, and you do not request it from GitHub. If you are not the deployer, ask the administrator.</string>
+    <string name="settings_api_token_copy">Copy token</string>
+    <string name="settings_api_token_copied">Token copied.</string>
     <string name="settings_external_server_url">External URL (optional)</string>
     <string name="settings_external_server_help">An external address for the same server and database. Used when the primary address is unreachable. Leave empty to disable automatic fallback.</string>
     <string name="sync_via_external">Connected through the external address.</string>

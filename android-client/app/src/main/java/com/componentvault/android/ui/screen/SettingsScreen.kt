@@ -1,5 +1,8 @@
 package com.componentvault.android.ui.screen
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -829,6 +833,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
     when (section) {
         SettingsSection.Sync -> {
             item {
+                val context = LocalContext.current
+                var tokenCopied by remember(apiToken) { mutableStateOf(false) }
                 SectionPane(
                     title = strings.settings.connectionTitle.takeIf { showSectionHeading },
                     supporting = strings.settings.connectionSubtitle,
@@ -858,7 +864,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
                 ) {
                     OutlinedTextField(
                         value = apiToken,
-                        onValueChange = onApiTokenChange,
+                        onValueChange = {
+                            tokenCopied = false
+                            onApiTokenChange(it)
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text(strings.common.fieldApiToken) },
                         supportingText = { Text(stringResource(R.string.settings_api_token_help)) },
@@ -869,13 +878,32 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsSectionDetail
                             PasswordVisualTransformation()
                         },
                     )
-                    TextButton(onClick = onToggleToken) {
-                        Text(
-                            if (showToken) {
-                                strings.common.actionHideToken
-                            } else {
-                                strings.common.actionShowToken
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = onToggleToken) {
+                            Text(
+                                if (showToken) {
+                                    strings.common.actionHideToken
+                                } else {
+                                    strings.common.actionShowToken
+                                },
+                            )
+                        }
+                        TextButton(
+                            enabled = apiToken.isNotBlank(),
+                            onClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("API token", apiToken))
+                                tokenCopied = true
                             },
+                        ) {
+                            Text(stringResource(R.string.settings_api_token_copy))
+                        }
+                    }
+                    if (tokenCopied) {
+                        Text(
+                            text = stringResource(R.string.settings_api_token_copied),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
                         )
                     }
                 }

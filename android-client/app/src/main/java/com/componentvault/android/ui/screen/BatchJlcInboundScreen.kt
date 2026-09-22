@@ -39,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -83,6 +84,7 @@ internal fun BatchJlcInboundScreen(
     onCommitted: () -> Unit,
 ) {
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val repository = remember(context) { InventoryRepository(context) }
     val store = remember(context) { BatchJlcDraftStore(context) }
     val scannerSettingsStore = remember(context) { BatchScannerSettingsStore(context) }
@@ -356,6 +358,21 @@ internal fun BatchJlcInboundScreen(
                 }
             }
             if (message.isNotBlank()) item { Text(message, color = MaterialTheme.colorScheme.primary) }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.catalog_browser_session_notice), style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = {
+                        repository.retryDomesticCatalogNow()
+                        val retryScope = if (page == BatchPage.Capture) ProcessScope.Captured else ProcessScope.Pending
+                        processJob = scope.launch { processRows(retryScope, generation) }
+                    }, enabled = !processing && !committing) { Text(stringResource(R.string.catalog_retry_domestic)) }
+                    draft.rows.asSequence().mapNotNull { LcscPublicCatalog.domesticSearchUrl(it.sku) }.firstOrNull()?.let { url ->
+                        TextButton(onClick = { uriHandler.openUri(url) }) {
+                            Text(stringResource(R.string.catalog_open_domestic_browser))
+                        }
+                    }
+                }
+            }
             if (processing || committing) {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
