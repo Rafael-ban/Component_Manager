@@ -272,6 +272,11 @@
     <string name="settings_about_open_source">Open-source license and notice</string>
     <string name="settings_update_check_action">Check for updates</string>
     <string name="settings_update_title">Updates</string>
+    <string name="settings_update_channel_title">Update channel</string>
+    <string name="settings_update_channel_stable">Stable</string>
+    <string name="settings_update_channel_dev">Dev</string>
+    <string name="settings_update_channel_stable_hint">Only stable releases are checked. Switching back does not downgrade an installed dev build.</string>
+    <string name="settings_update_channel_dev_hint">Includes prereleases and newer stable releases. Dev builds may be less tested.</string>
     <string name="settings_update_checking">Checking…</string>
     <string name="settings_update_available">Version %1$s is available · published %2$s</string>
     <string name="settings_update_up_to_date">You already have the latest version (%1$s).</string>

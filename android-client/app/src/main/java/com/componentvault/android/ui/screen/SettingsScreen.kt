@@ -51,6 +51,7 @@ import com.componentvault.android.BuildConfig
 import com.componentvault.android.R
 import com.componentvault.android.data.GitHubReleaseUpdateChecker
 import com.componentvault.android.data.ReleaseCheckResult
+import com.componentvault.android.data.UpdateChannel
 import com.componentvault.android.model.AppLanguage
 import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ImportLearningSummary
@@ -590,6 +591,13 @@ private fun SettingsAboutPane(showHeading: Boolean = true) {
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
     val updateChecker = remember { GitHubReleaseUpdateChecker() }
+    val context = LocalContext.current
+    val channelPreferences = remember { context.getSharedPreferences("component_vault_update", Context.MODE_PRIVATE) }
+    var updateChannel by remember {
+        mutableStateOf(
+            if (channelPreferences.getString("channel", "stable") == "dev") UpdateChannel.Dev else UpdateChannel.Stable,
+        )
+    }
     var isChecking by remember { mutableStateOf(false) }
     var updateResult by remember { mutableStateOf<ReleaseCheckResult?>(null) }
     var browserError by remember { mutableStateOf(false) }
@@ -649,13 +657,48 @@ private fun SettingsAboutPane(showHeading: Boolean = true) {
         }
     }
     SectionPane(title = stringResource(R.string.settings_update_title)) {
+        Text(stringResource(R.string.settings_update_channel_title), fontWeight = FontWeight.SemiBold)
+        Column {
+          Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(enabled = !isChecking) {
+              updateChannel = UpdateChannel.Stable
+              channelPreferences.edit().putString("channel", "stable").apply()
+              updateResult = null
+          }) {
+            RadioButton(
+                selected = updateChannel == UpdateChannel.Stable,
+                onClick = null,
+                enabled = !isChecking,
+            )
+            Text(stringResource(R.string.settings_update_channel_stable))
+          }
+          Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(enabled = !isChecking) {
+              updateChannel = UpdateChannel.Dev
+              channelPreferences.edit().putString("channel", "dev").apply()
+              updateResult = null
+          }) {
+            RadioButton(
+                selected = updateChannel == UpdateChannel.Dev,
+                onClick = null,
+                enabled = !isChecking,
+            )
+            Text(stringResource(R.string.settings_update_channel_dev))
+          }
+        }
+        Text(
+            stringResource(
+                if (updateChannel == UpdateChannel.Dev) R.string.settings_update_channel_dev_hint
+                else R.string.settings_update_channel_stable_hint,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Button(
             onClick = {
                 if (!isChecking) {
                     coroutineScope.launch {
                         isChecking = true
                         try {
-                            updateResult = updateChecker.check(BuildConfig.VERSION_NAME)
+                            updateResult = updateChecker.check(BuildConfig.VERSION_NAME, updateChannel)
                         } finally {
                             isChecking = false
                         }

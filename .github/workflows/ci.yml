@@ -35,6 +35,9 @@ jobs:
       - name: Validate changelog-driven version sync
         run: python tools/versioning/sync_version.py --validate
 
+      - name: Test release channel version ordering
+        run: python -m unittest tools.versioning.test_release_channel
+
   server-test:
     runs-on: ubuntu-latest
     defaults:

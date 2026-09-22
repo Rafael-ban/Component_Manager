@@ -19,6 +19,7 @@ public sealed partial class SettingsView : Page
     private readonly GitHubReleaseClient _releaseClient = new();
     private CancellationTokenSource? _updateCancellation;
     private GitHubReleaseInfo? _latestRelease;
+    private UpdateChannel _updateChannel = UpdateChannel.Stable;
     private MainViewModel? RuntimeViewModel => ViewModelResolver.GetRuntimeViewModel(DataContext);
 
     private SyncConfiguration? CurrentSyncConfiguration =>
@@ -34,6 +35,10 @@ public sealed partial class SettingsView : Page
         InitializeComponent();
         DataContext = ViewModelResolver.ResolveMainViewModel();
         CurrentVersionText.Text = GetCurrentVersion();
+        var savedChannel = LoadUpdateChannel();
+        _updateChannel = savedChannel == "dev" ? UpdateChannel.Dev : UpdateChannel.Stable;
+        UpdateChannelComboBox.SelectedIndex = _updateChannel == UpdateChannel.Dev ? 1 : 0;
+        UpdateChannelHint.Text = ChannelHint();
         LoadValuesFromCurrentContext();
     }
 
@@ -271,13 +276,14 @@ public sealed partial class SettingsView : Page
         if (_updateCancellation is not null) return;
         _updateCancellation = new CancellationTokenSource();
         CheckUpdateButton.IsEnabled = false;
+        UpdateChannelComboBox.IsEnabled = false;
         UpdateProgressRing.IsActive = true;
         UpdateInfoBar.Severity = InfoBarSeverity.Informational;
         UpdateInfoBar.Title = "正在检查更新";
         UpdateInfoBar.Message = "正在读取公开 GitHub Release…";
         try
         {
-            var result = await _releaseClient.CheckAsync(CurrentVersionText.Text, _updateCancellation.Token);
+            var result = await _releaseClient.CheckAsync(CurrentVersionText.Text, _updateChannel, _updateCancellation.Token);
             _latestRelease = result.Release;
             UpdateInfoBar.Title = result.IsSuccess ? "更新检查完成" : "无法完成更新检查";
             UpdateInfoBar.Message = result.Message;
@@ -299,6 +305,7 @@ public sealed partial class SettingsView : Page
             _updateCancellation?.Dispose();
             _updateCancellation = null;
             CheckUpdateButton.IsEnabled = true;
+            UpdateChannelComboBox.IsEnabled = true;
             UpdateProgressRing.IsActive = false;
         }
     }
@@ -339,8 +346,46 @@ public sealed partial class SettingsView : Page
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e) => _updateCancellation?.Cancel();
 
+    private void OnUpdateChannelChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (UpdateChannelComboBox.SelectedItem is not ComboBoxItem item) return;
+        _updateChannel = item.Tag?.ToString() == "dev" ? UpdateChannel.Dev : UpdateChannel.Stable;
+        SaveUpdateChannel(_updateChannel == UpdateChannel.Dev ? "dev" : "stable");
+        UpdateChannelHint.Text = ChannelHint();
+        _latestRelease = null;
+        LatestVersionText.Text = "尚未检查";
+        DownloadPortableButton.IsEnabled = false;
+    }
+
+    private string ChannelHint() => _updateChannel == UpdateChannel.Dev
+        ? "开发版会检查预发布版和更高的正式版，测试覆盖可能较少。"
+        : "正式版仅检查稳定 Release；切回后不会自动降级已安装的开发版。";
+
+    private static string UpdateChannelPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "ComponentVault", "update-channel.txt");
+
+    private static string LoadUpdateChannel()
+    {
+        try { return File.ReadAllText(UpdateChannelPath).Trim(); }
+        catch { return "stable"; }
+    }
+
+    private static void SaveUpdateChannel(string channel)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(UpdateChannelPath)!);
+            File.WriteAllText(UpdateChannelPath, channel);
+        }
+        catch { }
+    }
+
     private static string GetCurrentVersion()
     {
+        var informational = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (!string.IsNullOrWhiteSpace(informational)) return informational.Split('+')[0];
         try
         {
             var version = Windows.ApplicationModel.Package.Current.Id.Version;

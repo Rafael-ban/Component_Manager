@@ -255,6 +255,11 @@
     <string name="settings_about_open_source">查看开源许可与说明</string>
     <string name="settings_update_check_action">手动检查更新</string>
     <string name="settings_update_title">应用更新</string>
+    <string name="settings_update_channel_title">更新通道</string>
+    <string name="settings_update_channel_stable">正式版</string>
+    <string name="settings_update_channel_dev">开发版</string>
+    <string name="settings_update_channel_stable_hint">仅检查正式 Release。切回正式版不会自动降级已安装的开发版。</string>
+    <string name="settings_update_channel_dev_hint">同时检查预发布版和更高的正式版；开发版测试较少。</string>
     <string name="settings_update_checking">正在检查…</string>
     <string name="settings_update_available">发现新版 %1$s · 发布于 %2$s</string>
     <string name="settings_update_up_to_date">当前已是最新版本（%1$s）。</string>

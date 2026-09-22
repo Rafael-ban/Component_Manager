@@ -65,7 +65,15 @@ discovery and M1 connection modes. It lists nearby BLE and system-paired devices
 M1 mode uses a paired Classic/dual-mode device and an RFCOMM SPP socket to query
 the model, then status only after a recognised M1 reply. Socket I/O runs off the UI
 thread; cancellation, timeout and leaving the foreground close the socket and
-discard obsolete session callbacks. It sends no print or configuration commands.
+discard obsolete session callbacks. The read-only query action sends no print
+commands. A separate, explicitly confirmed test-label action rechecks the model
+and status, then sends one fixed 203-dpi raster in complete-row blocks of at most
+3072 raw bytes. Blocks use independently implemented literal-only LZO1X and the
+M1 POLI header, followed by a single label feed. No vendor binary or JNI is used.
+The existing 40 × 10 / 40 × 30 mm templates are supported for this test; dynamic
+text strips and normal component-label printing are not enabled. Socket write
+completion means sent/unconfirmed, not physical print completion. Interrupted
+jobs are never automatically resent.
 Reports retain partial stages and status codes, but exclude arbitrary device
 names, addresses, serial numbers and raw replies; a model match is recorded only
 as the fixed value M1. See [device test steps](printer-compatibility.md) and
@@ -238,6 +246,11 @@ See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
   versions as `major.minor.patch.0`.
 - The release path is:
   `docs/CHANGELOG.md -> tools/versioning/sync_version.py -> release commit if needed -> vX.Y.Z tag -> reusable .github/workflows/release.yml build and GitHub Release publish`
+- Dev tags (`vX.Y.Z-dev.N`) build the same `master` code as prereleases, injecting
+  artifact version names and monotonically ordered Android version codes. They
+  do not advance the stable changelog or publish Docker Hub images. Windows
+  displays the informational version, including the dev suffix, while keeping
+  numeric assembly metadata. See [release channels](runbook.md#stable-and-dev-publishing).
 - CI explicitly includes branch pushes alongside pull requests. The reusable
   release workflow prioritizes supplied inputs because its event context comes
   from the caller; it must not require an event name of `workflow_call`.
@@ -592,8 +605,9 @@ independently gated by `WEB_INVENTORY_ENABLED` and do not change MQTT settings.
 See [MQTT](mqtt.md).
 
 Native Settings / About use standalone GitHub Release parsers and anonymous
-HTTP clients, independent of inventory sync and its bearer token. Numeric
-version comparisons, stable-release filtering, bounded responses, timeouts and
+HTTP clients, independent of inventory sync and its bearer token. A device-local
+update-channel preference defaults to Stable; Dev also considers prereleases.
+Semantic version comparisons, channel filtering, bounded responses, timeouts and
 repository-specific asset URL validation determine the update UI. Installers
 open only after a user click through the system browser. No background updater,
 self-replacement, auto-install or new database tables are needed for this flow.

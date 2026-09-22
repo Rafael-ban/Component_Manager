@@ -416,6 +416,14 @@
                                 Content="检查更新" />
                         </StackPanel>
                     </Grid>
+                    <StackPanel Spacing="6">
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" Text="更新通道" />
+                        <ComboBox x:Name="UpdateChannelComboBox" SelectionChanged="OnUpdateChannelChanged">
+                            <ComboBoxItem Tag="stable" Content="正式版（仅正式 Release）" />
+                            <ComboBoxItem Tag="dev" Content="开发版（含预发布与更高正式版）" />
+                        </ComboBox>
+                        <TextBlock x:Name="UpdateChannelHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
                     <InfoBar
                         x:Name="UpdateInfoBar"
                         IsOpen="True"

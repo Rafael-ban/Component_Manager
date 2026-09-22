@@ -10,6 +10,8 @@ val releaseKeystorePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH")
 val releaseKeystorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
 val releaseKeyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
+val releaseVersionName = providers.gradleProperty("componentVersionName").orNull
+val releaseVersionCode = providers.gradleProperty("componentVersionCode").orNull?.toIntOrNull()
 val hasReleaseSigning = listOf(
     releaseKeystorePath,
     releaseKeystorePassword,
@@ -28,6 +30,10 @@ android {
         targetSdk = 35
         versionCode = 26
         versionName = "0.7.3"
+        if (releaseVersionCode != null && releaseVersionName != null) {
+            versionCode = releaseVersionCode
+            versionName = releaseVersionName
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

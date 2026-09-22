@@ -6,6 +6,7 @@ public sealed class GitHubReleaseClient
 {
     private const int MaxResponseBytes = 1024 * 1024;
     private static readonly Uri LatestReleaseApi = new("https://api.github.com/repos/Rafael-ban/Component_Manager/releases/latest");
+    private static readonly Uri ReleasesApi = new("https://api.github.com/repos/Rafael-ban/Component_Manager/releases?per_page=30");
     private static readonly HttpClient Client = CreateClient();
 
     private static HttpClient CreateClient()
@@ -20,13 +21,13 @@ public sealed class GitHubReleaseClient
         return client;
     }
 
-    public async Task<UpdateCheckResult> CheckAsync(string localVersion, CancellationToken cancellationToken = default)
+    public async Task<UpdateCheckResult> CheckAsync(string localVersion, UpdateChannel channel = UpdateChannel.Stable, CancellationToken cancellationToken = default)
     {
         try
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             deadline.CancelAfter(TimeSpan.FromSeconds(12));
-            using var response = await Client.GetAsync(LatestReleaseApi, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
+            using var response = await Client.GetAsync(channel == UpdateChannel.Stable ? LatestReleaseApi : ReleasesApi, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
             if (response.StatusCode == HttpStatusCode.NotFound)
                 return Failure("项目暂时没有公开 Release。", UpdateComparison.UnknownVersion);
             if (response.StatusCode == HttpStatusCode.Forbidden)
@@ -45,8 +46,8 @@ public sealed class GitHubReleaseClient
                 if (memory.Length + count > MaxResponseBytes) return Failure("GitHub Release 响应超过大小限制。", UpdateComparison.UnknownVersion);
                 memory.Write(buffer, 0, count);
             }
-            var release = GitHubReleaseParser.ParseRelease(System.Text.Encoding.UTF8.GetString(memory.ToArray()));
-            if (release is null) return Failure("最新响应不是可识别的正式数字版本 Release。", UpdateComparison.UnknownVersion);
+            var release = GitHubReleaseParser.ParseLatest(System.Text.Encoding.UTF8.GetString(memory.ToArray()), channel);
+            if (release is null) return Failure("没有找到当前更新通道可识别的 Release。", UpdateComparison.UnknownVersion);
             var comparison = GitHubReleaseParser.Compare(localVersion, release.Tag);
             var message = comparison switch
             {

@@ -95,10 +95,9 @@ preview, and do not reset server credentials or silently replace current stock.
 
 Native UI layout and navigation are documented in
 [native-ui-redesign.md](native-ui-redesign.md). Android and Windows About pages
-show author Rafael-Ikaros and read the existing repository's stable Releases.
+show author Rafael-Ikaros and default to stable Releases, with an opt-in Dev channel.
 CI runs the native build checks, including UI timestamp regression coverage;
-the publication job identifies its repository through `GH_REPO` because its
-artifact-only workspace does not require a Git checkout.
+the publication job identifies its repository through `GH_REPO`.
 
 ## Local Backend Development
 
@@ -694,8 +693,33 @@ topic/deletion behavior.
 
 ### Native About and release checks
 
-Settings / About checks the latest stable Release in `Rafael-ban/Component_Manager`
-only after a user click. The APK and portable ZIP filenames must match the
+#### Stable and Dev publishing
+
+Keep one `master` branch. Stable releases continue through the changelog workflow;
+add their notes to `docs/CHANGELOG.md` only when ready to publish a stable build.
+For faster device tests, put notes in `docs/releases/X.Y.Z-dev.N.md`, commit and
+push the tested code to `master`, then tag that CI-verified commit as
+`vX.Y.Z-dev.N` and push the tag. `Release Artifacts` builds signed Android and
+self-contained Windows packages and marks the release as a GitHub prerelease.
+Dev does not publish Docker Hub images or replace the stable `latest` release.
+
+Both channels keep the same Android application ID and signing key. Published
+Android version codes are derived from the release tag:
+`major × 10000000 + minor × 100000 + patch × 1000 + build`, with `build=N` for
+dev.1–dev.998 and `build=999` for stable. This makes a same-version stable APK
+installable over its dev builds. The source version remains changelog-driven;
+the release workflow injects the artifact's version at build time.
+
+Example: `0.7.4-dev.1` uses code `704001`, and stable `0.7.4` uses `704999`.
+Do not change signing keys between channels. See [update behavior](app-updates.md)
+and [current dev test notes](releases/0.7.4-dev.1.md).
+
+#### Client behavior
+
+Settings / About checks `Rafael-ban/Component_Manager` only after a user click.
+The persisted update channel defaults to Stable; choosing Dev also includes
+public prereleases. Switching channels never automatically downgrades or installs.
+The APK and portable ZIP filenames must match the
 release workflow. A missing package, HTTP 404, rate limit or network failure is
 shown in the UI; users can still open the fixed release page. Applications do
 not silently install or import signing certificates. See [application updates](app-updates.md)

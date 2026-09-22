@@ -160,6 +160,9 @@ connects to it over HTTP.
 - The default `GITHUB_TOKEN` is sufficient for this path as long as the
   workflow has `contents:write` permission. No separate
   `RELEASE_AUTOMATION_TOKEN` secret is required.
+- Dev builds use `vX.Y.Z-dev.N` tags on CI-verified `master` commits and notes in
+  `docs/releases/`. They publish as prereleases without advancing the stable
+  changelog version or Docker Hub tags. See [release channels](docs/runbook.md#stable-and-dev-publishing).
 
 ## Platform Status
 
@@ -326,9 +329,10 @@ preferences and supports:
   step plus structured line extraction before packaging-field parsing
 - physical label preview plus PNG/PDF export, generating JLC-compatible QR
   payloads for JLC-sourced items and warehouse QR payloads for other items
-- opt-in Bluetooth diagnostics from label preview: service discovery and an M1
-  Classic SPP model/status query for paired printers. This stage sends no print
-  commands; see [M1 device test steps](docs/printer-compatibility.md)
+- opt-in Bluetooth diagnostics from label preview: service discovery, M1 Classic
+  SPP model/status queries and a separately confirmed single M1 test label using
+  the existing 40 × 10 / 40 × 30 mm QR template sizes. Actual output still needs
+  device validation; see [M1 device test steps](docs/printer-compatibility.md)
 - user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
   templates, with linked QR dimensions, larger text treatment, direct
   label-sized export, physical-aspect preview rendering, and fixed per-size
@@ -579,8 +583,9 @@ image; missing historical movements are never inferred.
 
 Android and Windows Settings / About now show application identity, installed
 version, the GPLv3 license, project and release links, and manual GitHub update
-checks. They compare numeric versions from this repository's latest public
-stable Release, show notes, and offer the matching APK or Windows portable ZIP.
+checks. A persisted update-channel selector defaults to Stable; Dev includes
+public prereleases. Semantic version ordering prevents automatic downgrades.
+Checks show notes and offer the matching APK or Windows portable ZIP.
 Downloads open through the system browser; installation remains a user action.
 See [About and application updates](docs/app-updates.md).
 

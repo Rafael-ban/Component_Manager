@@ -85,7 +85,18 @@ jobs:
       publish_github_release: ${{ steps.resolve.outputs.publish_github_release }}
       release_notes: ${{ steps.resolve.outputs.release_notes }}
       publish_docker_image: ${{ steps.dockerhub.outputs.enabled }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      component_version: ${{ steps.resolve.outputs.component_version }}
+      android_version_code: ${{ steps.resolve.outputs.android_version_code }}
     steps:
+      - name: Checkout release tooling
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
       - name: Check optional Docker Hub publishing configuration
         id: dockerhub
         env:
@@ -155,6 +166,14 @@ jobs:
 
           if [ -z "$release_tag" ]; then
             publish_github_release="false"
+          fi
+
+          if [ -n "$release_tag" ]; then
+            python tools/versioning/release_channel.py "$release_tag" "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "component_version=" >> "$GITHUB_OUTPUT"
+            echo "android_version_code=" >> "$GITHUB_OUTPUT"
           fi
 
           echo "source_ref=$source_ref" >> "$GITHUB_OUTPUT"
@@ -227,7 +246,15 @@ jobs:
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/android-release.keystore" >> "$GITHUB_ENV"
 
       - name: Build signed Android release APK
-        run: gradle -p android-client assembleRelease
+        env:
+          COMPONENT_VERSION: ${{ needs.prepare.outputs.component_version }}
+          ANDROID_VERSION_CODE: ${{ needs.prepare.outputs.android_version_code }}
+        run: |
+          version_args=()
+          if [ -n "$COMPONENT_VERSION" ]; then
+            version_args+=("-PcomponentVersionName=$COMPONENT_VERSION" "-PcomponentVersionCode=$ANDROID_VERSION_CODE")
+          fi
+          gradle -p android-client assembleRelease "${version_args[@]}"
 
       - name: Normalize Android artifact name
         run: |
@@ -298,11 +325,19 @@ jobs:
 
       - name: Publish Windows portable bundle
         shell: pwsh
+        env:
+          COMPONENT_VERSION: ${{ needs.prepare.outputs.component_version }}
         run: |
           $portablePublishDir = Join-Path $env:RUNNER_TEMP 'component-vault-portable-x64'
 
           if (Test-Path $portablePublishDir) {
             Remove-Item -LiteralPath $portablePublishDir -Recurse -Force
+          }
+
+          $versionArgs = @()
+          if ($env:COMPONENT_VERSION) {
+            $versionArgs += "-p:Version=$env:COMPONENT_VERSION"
+            $versionArgs += "-p:InformationalVersion=$env:COMPONENT_VERSION"
           }
 
           dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj `
@@ -315,6 +350,7 @@ jobs:
             -p:WindowsAppSDKSelfContained=true `
             -p:SelfContained=true `
             -p:PublishSingleFile=false `
+            @versionArgs `
             -o $portablePublishDir
 
       - name: Package and smoke test Windows portable archive
@@ -394,6 +430,11 @@ jobs:
       - admin-web-release
       - windows-release
     steps:
+      - name: Checkout release notes
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.source_ref }}
+
       - name: Download Android artifact
         uses: actions/download-artifact@v7
         with:
@@ -419,13 +460,25 @@ jobs:
           TAG_NAME: ${{ needs.prepare.outputs.release_tag }}
           RELEASE_NAME: ${{ needs.prepare.outputs.release_name }}
           RELEASE_NOTES: ${{ needs.prepare.outputs.release_notes }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          COMPONENT_VERSION: ${{ needs.prepare.outputs.component_version }}
         run: |
           NOTES_FILE="$RUNNER_TEMP/release-notes.md"
-          printf '%s\n' "$RELEASE_NOTES" > "$NOTES_FILE"
+          if [ -n "$RELEASE_NOTES" ]; then
+            printf '%s\n' "$RELEASE_NOTES" > "$NOTES_FILE"
+          elif [ -f "docs/releases/${COMPONENT_VERSION}.md" ]; then
+            cp "docs/releases/${COMPONENT_VERSION}.md" "$NOTES_FILE"
+          else
+            : > "$NOTES_FILE"
+          fi
 
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            prerelease_flag="--latest"
+            if [ "$PRERELEASE" = "true" ]; then prerelease_flag="--prerelease"; fi
             if [ -s "$NOTES_FILE" ]; then
-              gh release edit "$TAG_NAME" --title "$RELEASE_NAME" --notes-file "$NOTES_FILE"
+              gh release edit "$TAG_NAME" --title "$RELEASE_NAME" --notes-file "$NOTES_FILE" "$prerelease_flag"
+            else
+              gh release edit "$TAG_NAME" --title "$RELEASE_NAME" "$prerelease_flag"
             fi
             gh release upload "$TAG_NAME" \
               release-assets/android/component-vault-android-release.apk \
@@ -433,12 +486,15 @@ jobs:
               release-assets/windows/* \
               --clobber
           else
+            prerelease_flag=""
+            if [ "$PRERELEASE" = "true" ]; then prerelease_flag="--prerelease"; fi
             if [ -s "$NOTES_FILE" ]; then
               gh release create "$TAG_NAME" \
                 release-assets/android/component-vault-android-release.apk \
                 release-assets/admin-web/component-vault-admin-web.zip \
                 release-assets/windows/* \
                 --title "$RELEASE_NAME" \
+                $prerelease_flag \
                 --notes-file "$NOTES_FILE"
             else
               gh release create "$TAG_NAME" \
@@ -446,6 +502,7 @@ jobs:
                 release-assets/admin-web/component-vault-admin-web.zip \
                 release-assets/windows/* \
                 --title "$RELEASE_NAME" \
+                $prerelease_flag \
                 --generate-notes
             fi
           fi
@@ -454,7 +511,7 @@ jobs:
     needs:
       - prepare
       - github-release
-    if: needs.prepare.outputs.publish_github_release == 'true' && needs.prepare.outputs.publish_docker_image == 'true'
+    if: needs.prepare.outputs.publish_github_release == 'true' && needs.prepare.outputs.publish_docker_image == 'true' && needs.prepare.outputs.prerelease != 'true'
     uses: ./.github/workflows/server-image.yml
     secrets: inherit
     with:

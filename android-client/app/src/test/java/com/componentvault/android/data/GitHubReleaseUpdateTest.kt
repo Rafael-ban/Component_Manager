@@ -22,9 +22,30 @@ class GitHubReleaseUpdateTest {
         assertEquals(null, NumericSemanticVersion.parse("v0.3"))
         assertEquals(null, NumericSemanticVersion.parse("0.3.10-beta"))
         assertEquals(null, NumericSemanticVersion.parse("01.3.10"))
+        assertEquals(null, NumericSemanticVersion.parse("0.3.10-dev.999999999999999999999999"))
         assertIs<ReleaseCheckResult.CannotDetermineVersion>(
             GitHubReleaseParser.compareWithInstalled(releaseJson(tag = "latest"), "0.3.9"),
         )
+    }
+
+    @Test
+    fun stableChannelRejectsDevTagEvenWhenReleaseFlagIsWrong() {
+        assertIs<ReleaseCheckResult.NoRelease>(
+            GitHubReleaseParser.parse(releaseJson(tag = "v0.7.4-dev.1", prerelease = false)),
+        )
+    }
+
+    @Test
+    fun devChannelSelectsHighestEligibleReleaseAndStableWinsSameBase() {
+        val releases = JSONArray()
+            .put(JSONObject(releaseJson(tag = "v0.7.4-dev.2", prerelease = true)))
+            .put(JSONObject(releaseJson(tag = "v0.7.4-dev.10", prerelease = true)))
+            .put(JSONObject(releaseJson(tag = "v0.7.4", prerelease = false)))
+        val result = assertIs<ReleaseCheckResult.UpdateAvailable>(
+            GitHubReleaseParser.compareWithInstalled(releases.toString(), "0.7.3", UpdateChannel.Dev),
+        )
+        assertEquals("v0.7.4", result.release.tagName)
+        assertEquals(1, NumericSemanticVersion.parse("0.7.4")!!.compareTo(NumericSemanticVersion.parse("0.7.4-dev.10")!!))
     }
 
     @Test
@@ -70,7 +91,7 @@ class GitHubReleaseUpdateTest {
     private fun releaseJson(
         tag: String = "v0.3.10",
         assetName: String = "component-vault-android-release.apk",
-        assetUrl: String = "https://github.com/Rafael-ban/Component_Manager/releases/download/v0.3.10/component-vault-android-release.apk",
+        assetUrl: String? = null,
         draft: Boolean = false,
         prerelease: Boolean = false,
         pageUrl: String = "https://github.com/Rafael-ban/Component_Manager/releases/tag/$tag",
@@ -83,7 +104,7 @@ class GitHubReleaseUpdateTest {
         put("html_url", pageUrl)
         put("assets", JSONArray().put(JSONObject().apply {
             put("name", assetName)
-            put("browser_download_url", assetUrl)
+            put("browser_download_url", assetUrl ?: "https://github.com/Rafael-ban/Component_Manager/releases/download/$tag/component-vault-android-release.apk")
         }))
     }.toString()
 }
