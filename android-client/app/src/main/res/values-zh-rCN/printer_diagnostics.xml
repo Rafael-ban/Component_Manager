@@ -1,5 +1,15 @@
 <resources>
     <string name="printer_probe_title">蓝牙标签机诊断</string>
+    <string name="printer_probe_service_mode">服务信息</string>
+    <string name="printer_probe_m1_mode">M1 连接测试</string>
+    <string name="printer_probe_m1_intro">M1 测试：先在系统蓝牙设置中配对，关闭汉码等其他打印 App，再扫描并选择已配对的 M1。通过经典蓝牙读取型号与状态，不出纸，也不修改打印机设置。</string>
+    <string name="printer_probe_pair_settings">前往蓝牙设置配对</string>
+    <string name="printer_probe_m1_inspect">读取 M1 型号与状态（不出纸）</string>
+    <string name="printer_probe_m1_pair_required">需要已配对的经典蓝牙或双模设备</string>
+    <string name="printer_probe_m1_connecting">正在连接 M1 并读取型号与状态… 可随时停止。</string>
+    <string name="printer_probe_m1_complete">M1 查询已完成，请查看下方状态报告。尚未验证出纸。</string>
+    <string name="printer_probe_m1_failed">M1 查询未完成。请关闭其他打印 App，查看报告中的失败阶段后重试。</string>
+    <string name="printer_probe_m1_timeout">M1 连接或查询超时，已保留下方部分结果。请关闭其他打印 App，靠近设备后重试。</string>
     <string name="printer_probe_intro">测试入口：查找附近 BLE 设备和系统已配对设备，选择自己的标签机后读取蓝牙服务信息。此操作不出纸，也不表示已兼容打印。请先关闭汉码等其他打印 App。Android 11 及以下还需开启系统定位才能扫描。</string>
     <string name="printer_probe_idle">准备扫描</string>
     <string name="printer_probe_scanning">正在查找设备，持续 10 秒…</string>
@@ -21,7 +31,7 @@
     <string name="printer_probe_paired">已配对</string>
     <string name="printer_probe_nearby">附近设备</string>
     <string name="printer_probe_inspect">读取服务信息（不会打印）</string>
-    <string name="printer_probe_report_hint">可复制以下报告到反馈中，并手动补充打印机型号。报告不包含设备名称、蓝牙地址或标签内容。</string>
+    <string name="printer_probe_report_hint">可复制以下报告到反馈中。报告包含测试阶段和状态码；型号匹配时仅记录 M1，不包含蓝牙设备名称、地址、序列号或原始回复。</string>
     <string name="printer_probe_copy">复制诊断报告</string>
     <string name="printer_probe_close">关闭</string>
 </resources>

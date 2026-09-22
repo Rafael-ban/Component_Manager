@@ -60,11 +60,16 @@ limit. Different SKUs can still use the international fallback; explicit retry
 clears the pause. Browser sessions are independent and browser verification does
 not guarantee that native requests will be accepted. No challenge bypass is used.
 
-Android label preview includes an opt-in Bluetooth diagnostic dialog. It lists
-nearby BLE and system-paired devices, inspects service UUIDs for the selected
-device, and disconnects after completion, timeout, cancellation or leaving the
-foreground. It sends no print commands and copies no names, addresses or label
-contents into reports. See [printer status and device test steps](printer-compatibility.md).
+Android label preview includes an opt-in Bluetooth diagnostic dialog with service
+discovery and M1 connection modes. It lists nearby BLE and system-paired devices.
+M1 mode uses a paired Classic/dual-mode device and an RFCOMM SPP socket to query
+the model, then status only after a recognised M1 reply. Socket I/O runs off the UI
+thread; cancellation, timeout and leaving the foreground close the socket and
+discard obsolete session callbacks. It sends no print or configuration commands.
+Reports retain partial stages and status codes, but exclude arbitrary device
+names, addresses, serial numbers and raw replies; a model match is recorded only
+as the fixed value M1. See [device test steps](printer-compatibility.md) and
+[the APK-derived protocol evidence](m1-apk-analysis.md).
 
 Android catalog cache keys include the preferred source. Only a primary-source
 success is persisted; fallback results never suppress a subsequent attempt at

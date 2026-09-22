@@ -1,5 +1,15 @@
 <resources>
     <string name="printer_probe_title">Bluetooth printer diagnostics</string>
+    <string name="printer_probe_service_mode">Services</string>
+    <string name="printer_probe_m1_mode">M1 connection</string>
+    <string name="printer_probe_m1_intro">M1 test: pair your printer in system Bluetooth settings, close Hanma and other printer apps, then scan and select the paired M1. This reads its model and status over Classic Bluetooth. It does not print or change printer settings.</string>
+    <string name="printer_probe_pair_settings">Pair in Bluetooth settings</string>
+    <string name="printer_probe_m1_inspect">Read M1 model and status (no printing)</string>
+    <string name="printer_probe_m1_pair_required">Requires a paired Classic or dual-mode device</string>
+    <string name="printer_probe_m1_connecting">Connecting to M1 and reading model/status… You can stop at any time.</string>
+    <string name="printer_probe_m1_complete">M1 queries completed. See the status report below. Printing is not yet tested.</string>
+    <string name="printer_probe_m1_failed">M1 queries did not complete. Close other printer apps and check the failure stage in the report before retrying.</string>
+    <string name="printer_probe_m1_timeout">M1 connection or query timed out. Partial results are kept below. Close other printer apps, move closer and retry.</string>
     <string name="printer_probe_intro">Test entry: discover nearby BLE devices and system-paired devices, then select your printer to inspect Bluetooth services. This does not print or confirm printer compatibility. Close Hanma or other printer apps first. On Android 11 and earlier, scanning also requires Location to be enabled.</string>
     <string name="printer_probe_idle">Ready to scan</string>
     <string name="printer_probe_scanning">Scanning for 10 seconds…</string>
@@ -21,7 +31,7 @@
     <string name="printer_probe_paired">Paired</string>
     <string name="printer_probe_nearby">Nearby</string>
     <string name="printer_probe_inspect">Inspect services (no printing)</string>
-    <string name="printer_probe_report_hint">Copy this report into feedback and add the printer model yourself. The report excludes device names, Bluetooth addresses and label contents.</string>
+    <string name="printer_probe_report_hint">Copy this report into feedback. It includes test stages and status codes; an M1 match is recorded only as M1. Bluetooth device names, addresses, serial numbers and raw replies are excluded.</string>
     <string name="printer_probe_copy">Copy diagnostic report</string>
     <string name="printer_probe_close">Close</string>
 </resources>

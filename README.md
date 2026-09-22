@@ -326,6 +326,9 @@ preferences and supports:
   step plus structured line extraction before packaging-field parsing
 - physical label preview plus PNG/PDF export, generating JLC-compatible QR
   payloads for JLC-sourced items and warehouse QR payloads for other items
+- opt-in Bluetooth diagnostics from label preview: service discovery and an M1
+  Classic SPP model/status query for paired printers. This stage sends no print
+  commands; see [M1 device test steps](docs/printer-compatibility.md)
 - user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
   templates, with linked QR dimensions, larger text treatment, direct
   label-sized export, physical-aspect preview rendering, and fixed per-size
