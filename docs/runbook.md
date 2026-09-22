@@ -10,9 +10,10 @@ The admin web app remains a separate deployment.
 
 Repository maintainers configure Actions variables `DOCKERHUB_USERNAME` and
 `DOCKERHUB_IMAGE`, plus secret `DOCKERHUB_TOKEN`. CI always validates a container
-without registry credentials. Release automation pushes only when a target
-repository has been configured; a manual `Server Docker Image` workflow can
-publish an existing release afterward. Follow the complete
+without registry credentials. Release automation pushes only when both variables
+and the token are configured; otherwise it explicitly skips Docker publishing.
+A manual `Server Docker Image` run with `push_image=true` can publish an existing
+release afterward; normal CI never pushes an image. Follow the complete
 [Docker Hub setup, verification and upgrade instructions](dockerhub.md).
 
 ## Admin console deployment and API token

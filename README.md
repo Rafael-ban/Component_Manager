@@ -45,6 +45,8 @@ connects to it over HTTP.
 - The API image supports Docker Hub distribution for `linux/amd64` and
   `linux/arm64`, with a persistent `/data` mount and a built-in health check.
   See [Docker Hub deployment and release setup](docs/dockerhub.md).
+  Remaining work from the 0.5.2 plans and proposed milestones are tracked in
+  [the 0.6.0 feature reconciliation](docs/remaining-features-0.6.md).
 - Separated admin web console backed by token-protected `/admin-api/*`.
 - JLC imports use local parsing and direct public product lookup without a
   server or API key. Official category paths take precedence over local guesses;
