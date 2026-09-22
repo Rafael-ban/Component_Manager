@@ -40,15 +40,23 @@ import com.componentvault.android.BuildConfig
 import com.componentvault.android.R
 import com.componentvault.android.data.BluetoothPrinterDiagnostics
 import com.componentvault.android.data.PrinterProbeStatus
+import com.componentvault.android.data.PrinterDeviceCandidate
+import com.componentvault.android.data.ComponentLabelTemplate
+import com.componentvault.android.data.M1TestLabelRenderer
+import com.componentvault.android.data.M1TestPrintResult
 
 @Composable
-internal fun BluetoothPrinterDiagnosticsDialog(onDismiss: () -> Unit) {
+internal fun BluetoothPrinterDiagnosticsDialog(
+    onDismiss: () -> Unit,
+    labelTemplate: ComponentLabelTemplate = ComponentLabelTemplate.default,
+) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val probe = remember { BluetoothPrinterDiagnostics(context) }
     var m1Mode by remember { mutableStateOf(false) }
     var lastRunWasM1 by remember { mutableStateOf(false) }
+    var printCandidate by remember { mutableStateOf<PrinterDeviceCandidate?>(null) }
     DisposableEffect(probe, lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) probe.stop()
@@ -74,6 +82,7 @@ internal fun BluetoothPrinterDiagnosticsDialog(onDismiss: () -> Unit) {
         PrinterProbeStatus.Scanning -> R.string.printer_probe_scanning
         PrinterProbeStatus.ScanComplete -> R.string.printer_probe_scan_complete
         PrinterProbeStatus.Connecting -> if (lastRunWasM1) R.string.printer_probe_m1_connecting else R.string.printer_probe_connecting
+        PrinterProbeStatus.Printing -> R.string.printer_m1_printing
         PrinterProbeStatus.Complete -> if (lastRunWasM1) R.string.printer_probe_m1_complete else R.string.printer_probe_complete
         PrinterProbeStatus.BluetoothOff -> R.string.printer_probe_bluetooth_off
         PrinterProbeStatus.Unsupported -> R.string.printer_probe_unsupported
@@ -107,7 +116,12 @@ internal fun BluetoothPrinterDiagnosticsDialog(onDismiss: () -> Unit) {
                 item { Text(stringResource(if (m1Mode) R.string.printer_probe_m1_intro else R.string.printer_probe_intro)) }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(statusText, style = MaterialTheme.typography.titleSmall)
+                        Text(when (probe.printResult) {
+                            M1TestPrintResult.SentUnconfirmed -> stringResource(R.string.printer_m1_sent)
+                            M1TestPrintResult.Partial, M1TestPrintResult.Interrupted -> stringResource(R.string.printer_m1_interrupted)
+                            M1TestPrintResult.Rejected -> stringResource(R.string.printer_m1_rejected)
+                            M1TestPrintResult.None -> statusText
+                        }, style = MaterialTheme.typography.titleSmall)
                         if (probe.busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         OutlinedButton(onClick = { if (probe.busy) probe.stop() else startScan() }, modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(if (probe.busy) R.string.printer_probe_stop else R.string.printer_probe_scan))
@@ -133,12 +147,13 @@ internal fun BluetoothPrinterDiagnosticsDialog(onDismiss: () -> Unit) {
                 items(probe.candidates, key = { it.address }) { candidate ->
                     val supportsSpp = candidate.paired &&
                         (candidate.type == BluetoothDevice.DEVICE_TYPE_CLASSIC || candidate.type == BluetoothDevice.DEVICE_TYPE_DUAL)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     OutlinedButton(
                         onClick = {
                             lastRunWasM1 = m1Mode
                             if (m1Mode) probe.inspectM1Spp(candidate) else probe.inspect(candidate)
                         },
-                        enabled = probe.status != PrinterProbeStatus.Connecting && (!m1Mode || supportsSpp),
+                        enabled = !probe.busy && (!m1Mode || supportsSpp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
@@ -150,6 +165,17 @@ internal fun BluetoothPrinterDiagnosticsDialog(onDismiss: () -> Unit) {
                                 else -> R.string.printer_probe_m1_pair_required
                             }), style = MaterialTheme.typography.labelSmall)
                         }
+                    }
+                    if (m1Mode && supportsSpp) {
+                        OutlinedButton(
+                            onClick = { printCandidate = candidate },
+                            enabled = !probe.busy && M1TestLabelRenderer.supports(labelTemplate),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(stringResource(R.string.printer_m1_test_one)) }
+                        if (!M1TestLabelRenderer.supports(labelTemplate)) {
+                            Text(stringResource(R.string.printer_m1_choose_paper), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     }
                 }
                 if (probe.report.isNotBlank()) {
@@ -167,4 +193,20 @@ internal fun BluetoothPrinterDiagnosticsDialog(onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.printer_probe_close)) } },
     )
+    printCandidate?.let { candidate ->
+        AlertDialog(
+            onDismissRequest = { printCandidate = null },
+            title = { Text(stringResource(R.string.printer_m1_test_one)) },
+            text = { Text(stringResource(R.string.printer_m1_confirm, labelTemplate.physicalHeightMm.toInt())) },
+            confirmButton = {
+                TextButton(onClick = {
+                    printCandidate = null
+                    lastRunWasM1 = true
+                    val bitmap = M1TestLabelRenderer.render(labelTemplate)
+                    try { probe.printM1Test(candidate, bitmap) } finally { bitmap.recycle() }
+                }) { Text(stringResource(R.string.printer_m1_print_now)) }
+            },
+            dismissButton = { TextButton(onClick = { printCandidate = null }) { Text(stringResource(R.string.printer_probe_close)) } },
+        )
+    }
 }

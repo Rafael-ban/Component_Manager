@@ -116,7 +116,7 @@ BluetoothFragment → BluetoothService.BluetoothBinder.connectDevice
 SPP UUID 为 `00001101-0000-1000-8000-00805F9B34FB`，与用户缓存服务相符。
 正常连接和 `connectBluetoothNoFailEvent` 都明确传入 `IsBLEType(false)`，
 所以应优先验证 Classic RFCOMM。SDK 的 BLE 分支存在，但它不是这条已确认路径。
-本项目尚未在该台机器上建立 RFCOMM 连接。
+本项目 0.7.3 已在该台机器上建立 RFCOMM 连接并取得 M1 型号与状态回复。
 
 `is_encipher` 被复制到 `DeviceInfo.encryption`，在本次检查的连接、manager 和端口写入路径中
 未找到其参与负载加密。真正控制 SDK 可选握手/XOR 分支的是 `HPRTConst.isShack`，
@@ -131,7 +131,7 @@ SPP UUID 为 `00001101-0000-1000-8000-00805F9B34FB`，与用户缓存服务相�
 1B 1C + ASCII("& V1 getval \"printer_name\"\r\n")
 ```
 
-这是下一次主动连接测试的候选查询，不包含打印或设置指令。
+这是 0.7.3 主动连接测试已验证的查询，不包含打印或设置指令。
 随后可核对 SDK 的 `getPrintStatus` 查询 `1B 12 73`。
 其主动回复与异步 `pooli_sta=` 不同，不能用同一帧头强行解析。
 初次测试不需要采集设备序列号。实际 App 的型号配置还可从本地 `CloudDeviceInfo` 表加载，
@@ -143,7 +143,8 @@ SPP UUID 为 `00001101-0000-1000-8000-00805F9B34FB`，与用户缓存服务相�
    两字节 M1 型号回复，以及 17 字节主动状态回复中的状态值 0。
    详见 [实机记录](printer-compatibility.md)。仍不推断剩余回复字段含义；
    如后续打印与静态路径不一致，再考虑汉码 HCI 记录。
-2. 用人工构造的单色位图验证压缩、解压、帧头长度及整行分块，保留离线测试向量。
+2. 已用独立 `lzokay 1.1.8` 解码器验证 literal-only LZO1X 的边界和随机样本。
+   Kotlin 实现按整行分块，每块原始数据不超过 3072 字节；标准解码验证不代表设备验收。
 3. 先做用户主动触发的连接/状态测试，再开放单张固定测试标签；不把“写入成功”展示成“打印成功”。
 4. 验证项目原有 40×10 mm、40×30 mm 等模板的实际尺寸、方向、二维码可扫描性，
    以及缺纸、开盖、断连、取消。203 dpi 的物理点数需单独换算，不能使用预览比例。

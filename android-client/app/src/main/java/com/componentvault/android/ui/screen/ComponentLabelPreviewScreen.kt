@@ -85,7 +85,7 @@ internal fun ComponentLabelPreviewSurface(
     var showPrinterDiagnostics by remember { mutableStateOf(false) }
 
     if (showPrinterDiagnostics) {
-        BluetoothPrinterDiagnosticsDialog(onDismiss = { showPrinterDiagnostics = false })
+        BluetoothPrinterDiagnosticsDialog(onDismiss = { showPrinterDiagnostics = false }, labelTemplate = selectedTemplate)
     }
 
     val pngExporter = rememberLauncherForActivityResult(
