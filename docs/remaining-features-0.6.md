@@ -6,7 +6,7 @@
 
 ## 0.7.0 实施与验收（2026-09-22）
 
-本轮功能与编译修复已合入 `master`，`56111d4` 的 [完整 CI](https://github.com/Rafael-ban/Component_Manager/actions/runs/35721907943) 全部通过，包含 Android、Windows、服务端、Web 和容器检查。版本与更新日志进入 0.7.0 发布流程；实际 APK、Windows ZIP 与 Web ZIP 以 [GitHub Release](https://github.com/Rafael-ban/Component_Manager/releases/tag/v0.7.0) 中的产物为准。
+本轮功能与编译修复已合入 `master`。发布提交 `775dddb` 的 [完整 CI](https://github.com/Rafael-ban/Component_Manager/actions/runs/35722942268) 和 [发布工作流](https://github.com/Rafael-ban/Component_Manager/actions/runs/35722942557) 均已通过，包含 Android、Windows、服务端、Web 和容器检查。[GitHub Release](https://github.com/Rafael-ban/Component_Manager/releases/tag/v0.7.0) 中的签名 APK、自包含 Windows ZIP 与 Web ZIP 三个附件均已确认存在；API 与 Web Docker Hub 版本镜像也已核对。
 
 - [x] 扩展确定的官方中英文分类映射，历史库存的显示、分组、搜索和筛选一致，不改用户原始数据。
 - [x] Windows 内外网地址回退与旧设置迁移，并补充连接语义回归测试。
@@ -16,7 +16,7 @@
 - [x] 首轮 CI 的服务端、Web 和容器检查。
 - [x] 完成 Windows 修复后的 CI，确认功能提交的所有检查成功，包含自包含 Windows 程序启动。
 - [x] 完成按需展开表单的新布局复验：1440/375 px、中文库位、HTTP UUID 回退、创建元件、入库/出库、真实服务器提交后响应丢失并刷新恢复、409 冲突刷新、只读模式均通过，无浏览器异常或横向溢出。
-- [ ] 配置 Docker Hub 凭据并验收实际镜像发布；目前不能声称 API 或 Web 镜像已经发布。
+- [x] 正式发布时 Docker Hub 凭据已就绪，API `0.7.0` 与 Web `web-0.7.0` 已上传，两个 tag 均为 active，包含 amd64/arm64。
 - [x] 更新 0.7.0 版本与更新日志，发布交由 GitHub CI 构建和产物启动检查；真实设备的网络、蓝牙及触摸体验另行记录。
 
 蓝牙放在软件功能之后。届时先分析现有开源项目、协议覆盖、许可证和实机兼容性，
@@ -44,7 +44,7 @@
 | --- | --- | --- |
 | 0.7.0 CI 与发布验收 | 功能提交的完整 CI 和自包含 Windows 启动检查已通过 | 发布产物以 GitHub Release 为准；真实 Windows 网络环境后续实测 |
 | Web 设备体验 | 新布局的九项浏览器业务场景、375/1440 px 布局和无横向溢出通过 | 真实手机触摸、输入法、完整读屏器流程仍需设备验收 |
-| Docker Hub 实际发布 | API 与 Web 工作流已配置为同一仓库的版本标签；Docker Hub 凭据仍未配置，因此 push 会跳过 | 按 [教程](dockerhub.md) 配置凭据，验证 API `<version>`/`latest` 与 Web `web-<version>`/`web-latest` 标签 |
+| Docker Hub 实际发布 | 0.7.0 的 API 与 Web 镜像均已上传并通过公开 tag 元数据核验 | 直接按 [教程](dockerhub.md) 部署；以后发布继续检查对应版本标签 |
 | 旧 `.xls` 文件 | CSV/XLSX 读取器不支持 | 暂缓；先另存为 `.xlsx`，有真实样本需求时再评估依赖 |
 | 跨设备项目/BOM 扣料账本 | 本地 `bom_releases` 和提交防重复已有，服务器没有共享工程版本/扣料账本 | 暂缓；明确多端协作场景后再扩展同步协议 |
 | 汉印 M1 蓝牙直打 | 有标签渲染、PNG/PDF/XLSX 导出，没有蓝牙传输适配或已验证的 M1 协议 | 按用户要求继续后置；协议和实机测试前无法可靠估算 |

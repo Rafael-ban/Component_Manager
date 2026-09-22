@@ -2,7 +2,14 @@
 
 本文分为两部分：仓库维护者在 Docker Hub 和 GitHub 中配置镜像发布，以及部署者从 Docker Hub 拉取独立的 API / Web 镜像。
 
-`v0.6.0` 首次发布时 Docker Hub 任务因凭据未配置而 skipped；当前凭据仍未配置。本文按 `v0.7.0` 配置，工作流能够向同一仓库发布 API 标签 `0.7.0`/`latest` 和 Web 标签 `web-0.7.0`/`web-latest`，但这些只是预期镜像名称。不能仅凭 GitHub Release 或代码存在就断言镜像已发布；必须先完成配置并在 Actions 与 Docker Hub Tags 页面验证成功。
+`v0.6.0` 首次发布时 Docker Hub 任务因凭据未配置而 skipped。`v0.7.0` 正式发布时，仓库已具备发布配置，[发布任务](https://github.com/Rafael-ban/Component_Manager/actions/runs/35722942557) 成功。2026-09-22 已直接核对 Docker Hub：API `0.7.0` 与 Web `web-0.7.0` 均为 active，并包含 `linux/amd64`、`linux/arm64`；可以直接按第七节开始部署。前六节保留给首次配置、Token 轮换和手动补发使用，不需要重复生成现有凭据。
+
+已核对的版本 digest：
+
+- API：`sha256:81985ac9cced8b12de193d67818e9fd5d814be4af46c0a42a32a87d174bf98dc`
+- Web：`sha256:5e022b6aa65025fc360bdfda8b12a40ac4ef4d83a0a10e29ed69bd14219ef076`
+
+未来版本仍应核对 Actions 与 Docker Hub Tags，不能仅凭 GitHub Release 存在就推断镜像发布成功。
 
 ## 先分清账号、仓库和两种 Token
 

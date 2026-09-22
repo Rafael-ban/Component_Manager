@@ -30,8 +30,8 @@ bump: patch
   Support LAN HTTP browsers without crypto.randomUUID and Chinese location codes.
 - Extend Docker CI with a separate Web image and startup/asset checks. API and
   Web images use version/latest and web-version/web-latest tags in the same
-  Docker Hub repository; Compose offers an optional web profile. Actual registry
-  publishing still requires the deferred DOCKERHUB_TOKEN configuration.
+  Docker Hub repository; Compose offers an optional web profile. The 0.7.0
+  release published both API and Web images for linux/amd64 and linux/arm64.
 - Reconcile implementation/deployment documentation, including the detailed
   Docker Hub setup guide. Bluetooth printing remains deferred; its next stage
   will compare open-source protocols and multi-brand adapters before device work.
