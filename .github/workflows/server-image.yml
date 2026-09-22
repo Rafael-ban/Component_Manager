@@ -98,8 +98,8 @@ jobs:
             -v "$RUNNER_TEMP/component-vault-data:/data" \
             component-vault-server:ci
           trap 'docker logs component-vault-api-ci; docker rm -f component-vault-api-ci' EXIT
-          curl --fail --retry 12 --retry-delay 1 --retry-connrefused \
-            http://127.0.0.1:18787/health > "$RUNNER_TEMP/server-health.json"
+          curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-all-errors --max-time 3 \
+            --output "$RUNNER_TEMP/server-health.json" http://127.0.0.1:18787/health
           curl --fail -X POST -H 'Authorization: Bearer ci-smoke-token' \
             http://127.0.0.1:18787/auth/ping > "$RUNNER_TEMP/server-auth.json"
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18787/auth/ping)" = 401
