@@ -336,8 +336,11 @@ jobs:
 
           $versionArgs = @()
           if ($env:COMPONENT_VERSION) {
+            $numericVersion = ($env:COMPONENT_VERSION -split '-')[0] + '.0'
             $versionArgs += "-p:Version=$env:COMPONENT_VERSION"
             $versionArgs += "-p:InformationalVersion=$env:COMPONENT_VERSION"
+            $versionArgs += "-p:AssemblyVersion=$numericVersion"
+            $versionArgs += "-p:FileVersion=$numericVersion"
           }
 
           dotnet publish windows-client\ComponentVault.WinUI\ComponentVault.WinUI.csproj `
