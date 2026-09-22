@@ -138,9 +138,10 @@ internal fun BomImportScreen(
         }
     }
 
-    fun inspectSelected(bytes: ByteArray = fileBytes ?: return) {
+    fun inspectSelected(bytes: ByteArray? = fileBytes) {
+        val selectedBytes = bytes ?: return
         busy = true
-        viewModel.inspectBom(bytes, fileName, selectedSheet) { result ->
+        viewModel.inspectBom(selectedBytes, fileName, selectedSheet) { result ->
             busy = false
             result.onSuccess { inspection = it; columnMapping = it.automaticMapping }
                 .onFailure { message = it.message ?: "无法读取 BOM 表头。"; messageIsError = true }

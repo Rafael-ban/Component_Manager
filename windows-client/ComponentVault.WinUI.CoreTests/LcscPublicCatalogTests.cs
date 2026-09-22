@@ -113,6 +113,7 @@ public sealed class LcscPublicCatalogTests
     [InlineData("Integrated Circuits (ICs)/Power Management (PMIC)/Voltage Regulators - Linear", "线性稳压器")]
     [InlineData("Changed Parent/FERRITE BEADS AND CHIPS", "磁珠")]
     [InlineData("Power Management (PMIC)/Voltage Regulators - Linear, Low Drop Out (LDO) Regulators", "线性稳压器（LDO）")]
+    [InlineData("Power Management ICs/LDO Regulators", "线性稳压器（LDO）")]
     [InlineData("User Parent/Custom Leaf", "User Parent/Custom Leaf")]
     public void NormalizeCategory_MapsOnlyKnownOfficialLeafNames(string path, string expected)
     {

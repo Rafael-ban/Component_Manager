@@ -31,6 +31,7 @@ public static partial class LcscPublicCatalog
         ["Integrated Circuits (ICs)"] = "集成电路", ["Embedded"] = "嵌入式处理器及控制器", ["Microcontrollers"] = "微控制器",
         ["Power Management (PMIC)"] = "电源管理芯片", ["Voltage Regulators - Linear"] = "线性稳压器", ["DC DC Switching Regulators"] = "DC-DC开关稳压器",
         ["Voltage Regulators - Linear, Low Drop Out (LDO) Regulators"] = "线性稳压器（LDO）",
+        ["LDO Regulators"] = "线性稳压器（LDO）",
         ["Memory"] = "存储器", ["Logic"] = "逻辑器件", ["Amplifiers"] = "放大器", ["Operational Amplifiers"] = "运算放大器",
         ["Diodes"] = "二极管", ["Rectifiers"] = "整流器", ["Transistors"] = "晶体管", ["MOSFETs"] = "MOS管",
         ["Optoelectronics"] = "光电器件", ["LED Indication - Discrete"] = "LED指示器件", ["Sensors"] = "传感器", ["Temperature Sensors"] = "温度传感器",

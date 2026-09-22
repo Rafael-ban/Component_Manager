@@ -8,6 +8,7 @@ test("displayCategory maps a confirmed official English leaf", () => {
     displayCategory("Integrated Circuits (ICs)/Power Management (PMIC)/Voltage Regulators - Linear, Low Drop Out (LDO) Regulators"),
     "线性稳压器（LDO）",
   );
+  assert.equal(displayCategory("Power Management ICs/LDO Regulators"), "线性稳压器（LDO）");
 });
 
 test("displayCategory preserves Chinese and unknown user categories", () => {

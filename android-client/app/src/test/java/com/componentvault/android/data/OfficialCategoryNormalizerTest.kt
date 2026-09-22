@@ -21,6 +21,10 @@ class OfficialCategoryNormalizerTest {
             "线性稳压器（LDO）",
             OfficialCategoryNormalizer.normalize("Power Management (PMIC)/Voltage Regulators - Linear, Low Drop Out (LDO) Regulators"),
         )
+        assertEquals(
+            "线性稳压器（LDO）",
+            OfficialCategoryNormalizer.normalize("Power Management ICs/LDO Regulators"),
+        )
     }
 
     @Test

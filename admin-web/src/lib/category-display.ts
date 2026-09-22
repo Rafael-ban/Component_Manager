@@ -6,6 +6,7 @@ const officialLeaves: Record<string, string> = {
   microcontrollers: "微控制器",
   "voltage regulators - linear": "线性稳压器",
   "voltage regulators - linear, low drop out (ldo) regulators": "线性稳压器（LDO）",
+  "ldo regulators": "线性稳压器（LDO）",
   "dc dc switching regulators": "DC-DC开关稳压器",
   "operational amplifiers": "运算放大器",
   mosfets: "MOS管",

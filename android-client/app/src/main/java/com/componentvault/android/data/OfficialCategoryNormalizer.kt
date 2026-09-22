@@ -30,6 +30,7 @@ internal object OfficialCategoryNormalizer {
         "power management (pmic)" to "电源管理芯片",
         "voltage regulators - linear" to "线性稳压器",
         "voltage regulators - linear, low drop out (ldo) regulators" to "线性稳压器（LDO）",
+        "ldo regulators" to "线性稳压器（LDO）",
         "dc dc switching regulators" to "DC-DC开关稳压器",
         "memory" to "存储器",
         "logic" to "逻辑器件",

@@ -8,7 +8,7 @@ public static class BomShortageCsvExporter
     {
         var matchedRowNumbers = preview.Lines.SelectMany(line => line.SourceRows).ToHashSet();
         var issues = preview.Issues.GroupBy(issue => issue.RowNumber).ToDictionary(group => group.Key, group => string.Join("；", group.Select(item => item.Message)));
-        var rows = new List<string[]> { ["SKU", "型号", "需求数量", "当前库存", "缺料数量", "匹配状态"] };
+        var rows = new List<string[]> { new[] { "SKU", "型号", "需求数量", "当前库存", "缺料数量", "匹配状态" } };
         foreach (var line in preview.Lines)
         {
             var source = document.Rows.First(row => line.SourceRows.Contains(row.RowNumber));
