@@ -376,7 +376,8 @@ public sealed partial class ComponentsView : Page
             errorText.Text = "正在读取 LCSC 公共商品页…";
             try
             {
-                var metadata = await _catalogLookup.LookupAsync(normalized);
+                var lookup = await _catalogLookup.LookupDetailedAsync(normalized);
+                var metadata = lookup.Metadata;
                 if (!string.Equals(LcscPublicCatalog.NormalizeSku(skuBox.Text), normalized, StringComparison.Ordinal))
                 {
                     errorText.Text = "编号已更改，请按新编号重新查询。";
@@ -384,17 +385,19 @@ public sealed partial class ComponentsView : Page
                 }
                 if (metadata is null)
                 {
-                    errorText.Text = "公共商品页没有返回与该 C 编号精确一致的 Product 数据。";
+                    errorText.Text = string.IsNullOrWhiteSpace(lookup.UserMessage)
+                        ? "国内立创和国际 LCSC 均未返回精确匹配。"
+                        : lookup.UserMessage;
                     return;
                 }
                 ApplyMetadata(metadata, skuBox, nameBox, categoryBox, packageBox, descriptionBox);
-                errorText.Text = AppStrings.Get("Components_Catalog_ExactSuccess");
+                errorText.Text = lookup.UserMessage;
             }
             catch (LcscDomesticBlockedException)
             {
                 errorText.Text = AppStrings.Get("Components_Catalog_VerificationRequired");
             }
-            catch (Exception exception) { errorText.Text = AppStrings.Format("Components_Catalog_QueryFailedPattern", exception.Message); }
+            catch (Exception) { errorText.Text = "商城查询失败，请稍后重试。"; }
             finally { lookupButton.IsEnabled = true; }
         };
         chinaSearchButton.Click += async (_, _) =>
@@ -421,19 +424,22 @@ public sealed partial class ComponentsView : Page
             errorText.Text = AppStrings.Get("Components_Catalog_Searching");
             try
             {
-                var results = await _catalogLookup.SearchChinaAsync(keyword);
+                var search = await _catalogLookup.SearchPreferredAsync(keyword);
+                var results = search.Items;
                 candidateList.ItemsSource = results.Select(item => new CatalogCandidateItem(item)).ToArray();
                 candidateList.Visibility = results.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-                errorText.Text = results.Count == 0
+                var resultMessage = results.Count == 0
                     ? AppStrings.Get("Components_Catalog_NoResults")
                     : AppStrings.Format("Components_Catalog_ResultCountPattern", results.Count);
+                errorText.Text = string.IsNullOrWhiteSpace(search.Notice)
+                    ? resultMessage : $"{search.Notice} {resultMessage}";
                 if (results.Count > 0) candidateList.SelectedIndex = 0;
             }
             catch (LcscDomesticBlockedException)
             {
                 errorText.Text = AppStrings.Get("Components_Catalog_VerificationRequired");
             }
-            catch (Exception exception) { errorText.Text = AppStrings.Format("Components_Catalog_QueryFailedPattern", exception.Message); }
+            catch (Exception) { errorText.Text = "国内立创关键词搜索失败，请稍后重试或在浏览器中打开搜索。"; }
             finally { searchButton.IsEnabled = true; }
         };
         candidateList.SelectionChanged += (_, _) =>
@@ -575,6 +581,7 @@ public sealed partial class ComponentsView : Page
             $"型号：{metadata.Model ?? "—"}   品牌：{metadata.Brand ?? "—"}",
             $"分类：{metadata.Category}   封装：{metadata.PackageName ?? "—"}",
         };
+        if (!string.IsNullOrWhiteSpace(metadata.LookupNotice)) lines.Add(metadata.LookupNotice);
         if (metadata.Parameters is { Count: > 0 })
         {
             lines.Add("参数：");

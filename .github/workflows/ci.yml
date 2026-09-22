@@ -15,6 +15,12 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  server-container:
+    uses: ./.github/workflows/server-image.yml
+    with:
+      source_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      push_image: false
+
   version-check:
     runs-on: ubuntu-latest
     steps:
@@ -128,6 +134,8 @@ jobs:
           --tests 'com.componentvault.android.data.SyncEndpointResolverTest'
           --tests 'com.componentvault.android.data.LcscPublicCatalogTest'
           --tests 'com.componentvault.android.data.LcscDomesticCatalogTest'
+          --tests 'com.componentvault.android.data.LcscCatalogRoutePolicyTest'
+          --tests 'com.componentvault.android.data.LcscCatalogCacheTest'
           --tests 'com.componentvault.android.data.AppDiagnosticsTest'
           --tests 'com.componentvault.android.data.IssueReportBuilderTest'
           --tests 'com.componentvault.android.data.ImportLookupRequestGateTest'
@@ -136,6 +144,7 @@ jobs:
           --tests 'com.componentvault.android.data.ScannedBarcodeSelectorTest'
           --tests 'com.componentvault.android.data.StockAllocationMathTest'
           --tests 'com.componentvault.android.data.InventoryWorkbookCodecTest'
+          --tests 'com.componentvault.android.data.LabelWorkbookExporterTest'
           --tests 'com.componentvault.android.data.GitHubReleaseUpdateTest'
           --tests 'com.componentvault.android.model.ComponentImportModelsTest'
           --tests 'com.componentvault.android.model.StockMovementRecordTest'
@@ -143,6 +152,7 @@ jobs:
           --tests 'com.componentvault.android.model.OcrEngineModeTest'
           --tests 'com.componentvault.android.ui.screen.UiDateTimeFormatterTest'
           --tests 'com.componentvault.android.ui.screen.StartupFailureDetailsTest'
+          --tests 'com.componentvault.android.ui.screen.ContinuousCaptureGateTest'
           --tests 'com.componentvault.android.ui.screen.InventoryNavigationUiTest'
           --tests 'com.componentvault.android.ui.screen.SettingsDraftUiTest'
           --tests 'com.componentvault.android.ui.screen.LocationManagementUiTest'

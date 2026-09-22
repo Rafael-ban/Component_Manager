@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -85,6 +86,7 @@ internal fun BatchJlcInboundScreen(
     val context = LocalContext.current
     val repository = remember(context) { InventoryRepository(context) }
     val store = remember(context) { BatchJlcDraftStore(context) }
+    val scannerSettingsStore = remember(context) { BatchScannerSettingsStore(context) }
     val scope = rememberCoroutineScope()
     val saveMutex = remember { Mutex() }
     val saveRevision = remember { AtomicLong() }
@@ -94,6 +96,8 @@ internal fun BatchJlcInboundScreen(
     var locations by remember { mutableStateOf<List<StorageLocationRecord>>(emptyList()) }
     var page by rememberSaveable { mutableStateOf(BatchPage.Capture) }
     var scanner by rememberSaveable { mutableStateOf(false) }
+    var scannerSettings by remember { mutableStateOf(scannerSettingsStore.load()) }
+    var showScannerSettings by rememberSaveable { mutableStateOf(false) }
     var message by rememberSaveable { mutableStateOf("") }
     var dialogMessage by remember { mutableStateOf<String?>(null) }
     var processing by remember { mutableStateOf(false) }
@@ -156,6 +160,7 @@ internal fun BatchJlcInboundScreen(
         try {
             val existing = repository.loadComponents().filterNot { it.deleted }.associateBy { it.sku.uppercase() }
             val metadataCache = mutableMapOf<String, ComponentOfficialMetadata?>()
+            val lookupNotices = mutableMapOf<String, String>()
             val target = draft.rows.filter {
                 it.status == if (processScope == ProcessScope.Captured) BatchJlcStatus.Captured else BatchJlcStatus.Pending
             }
@@ -196,6 +201,7 @@ internal fun BatchJlcInboundScreen(
                 val request = parsed.copy(sku = sku)
                 val metadata = if (metadataCache.containsKey(sku)) metadataCache[sku] else {
                     val result = repository.enrichImportCandidate(request, appPreferences, syncConfiguration)
+                    result.officialLookupResult?.message?.takeIf(String::isNotBlank)?.let { lookupNotices[sku] = it }
                     val value = result.officialLookupResult
                         ?.takeIf { it.outcome == ComponentOfficialLookupOutcome.Success }?.metadata
                     metadataCache[sku] = value
@@ -224,6 +230,9 @@ internal fun BatchJlcInboundScreen(
             }
             page = if (draft.rows.any { it.status == BatchJlcStatus.Ready }) BatchPage.Review else BatchPage.Pending
             val pendingCount = draft.rows.count { it.status == BatchJlcStatus.Pending }
+            lookupNotices.values.distinct().takeIf { it.isNotEmpty() }?.let { notices ->
+                message = notices.joinToString("\n")
+            }
             if (pendingCount > 0) dialogMessage = context.getString(R.string.batch_pending_dialog, pendingCount)
         } catch (error: CancellationException) {
             throw error
@@ -246,12 +255,20 @@ internal fun BatchJlcInboundScreen(
             onDismiss = { scanner = false }, onScanResult = {},
             scannerMode = JlcQrScannerMode.BatchContinuous,
             continuousInitialCount = draft.rows.size,
+            continuousIntervalMs = scannerSettings.intervalMs,
+            continuousSoundEnabled = scannerSettings.soundEnabled,
+            continuousVibrationEnabled = scannerSettings.vibrationEnabled,
             onContinuousResults = { values ->
                 var ack = ContinuousCaptureAck(draft.rows.size, 0)
+                val known = draft.rows.mapTo(mutableSetOf()) { it.raw.trim() }
                 runCatching { BatchJlcDraftCodec.add(draft, values) }
                     .onSuccess { (next, duplicates) ->
                         save(next)
-                        ack = ContinuousCaptureAck(next.rows.size, duplicates)
+                        ack = ContinuousCaptureAck(
+                            actualCount = next.rows.size,
+                            duplicateCount = duplicates,
+                            acceptedValues = values.filter { known.add(it.trim()) },
+                        )
                         message = context.getString(R.string.batch_collected, next.rows.size, duplicates)
                     }.onFailure { message = it.message.orEmpty() }
                 ack
@@ -362,9 +379,22 @@ internal fun BatchJlcInboundScreen(
             item { LocationSelector(locations, globalLocation, !busy) { globalLocation = it } }
             when (page) {
                 BatchPage.Capture -> {
-                    item { Button(onClick = { scanner = true }, enabled = loaded && !busy, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.batch_scan))
-                    } }
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(
+                                onClick = { scanner = true },
+                                enabled = loaded && !busy,
+                                modifier = Modifier.weight(1f),
+                            ) { Text(stringResource(R.string.batch_scan)) }
+                            OutlinedButton(
+                                onClick = { showScannerSettings = true },
+                                enabled = !busy,
+                            ) { Text(stringResource(R.string.batch_scanner_settings)) }
+                        }
+                    }
                     item { OutlinedButton(onClick = {
                         val token = generation
                         processJob = scope.launch { processRows(ProcessScope.Captured, token) }
@@ -427,6 +457,15 @@ internal fun BatchJlcInboundScreen(
         }) { Text(stringResource(R.string.batch_clear_confirm)) } },
         dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.action_cancel)) } },
     )
+    if (showScannerSettings) BatchScannerSettingsDialog(
+        settings = scannerSettings,
+        onDismiss = { showScannerSettings = false },
+        onSave = { value ->
+            scannerSettings = value.normalized()
+            scannerSettingsStore.save(scannerSettings)
+            showScannerSettings = false
+        },
+    )
     dialogMessage?.let { detail -> AlertDialog(
         onDismissRequest = { dialogMessage = null },
         title = { Text(stringResource(R.string.batch_attention_title)) }, text = { Text(detail) },
@@ -435,6 +474,67 @@ internal fun BatchJlcInboundScreen(
         } },
         dismissButton = { TextButton(onClick = { dialogMessage = null }) { Text(stringResource(R.string.action_close)) } },
     ) }
+}
+
+@Composable
+private fun BatchScannerSettingsDialog(
+    settings: BatchScannerSettings,
+    onDismiss: () -> Unit,
+    onSave: (BatchScannerSettings) -> Unit,
+) {
+    var draft by remember(settings) { mutableStateOf(settings) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.batch_scanner_settings)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.batch_scanner_interval))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    OutlinedButton(
+                        onClick = { draft = draft.copy(intervalMs = draft.intervalMs - BATCH_SCAN_INTERVAL_STEP_MS).normalized() },
+                        enabled = draft.intervalMs > MIN_BATCH_SCAN_INTERVAL_MS,
+                    ) { Text("−") }
+                    Text(
+                        stringResource(R.string.batch_scanner_interval_value, draft.intervalMs / 1_000.0),
+                        modifier = Modifier.padding(vertical = 12.dp),
+                    )
+                    OutlinedButton(
+                        onClick = { draft = draft.copy(intervalMs = draft.intervalMs + BATCH_SCAN_INTERVAL_STEP_MS).normalized() },
+                        enabled = draft.intervalMs < MAX_BATCH_SCAN_INTERVAL_MS,
+                    ) { Text("+") }
+                }
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Checkbox(
+                        checked = draft.soundEnabled,
+                        onCheckedChange = { draft = draft.copy(soundEnabled = it) },
+                    )
+                    Text(
+                        stringResource(R.string.batch_scanner_sound),
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Checkbox(
+                        checked = draft.vibrationEnabled,
+                        onCheckedChange = { draft = draft.copy(vibrationEnabled = it) },
+                    )
+                    Text(
+                        stringResource(R.string.batch_scanner_vibration),
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(draft) }) { Text(stringResource(R.string.action_save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
 }
 
 private fun BatchPage.labelRes() = when (this) {

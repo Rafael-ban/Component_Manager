@@ -68,6 +68,7 @@ class InventoryRepository(
 
     init {
         ensureDefaultSettings()
+        cleanupLookupCache()
         if (!preferences.getBoolean(KEY_INVENTORY_PROTOCOL_MIGRATED, false)) {
             databaseHelper.writableDatabase.use { db ->
                 db.beginTransaction()
@@ -332,6 +333,8 @@ class InventoryRepository(
         preferencesState: AppPreferences,
     ): OperationResult {
         ensureDefaultSettings()
+        val languageChanged = loadAppPreferences().appLanguage != preferencesState.appLanguage
+        if (languageChanged) clearLookupCache()
         preferences.edit()
             .putString(KEY_DEFAULT_IMPORT_LOCATION, preferencesState.defaultImportLocation.trim())
             .putInt(KEY_DEFAULT_IMPORT_MIN_STOCK, preferencesState.defaultImportMinStock.coerceAtLeast(0))
@@ -426,8 +429,11 @@ class InventoryRepository(
 
     private suspend fun lookupPublicPartMetadata(sku: String): ComponentOfficialLookupResult =
         withContext(Dispatchers.IO) {
-            readCachedLookup(sku, "")?.takeIf {
-                it.source == "lcsc_public_web" && it.sku.equals(sku, true)
+            val language = loadAppPreferences().appLanguage
+            val preferredSource = LcscCatalogRoutePolicy.preferredSource(language)
+            val cacheScope = preferredSource.wireName
+            readCachedLookup(sku, "", cacheScope)?.takeIf {
+                it.sku.equals(sku, true)
             }?.let {
                 return@withContext ComponentOfficialLookupResult(
                     outcome = ComponentOfficialLookupOutcome.Success,
@@ -436,22 +442,33 @@ class InventoryRepository(
                             ?.let(OfficialCategoryNormalizer::normalize) ?: it.category,
                     ),
                     fromCache = true,
-                    message = text(R.string.importer_lookup_cache_success),
+                    message = text(
+                        R.string.catalog_lookup_cache_success,
+                        text(
+                            if (it.source == LcscCatalogSource.Domestic.wireName) R.string.catalog_source_domestic
+                            else R.string.catalog_source_international,
+                        ),
+                    ),
                 )
             }
             try {
-                val metadata = publicCatalogLookup.lookup(sku)
+                val route = publicCatalogLookup.lookupWithRoute(sku, preferredSource)
+                val metadata = route.metadata
                 if (metadata == null) {
                     ComponentOfficialLookupResult(
-                        outcome = ComponentOfficialLookupOutcome.NoMatch,
-                        message = text(R.string.importer_public_lookup_unavailable),
+                        outcome = if (route.attempts.all { it.failure == LcscCatalogFailureKind.NoMatch }) {
+                            ComponentOfficialLookupOutcome.NoMatch
+                        } else {
+                            ComponentOfficialLookupOutcome.Failed
+                        },
+                        message = catalogLookupMessage(route),
                     )
                 } else {
-                    cacheLookup(metadata)
+                    if (LcscCatalogRoutePolicy.shouldPersist(route)) cacheLookup(metadata, cacheScope)
                     ComponentOfficialLookupResult(
                         outcome = ComponentOfficialLookupOutcome.Success,
                         metadata = metadata,
-                        message = text(R.string.importer_public_lookup_success),
+                        message = catalogLookupMessage(route),
                     )
                 }
             } catch (error: IOException) {
@@ -489,7 +506,7 @@ class InventoryRepository(
             )
         }
 
-        readCachedLookup(normalizedSku, normalizedMpn)?.let { cached ->
+        readCachedLookup(normalizedSku, normalizedMpn, SERVER_LOOKUP_CACHE_SCOPE)?.let { cached ->
             return@withContext ComponentOfficialLookupResult(
                 outcome = ComponentOfficialLookupOutcome.Success,
                 metadata = cached,
@@ -577,7 +594,7 @@ class InventoryRepository(
                     confidence = response.optString("confidence").blankToNull(),
                     ruleVersion = response.optString("rule_version").blankToNull(),
                 )
-                cacheLookup(metadata)
+                cacheLookup(metadata, SERVER_LOOKUP_CACHE_SCOPE)
                 ComponentOfficialLookupResult(
                     outcome = ComponentOfficialLookupOutcome.Success,
                     metadata = metadata,
@@ -782,6 +799,39 @@ class InventoryRepository(
                 target
             }
         }
+    }
+
+    private fun catalogLookupMessage(result: LcscCatalogLookupResult): String {
+        fun sourceName(source: LcscCatalogSource): String = text(
+            if (source == LcscCatalogSource.Domestic) R.string.catalog_source_domestic
+            else R.string.catalog_source_international,
+        )
+        fun failureName(failure: LcscCatalogFailureKind): String = text(
+            when (failure) {
+                LcscCatalogFailureKind.Blocked -> R.string.catalog_failure_blocked
+                LcscCatalogFailureKind.Unreachable -> R.string.catalog_failure_unreachable
+                LcscCatalogFailureKind.NoMatch -> R.string.catalog_failure_no_match
+                LcscCatalogFailureKind.InvalidResponse -> R.string.catalog_failure_invalid_response
+            },
+        )
+        val resolved = result.resolvedSource
+        if (resolved != null && !result.usedFallback) {
+            return appContext.getString(R.string.catalog_lookup_source_success, sourceName(resolved))
+        }
+        if (resolved != null) {
+            val primaryFailure = result.attempts.firstOrNull()?.failure ?: LcscCatalogFailureKind.NoMatch
+            return appContext.getString(
+                R.string.catalog_lookup_fallback_success,
+                sourceName(result.preferredSource),
+                failureName(primaryFailure),
+                sourceName(resolved),
+            )
+        }
+        val failures = LcscCatalogRoutePolicy.order(result.preferredSource).mapIndexed { index, source ->
+            val failure = result.attempts.getOrNull(index)?.failure ?: LcscCatalogFailureKind.NoMatch
+            "${sourceName(source)}：${failureName(failure)}"
+        }
+        return appContext.getString(R.string.catalog_lookup_all_failed, failures[0], failures[1])
     }
 
     internal suspend fun appendImportedStock(
@@ -1625,17 +1675,18 @@ class InventoryRepository(
         }
     }
 
-    private fun readCachedLookup(
+    internal fun readCachedLookup(
         sku: String,
         mpn: String,
+        cacheScope: String? = null,
     ): ComponentOfficialMetadata? {
         val now = System.currentTimeMillis()
         val cacheKeys = buildList {
             if (sku.isNotBlank()) {
-                add("${LOOKUP_CACHE_PREFIX}sku:${sku.lowercase(Locale.US)}")
+                add("${LOOKUP_CACHE_PREFIX}${cacheScope?.let { "$it:" }.orEmpty()}sku:${sku.lowercase(Locale.US)}")
             }
             if (mpn.isNotBlank()) {
-                add("${LOOKUP_CACHE_PREFIX}mpn:${mpn.lowercase(Locale.US)}")
+                add("${LOOKUP_CACHE_PREFIX}${cacheScope?.let { "$it:" }.orEmpty()}mpn:${mpn.lowercase(Locale.US)}")
             }
         }
 
@@ -1651,6 +1702,7 @@ class InventoryRepository(
                 source = payload.optString("source").blankToNull(),
                 sku = payload.optString("sku").blankToNull(),
                 name = payload.optString("name").blankToNull(),
+                description = payload.optString("description").blankToNull(),
                 packageName = payload.optString("package_name").blankToNull(),
                 category = payload.optString("category").blankToNull(),
                 model = payload.optString("model").blankToNull(),
@@ -1663,17 +1715,26 @@ class InventoryRepository(
                 matchedBy = payload.optString("matched_by").blankToNull(),
                 confidence = payload.optString("confidence").blankToNull(),
                 ruleVersion = payload.optString("rule_version").blankToNull(),
+                parameters = payload.optJSONObject("parameters")?.let { json ->
+                    buildMap {
+                        json.keys().forEach { key ->
+                            json.optString(key).blankToNull()?.let { value -> put(key, value) }
+                        }
+                    }
+                }.orEmpty(),
+                datasheetUrl = payload.optString("datasheet_url").blankToNull(),
             )
         }
 
         return null
     }
 
-    private fun cacheLookup(metadata: ComponentOfficialMetadata) {
+    internal fun cacheLookup(metadata: ComponentOfficialMetadata, cacheScope: String? = null) {
         val payload = JSONObject().apply {
             put("source", metadata.source)
             put("sku", metadata.sku)
             put("name", metadata.name)
+            put("description", metadata.description)
             put("package_name", metadata.packageName)
             put("category", metadata.category)
             put("model", metadata.model)
@@ -1686,17 +1747,44 @@ class InventoryRepository(
             put("matched_by", metadata.matchedBy)
             put("confidence", metadata.confidence)
             put("rule_version", metadata.ruleVersion)
+            put("parameters", JSONObject(metadata.parameters))
+            put("datasheet_url", metadata.datasheetUrl)
             put("fetched_at", System.currentTimeMillis())
         }.toString()
 
         val editor = preferences.edit()
         metadata.sku?.takeIf { it.isNotBlank() }?.let { value ->
-            editor.putString("${LOOKUP_CACHE_PREFIX}sku:${value.lowercase(Locale.US)}", payload)
+            editor.putString("${LOOKUP_CACHE_PREFIX}${cacheScope?.let { "$it:" }.orEmpty()}sku:${value.lowercase(Locale.US)}", payload)
         }
         metadata.model?.takeIf { it.isNotBlank() }?.let { value ->
-            editor.putString("${LOOKUP_CACHE_PREFIX}mpn:${value.lowercase(Locale.US)}", payload)
+            editor.putString("${LOOKUP_CACHE_PREFIX}${cacheScope?.let { "$it:" }.orEmpty()}mpn:${value.lowercase(Locale.US)}", payload)
         }
         editor.apply()
+    }
+
+    internal fun clearLookupCache() {
+        val editor = preferences.edit()
+        preferences.all.keys.filter { it.startsWith(LOOKUP_CACHE_PREFIX) }.forEach(editor::remove)
+        editor.apply()
+    }
+
+    private fun cleanupLookupCache() {
+        val now = System.currentTimeMillis()
+        val scopedKey = Regex(
+            "^${Regex.escape(LOOKUP_CACHE_PREFIX)}(?:lcsc_domestic_web|lcsc_public_web|$SERVER_LOOKUP_CACHE_SCOPE):(sku|mpn):.+$",
+        )
+        val editor = preferences.edit()
+        var changed = false
+        preferences.all.forEach { (key, value) ->
+            if (!key.startsWith(LOOKUP_CACHE_PREFIX)) return@forEach
+            val payload = (value as? String)?.let { runCatching { JSONObject(it) }.getOrNull() }
+            val fetchedAt = payload?.optLong("fetched_at", 0L) ?: 0L
+            if (!scopedKey.matches(key) || fetchedAt <= 0L || now - fetchedAt !in 0..LOOKUP_CACHE_MAX_AGE_MS) {
+                editor.remove(key)
+                changed = true
+            }
+        }
+        if (changed) editor.apply()
     }
 
     private fun defaultDeviceId(): String {
@@ -2821,6 +2909,7 @@ class InventoryRepository(
         const val KEY_OCR_ENGINE_MODE = "ocr_engine_mode"
         const val KEY_APP_LANGUAGE = "app_language"
         const val LOOKUP_CACHE_PREFIX = "lcsc_lookup_cache:"
+        const val SERVER_LOOKUP_CACHE_SCOPE = "server"
         const val LOOKUP_CACHE_MAX_AGE_MS = 7L * 24L * 60L * 60L * 1000L
 
         val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter

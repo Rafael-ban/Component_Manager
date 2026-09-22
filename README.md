@@ -18,6 +18,7 @@ connects to it over HTTP.
 - `.github/workflows/`: GitHub Actions CI and release artifact automation.
 - `docs/`: architecture, integration, and operations notes.
 - `docker-compose.yml`: self-hosted API deployment entrypoint.
+- `docker-compose.hub.yml`: deploy the published API image without building locally.
 
 ## Key Behaviors
 
@@ -32,11 +33,18 @@ connects to it over HTTP.
   validation/authentication errors do not trigger address switching.
 - Catalog imports use the part model as the name and retain product descriptions
   separately. The server accepts legacy component names up to 4000 characters.
+- Catalog lookup follows the app language: Chinese prefers domestic LCSC and
+  English prefers international LCSC. Fallbacks display their source and reason;
+  changing Android language invalidates catalog caches. Keyword search uses the
+  domestic catalog with an explicit notice when the preferred site is international.
 - BOM previews automatically select unambiguous SKU/model matches and support
   manual search of existing inventory before confirming deductions.
 - Soft delete for synchronized entities.
 - Inventory history recorded as stock movements.
 - Self-hosted API secured by a shared API token.
+- The API image supports Docker Hub distribution for `linux/amd64` and
+  `linux/arm64`, with a persistent `/data` mount and a built-in health check.
+  See [Docker Hub deployment and release setup](docs/dockerhub.md).
 - Separated admin web console backed by token-protected `/admin-api/*`.
 - JLC imports use local parsing and direct public product lookup without a
   server or API key. Official category paths take precedence over local guesses;
@@ -56,6 +64,9 @@ connects to it over HTTP.
   schema-version-1 workbooks through a conflict preview. Restore adds new
   records; it does not silently overwrite existing inventory. See
   [storage and backup guide](docs/storage-and-backup.md).
+- Settings > Excel backup and restore also exports a separate label-printing
+  workbook on Android and Windows. Select name, SKU, long/short QR text, model,
+  package, category, location and quantity; the restore format is unchanged.
 - Native layouts use a home summary, compact inventory cards with adjacent
   images and usage rings, local display dates, and a single Settings entry.
   About displays author `Rafael-Ikaros`, installed version, project/license
@@ -70,6 +81,9 @@ connects to it over HTTP.
   Private drafts survive restarts, failures have a separate pending page, and
   reviewed receipts add stock atomically with local replay protection. See
   [batch JLC inbound](docs/batch-jlc-inbound.md).
+- Android batch scanning offers a saved 0.5–5 second capture interval (default
+  1.5 seconds), independent success sound/vibration switches and visible capture
+  feedback. Duplicate packages do not produce success feedback or add quantity.
 
 ## Sync reliability and direct LCSC lookup
 

@@ -322,6 +322,22 @@
                         <Button Click="OnExportInventoryClicked" Content="导出 Excel 备份" />
                         <Button Click="OnImportInventoryClicked" Content="预览并迁入 Excel" />
                     </StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="标签打印数据导出" />
+                    <TextBlock Style="{StaticResource CaptionTextStyle}" Text="每个未删除元器件一行，生成供第三方标签软件使用的 Excel；不会改变备份恢复格式。" TextWrapping="Wrap" />
+                    <Grid ColumnSpacing="12" RowSpacing="4">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <CheckBox x:Name="LabelNameColumn" Grid.Row="0" Grid.Column="0" Content="名称" IsChecked="True" />
+                        <CheckBox x:Name="LabelSkuColumn" Grid.Row="0" Grid.Column="1" Content="SKU" IsChecked="True" />
+                        <CheckBox x:Name="LabelModelColumn" Grid.Row="0" Grid.Column="2" Content="型号" />
+                        <CheckBox x:Name="LabelPackageColumn" Grid.Row="1" Grid.Column="0" Content="封装" />
+                        <CheckBox x:Name="LabelCategoryColumn" Grid.Row="1" Grid.Column="1" Content="分类" />
+                        <CheckBox x:Name="LabelLocationColumn" Grid.Row="1" Grid.Column="2" Content="库位" />
+                        <CheckBox x:Name="LabelQuantityColumn" Grid.Row="2" Grid.Column="0" Content="当前数量" />
+                        <CheckBox x:Name="LabelLongQrColumn" Grid.Row="2" Grid.Column="1" Content="长二维码文本" IsChecked="True" />
+                        <CheckBox x:Name="LabelShortQrColumn" Grid.Row="2" Grid.Column="2" Content="短二维码文本" IsChecked="True" />
+                    </Grid>
+                    <Button HorizontalAlignment="Left" Click="OnExportLabelWorkbookClicked" Content="导出标签打印 Excel" />
                 </StackPanel>
             </Border>
             <Border Style="{StaticResource CardBorderStyle}">

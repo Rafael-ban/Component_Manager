@@ -153,6 +153,33 @@ public sealed partial class SettingsView : Page
         await ShowMessageAsync(result.IsSuccess ? "迁入完成" : "迁入失败", result.Message);
     }
 
+    private async void OnExportLabelWorkbookClicked(object sender, RoutedEventArgs e)
+    {
+        if (RuntimeViewModel is not { } viewModel) return;
+        var columns = new HashSet<LabelWorkbookColumn>();
+        Add(LabelNameColumn, LabelWorkbookColumn.Name); Add(LabelSkuColumn, LabelWorkbookColumn.Sku);
+        Add(LabelModelColumn, LabelWorkbookColumn.Model); Add(LabelPackageColumn, LabelWorkbookColumn.PackageName);
+        Add(LabelCategoryColumn, LabelWorkbookColumn.Category); Add(LabelLocationColumn, LabelWorkbookColumn.Location);
+        Add(LabelQuantityColumn, LabelWorkbookColumn.Quantity); Add(LabelLongQrColumn, LabelWorkbookColumn.LongQrText);
+        Add(LabelShortQrColumn, LabelWorkbookColumn.ShortQrText);
+        if (columns.Count == 0) { await ShowMessageAsync("无法导出", "请至少选择一个导出字段。"); return; }
+        if (!viewModel.AvailableComponents.Any(component => !component.Deleted)) { await ShowMessageAsync("无法导出", "当前没有可导出的元器件。"); return; }
+
+        var picker = new FileSavePicker { SuggestedFileName = $"component-vault-labels-{DateTime.Now:yyyyMMdd-HHmmss}" };
+        picker.FileTypeChoices.Add("Excel 工作簿", new List<string> { ".xlsx" });
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(((App)Application.Current).Window));
+        var file = await picker.PickSaveFileAsync();
+        if (file is null) return;
+        try
+        {
+            LabelWorkbookExporter.Export(file.Path, viewModel.AvailableComponents, columns);
+            await ShowMessageAsync("导出完成", "标签打印数据已导出，每个未删除元器件一行。");
+        }
+        catch (Exception exception) { await ShowMessageAsync("导出失败", exception.Message); }
+
+        void Add(CheckBox checkBox, LabelWorkbookColumn column) { if (checkBox.IsChecked == true) columns.Add(column); }
+    }
+
     private void OnFeedbackDiagnosticsToggled(object sender, RoutedEventArgs e)
     {
         FeedbackDiagnosticsPreviewBox.IsEnabled=FeedbackDiagnosticsToggle.IsOn;

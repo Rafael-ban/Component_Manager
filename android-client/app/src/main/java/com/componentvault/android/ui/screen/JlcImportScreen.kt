@@ -497,7 +497,9 @@ internal fun JlcImportSurface(
                             return@FilledTonalButton
                         }
                         domesticSearchInProgress = true
-                        domesticSearchMessage = null
+                        domesticSearchMessage = if (appPreferences.appLanguage == com.componentvault.android.model.AppLanguage.English) {
+                            context.getString(com.componentvault.android.R.string.catalog_keyword_domestic_only)
+                        } else null
                         domesticSearchIsError = false
                         domesticResults = emptyList()
                         domesticSearchJob?.cancel()
@@ -533,12 +535,7 @@ internal fun JlcImportSurface(
                                 domesticSearchIsError = true
                                 domesticSearchMessage = if (error is LcscDomesticBlockedException) {
                                     context.getString(com.componentvault.android.R.string.import_catalog_blocked)
-                                } else {
-                                    context.getString(
-                                        com.componentvault.android.R.string.import_catalog_failed,
-                                        error.message ?: error.javaClass.simpleName,
-                                    )
-                                }
+                                } else context.getString(com.componentvault.android.R.string.catalog_keyword_failed)
                                 LcscPublicCatalog.normalizeSku(keyword)?.let(::applyInternationalFallback)
                             }
                         }

@@ -1,0 +1,157 @@
+name: Server Docker Image
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        required: true
+        type: string
+      release_tag:
+        required: false
+        default: ''
+        type: string
+      push_image:
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      DOCKERHUB_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Git ref to build (use a release tag when publishing).
+        required: true
+        default: master
+        type: string
+      release_tag:
+        description: Image release version, for example v0.6.0. Required for publishing.
+        required: false
+        type: string
+      push_image:
+        description: Publish to the configured Docker Hub repository after startup checks.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  server-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Validate publishing configuration
+        if: inputs.push_image
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          for name in DOCKERHUB_USERNAME DOCKERHUB_IMAGE DOCKERHUB_TOKEN; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Configure ${name} in repository Actions variables/secrets before publishing."
+              exit 1
+            fi
+          done
+          if [[ ! "$RELEASE_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::release_tag must be a stable release version, for example v0.6.0.'
+            exit 1
+          fi
+          if [[ ! "$DOCKERHUB_IMAGE" =~ ^[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9_.-]*$ ]]; then
+            echo '::error::DOCKERHUB_IMAGE must be namespace/repository without a tag.'
+            exit 1
+          fi
+
+      - name: Set up QEMU
+        if: inputs.push_image
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image for startup validation
+        uses: docker/build-push-action@v7
+        with:
+          context: ./server
+          platforms: linux/amd64
+          load: true
+          tags: component-vault-server:ci
+          cache-from: type=gha,scope=server-image
+          cache-to: type=gha,mode=max,scope=server-image
+
+      - name: Verify API startup, authentication and mounted database
+        run: |
+          mkdir -p "$RUNNER_TEMP/component-vault-data"
+          docker run -d --name component-vault-api-ci \
+            -p 127.0.0.1:18787:8787 \
+            -e API_TOKEN=ci-smoke-token \
+            -v "$RUNNER_TEMP/component-vault-data:/data" \
+            component-vault-server:ci
+          trap 'docker logs component-vault-api-ci; docker rm -f component-vault-api-ci' EXIT
+          curl --fail --retry 12 --retry-delay 1 --retry-connrefused \
+            http://127.0.0.1:18787/health > "$RUNNER_TEMP/server-health.json"
+          curl --fail -X POST -H 'Authorization: Bearer ci-smoke-token' \
+            http://127.0.0.1:18787/auth/ping > "$RUNNER_TEMP/server-auth.json"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18787/auth/ping)" = 401
+          python - <<'PY'
+          import json
+          import os
+          import sqlite3
+          from pathlib import Path
+
+          root = Path(os.environ['RUNNER_TEMP'])
+          for filename in ('server-health.json', 'server-auth.json'):
+              result = json.loads((root / filename).read_text())
+              assert result['status'] == 'ok', result
+              assert result['inventory_protocol'] == 1, result
+          database = root / 'component-vault-data' / 'component_vault.db'
+          assert database.is_file(), 'Database must be persisted in the mounted /data directory.'
+          with sqlite3.connect(f'file:{database}?mode=ro', uri=True) as connection:
+              assert connection.execute('PRAGMA quick_check').fetchone()[0] == 'ok'
+          PY
+
+      - name: Login to Docker Hub
+        if: inputs.push_image
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Resolve image tags
+        if: inputs.push_image
+        id: tags
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          {
+            echo 'tags<<EOF'
+            echo "$IMAGE:$version"
+            echo "$IMAGE:latest"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish multi-platform image
+        if: inputs.push_image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./server
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.release_tag }}
+          cache-from: type=gha,scope=server-image
+          cache-to: type=gha,mode=max,scope=server-image

@@ -11,7 +11,7 @@ public sealed record LcscProductMetadata(
     string Sku, string Name, string? Model, string? Brand, string? PackageName,
     string Category, string? CategoryPath, string OfficialUrl, string? ImageUrl,
     string? DatasheetUrl = null, IReadOnlyDictionary<string, string>? Parameters = null,
-    string? Description = null
+    string? Description = null, string? Source = null, string? LookupNotice = null
 );
 
 public sealed class LcscDomesticBlockedException : IOException
@@ -237,13 +237,21 @@ public sealed class LcscPublicLookup
 {
     private const int MaxPageBytes = 4 * 1024 * 1024;
     private readonly HttpClient _client;
+    private readonly Func<Uri, DiagnosticEvent, CancellationToken, Task<string>> _getPage;
+    private readonly Func<System.Globalization.CultureInfo> _culture;
     private static readonly ConcurrentDictionary<string, (DateTimeOffset At, LcscProductMetadata? Value)> ExactCache = new();
 
-    public LcscPublicLookup()
+    public LcscPublicLookup() : this(null, null) { }
+
+    public LcscPublicLookup(
+        Func<Uri, DiagnosticEvent, CancellationToken, Task<string>>? getPage,
+        Func<System.Globalization.CultureInfo>? culture)
     {
         _client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true }) { Timeout = TimeSpan.FromSeconds(8) };
         _client.DefaultRequestHeaders.UserAgent.ParseAdd("ComponentVault-Windows/0.3");
         _client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("zh-CN,zh;q=0.9");
+        _getPage = getPage ?? GetPageAsync;
+        _culture = culture ?? (() => System.Globalization.CultureInfo.CurrentUICulture);
     }
 
     public async Task<IReadOnlyList<LcscProductMetadata>> SearchChinaAsync(string keyword, CancellationToken cancellationToken = default)
@@ -251,7 +259,7 @@ public sealed class LcscPublicLookup
         var uri = LcscPublicCatalog.ChinaSearchUri(keyword) ?? throw new ArgumentException("Search keyword is empty.", nameof(keyword));
         AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Started);
         IReadOnlyList<LcscProductMetadata> results;
-        try { results=LcscPublicCatalog.ParseChinaSearchPage(await GetPageAsync(uri,DiagnosticEvent.CatalogDomestic,cancellationToken)); }
+        try { results=LcscPublicCatalog.ParseChinaSearchPage(await _getPage(uri,DiagnosticEvent.CatalogDomestic,cancellationToken)); }
         catch(LcscDomesticBlockedException exception){AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Blocked,exceptionType:exception.GetType());throw;}
         catch(InvalidDataException exception){AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Parser,exceptionType:exception.GetType());throw;}
         AppDiagnostics.Record(DiagnosticEvent.CatalogDomestic,DiagnosticOutcome.Success);
@@ -259,30 +267,68 @@ public sealed class LcscPublicLookup
         return results;
     }
 
+    public async Task<LcscCatalogSearchResult> SearchPreferredAsync(string keyword, CancellationToken cancellationToken = default)
+    {
+        var preferred = LcscCatalogRoutePolicy.PreferredSource(_culture());
+        var items = await SearchChinaAsync(keyword, cancellationToken);
+        var notice = preferred == LcscCatalogSource.International
+            ? "International LCSC public product pages do not provide keyword search; using LCSC China search for this query."
+            : null;
+        return new LcscCatalogSearchResult(items, LcscCatalogSource.Domestic, notice);
+    }
+
     public async Task<LcscProductMetadata?> LookupAsync(string sku, CancellationToken cancellationToken = default)
+        => (await LookupDetailedAsync(sku, null, cancellationToken)).Metadata;
+
+    public async Task<LcscCatalogLookupResult> LookupDetailedAsync(
+        string sku,
+        LcscCatalogSource? preferredSource = null,
+        CancellationToken cancellationToken = default)
     {
         var normalized = LcscPublicCatalog.NormalizeSku(sku);
-        if (normalized is null) return null;
-        Exception? domesticFailure = null;
-        try
+        var preferred = preferredSource ?? LcscCatalogRoutePolicy.PreferredSource(_culture());
+        if (normalized is null) return new LcscCatalogLookupResult(null, preferred, null, []);
+        var attempts = new List<LcscCatalogAttempt>();
+        foreach (var source in LcscCatalogRoutePolicy.Order(preferred))
         {
-            var domestic = LcscPublicCatalog.ExactChinaMatch(normalized, await SearchChinaAsync(normalized, cancellationToken));
-            if (domestic is not null) return domestic;
+            try
+            {
+                LcscProductMetadata? metadata = source == LcscCatalogSource.Domestic
+                    ? LcscPublicCatalog.ExactChinaMatch(normalized, await SearchChinaAsync(normalized, cancellationToken))
+                    : await LookupInternationalAsync(normalized, cancellationToken);
+                if (metadata is not null)
+                {
+                    var result = new LcscCatalogLookupResult(metadata, preferred, source, attempts);
+                    var annotated = metadata with
+                    {
+                        Source = source == LcscCatalogSource.Domestic ? "lcsc_domestic_web" : "lcsc_public_web",
+                        LookupNotice = result.UserMessage,
+                    };
+                    return result with { Metadata = annotated };
+                }
+                attempts.Add(new LcscCatalogAttempt(source, LcscCatalogFailureKind.NoMatch));
+            }
+            catch (Exception exception) when (exception is LcscDomesticBlockedException or InvalidDataException or HttpRequestException or TaskCanceledException)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                attempts.Add(new LcscCatalogAttempt(source, LcscCatalogRoutePolicy.Classify(exception)));
+            }
         }
-        catch (Exception exception) when (exception is LcscDomesticBlockedException or HttpRequestException or TaskCanceledException)
-        {
-            domesticFailure = exception;
-        }
-        var uri = LcscPublicCatalog.ProductUri(normalized)!;
-        if (ExactCache.TryGetValue(normalized, out var cached) && DateTimeOffset.UtcNow - cached.At < (cached.Value is null ? TimeSpan.FromSeconds(30) : TimeSpan.FromDays(7))) return cached.Value;
+        return new LcscCatalogLookupResult(null, preferred, null, attempts);
+    }
+
+    private async Task<LcscProductMetadata?> LookupInternationalAsync(string normalized, CancellationToken cancellationToken)
+    {
+        var cacheKey = $"international:{normalized}";
+        if (ExactCache.TryGetValue(cacheKey, out var cached) && DateTimeOffset.UtcNow - cached.At < (cached.Value is null ? TimeSpan.FromSeconds(30) : TimeSpan.FromDays(7))) return cached.Value;
         AppDiagnostics.Record(DiagnosticEvent.CatalogInternational,DiagnosticOutcome.Started);
+        var uri = LcscPublicCatalog.ProductUri(normalized)!;
         LcscProductMetadata? metadata;
-        try { metadata=LcscPublicCatalog.ParsePage(normalized,await GetPageAsync(uri,DiagnosticEvent.CatalogInternational,cancellationToken)); }
+        try { metadata=LcscPublicCatalog.ParsePage(normalized,await _getPage(uri,DiagnosticEvent.CatalogInternational,cancellationToken)); }
         catch(InvalidDataException exception){AppDiagnostics.Record(DiagnosticEvent.CatalogInternational,DiagnosticOutcome.Parser,exceptionType:exception.GetType());throw;}
         AppDiagnostics.Record(DiagnosticEvent.CatalogInternational,metadata is null?DiagnosticOutcome.Parser:DiagnosticOutcome.Success);
-        if (metadata is null && domesticFailure is LcscDomesticBlockedException) throw domesticFailure;
         LcscPublicCatalog.CacheImage(normalized, metadata?.ImageUrl);
-        ExactCache[normalized] = (DateTimeOffset.UtcNow, metadata);
+        ExactCache[cacheKey] = (DateTimeOffset.UtcNow, metadata);
         if (ExactCache.Count > 64) ExactCache.TryRemove(ExactCache.OrderBy(pair => pair.Value.At).First().Key, out _);
         return metadata;
     }

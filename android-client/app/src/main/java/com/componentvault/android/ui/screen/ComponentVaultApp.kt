@@ -365,6 +365,7 @@ fun ComponentVaultApp(
 
             inventoryBackupVisible -> InventoryBackupScreen(
                 viewModel = viewModel,
+                components = uiState.availableComponents,
                 onDismiss = { inventoryBackupVisible = false; viewModel.clearInventoryBackupState() },
             )
 

@@ -1,0 +1,25 @@
+# Pull the published API image instead of building from source.
+# Set COMPONENT_VAULT_IMAGE to your Docker Hub repository and release tag.
+services:
+  api:
+    image: ${COMPONENT_VAULT_IMAGE:?Set COMPONENT_VAULT_IMAGE to namespace/repository:version in .env}
+    ports:
+      - "8787:8787"
+    environment:
+      API_TOKEN: ${API_TOKEN:?Set API_TOKEN in .env before starting the server}
+      DATABASE_PATH: /data/component_vault.db
+      ADMIN_WEB_ORIGINS: ${ADMIN_WEB_ORIGINS:-http://localhost:8081}
+      MQTT_ENABLED: ${MQTT_ENABLED:-false}
+      MQTT_HOST: ${MQTT_HOST:-}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_TLS: ${MQTT_TLS:-false}
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-component-vault}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-component-vault-server}
+    volumes:
+      - component_vault_data:/data
+    restart: unless-stopped
+
+volumes:
+  component_vault_data:

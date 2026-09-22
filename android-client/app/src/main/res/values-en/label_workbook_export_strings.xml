@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="label_workbook_export_title">Label print data export</string>
+    <string name="label_workbook_export_description">Creates one Excel row per active component for third-party label software. Name, SKU, long QR text, and short QR text are selected by default. This does not change the backup format.</string>
+    <string name="label_workbook_export_action">Export label print Excel</string>
+    <string name="label_workbook_export_empty">There are no components to export.</string>
+    <string name="label_workbook_export_success">Label print data exported.</string>
+    <string name="label_workbook_export_failure">Could not export label print data.</string>
+    <string name="label_workbook_export_fields_title">Choose export fields</string>
+    <string name="label_workbook_export_confirm">Choose save location</string>
+    <string name="label_workbook_export_cancel">Cancel</string>
+    <string name="label_workbook_column_name">Name</string>
+    <string name="label_workbook_column_sku">SKU</string>
+    <string name="label_workbook_column_model">Model</string>
+    <string name="label_workbook_column_package">Package</string>
+    <string name="label_workbook_column_category">Category</string>
+    <string name="label_workbook_column_location">Location</string>
+    <string name="label_workbook_column_quantity">Current quantity</string>
+    <string name="label_workbook_column_long_qr">Long QR text</string>
+    <string name="label_workbook_column_short_qr">Short QR text</string>
+</resources>

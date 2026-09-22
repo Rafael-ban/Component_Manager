@@ -1,5 +1,20 @@
 # Runbook
 
+## Docker Hub image deployment
+
+Use `docker-compose.hub.yml` to pull a published API image instead of building
+the server locally. Set `COMPONENT_VAULT_IMAGE` and `API_TOKEN` in the root `.env`.
+The server image listens on port 8787 and stores SQLite under `/data`; preserve
+the Compose project name and `component_vault_data` volume when upgrading.
+The admin web app remains a separate deployment.
+
+Repository maintainers configure Actions variables `DOCKERHUB_USERNAME` and
+`DOCKERHUB_IMAGE`, plus secret `DOCKERHUB_TOKEN`. CI always validates a container
+without registry credentials. Release automation pushes only when a target
+repository has been configured; a manual `Server Docker Image` workflow can
+publish an existing release afterward. Follow the complete
+[Docker Hub setup, verification and upgrade instructions](dockerhub.md).
+
 ## Admin console deployment and API token
 
 The admin console remains read-only for inventory in this emergency release.

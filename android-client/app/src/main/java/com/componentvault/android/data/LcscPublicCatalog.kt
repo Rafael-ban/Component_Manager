@@ -178,16 +178,48 @@ internal class LcscCombinedLookup(
     private val domesticFetch: (String) -> String = LcscDomesticCatalog::fetchSearchPage,
     private val international: LcscPublicLookup = LcscPublicLookup(),
 ) {
-    fun lookup(sku: String): ComponentOfficialMetadata? {
-        val normalized = LcscPublicCatalog.normalizeSku(sku) ?: return null
-        val domestic = runCatching {
-            LcscDomesticCatalog.exactMatch(
-                normalized,
-                LcscDomesticCatalog.parseSearchPage(domesticFetch(normalized)),
-            )?.metadata?.copy(matchedBy = "sku", confidence = "exact")
-        }.onSuccess { AppDiagnostics.record("lookup_domestic", "matched" to (it != null)) }
-            .onFailure { AppDiagnostics.record("lookup_domestic", "matched" to false, "type" to it.javaClass) }
-            .getOrNull()
-        return domestic ?: international.lookup(normalized)
+    fun lookup(
+        sku: String,
+        preferredSource: LcscCatalogSource = LcscCatalogSource.Domestic,
+    ): ComponentOfficialMetadata? = lookupWithRoute(sku, preferredSource).metadata
+
+    fun lookupWithRoute(
+        sku: String,
+        preferredSource: LcscCatalogSource,
+    ): LcscCatalogLookupResult {
+        val normalized = LcscPublicCatalog.normalizeSku(sku)
+            ?: return LcscCatalogLookupResult(null, preferredSource, null, emptyList())
+        val attempts = mutableListOf<LcscCatalogAttempt>()
+        for (source in LcscCatalogRoutePolicy.order(preferredSource)) {
+            try {
+                val metadata = when (source) {
+                    LcscCatalogSource.Domestic -> LcscDomesticCatalog.exactMatch(
+                        normalized,
+                        LcscDomesticCatalog.parseSearchPage(domesticFetch(normalized)),
+                    )?.metadata?.copy(matchedBy = "sku", confidence = "exact")
+                    LcscCatalogSource.International -> international.lookup(normalized)
+                }
+                AppDiagnostics.record(
+                    if (source == LcscCatalogSource.Domestic) "lookup_domestic" else "lookup_international",
+                    "matched" to (metadata != null),
+                    "preferred" to (source == preferredSource),
+                )
+                if (metadata != null) {
+                    return LcscCatalogLookupResult(metadata, preferredSource, source, attempts)
+                }
+                attempts += LcscCatalogAttempt(source, LcscCatalogFailureKind.NoMatch)
+            } catch (error: Exception) {
+                if (error is InterruptedException) throw error
+                val failure = LcscCatalogRoutePolicy.classify(error)
+                attempts += LcscCatalogAttempt(source, failure)
+                AppDiagnostics.record(
+                    if (source == LcscCatalogSource.Domestic) "lookup_domestic" else "lookup_international",
+                    "matched" to false,
+                    "failure" to failure,
+                    "type" to error.javaClass,
+                )
+            }
+        }
+        return LcscCatalogLookupResult(null, preferredSource, null, attempts)
     }
 }

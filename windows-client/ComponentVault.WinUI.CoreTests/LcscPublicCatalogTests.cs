@@ -5,6 +5,64 @@ namespace ComponentVault.WinUI.CoreTests;
 
 public sealed class LcscPublicCatalogTests
 {
+    private const string InternationalRoutePage = """
+        <script type="application/ld+json">{"@type":"Product","sku":"C88002","mpn":"EN-MODEL"}</script>
+        """;
+    private const string DomesticRoutePage = """
+        <script id="__NEXT_DATA__">{"props":{"pageProps":{"soData":{"searchResult":{"productRecordList":[{
+          "lightProductModel":"中文型号","productVO":{"productCode":"C88002","productId":"88002"}
+        }]}}}}}</script>
+        """;
+
+    [Fact]
+    public async Task LookupDetailedAsync_EnglishPrefersInternationalWithoutDomesticOverwrite()
+    {
+        var requestedHosts = new List<string>();
+        var lookup = new LcscPublicLookup(
+            (uri, _, _) => { requestedHosts.Add(uri.Host); return Task.FromResult(uri.Host == "www.lcsc.com" ? InternationalRoutePage : DomesticRoutePage); },
+            () => System.Globalization.CultureInfo.GetCultureInfo("en-US"));
+
+        var result = await lookup.LookupDetailedAsync("C88002");
+
+        Assert.Equal(LcscCatalogSource.International, result.ResolvedSource);
+        Assert.Equal("EN-MODEL", result.Metadata?.Model);
+        Assert.Equal("lcsc_public_web", result.Metadata?.Source);
+        Assert.Contains("international LCSC", result.Metadata!.LookupNotice!);
+        Assert.Equal(["www.lcsc.com"], requestedHosts);
+        Assert.False(result.UsedFallback);
+    }
+
+    [Fact]
+    public async Task LookupDetailedAsync_ChineseBlockedFallsBackWithVisibleReason()
+    {
+        var lookup = new LcscPublicLookup(
+            (uri, _, _) => Task.FromResult(uri.Host == "so.szlcsc.com" ? "<script>var _xvasu='challenge';</script>" : InternationalRoutePage),
+            () => System.Globalization.CultureInfo.GetCultureInfo("zh-CN"));
+
+        var result = await lookup.LookupDetailedAsync("C88002");
+
+        Assert.Equal(LcscCatalogSource.International, result.ResolvedSource);
+        Assert.True(result.UsedFallback);
+        Assert.Equal(LcscCatalogFailureKind.Blocked, Assert.Single(result.Attempts).Failure);
+        Assert.Contains("站点验证阻断", result.UserMessage);
+        Assert.Contains("国际 LCSC", result.UserMessage);
+        Assert.Equal(result.UserMessage, result.Metadata?.LookupNotice);
+    }
+
+    [Fact]
+    public async Task SearchPreferredAsync_ExplainsInternationalKeywordSearchLimitation()
+    {
+        var lookup = new LcscPublicLookup(
+            (_, _, _) => Task.FromResult(DomesticRoutePage),
+            () => System.Globalization.CultureInfo.GetCultureInfo("en-US"));
+
+        var result = await lookup.SearchPreferredAsync("resistor");
+
+        Assert.Equal(LcscCatalogSource.Domestic, result.Source);
+        Assert.NotNull(result.Notice);
+        Assert.Contains("do not provide keyword search", result.Notice);
+    }
+
     [Fact]
     public void ParsePage_RequiresExactProductSku()
     {

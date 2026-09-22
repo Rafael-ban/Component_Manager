@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="batch_scanner_settings">Scan settings</string>
+    <string name="batch_scanner_interval">Continuous capture interval</string>
+    <string name="batch_scanner_interval_value">%1$.1f seconds</string>
+    <string name="batch_scanner_sound">Success sound</string>
+    <string name="batch_scanner_vibration">Success vibration</string>
+    <string name="batch_scanner_decrease_interval">Decrease capture interval</string>
+    <string name="batch_scanner_increase_interval">Increase capture interval</string>
+    <string name="batch_scanner_collected">Collected %1$d</string>
+    <string name="batch_scanner_duplicate">Duplicate package ignored · %1$d total</string>
+    <string name="batch_scanner_cooling">Cooling down · ready in %1$.1f seconds</string>
+</resources>

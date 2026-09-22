@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="label_workbook_export_title">标签打印数据导出</string>
+    <string name="label_workbook_export_description">每个未删除元器件一行，生成供第三方标签软件使用的 Excel。名称、SKU、长二维码文本和短二维码文本默认勾选；不会改变备份恢复格式。</string>
+    <string name="label_workbook_export_action">导出标签打印 Excel</string>
+    <string name="label_workbook_export_empty">当前没有可导出的元器件。</string>
+    <string name="label_workbook_export_success">标签打印数据已导出。</string>
+    <string name="label_workbook_export_failure">标签打印数据导出失败。</string>
+    <string name="label_workbook_export_fields_title">选择导出字段</string>
+    <string name="label_workbook_export_confirm">选择保存位置</string>
+    <string name="label_workbook_export_cancel">取消</string>
+    <string name="label_workbook_column_name">名称</string>
+    <string name="label_workbook_column_sku">SKU</string>
+    <string name="label_workbook_column_model">型号</string>
+    <string name="label_workbook_column_package">封装</string>
+    <string name="label_workbook_column_category">分类</string>
+    <string name="label_workbook_column_location">库位</string>
+    <string name="label_workbook_column_quantity">当前数量</string>
+    <string name="label_workbook_column_long_qr">长二维码文本</string>
+    <string name="label_workbook_column_short_qr">短二维码文本</string>
+</resources>

@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.util.Size
+import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -87,7 +88,11 @@ internal enum class JlcQrScannerMode {
     BatchContinuous,
 }
 
-internal data class ContinuousCaptureAck(val actualCount: Int, val duplicateCount: Int)
+internal data class ContinuousCaptureAck(
+    val actualCount: Int,
+    val duplicateCount: Int,
+    val acceptedValues: List<String> = emptyList(),
+)
 
 private data class JlcQrScannerConfig(
     val analysisTargetResolution: Size,
@@ -131,6 +136,9 @@ internal fun JlcQrScannerSurface(
     scannerMode: JlcQrScannerMode = JlcQrScannerMode.ImportQr,
     onContinuousResults: ((List<String>) -> ContinuousCaptureAck)? = null,
     continuousInitialCount: Int = 0,
+    continuousIntervalMs: Long = DEFAULT_BATCH_SCAN_INTERVAL_MS,
+    continuousSoundEnabled: Boolean = true,
+    continuousVibrationEnabled: Boolean = true,
 ) {
     val context = LocalContext.current
     val cameraPermissionGranted = remember(context) {
@@ -148,7 +156,10 @@ internal fun JlcQrScannerSurface(
     val decodedNoPartText = stringResource(R.string.scanner_decoded_no_part)
     val multipleTitle = stringResource(R.string.scanner_multiple_title)
     val rescanText = stringResource(R.string.scanner_rescan)
-    val continuousSeen = remember(scanSessionToken) { mutableSetOf<String>() }
+    val continuousGate = remember(scanSessionToken) { ContinuousCaptureGate() }
+    val continuousSuccessHold = remember(scanSessionToken) { ContinuousCaptureSuccessHold() }
+    val successFeedback = remember(context) { ScanSuccessFeedback(context) }
+    DisposableEffect(successFeedback) { onDispose { successFeedback.close() } }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -220,19 +231,51 @@ internal fun JlcQrScannerSurface(
                     },
                     onBarcodesDecoded = { values ->
                         if(scannerMode==JlcQrScannerMode.BatchContinuous){
-                            val normalized=values.map(String::trim).filter(String::isNotBlank).distinct()
-                            val fresh=normalized.filter(continuousSeen::add)
-                            var acknowledgedDuplicates = normalized.size - fresh.size
-                            if(fresh.isNotEmpty()){
-                                onContinuousResults?.invoke(fresh)?.let { ack ->
-                                    continuousCount = ack.actualCount
-                                    acknowledgedDuplicates += ack.duplicateCount
+                            val nowMs = SystemClock.elapsedRealtime()
+                            when (val decision = continuousGate.evaluate(values, nowMs)) {
+                                is ContinuousCaptureDecision.Duplicate -> {
+                                    if (continuousSuccessHold.canReplace(nowMs)) {
+                                        decodedHint = context.getString(
+                                            R.string.batch_scanner_duplicate,
+                                            continuousCount,
+                                        )
+                                    }
                                 }
-                            }
-                            decodedHint = if (acknowledgedDuplicates > 0) {
-                                "已采集 $continuousCount 条；已忽略重复包装"
-                            } else {
-                                "已采集 $continuousCount 条"
+                                is ContinuousCaptureDecision.CoolingDown -> {
+                                    if (continuousSuccessHold.canReplace(nowMs)) {
+                                        decodedHint = context.getString(
+                                            R.string.batch_scanner_cooling,
+                                            decision.remainingMs / 1_000.0,
+                                        )
+                                    }
+                                }
+                                is ContinuousCaptureDecision.Ready -> {
+                                    onContinuousResults?.invoke(decision.values)?.let { ack ->
+                                        continuousCount = ack.actualCount
+                                        if (ack.acceptedValues.isNotEmpty()) {
+                                            continuousGate.acknowledgeAccepted(
+                                                decision.values,
+                                                nowMs,
+                                                continuousIntervalMs,
+                                            )
+                                            successFeedback.play(
+                                                continuousSoundEnabled,
+                                                continuousVibrationEnabled,
+                                            )
+                                            continuousSuccessHold.markSuccess(nowMs)
+                                            decodedHint = context.getString(
+                                                R.string.batch_scanner_collected,
+                                                continuousCount,
+                                            )
+                                        } else {
+                                            continuousGate.acknowledgeDuplicate(decision.values)
+                                            decodedHint = context.getString(
+                                                R.string.batch_scanner_duplicate,
+                                                continuousCount,
+                                            )
+                                        }
+                                    }
+                                }
                             }
                             false
                         } else

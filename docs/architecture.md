@@ -11,7 +11,42 @@
 - Android, Windows, and server all use SQLite in the current architecture, and
   each runtime is now implemented against live storage.
 
+The API container is built from `server/Dockerfile` independently of the admin
+web app. `server-image.yml` is reused by CI for a local image build and API/auth
+startup verification, and by release automation for an optional Docker Hub push
+once repository variables and its token are configured. Stable releases publish
+version and `latest` tags for amd64/arm64; SQLite persists under the mounted
+`/data` directory. `docker-compose.hub.yml` retains the same named data volume as
+the source-build Compose deployment. See [Docker Hub operations](dockerhub.md).
+
 ## Android Client
+
+Batch scanning acknowledges a capture only after the draft queue accepts it.
+`ContinuousCaptureGate` uses monotonic time for a configurable 0.5–5 second
+interval, while full packaging payloads remain deduplicated for the session and
+the persisted draft. `BatchScannerSettingsStore` persists the interval and
+independent sound/vibration preferences outside the inventory schema. Success
+copy remains visible for at least 800ms; optional feedback hardware failures
+cannot cancel an accepted receipt.
+
+Both clients export label-printing XLSX independently of full inventory backup.
+The export contains selected columns and active components only. QR cells carry
+the established standard/JLC-compatible long payload and `cvl3` short payload as
+Excel text, so leading zeros and delimiters survive third-party label import.
+
+Catalog routing prefers domestic LCSC for Chinese and international LCSC for
+English. Android reads its saved app language; Windows uses its current UI
+culture. A successful primary result is not overwritten by a secondary lookup.
+Blocked/unavailable/unmatched/invalid responses retain explicit fallback reasons.
+International keyword search is unavailable in the current public-page adapter,
+so that path explicitly identifies its use of domestic search. No server or
+OpenAPI key is introduced by this routing change.
+
+Android catalog cache keys include the preferred source. Only a primary-source
+success is persisted; fallback results never suppress a subsequent attempt at
+the preferred site. Metadata cache round-trips description, parameters and
+datasheet links. Changing app language clears only lookup entries; startup
+removes legacy unscoped, malformed and expired entries from that same prefix.
 
 Database initialization failures are displayed before normal inventory controls
 are available. Initial inventory reload errors use the same recovery screen.

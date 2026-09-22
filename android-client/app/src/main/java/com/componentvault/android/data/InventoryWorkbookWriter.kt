@@ -31,6 +31,17 @@ internal object InventoryWorkbookWriter {
         }
         return output.toByteArray()
     }
+    internal fun writeSheets(sheets:List<Pair<String,List<List<Any?>>>>):ByteArray {
+        require(sheets.isNotEmpty()) { "工作簿至少需要一个工作表。" }
+        val output=ByteArrayOutputStream()
+        ZipOutputStream(output).use{zip->
+            fun add(name:String,value:String){zip.putNextEntry(ZipEntry(name));zip.write(value.toByteArray());zip.closeEntry()}
+            add("[Content_Types].xml",types(sheets.size,emptyList()));add("_rels/.rels",rootRels())
+            add("xl/workbook.xml",workbook(sheets.map{it.first}));add("xl/_rels/workbook.xml.rels",rels(sheets.size))
+            sheets.forEachIndexed{i,s->add("xl/worksheets/sheet"+(i+1)+".xml",sheet(s.second))}
+        }
+        return output.toByteArray()
+    }
     private fun sheet(rows:List<List<Any?>>,drawing:Boolean=false)=buildString{append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheetData>");rows.forEachIndexed{ri,row->append("<row r=\""+(ri+1)+"\">");row.forEachIndexed{ci,v->if(v!=null){val ref=column(ci)+(ri+1);when(v){is Number->append("<c r=\""+ref+"\"><v>"+v+"</v></c>");is Boolean->append("<c r=\""+ref+"\" t=\"b\"><v>"+(if(v)"1" else "0")+"</v></c>");else->append("<c r=\""+ref+"\" t=\"inlineStr\"><is><t>"+escape(v.toString())+"</t></is></c>")}}};append("</row>")};append("</sheetData>");if(drawing)append("<drawing r:id=\"rId1\"/>");append("</worksheet>")}
     private fun column(index:Int):String{var n=index+1;var s="";while(n>0){n--;s=('A'.code+n%26).toChar()+s;n/=26};return s}
     private fun escape(v:String)=v.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;")

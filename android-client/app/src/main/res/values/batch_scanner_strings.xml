@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="batch_scanner_settings">扫码设置</string>
+    <string name="batch_scanner_interval">连续采集间隔</string>
+    <string name="batch_scanner_interval_value">%1$.1f 秒</string>
+    <string name="batch_scanner_sound">成功提示音</string>
+    <string name="batch_scanner_vibration">成功震动</string>
+    <string name="batch_scanner_decrease_interval">缩短采集间隔</string>
+    <string name="batch_scanner_increase_interval">延长采集间隔</string>
+    <string name="batch_scanner_collected">已收录 %1$d 条</string>
+    <string name="batch_scanner_duplicate">重复包装已忽略 · 共 %1$d 条</string>
+    <string name="batch_scanner_cooling">冷却中 · %1$.1f 秒后可采集</string>
+</resources>

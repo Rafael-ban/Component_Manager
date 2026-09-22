@@ -18,6 +18,7 @@ internal data class LcscDomesticProduct(
 )
 
 internal class LcscDomesticBlockedException : IOException("LCSC verification page returned")
+internal class LcscDomesticResponseException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
 /** Public Chinese LCSC search. It deliberately does not emulate or bypass verification cookies. */
 internal object LcscDomesticCatalog {
@@ -34,15 +35,15 @@ internal object LcscDomesticCatalog {
     fun parseSearchPage(html: String): List<LcscDomesticProduct> {
         if (looksLikeVerificationPage(html)) throw LcscDomesticBlockedException()
         val payload = nextDataPattern.find(html)?.groupValues?.get(1)?.trim()
-            ?.takeIf(String::isNotEmpty) ?: throw IOException("LCSC response is missing __NEXT_DATA__")
+            ?.takeIf(String::isNotEmpty) ?: throw LcscDomesticResponseException("LCSC response is missing __NEXT_DATA__")
         val records = runCatching {
             JSONObject(payload).optJSONObject("props")
                 ?.optJSONObject("pageProps")
                 ?.optJSONObject("soData")
                 ?.optJSONObject("searchResult")
                 ?.optJSONArray("productRecordList")
-        }.getOrElse { throw IOException("Unable to parse LCSC __NEXT_DATA__", it) }
-            ?: throw IOException("LCSC search response structure changed")
+        }.getOrElse { throw LcscDomesticResponseException("Unable to parse LCSC __NEXT_DATA__", it) }
+            ?: throw LcscDomesticResponseException("LCSC search response structure changed")
         return (0 until records.length()).mapNotNull { index ->
             parseRecord(records.optJSONObject(index) ?: return@mapNotNull null)
         }.take(20)
