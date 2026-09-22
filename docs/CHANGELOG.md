@@ -5,6 +5,38 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.7.0] - 2026-09-22
+
+<!-- Add unreleased notes below this line. -->
+
+- Expand Chinese display of official LCSC categories, including current LDO
+  category names. Known English categories in existing Android and Windows
+  inventory now share localized display, search and filter behavior with new
+  imports. Preserve original official paths and unknown/custom category values.
+- Add Windows primary/external server addresses with transport-only failover,
+  safe migration of old settings and visible endpoint results. Each sync keeps
+  one endpoint; authentication errors and interrupted writes never switch sites.
+- Add Android and Windows BOM column mapping for SKU, model, quantity, package,
+  name and reference designators, plus an Excel-compatible UTF-8 shortage CSV
+  export. Mapping and export do not modify inventory; existing confirmed BOM
+  deductions retain their transaction and duplicate-submission protection.
+- Add optional Web inventory writes, disabled by default with
+  WEB_INVENTORY_ENABLED=false. Authenticated browsers can create locations and
+  components, edit component details, and record inbound/outbound stock with
+  location selection, version-conflict checks and persisted retry receipts.
+- Adapt Web inventory operations to desktop and mobile with compact expandable
+  forms, stock previews and persistent success/error feedback. Recover uncertain
+  movements after a lost response or page reload without duplicating stock.
+  Support LAN HTTP browsers without crypto.randomUUID and Chinese location codes.
+- Extend Docker CI with a separate Web image and startup/asset checks. API and
+  Web images use version/latest and web-version/web-latest tags in the same
+  Docker Hub repository; Compose offers an optional web profile. Actual registry
+  publishing still requires the deferred DOCKERHUB_TOKEN configuration.
+- Reconcile implementation/deployment documentation, including the detailed
+  Docker Hub setup guide. Bluetooth printing remains deferred; its next stage
+  will compare open-source protocols and multi-brand adapters before device work.
+
+
 ## [0.6.0] - 2026-09-22
 
 <!-- Add unreleased notes below this line. -->

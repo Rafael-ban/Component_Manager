@@ -2,7 +2,7 @@
 
 本文分为两部分：仓库维护者在 Docker Hub 和 GitHub 中配置镜像发布，以及部署者从 Docker Hub 拉取独立的 API / Web 镜像。
 
-`v0.6.0` 首次发布时 Docker Hub 任务因凭据未配置而 skipped；当前凭据仍未配置。本轮计划版本为 `v0.7.0`，工作流已经能够向同一仓库发布 API 标签 `0.7.0`/`latest` 和 Web 标签 `web-0.7.0`/`web-latest`，但这些只是预期名称。不能仅凭 GitHub Release 或代码存在就断言镜像已发布；必须先完成配置并在 Actions 与 Docker Hub Tags 页面验证成功。
+`v0.6.0` 首次发布时 Docker Hub 任务因凭据未配置而 skipped；当前凭据仍未配置。本文按 `v0.7.0` 配置，工作流能够向同一仓库发布 API 标签 `0.7.0`/`latest` 和 Web 标签 `web-0.7.0`/`web-latest`，但这些只是预期镜像名称。不能仅凭 GitHub Release 或代码存在就断言镜像已发布；必须先完成配置并在 Actions 与 Docker Hub Tags 页面验证成功。
 
 ## 先分清账号、仓库和两种 Token
 
@@ -87,7 +87,7 @@ GitHub Variables 的官方说明见 [Store information in variables](https://doc
 
 GitHub Secrets 的官方说明见 [Using secrets in GitHub Actions](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)。
 
-## 五、发布计划中的 v0.7.0 API 与 Web 镜像
+## 五、补发 v0.7.0 API 与 Web 镜像
 
 配置完成后，打开 [Server Docker Image 工作流](https://github.com/Rafael-ban/Component_Manager/actions/workflows/server-image.yml)：
 
@@ -209,8 +209,10 @@ Web 页面位于 `http://服务器IP:8081/`。若 Web 镜像尚未发布，仍�
 Release 下载 `component-vault-admin-web.zip` 并用静态服务器单独部署。无论采用
 哪种方式，都要把实际页面 origin 加入 `ADMIN_WEB_ORIGINS`。
 
-Web 库存写入默认关闭。只有明确设置 `WEB_INVENTORY_ENABLED=true` 并重启 API
-后，已通过共享 Token 登录的浏览器才能新增库位/元件、编辑资料和记录出入库。
+Web 库存写入默认关闭。在 `.env` 中设置 `WEB_INVENTORY_ENABLED=true` 后，重新执行
+`docker compose -f docker-compose.hub.yml --profile web up -d`，让 Compose 按新环境变量重建 API 容器；
+仅执行 `docker compose restart` 不会应用 `.env` 的修改。
+生效后，已通过共享 Token 登录的浏览器才能新增库位/元件、编辑资料和记录出入库。
 关闭开关会停止后续 Web 写入，不会撤销已经提交的库存变动。
 
 ## 九、更新、迁移与备份
@@ -222,11 +224,11 @@ COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.7.0
 COMPONENT_VAULT_WEB_IMAGE=rafaelikaros/component_manager:web-0.7.0
 ```
 
-然后在原部署目录执行：
+如果已启用 Web，在原部署目录执行以下命令以同时更新两个服务；只部署 API 时去掉 `--profile web`：
 
 ```sh
-docker compose -f docker-compose.hub.yml pull
-docker compose -f docker-compose.hub.yml up -d
+docker compose -f docker-compose.hub.yml --profile web pull
+docker compose -f docker-compose.hub.yml --profile web up -d
 docker compose -f docker-compose.hub.yml ps
 ```
 
