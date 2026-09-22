@@ -45,7 +45,26 @@ Android 的入口为 **元件详情 → 标签预览 → 蓝牙标签机诊断**
 不会出纸。停止、关闭对话框或应用进入后台都会清理扫描与连接；可重新扫描。
 服务 UUID 能帮助确定后续接入方式，仍不能单独证明打印协议兼容。
 
-## M1 实机报告结论（2026-09-22）
+## M1 SPP 实机查询通过（2026-09-23）
+
+用户在同一台 M1 上使用 Component Vault 0.7.3 (26)、Android SDK 37 完成测试，
+提交的报告为 `status=Complete`，已验证以下链路：
+
+| 字段 | 实测结果与边界 |
+| --- | --- |
+| `transport=spp`、`paired=true`、`device_type=3` | 已配对双模设备通过 Classic SPP 测试 |
+| `stage=connected` | RFCOMM socket 建立成功 |
+| `query_model=matched`、`model=M1`、`model_reply_bytes=2` | 型号回复匹配 M1 |
+| `status_reply_bytes=17`、`status_source=query` | 收到主动查询回复；当前解析器只解释其中已知的状态字段 |
+| `status_result=received`、`status_code=0` | 已识别状态位均未置位，没有上报当前解析器已知的异常 |
+| `print_tested=false` | 未发送打印命令，尚未验证图像、尺寸、走纸或完成回执 |
+
+这次实测将该设备从“服务发现成功”推进到“SPP 型号与状态查询成功”。
+17 字节的回复长度不表示已经理解其全部字段，也不应把状态 0 当作打印完成。
+不将单台设备的结果自动推广到其他 M1 固件或其他型号。
+下一步为 LZO 编码离线验证和单张测试标签，无需因本次成功查询而额外采集 HCI 日志。
+
+## M1 初始服务报告结论（2026-09-22）
 
 用户通过 Component Vault 0.7.1 (24)、Android SDK 37 提交了成功的服务发现报告。
 这是该台设备的实测结果，不自动推广到所有 M1 固件或其他型号。
