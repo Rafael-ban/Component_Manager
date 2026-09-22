@@ -5,6 +5,31 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.6.0] - 2026-09-22
+
+<!-- Add unreleased notes below this line. -->
+
+- Added Android batch-scan settings: a persistent 0.5–5 second capture interval
+  (default 1.5 seconds), independent success sound/vibration switches and visible
+  success/duplicate/cooldown feedback. Only newly accepted packages trigger
+  feedback; a code remaining in view cannot repeatedly add stock.
+- Added a separate label-printing XLSX export to Android and Windows backup
+  settings, with selectable name, SKU, model, package, category, location,
+  quantity and long/short QR text columns. Existing backup/restore is unchanged.
+- Route catalog lookup by UI language: Chinese prefers domestic LCSC and English
+  prefers international LCSC, with visible fallback reasons. Keyword search
+  explicitly identifies its domestic source. Android clears lookup caches on
+  language changes and does not persist fallback results over the preferred site.
+- Preserve descriptions, parameters and datasheet links in catalog caches;
+  remove expired, malformed and obsolete unscoped entries without affecting inventory.
+- Added a reusable Docker image workflow with API startup, authentication and
+  mounted-database checks, plus amd64/arm64 Docker Hub publishing support for
+  rafaelikaros/component_manager. Publishing remains explicitly skipped until
+  DOCKERHUB_TOKEN is configured; existing releases can be published manually later.
+- Added docker-compose.hub.yml and deployment instructions for pulling the API
+  image with persistent /data storage. The admin web app remains separate.
+
+
 ## [0.5.4] - 2026-09-17
 
 <!-- Add unreleased notes below this line. -->
