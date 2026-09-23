@@ -337,7 +337,9 @@ preferences and supports:
   model query gets at most one read-only retry. Non-persistent test modes either omit
   the final feed or use the upstream short-feed command to investigate extra blank
   labels and incomplete bottom output. Omitting the feed stopped extra blank labels
-  in two user tests, but bottom content was incomplete; correct finishing remains unverified.
+  in two user tests, but bottom content was incomplete. Short feed produced complete
+  content across two labels, so correct label registration remains unresolved;
+  neither diagnostic mode has passed normal-print acceptance.
   See [M1 device test steps](docs/printer-compatibility.md).
 - user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
   templates, with linked QR dimensions, larger text treatment, direct
