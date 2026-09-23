@@ -1,6 +1,7 @@
 # Changelog
 
 Dev 预发布单独记录，不触发正式版版本递增：
+[0.7.4-dev.5：M1 短走纸对照](releases/0.7.4-dev.5.md)、
 [0.7.4-dev.4：M1 右对齐修复与多走纸对照测试](releases/0.7.4-dev.4.md)、
 [0.7.4-dev.3：M1 连续测试连接与打印后诊断](releases/0.7.4-dev.3.md)、
 [0.7.4-dev.2：M1 查询回复与纸张适配](releases/0.7.4-dev.2.md)、

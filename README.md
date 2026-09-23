@@ -334,9 +334,10 @@ preferences and supports:
   the existing QR template defaults or a local paper-size/rotation/offset profile.
   Consecutive tests reuse a confirmed foreground connection with a 60-second idle
   timeout. M1 uses the vendor profile's right alignment; an inconclusive post-print
-  model query gets at most one read-only retry. A non-persistent test option omits
-  the final feed to investigate extra blank labels. Actual output and repeated
-  sending are device-confirmed, but extra paper feeding remains under investigation.
+  model query gets at most one read-only retry. Non-persistent test modes either omit
+  the final feed or use the upstream short-feed command to investigate extra blank
+  labels and incomplete bottom output. Omitting the feed stopped extra blank labels
+  in two user tests, but bottom content was incomplete; correct finishing remains unverified.
   See [M1 device test steps](docs/printer-compatibility.md).
 - user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
   templates, with linked QR dimensions, larger text treatment, direct

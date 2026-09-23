@@ -70,9 +70,10 @@ commands. A separate, explicitly confirmed test-label action rechecks the model
 and status, then sends one fixed 203-dpi raster in complete-row blocks of at most
 3072 raw bytes. Blocks use independently implemented literal-only LZO1X and the
 M1 POLI header, preceded by right alignment and followed by a single label feed.
-An explicit, non-persistent diagnostic choice omits only that final feed; it is
-not the normal printing mode. Reports distinguish the requested feed mode from
-the number of feed commands successfully written. No vendor binary or JNI is used.
+Explicit, non-persistent diagnostic choices omit only that final feed or replace
+it with the upstream short-feed command; neither changes the raster or is the
+default printing mode. Reports distinguish the requested feed mode from the numbers
+of label-feed and short-feed commands successfully written. No vendor binary or JNI is used.
 The existing 40 × 10 / 40 × 30 mm templates supply defaults for a device-local
 test paper profile with dimensions, rotation and image offsets. It changes the
 raster only; no firmware paper-type or calibration commands are sent. Normal

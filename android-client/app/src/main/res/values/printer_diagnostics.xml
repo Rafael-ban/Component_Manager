@@ -13,6 +13,10 @@
     <string name="printer_m1_print_now">Print one label</string>
     <string name="printer_m1_image_only_title">Send image only; do not feed afterward (diagnostic)</string>
     <string name="printer_m1_image_only_description">The label may remain inside the printer. This is a one-time diagnostic option, not a normal printing mode.</string>
+    <string name="printer_m1_feed_label_title">Normal label feed</string>
+    <string name="printer_m1_feed_label_description">Send the normal label-ending feed command.</string>
+    <string name="printer_m1_feed_short_title">Short feed (experimental diagnostic)</string>
+    <string name="printer_m1_feed_short_description">Send the verified short-feed command once. Its behavior still needs testing with M1 gap-label paper.</string>
     <string name="printer_m1_printing">Sending the label and checking the connection afterward… Stopping cannot retract data already sent.</string>
     <string name="printer_m1_sent">Data sent. Check actual output and scan the test QR code. This is not a printer completion acknowledgement.</string>
     <string name="printer_m1_interrupted">Sending was interrupted; the printer may have received some data. Check output before trying again. No automatic resend.</string>

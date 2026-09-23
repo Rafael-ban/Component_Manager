@@ -13,6 +13,10 @@
     <string name="printer_m1_print_now">打印一张</string>
     <string name="printer_m1_image_only_title">只发送图像，不追加走纸（诊断）</string>
     <string name="printer_m1_image_only_description">标签可能停留在机器内部。这是仅对本次生效的诊断选项，不是正常打印模式。</string>
+    <string name="printer_m1_feed_label_title">正常标签走纸</string>
+    <string name="printer_m1_feed_label_description">发送正常的标签结束走纸命令。</string>
+    <string name="printer_m1_feed_short_title">短走纸（试验）</string>
+    <string name="printer_m1_feed_short_description">仅发送一次已核实的短走纸命令，其效果仍需使用 M1 间隙标签纸验证。</string>
     <string name="printer_m1_printing">正在发送标签并检查打印后连接… 停止无法撤回已经发送的数据。</string>
     <string name="printer_m1_sent">数据已发送，请确认实际出纸并扫描测试二维码。这不是打印机的完成回执。</string>
     <string name="printer_m1_interrupted">发送已中断，打印机可能已收到部分数据。请先检查出纸情况，再决定是否重试。不会自动重发。</string>

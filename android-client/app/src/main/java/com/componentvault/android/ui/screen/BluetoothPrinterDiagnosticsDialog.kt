@@ -15,14 +15,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,7 +70,7 @@ internal fun BluetoothPrinterDiagnosticsDialog(
     var m1Mode by remember { mutableStateOf(false) }
     var lastRunWasM1 by remember { mutableStateOf(false) }
     var printCandidate by remember { mutableStateOf<PrinterDeviceCandidate?>(null) }
-    var imageOnlyDiagnostic by remember { mutableStateOf(false) }
+    var selectedFeedMode by remember { mutableStateOf(M1FeedMode.Label) }
     val listState = rememberLazyListState()
     var showPrintFailure by remember { mutableStateOf(false) }
     LaunchedEffect(probe.status, probe.printResult) {
@@ -204,7 +205,7 @@ internal fun BluetoothPrinterDiagnosticsDialog(
                     if (m1Mode && supportsSpp) {
                         OutlinedButton(
                             onClick = {
-                                imageOnlyDiagnostic = false
+                                selectedFeedMode = M1FeedMode.Label
                                 printCandidate = candidate
                             },
                             enabled = !probe.busy,
@@ -238,26 +239,31 @@ internal fun BluetoothPrinterDiagnosticsDialog(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(stringResource(R.string.printer_m1_confirm_paper, paperProfile.widthMm.toString(), paperProfile.heightMm.toString()))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .toggleable(
-                                value = imageOnlyDiagnostic,
-                                role = Role.Switch,
-                                onValueChange = { imageOnlyDiagnostic = it },
-                            ),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Switch(
-                            checked = imageOnlyDiagnostic,
-                            onCheckedChange = null,
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(stringResource(R.string.printer_m1_image_only_title))
-                            Text(
-                                stringResource(R.string.printer_m1_image_only_description),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
+                    Column(modifier = Modifier.selectableGroup()) {
+                        listOf(
+                            Triple(M1FeedMode.Label, R.string.printer_m1_feed_label_title, R.string.printer_m1_feed_label_description),
+                            Triple(M1FeedMode.None, R.string.printer_m1_image_only_title, R.string.printer_m1_image_only_description),
+                            Triple(M1FeedMode.Short, R.string.printer_m1_feed_short_title, R.string.printer_m1_feed_short_description),
+                        ).forEach { (mode, title, description) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .selectable(
+                                        selected = selectedFeedMode == mode,
+                                        role = Role.RadioButton,
+                                        onClick = { selectedFeedMode = mode },
+                                    ),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                RadioButton(
+                                    selected = selectedFeedMode == mode,
+                                    onClick = null,
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(stringResource(title))
+                                    Text(stringResource(description), style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
                         }
                     }
                 }
@@ -267,8 +273,7 @@ internal fun BluetoothPrinterDiagnosticsDialog(
                     printCandidate = null
                     lastRunWasM1 = true
                     val bitmap = M1TestLabelRenderer.render(paperProfile)
-                    val feedMode = if (imageOnlyDiagnostic) M1FeedMode.None else M1FeedMode.Label
-                    try { probe.printM1Test(candidate, bitmap, paperProfile, feedMode) } finally { bitmap.recycle() }
+                    try { probe.printM1Test(candidate, bitmap, paperProfile, selectedFeedMode) } finally { bitmap.recycle() }
                 }) { Text(stringResource(R.string.printer_m1_print_now)) }
             },
             dismissButton = { TextButton(onClick = { printCandidate = null }) { Text(stringResource(R.string.printer_probe_close)) } },

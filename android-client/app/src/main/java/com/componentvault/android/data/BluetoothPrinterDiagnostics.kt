@@ -305,6 +305,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             )
         ) {
             report += "form_feed_commands=0\n"
+            report += "short_feed_commands=0\n"
             finish(PrinterProbeStatus.Unsupported, "error=unsupported_device")
             printResult = M1TestPrintResult.Rejected
             return
@@ -313,6 +314,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             M1SppPrintProtocol.frames(bitmap)
         } catch (_: RuntimeException) {
             report += "form_feed_commands=0\n"
+            report += "short_feed_commands=0\n"
             finish(PrinterProbeStatus.ConnectionFailed, "error=invalid_bitmap")
             printResult = M1TestPrintResult.Rejected
             return
@@ -320,6 +322,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         try {
             if (adapter?.isEnabled != true) {
                 report += "form_feed_commands=0\n"
+                report += "short_feed_commands=0\n"
                 finish(PrinterProbeStatus.BluetoothOff, "error=bluetooth_off")
                 printResult = M1TestPrintResult.Rejected
                 return
@@ -330,10 +333,12 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             Thread({ runM1TestPrint(candidate, frames, feedMode, session) }, "m1-spp-test-print").start()
         } catch (_: SecurityException) {
             report += "form_feed_commands=0\n"
+            report += "short_feed_commands=0\n"
             finish(PrinterProbeStatus.PermissionRequired, "error=permission_required")
             printResult = M1TestPrintResult.Rejected
         } catch (_: RuntimeException) {
             report += "form_feed_commands=0\n"
+            report += "short_feed_commands=0\n"
             finish(PrinterProbeStatus.ConnectionFailed, "error=worker_start")
             printResult = M1TestPrintResult.Rejected
         }
@@ -515,6 +520,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
                 if (!writePrintPart(output, part.bytes, session)) return
                 if (part.isImageFrame) session.framesSent++
                 if (part.isFormFeed) session.formFeedCommands++
+                if (part.isShortFeed) session.shortFeedCommands++
             }
             session.printWriteComplete = true
             cancelSppDeadline(session)
@@ -627,6 +633,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         report += "bytes_attempted=${session.bytesAttempted}\n"
         report += "bytes_sent_confirmed=${session.bytesSent}\n"
         report += "form_feed_commands=${session.formFeedCommands}\n"
+        report += "short_feed_commands=${session.shortFeedCommands}\n"
         report += "bytes_count=completed_writes_only\n"
         if (session.writeStarted) report += "write_inflight=uncertain\n"
     }
@@ -866,6 +873,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             @Volatile var writeStarted = false
             @Volatile var printWriteComplete = false
             @Volatile var formFeedCommands = 0
+            @Volatile var shortFeedCommands = 0
         }
 
         private class M1Connection(
