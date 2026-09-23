@@ -11,6 +11,8 @@
     <string name="printer_m1_choose_paper">请先在标签预览中选择已有的 40 × 10 或 40 × 30 mm 二维码模板。</string>
     <string name="printer_m1_confirm">请装入 40 × %1$d mm 间隙标签纸，并关闭汉码。此次仅发送一张含 M1 TEST 和测试二维码的固定标签，不打印所选元件。中断后请先检查打印机再决定是否重试，应用不会自动重发。</string>
     <string name="printer_m1_print_now">打印一张</string>
+    <string name="printer_m1_image_only_title">只发送图像，不追加走纸（诊断）</string>
+    <string name="printer_m1_image_only_description">标签可能停留在机器内部。这是仅对本次生效的诊断选项，不是正常打印模式。</string>
     <string name="printer_m1_printing">正在发送标签并检查打印后连接… 停止无法撤回已经发送的数据。</string>
     <string name="printer_m1_sent">数据已发送，请确认实际出纸并扫描测试二维码。这不是打印机的完成回执。</string>
     <string name="printer_m1_interrupted">发送已中断，打印机可能已收到部分数据。请先检查出纸情况，再决定是否重试。不会自动重发。</string>

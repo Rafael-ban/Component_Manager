@@ -75,8 +75,77 @@ class M1SppConnectionLifecycleTest {
     }
 
     @Test
-    fun postPrintModelFailureNeverTurnsSentDataIntoRejectedPrint() {
-        assertEquals(M1TestPrintResult.SentConnectionLost, postPrintModelFailureResult(bytesSent = 1))
-        assertEquals(M1TestPrintResult.Rejected, postPrintModelFailureResult(bytesSent = 0))
+    fun postPrintModelMismatchKeepsCompletedWriteUnconfirmedRatherThanDisconnected() {
+        assertEquals(M1TestPrintResult.SentUnconfirmed, postPrintModelUnconfirmedResult(bytesSent = 1))
+        assertEquals(M1TestPrintResult.Rejected, postPrintModelUnconfirmedResult(bytesSent = 0))
+    }
+
+    @Test
+    fun mixedFirstReplyIsDrainedAndStrictRetryCanConfirmModel() {
+        var queryCalls = 0
+        var drainCalls = 0
+        val mixedReply = "12345678901234567M1".toByteArray()
+        assertEquals(19, mixedReply.size)
+        val replies = ArrayDeque(
+            listOf(
+                M1QueryReply(mixedReply, emptyList()),
+                M1QueryReply("M1".toByteArray(), emptyList()),
+            ),
+        )
+
+        val confirmation = confirmPostPrintModel(
+            query = { queryCalls++; replies.removeFirst() },
+            drain = { drainCalls++; M1QueryReply(byteArrayOf(0x01), emptyList()) },
+        )
+
+        assertEquals(M1SppProtocol.ModelResult.Mismatch, confirmation.firstResult)
+        assertEquals(M1SppProtocol.ModelResult.Matched, confirmation.retryResult)
+        assertEquals(M1SppProtocol.ModelResult.Matched, confirmation.result)
+        assertEquals(2, queryCalls)
+        assertEquals(1, drainCalls)
+    }
+
+    @Test
+    fun persistentWrongRepliesStopAfterOneReadOnlyRetry() {
+        var queryCalls = 0
+        var drainCalls = 0
+
+        val confirmation = confirmPostPrintModel(
+            query = {
+                queryCalls++
+                M1QueryReply("M11".toByteArray(), emptyList())
+            },
+            drain = {
+                drainCalls++
+                M1QueryReply(byteArrayOf(), emptyList())
+            },
+        )
+
+        assertEquals(M1SppProtocol.ModelResult.Mismatch, confirmation.firstResult)
+        assertEquals(M1SppProtocol.ModelResult.Mismatch, confirmation.retryResult)
+        assertEquals(M1SppProtocol.ModelResult.Mismatch, confirmation.result)
+        assertEquals(2, queryCalls)
+        assertEquals(1, drainCalls)
+    }
+
+    @Test
+    fun matchedFirstReplyDoesNotDrainOrRetry() {
+        var queryCalls = 0
+        var drainCalls = 0
+
+        val confirmation = confirmPostPrintModel(
+            query = {
+                queryCalls++
+                M1QueryReply("M1".toByteArray(), emptyList())
+            },
+            drain = {
+                drainCalls++
+                M1QueryReply(byteArrayOf(), emptyList())
+            },
+        )
+
+        assertEquals(M1SppProtocol.ModelResult.Matched, confirmation.result)
+        assertEquals(1, queryCalls)
+        assertEquals(0, drainCalls)
     }
 }

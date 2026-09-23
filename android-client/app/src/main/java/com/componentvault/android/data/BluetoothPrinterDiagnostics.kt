@@ -36,6 +36,39 @@ internal enum class PrinterProbeStatus {
 
 internal enum class M1TestPrintResult { None, SentUnconfirmed, SentConnectionLost, Partial, Interrupted, Rejected }
 
+internal data class M1PostPrintModelConfirmation(
+    val firstReply: M1QueryReply,
+    val firstResult: M1SppProtocol.ModelResult,
+    val drainedReply: M1QueryReply?,
+    val retryReply: M1QueryReply?,
+    val retryResult: M1SppProtocol.ModelResult?,
+) {
+    val result: M1SppProtocol.ModelResult get() = retryResult ?: firstResult
+}
+
+internal fun confirmPostPrintModel(
+    query: () -> M1QueryReply,
+    drain: () -> M1QueryReply,
+): M1PostPrintModelConfirmation {
+    val firstReply = query()
+    val firstResult = strictModelResult(firstReply)
+    if (firstResult == M1SppProtocol.ModelResult.Matched) {
+        return M1PostPrintModelConfirmation(firstReply, firstResult, null, null, null)
+    }
+    val drainedReply = drain()
+    val retryReply = query()
+    return M1PostPrintModelConfirmation(
+        firstReply = firstReply,
+        firstResult = firstResult,
+        drainedReply = drainedReply,
+        retryReply = retryReply,
+        retryResult = strictModelResult(retryReply),
+    )
+}
+
+private fun strictModelResult(reply: M1QueryReply): M1SppProtocol.ModelResult =
+    if (reply.overflowed) M1SppProtocol.ModelResult.Mismatch else M1SppProtocol.parseModelReply(reply.reply)
+
 /** Builds the shareable portion of a probe report without device identity or label data. */
 internal fun buildPrinterProbeReportHeader(
     sdk: Int,
@@ -244,6 +277,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         candidate: PrinterDeviceCandidate,
         bitmap: Bitmap,
         paperProfile: M1TestPaperProfile? = null,
+        feedMode: M1FeedMode = M1FeedMode.Label,
     ) {
         prepareM1Operation(candidate.address)
         printResult = M1TestPrintResult.None
@@ -256,6 +290,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             appendLine("device_type=${candidate.type}")
             appendLine("bitmap_width_dots=${bitmap.width}")
             appendLine("bitmap_height_dots=${bitmap.height}")
+            appendLine("feed_mode=${feedMode.name.lowercase()}")
             paperProfile?.let { profile ->
                 appendLine("paper_width_mm=${profile.widthMm}")
                 appendLine("paper_height_mm=${profile.heightMm}")
@@ -269,6 +304,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
                 BluetoothDevice.DEVICE_TYPE_DUAL,
             )
         ) {
+            report += "form_feed_commands=0\n"
             finish(PrinterProbeStatus.Unsupported, "error=unsupported_device")
             printResult = M1TestPrintResult.Rejected
             return
@@ -276,12 +312,14 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         val frames = try {
             M1SppPrintProtocol.frames(bitmap)
         } catch (_: RuntimeException) {
+            report += "form_feed_commands=0\n"
             finish(PrinterProbeStatus.ConnectionFailed, "error=invalid_bitmap")
             printResult = M1TestPrintResult.Rejected
             return
         }
         try {
             if (adapter?.isEnabled != true) {
+                report += "form_feed_commands=0\n"
                 finish(PrinterProbeStatus.BluetoothOff, "error=bluetooth_off")
                 printResult = M1TestPrintResult.Rejected
                 return
@@ -289,11 +327,13 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             status = PrinterProbeStatus.Connecting
             val session = SppSession(generation, candidate.address, isPrint = true)
             sppSession = session
-            Thread({ runM1TestPrint(candidate, frames, session) }, "m1-spp-test-print").start()
+            Thread({ runM1TestPrint(candidate, frames, feedMode, session) }, "m1-spp-test-print").start()
         } catch (_: SecurityException) {
+            report += "form_feed_commands=0\n"
             finish(PrinterProbeStatus.PermissionRequired, "error=permission_required")
             printResult = M1TestPrintResult.Rejected
         } catch (_: RuntimeException) {
+            report += "form_feed_commands=0\n"
             finish(PrinterProbeStatus.ConnectionFailed, "error=worker_start")
             printResult = M1TestPrintResult.Rejected
         }
@@ -396,7 +436,12 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         handler.postDelayed(idleClose, M1_IDLE_TIMEOUT_MS)
     }
 
-    private fun runM1TestPrint(candidate: PrinterDeviceCandidate, frames: List<M1PrintFrame>, session: SppSession) {
+    private fun runM1TestPrint(
+        candidate: PrinterDeviceCandidate,
+        frames: List<M1PrintFrame>,
+        feedMode: M1FeedMode,
+        session: SppSession,
+    ) {
         var keepConnection = false
         try {
             val connection = acquireM1Connection(candidate, session) ?: return
@@ -464,29 +509,31 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
 
             postSpp(session) { status = PrinterProbeStatus.Printing; report += "stage=sending\n" }
             scheduleSppDeadline(session, PRINT_STAGE_TIMEOUT_MS, "print_write")
-            writePrintPart(output, M1SppPrintProtocol.alignCenter, session)
-            frames.forEach { frame ->
+            postSpp(session) { report += "alignment=right\n" }
+            M1SppPrintProtocol.printParts(frames, feedMode).forEach { part ->
                 if (!isCurrentSpp(session)) return
-                writePrintPart(output, frame.bytes, session)
-                session.framesSent++
+                if (!writePrintPart(output, part.bytes, session)) return
+                if (part.isImageFrame) session.framesSent++
+                if (part.isFormFeed) session.formFeedCommands++
             }
-            writePrintPart(output, M1SppPrintProtocol.formFeed, session)
+            session.printWriteComplete = true
             cancelSppDeadline(session)
             val postFeedReply = readM1QueryReply(input, POST_FEED_READ_TIMEOUT_MS, session, fullWindow = true)
             val postFeedStatus = postFeedReply.classifyStatus()
-            scheduleSppDeadline(session, MODEL_STAGE_TIMEOUT_MS, "post_print_model_query")
-            output.write(M1SppProtocol.queryModel)
-            output.flush()
-            val postPrintModelReply = readM1QueryReply(
-                input,
-                POST_PRINT_MODEL_TIMEOUT_MS,
-                session,
-                fullWindow = true,
+            val confirmation = confirmPostPrintModel(
+                query = {
+                    scheduleSppDeadline(session, MODEL_STAGE_TIMEOUT_MS, "post_print_model_query")
+                    output.write(M1SppProtocol.queryModel)
+                    output.flush()
+                    readM1QueryReply(input, POST_PRINT_MODEL_TIMEOUT_MS, session, fullWindow = true).also {
+                        cancelSppDeadline(session)
+                    }
+                },
+                drain = {
+                    readM1QueryReply(input, POST_PRINT_DRAIN_TIMEOUT_MS, session, fullWindow = true)
+                },
             )
-            val postPrintModelResult = if (postPrintModelReply.overflowed) {
-                M1SppProtocol.ModelResult.Mismatch
-            } else M1SppProtocol.parseModelReply(postPrintModelReply.reply)
-            cancelSppDeadline(session)
+            val postPrintModelResult = confirmation.result
             keepConnection = postPrintModelResult == M1SppProtocol.ModelResult.Matched
             postSpp(session) {
                 appendPrintProgress(session)
@@ -496,29 +543,53 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
                     report += "post_feed_status_source=${postFeedStatus.source.name.lowercase()}\n"
                     M1SppProtocol.statusBits(postFeedStatus.code).forEach { report += "post_feed_status_bit=$it\n" }
                 }
+                report += "post_print_model_first=${confirmation.firstResult.name.lowercase()}\n"
+                report += "post_print_model_first_reply_bytes=${confirmation.firstReply.reply.size}\n"
+                report += "post_print_model_first_async_frames=${confirmation.firstReply.asyncStatusCodes.size}\n"
+                confirmation.drainedReply?.let {
+                    report += "post_print_model_drain_reply_bytes=${it.reply.size}\n"
+                    report += "post_print_model_drain_async_frames=${it.asyncStatusCodes.size}\n"
+                }
+                confirmation.retryResult?.let {
+                    report += "post_print_model_retry=${it.name.lowercase()}\n"
+                    report += "post_print_model_retry_reply_bytes=${confirmation.retryReply?.reply?.size ?: 0}\n"
+                    report += "post_print_model_retry_async_frames=${confirmation.retryReply?.asyncStatusCodes?.size ?: 0}\n"
+                }
                 report += "post_print_model=${postPrintModelResult.name.lowercase()}\n"
-                report += "post_print_model_reply_bytes=${postPrintModelReply.reply.size}\n"
-                report += "post_print_model_async_frames=${postPrintModelReply.asyncStatusCodes.size}\n"
                 report += "print_tested=sent_unconfirmed\n"
                 printResult = if (postPrintModelResult == M1SppProtocol.ModelResult.Matched) {
                     completeM1Operation(session, PrinterProbeStatus.Complete, "print_result=sent_unconfirmed")
                     M1TestPrintResult.SentUnconfirmed
                 } else {
-                    val result = postPrintModelFailureResult(session.bytesSent)
+                    val result = postPrintModelUnconfirmedResult(session.bytesSent)
                     report += "print_result=${result.name.lowercase()}\n"
                     finish(
-                        PrinterProbeStatus.ConnectionFailed,
-                        if (postPrintModelResult == M1SppProtocol.ModelResult.NoResponse) {
-                            "error=post_print_model_no_response"
-                        } else "error=post_print_model_unrecognized_response",
+                        PrinterProbeStatus.Complete,
+                        "warning=post_print_model_unconfirmed",
                     )
                     result
                 }
             }
         } catch (_: SecurityException) {
             postSpp(session) {
+                appendPrintProgress(session)
                 finish(PrinterProbeStatus.PermissionRequired, "error=permission_required")
                 printResult = M1TestPrintResult.Rejected
+            }
+        } catch (_: java.io.IOException) {
+            postSpp(session) {
+                appendPrintProgress(session)
+                val result = if (session.printWriteComplete) {
+                    M1TestPrintResult.SentConnectionLost
+                } else failedPrintResult(session.bytesAttempted)
+                report += "print_tested=${result.name.lowercase()}\n"
+                finish(
+                    PrinterProbeStatus.ConnectionFailed,
+                    if (result == M1TestPrintResult.SentConnectionLost) {
+                        "error=post_print_connection_lost"
+                    } else "print_result=${result.name.lowercase()}",
+                )
+                printResult = result
             }
         } catch (_: Exception) {
             postSpp(session) {
@@ -535,8 +606,8 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         }
     }
 
-    private fun writePrintPart(output: java.io.OutputStream, bytes: ByteArray, session: SppSession) {
-        if (!isCurrentSpp(session)) return
+    private fun writePrintPart(output: java.io.OutputStream, bytes: ByteArray, session: SppSession): Boolean {
+        if (!isCurrentSpp(session)) return false
         session.writeStarted = true
         session.bytesAttempted += bytes.size
         var offset = 0
@@ -548,18 +619,21 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             session.bytesSent += count
         }
         session.writeStarted = false
+        return offset == bytes.size
     }
 
     private fun appendPrintProgress(session: SppSession) {
         report += "frames_sent=${session.framesSent}\n"
         report += "bytes_attempted=${session.bytesAttempted}\n"
         report += "bytes_sent_confirmed=${session.bytesSent}\n"
+        report += "form_feed_commands=${session.formFeedCommands}\n"
         report += "bytes_count=completed_writes_only\n"
         if (session.writeStarted) report += "write_inflight=uncertain\n"
     }
 
     private fun rejectPrint(session: SppSession, error: String) {
         postSpp(session) {
+            appendPrintProgress(session)
             report += "print_tested=not_sent\n"
             finish(PrinterProbeStatus.ConnectionFailed, "error=$error")
             printResult = M1TestPrintResult.Rejected
@@ -770,6 +844,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         private const val PRINT_STAGE_TIMEOUT_MS = 15_000L
         private const val POST_FEED_READ_TIMEOUT_MS = 1_000L
         private const val POST_PRINT_MODEL_TIMEOUT_MS = MODEL_QUERY_TIMEOUT_MS
+        private const val POST_PRINT_DRAIN_TIMEOUT_MS = 250L
         private const val M1_IDLE_TIMEOUT_MS = 60_000L
         private const val PRINT_WRITE_CHUNK_BYTES = 1_024
         private const val READ_QUIET_MS = 150L
@@ -789,6 +864,8 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             @Volatile var bytesSent = 0
             @Volatile var bytesAttempted = 0
             @Volatile var writeStarted = false
+            @Volatile var printWriteComplete = false
+            @Volatile var formFeedCommands = 0
         }
 
         private class M1Connection(

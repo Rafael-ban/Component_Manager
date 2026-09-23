@@ -332,10 +332,12 @@ preferences and supports:
 - opt-in Bluetooth diagnostics from label preview: service discovery, M1 Classic
   SPP model/status queries and a separately confirmed single M1 test label using
   the existing QR template defaults or a local paper-size/rotation/offset profile.
-    Consecutive tests reuse a foreground connection with a 60-second idle timeout
-    and record a model query after sending. First output is device-confirmed;
-    sizing and repeated printing still need
-  validation. See [M1 device test steps](docs/printer-compatibility.md).
+  Consecutive tests reuse a confirmed foreground connection with a 60-second idle
+  timeout. M1 uses the vendor profile's right alignment; an inconclusive post-print
+  model query gets at most one read-only retry. A non-persistent test option omits
+  the final feed to investigate extra blank labels. Actual output and repeated
+  sending are device-confirmed, but extra paper feeding remains under investigation.
+  See [M1 device test steps](docs/printer-compatibility.md).
 - user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
   templates, with linked QR dimensions, larger text treatment, direct
   label-sized export, physical-aspect preview rendering, and fixed per-size

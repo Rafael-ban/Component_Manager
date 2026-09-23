@@ -69,7 +69,10 @@ discard obsolete session callbacks. The read-only query action sends no print
 commands. A separate, explicitly confirmed test-label action rechecks the model
 and status, then sends one fixed 203-dpi raster in complete-row blocks of at most
 3072 raw bytes. Blocks use independently implemented literal-only LZO1X and the
-M1 POLI header, followed by a single label feed. No vendor binary or JNI is used.
+M1 POLI header, preceded by right alignment and followed by a single label feed.
+An explicit, non-persistent diagnostic choice omits only that final feed; it is
+not the normal printing mode. Reports distinguish the requested feed mode from
+the number of feed commands successfully written. No vendor binary or JNI is used.
 The existing 40 × 10 / 40 × 30 mm templates supply defaults for a device-local
 test paper profile with dimensions, rotation and image offsets. It changes the
 raster only; no firmware paper-type or calibration commands are sent. Normal
@@ -81,7 +84,10 @@ jobs are never automatically resent. M1 test printing retains a successful SPP
 connection for the next explicit print in the foreground dialog, releasing it
 on cancellation, error, leaving the screen or 60 seconds idle. Each print still
 checks model/status; after sending it also queries the model before retaining
-the connection. Classic SPP writes are split into at most 1024 bytes per write.
+the connection. An inconclusive model reply is drained for 250 ms and retried once,
+without replaying any print data. Continued uncertainty after completed writes is
+sent/unconfirmed, not proof of disconnection; it releases the connection. Actual
+I/O failures remain distinct. Classic SPP writes are split into at most 1024 bytes per write.
 Reports retain partial stages and status codes, but exclude arbitrary device
 names, addresses, serial numbers and raw replies; a model match is recorded only
 as the fixed value M1. See [device test steps](printer-compatibility.md) and

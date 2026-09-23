@@ -11,6 +11,8 @@
     <string name="printer_m1_choose_paper">Select the existing 40 × 10 or 40 × 30 mm QR template in label preview first.</string>
     <string name="printer_m1_confirm">Load 40 × %1$d mm die-cut labels and close Hanma. This sends one fixed M1 TEST label with a test QR code, not the selected component. If interrupted, check the printer before trying again; data is never resent automatically.</string>
     <string name="printer_m1_print_now">Print one label</string>
+    <string name="printer_m1_image_only_title">Send image only; do not feed afterward (diagnostic)</string>
+    <string name="printer_m1_image_only_description">The label may remain inside the printer. This is a one-time diagnostic option, not a normal printing mode.</string>
     <string name="printer_m1_printing">Sending the label and checking the connection afterward… Stopping cannot retract data already sent.</string>
     <string name="printer_m1_sent">Data sent. Check actual output and scan the test QR code. This is not a printer completion acknowledgement.</string>
     <string name="printer_m1_interrupted">Sending was interrupted; the printer may have received some data. Check output before trying again. No automatic resend.</string>

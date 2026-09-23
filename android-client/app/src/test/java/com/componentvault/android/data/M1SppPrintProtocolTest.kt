@@ -60,9 +60,27 @@ class M1SppPrintProtocolTest {
     }
 
     @Test
-    fun printCommandsAreCenterAndSingleFormFeedLiterals() {
-        assertContentEquals(byteArrayOf(0x1b, 0x61, 0x01), M1SppPrintProtocol.alignCenter)
+    fun printCommandsAreRightAlignedAndSingleFormFeedLiterals() {
+        assertContentEquals(byteArrayOf(0x1b, 0x61, 0x02), M1SppPrintProtocol.alignRight)
         assertContentEquals(byteArrayOf(0x1d, 0x66, 0xc0.toByte(), 0x03), M1SppPrintProtocol.formFeed)
+    }
+
+    @Test
+    fun imageOnlySequenceDiffersOnlyByTheSingleTrailingFormFeed() {
+        val frames = M1SppPrintProtocol.frames(320, 480, IntArray(320 * 480) { 0xffffffff.toInt() })
+        assertEquals(7, frames.size)
+        val labelParts = M1SppPrintProtocol.printParts(frames, M1FeedMode.Label)
+        val imageOnlyParts = M1SppPrintProtocol.printParts(frames, M1FeedMode.None)
+
+        assertEquals(imageOnlyParts.size + 1, labelParts.size)
+        imageOnlyParts.indices.forEach { index ->
+            assertContentEquals(imageOnlyParts[index].bytes, labelParts[index].bytes)
+        }
+        assertEquals(7, labelParts.count(M1PrintPart::isImageFrame))
+        assertEquals(7, imageOnlyParts.count(M1PrintPart::isImageFrame))
+        assertEquals(1, labelParts.count(M1PrintPart::isFormFeed))
+        assertEquals(0, imageOnlyParts.count(M1PrintPart::isFormFeed))
+        assertContentEquals(M1SppPrintProtocol.formFeed, labelParts.last().bytes)
     }
 
     @Test

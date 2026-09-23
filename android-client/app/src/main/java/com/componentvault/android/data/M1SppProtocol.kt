@@ -86,8 +86,8 @@ internal class ReusableResourceSlot<T>(private val closeResource: (T) -> Unit) {
 internal fun sessionMayDeliver(expectedGeneration: Int, currentGeneration: Int, isActiveSession: Boolean): Boolean =
     expectedGeneration == currentGeneration && isActiveSession
 
-internal fun postPrintModelFailureResult(bytesSent: Int): M1TestPrintResult =
-    if (bytesSent > 0) M1TestPrintResult.SentConnectionLost else M1TestPrintResult.Rejected
+internal fun postPrintModelUnconfirmedResult(bytesSent: Int): M1TestPrintResult =
+    if (bytesSent > 0) M1TestPrintResult.SentUnconfirmed else M1TestPrintResult.Rejected
 
 internal object M1SppProtocol {
     val sppUuid = java.util.UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")

@@ -10,6 +10,14 @@ internal data class M1PrintFrame(
     val bytes: ByteArray,
 )
 
+internal enum class M1FeedMode { Label, None }
+
+internal data class M1PrintPart(
+    val bytes: ByteArray,
+    val isImageFrame: Boolean = false,
+    val isFormFeed: Boolean = false,
+)
+
 internal fun interruptedPrintResult(bytesAttempted: Int): M1TestPrintResult =
     if (bytesAttempted > 0) M1TestPrintResult.Partial else M1TestPrintResult.Interrupted
 
@@ -19,8 +27,14 @@ internal fun failedPrintResult(bytesAttempted: Int): M1TestPrintResult =
 internal object M1SppPrintProtocol {
     const val MAX_WIDTH_DOTS = 384
     const val MAX_RAW_CHUNK_BYTES = 3072
-    val alignCenter = byteArrayOf(0x1b, 0x61, 0x01)
+    val alignRight = byteArrayOf(0x1b, 0x61, 0x02)
     val formFeed = byteArrayOf(0x1d, 0x66, 0xc0.toByte(), 0x03)
+
+    fun printParts(frames: List<M1PrintFrame>, feedMode: M1FeedMode): List<M1PrintPart> = buildList {
+        add(M1PrintPart(alignRight))
+        frames.forEach { add(M1PrintPart(it.bytes, isImageFrame = true)) }
+        if (feedMode == M1FeedMode.Label) add(M1PrintPart(formFeed, isFormFeed = true))
+    }
 
     /** Copies pixels synchronously; callers retain ownership of [bitmap]. */
     fun frames(bitmap: Bitmap): List<M1PrintFrame> {

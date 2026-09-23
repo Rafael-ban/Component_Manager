@@ -1,10 +1,12 @@
 # M1 协议取证与下一阶段验证
 
-本指南用于用户自己的汉印 M1。App 提供服务发现和主动 SPP 型号/状态查询，
-没有直接打印功能；先按 [设备测试步骤](printer-compatibility.md) 验证主动查询。
+本指南用于用户自己的汉印 M1。正式版 0.7.3 提供服务发现和主动 SPP 型号/状态查询；
+0.7.4 Dev 已提供单张固定测试标签，尚未开放正常元件标签打印。
+先按 [设备测试步骤](printer-compatibility.md) 验证主动查询。
 已有诊断确认 FF02 可写、FF01/FF03 可通知；随后静态分析用户提供的 APK，
 已定位 M1 的 ESC_POLI / LZO 位图路径及 3.4.6 的 Classic SPP 连接流程。
-详见 [M1 APK 分析记录](m1-apk-analysis.md)。这些命令仍未经过本项目实机出纸验证。
+详见 [M1 APK 分析记录](m1-apk-analysis.md)。已有用户实机出纸与再次打印证据，
+但 Dev.3 仍有多出空白纸的问题；静态命令核对不能代替实际会话记录。
 
 ## 路线一：SDK 或汉码安装包
 
@@ -52,16 +54,18 @@ Windows 导出方式：下载官方 [Android Platform-Tools](https://developer.a
 2. 手机开发者选项中启用“蓝牙 HCI 信息收集日志 / Bluetooth HCI snoop log”；
    若有模式选择，选完整/启用模式。关闭再开启蓝牙，使设置生效。
 3. 打开汉码连接 M1，进入设备信息页一次，记下 App 版本、打印机固件版本和时间。
-4. 选择与实际已装纸匹配的项目现有标签尺寸，打印一份只含 `M1-TEST-A` 的测试标签。
+4. 选择与实际已装纸匹配的尺寸（本次为宽 40、高 60 mm 间隙纸），打印一份只含 `M1-TEST-A` 的测试标签。
    再把文字改为 `M1-TEST-B`，打印一份，分别记录点击时间和是否出纸。
    不使用真实订单、元件明细或个人资料作为测试标签。
-5. 立即通过手机开发者选项“提交错误报告”，或在电脑执行以下命令生成报告：
+5. 完全退出汉码并关闭其蓝牙连接，再在 Component Vault 用相同纸张尺寸主动打印两次固定测试标签，
+   记录版本、点击时间、是否勾选“不追加走纸”和额外空白纸数量。只记录测试内容。
+6. 立即通过手机开发者选项“提交错误报告”，或在电脑执行以下命令生成报告：
 
 ```powershell
 .\adb.exe bugreport .
 ```
 
-6. 完成后关闭 HCI 日志，并重启蓝牙。
+7. 完成后关闭 HCI 日志，并重启蓝牙。
 
 Android 官方说明见 [Bluetooth 调试](https://source.android.com/docs/core/connect/bluetooth/verifying_debugging)
 和 [生成 bug report](https://developer.android.com/studio/debug/bug-report)。
