@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 
 /** One foreground queue, one transport, one in-flight label. No automatic replay of uncertain writes. */
 internal class LabelPrintController(context: Context) {
+    private val storageGeneration = storageAccess.claim()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val store = LabelPrintQueueStore(context.applicationContext)
     private val preferences = context.applicationContext.getSharedPreferences("m1_label_print", Context.MODE_PRIVATE)
@@ -50,7 +51,7 @@ internal class LabelPrintController(context: Context) {
         working = true
         scope.launch {
             try {
-                queue = withContext(Dispatchers.IO) { store.load() }
+                queue = withContext(Dispatchers.IO) { storageAccess.access(storageGeneration) { store.load() } }
                 loaded = true
                 error = null
             } catch (exception: Exception) {
@@ -69,6 +70,10 @@ internal class LabelPrintController(context: Context) {
         paper: M1TestPaperProfile,
     ) {
         if (!loaded || working || running || closed) return
+        if (queue.items.isNotEmpty()) {
+            error = "queue_review_required"
+            return
+        }
         val next = try {
             LabelPrintQueue.create(selections, templateId, textTemplateId, paper)
         } catch (_: IllegalArgumentException) {
@@ -112,7 +117,7 @@ internal class LabelPrintController(context: Context) {
 
     private suspend fun persist(next: LabelPrintQueue) {
         // Publish only after the disk write, and never send before the Sending checkpoint is durable.
-        withContext(Dispatchers.IO) { store.save(next) }
+        withContext(Dispatchers.IO) { storageAccess.access(storageGeneration) { store.save(next) } }
         queue = next
     }
 
@@ -132,6 +137,7 @@ internal class LabelPrintController(context: Context) {
             try {
                 while (!stopRequested && !pauseRequested) {
                     val item = queue.items.firstOrNull { it.state == LabelPrintItemState.Pending } ?: break
+                    var rendered: android.graphics.Bitmap? = null
                     val bitmap = try {
                         withContext(Dispatchers.Default) {
                             M1ComponentLabelRenderer.render(
@@ -139,8 +145,11 @@ internal class LabelPrintController(context: Context) {
                                 ComponentLabelTemplate.fromId(queue.templateId),
                                 ComponentTextLabelTemplate.fromId(queue.textTemplateId),
                                 queue.paper,
-                            )
+                            ).also { rendered = it }
                         }
+                    } catch (exception: CancellationException) {
+                        rendered?.recycle()
+                        throw exception
                     } catch (exception: IllegalArgumentException) {
                         persist(queue.update(item.id, LabelPrintItemState.Failed, "label_does_not_fit"))
                         error = "label_does_not_fit"
@@ -184,7 +193,7 @@ internal class LabelPrintController(context: Context) {
                     val recovered = queue.update(id, LabelPrintItemState.Uncertain, "print_check_label")
                     queue = recovered
                     withContext(NonCancellable + Dispatchers.IO) {
-                        runCatching { store.save(recovered) }
+                        runCatching { storageAccess.access(storageGeneration) { store.save(recovered) } }
                     }
                 }
                 running = false
@@ -209,6 +218,11 @@ internal class LabelPrintController(context: Context) {
         closed = true
         stop()
         scope.cancel()
+    }
+
+    companion object {
+        // A reopened screen takes ownership; an older finally block cannot resurrect its queue.
+        private val storageAccess = LabelPrintQueueAccess()
     }
 }
 
