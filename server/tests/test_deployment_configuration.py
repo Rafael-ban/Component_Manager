@@ -23,7 +23,7 @@ TOKEN = "a-valid-first-token"
 @pytest.fixture
 def deployment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for name in (
-        "API_TOKEN", "ADMIN_WEB_ORIGINS", "WEB_INVENTORY_ENABLED",
+        "API_TOKEN", "ADMIN_WEB_ORIGINS", "ADMIN_WEB_URL", "WEB_INVENTORY_ENABLED",
         "CONFIG_PATH", "LOG_DIR",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -58,7 +58,7 @@ def test_first_setup_and_restart(deployment: Path) -> None:
     saved = json.loads((deployment / "config.json").read_text(encoding="utf-8"))
     assert saved["API_TOKEN"] == TOKEN
     assert set(saved) == {
-        "API_TOKEN", "ADMIN_WEB_ORIGINS", "WEB_INVENTORY_ENABLED"
+        "API_TOKEN", "ADMIN_WEB_ORIGINS", "ADMIN_WEB_URL", "WEB_INVENTORY_ENABLED"
     }
 
 
@@ -213,6 +213,46 @@ def test_environment_wins_and_locked_change_is_rejected(
         )
     assert response.status_code == 409
     assert response.json()["detail"].startswith("ADMIN_WEB_ORIGINS")
+
+
+def test_admin_web_url_preserves_subpath_and_survives_older_updates(deployment: Path) -> None:
+    admin_url = "https://warehouse.example/console/"
+    with TestClient(create_app()) as client:
+        first = client.post("/setup/config", json={**_payload(), "admin_web_url": admin_url})
+        assert first.status_code == 200
+        assert first.json()["admin_web_url"] == admin_url
+        headers = {"Authorization": f"Bearer {TOKEN}"}
+        assert client.get("/setup/config", headers=headers).json()["admin_web_url"] == admin_url
+        older_update = client.post("/setup/config", headers=headers, json=_payload(""))
+        assert older_update.status_code == 200
+        assert older_update.json()["admin_web_url"] == admin_url
+    assert json.loads((deployment / "config.json").read_text())["ADMIN_WEB_URL"] == admin_url
+
+
+@pytest.mark.parametrize("url", ["javascript:alert(1)", "https://user:pass@example.com", "https://example.com/?token=x", "https://example.com:bad/"])
+def test_admin_web_url_rejects_invalid_destination(deployment: Path, url: str) -> None:
+    with TestClient(create_app()) as client:
+        response = client.post("/setup/config", json={**_payload(), "admin_web_url": url})
+    assert response.status_code == 422
+    assert not (deployment / "config.json").exists()
+
+
+def test_admin_web_url_environment_override_is_read_only(
+    deployment: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("API_TOKEN", TOKEN)
+    monkeypatch.setenv("ADMIN_WEB_URL", "https://admin.example/console/")
+    get_settings.cache_clear()
+    with TestClient(create_app()) as client:
+        headers = {"Authorization": f"Bearer {TOKEN}"}
+        current = client.get("/setup/config", headers=headers)
+        assert current.json()["admin_web_url"] == "https://admin.example/console/"
+        assert "ADMIN_WEB_URL" in current.json()["environment_overrides"]
+        changed = client.post("/setup/config", headers=headers, json={
+            **_payload(""), "admin_web_url": "https://elsewhere.example/",
+        })
+        assert changed.status_code == 409
+        assert changed.json()["detail"].startswith("ADMIN_WEB_URL")
 
 
 def test_bad_configuration_is_not_treated_as_first_setup(deployment: Path) -> None:

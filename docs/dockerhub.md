@@ -168,6 +168,7 @@ docker pull rafaelikaros/component_manager:web-0.7.0
 ```dotenv
 API_TOKEN=
 ADMIN_WEB_ORIGINS=
+ADMIN_WEB_URL=
 WEB_INVENTORY_ENABLED=
 ```
 
@@ -179,6 +180,7 @@ Compose 已默认固定到已发布的 API `0.7.0` 与 Web `web-0.7.0`。只有�
 已有部署可保留 `.env` 中的非空值，它们优先于配置文件且在网页中只读。
 
 `ADMIN_WEB_ORIGINS` 填浏览器访问 Web 管理页时的来源，格式是 `scheme://host:port`，例如 `http://192.168.1.10:8081`。它不是服务端 API URL，不要填 `http://192.168.1.20:8787`，除非浏览器中的 Web 页面本身确实由该 origin 提供。多个 Web 来源用逗号分隔。API 自带的 `/setup` 页面与 API 同源，不依赖这项 CORS 设置。
+`ADMIN_WEB_URL` 可留空，待 Web 管理页实际部署后在 `/setup` 填写完整浏览器地址（可包含反向代理子路径）。首次保存后先复制 API Token，再点“进入管理台”；Web 管理台需用该 Token 重新登录。后续可在管理台的设置页修改服务端配置。若未部署 Web 管理页，继续使用已认证的 `/setup`。非空 `ADMIN_WEB_URL` 环境变量优先并锁定网页输入。
 
 ## 八、拉取并启动服务端
 

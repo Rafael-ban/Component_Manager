@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAdminResource } from "@/hooks/use-admin-resource";
 import type { AdminSettingsResponse } from "@/lib/types";
 import { MqttSettingsCard } from "@/components/mqtt-settings-card";
+import { DeploymentSettingsCard } from "@/components/deployment-settings-card";
 import { useAuth } from "@/hooks/use-auth";
 import { copyText, serverSetupUrl } from "@/lib/clipboard";
 
@@ -45,6 +46,8 @@ export function SettingsPage() {
           {session && serverSetupUrl(session.apiBaseUrl) ? <a className="block underline" href={serverSetupUrl(session.apiBaseUrl)} target="_blank" rel="noopener noreferrer">打开服务端配置与日志</a> : null}
         </AlertDescription>
       </Alert>
+
+      <DeploymentSettingsCard />
 
       {error ? (
         <Alert variant="destructive">

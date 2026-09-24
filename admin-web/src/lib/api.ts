@@ -1,4 +1,4 @@
-import type { AdminSession } from "@/lib/types";
+import type { AdminSession, DeploymentConfiguration } from "@/lib/types";
 
 export class ApiError extends Error {
   constructor(
@@ -47,6 +47,29 @@ export async function requestJson<T>(session: AdminSession, path: string): Promi
 
 export async function postJson<T>(session: AdminSession, path: string, body: unknown): Promise<T> {
   return mutateJson<T>(session, path, "POST", body);
+}
+
+export async function saveDeploymentConfiguration(
+  session: AdminSession,
+  body: { api_token: string; admin_web_origins: string[]; admin_web_url: string; web_inventory_enabled: boolean },
+): Promise<DeploymentConfiguration> {
+  let response: Response;
+  try {
+    response = await fetch(`${normalizeBaseUrl(session.apiBaseUrl)}/setup/config`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new ApiError(0, "无法确认配置是否已保存。请重新登录并读取服务端配置后再决定是否重试。");
+  }
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof result.detail === "string" ? result.detail : `请求失败，状态码 ${response.status}。`;
+    throw new ApiError(response.status, detail);
+  }
+  return result as DeploymentConfiguration;
 }
 
 export async function putJson<T>(session: AdminSession, path: string, body: unknown): Promise<T> {

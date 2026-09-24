@@ -7,6 +7,7 @@
   <style>
     :root{color-scheme:light dark;--bg:#f4f7f7;--panel:#fff;--text:#162c2b;--muted:#4f6563;--line:#cddad8;--accent:#086b60;--soft:#e1f1ed;--error:#9f2828;--radius:16px;font:16px/1.6 system-ui,"Microsoft YaHei",sans-serif}
     *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}main{max-width:960px;margin:auto;padding:40px 20px 64px}header{margin-bottom:24px}h1{font-size:clamp(26px,4vw,36px);line-height:1.25;margin:8px 0 12px}h2{font-size:20px;margin:0 0 8px}p{margin:8px 0;color:var(--muted)}.brand{color:var(--accent);font-weight:650;font-size:14px;letter-spacing:.06em}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin:16px 0}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.field{margin:20px 0}label{display:block;font-weight:600;margin-bottom:8px}input,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);font:inherit}textarea{resize:vertical;min-height:104px}input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}.check{display:flex;gap:12px;align-items:center;font-weight:500}.hint{font-size:14px}.primary,button{border-radius:8px;min-height:44px;padding:10px 16px;font:inherit;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button:disabled{opacity:.55;cursor:default}button:hover:not(:disabled){filter:brightness(.94)}:focus-visible{outline:3px solid var(--accent);outline-offset:3px}code{overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;background:var(--bg);padding:16px;border-radius:8px;font-size:13px}.notice{border-left:4px solid var(--accent);background:var(--soft);padding:12px 16px;border-radius:8px;color:var(--text)}.error{border-color:var(--error);color:var(--error)}[hidden]{display:none!important}dl{display:grid;grid-template-columns:110px 1fr;gap:8px 16px;margin-bottom:0}dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}.step{font-size:13px;font-weight:650;color:var(--accent)}footer{margin-top:24px;font-size:13px;color:var(--muted)}a{color:var(--accent)}@media(max-width:520px){main{padding:24px 16px}.card{padding:20px}dl{grid-template-columns:1fr;gap:4px}dd{margin-bottom:12px}.row>button{flex:1}}@media(prefers-color-scheme:dark){:root{--bg:#101a19;--panel:#182624;--text:#e1edea;--muted:#aabeb9;--line:#3a504a;--accent:#328e7f;--soft:#203d36;--error:#ffb4ab}}
+    a.primary{display:inline-flex;align-items:center;background:var(--accent);color:#fff;border-color:var(--accent);text-decoration:none}a.primary:hover{filter:brightness(.94)}
   </style>
 </head>
 <body><main>
@@ -26,10 +27,12 @@
     </section>
     <section class="card"><div class="step">02 / 可选功能</div><h2>Web 管理台</h2><p>首次配置页无需安装额外镜像。完整库存管理台是独立 Web 镜像，通常使用 8081 端口。</p>
       <div class="field"><label for="origins">允许访问 API 的管理台地址</label><textarea id="origins" placeholder="http://192.168.1.10:8081" aria-describedby="originHelp"></textarea><p id="originHelp" class="hint">每行一个浏览器管理台的地址（协议、主机、端口），不填 API 的 8787 地址，也不带页面路径。仅使用原生客户端时可保持默认。</p><p id="originLock" class="hint" hidden>由 ADMIN_WEB_ORIGINS 环境变量控制。</p></div>
+      <div class="field"><label for="adminWebUrl">Web 管理台实际访问地址</label><input id="adminWebUrl" type="url" placeholder="http://192.168.1.10:8081/" autocomplete="url"><p class="hint">可留空；单独部署管理台时填写浏览器实际访问的完整 URL，反向代理的子路径也可保留。此地址用于首次配置完成后的跳转。</p><p id="adminWebUrlLock" class="hint" hidden>由 ADMIN_WEB_URL 环境变量控制。</p></div>
       <label class="check"><input id="webWrites" type="checkbox">允许已登录的 Web 管理台修改库存</label><p id="writesLock" class="hint" hidden>由 WEB_INVENTORY_ENABLED 环境变量控制。</p>
     </section>
     <div class="row"><button id="save" class="primary" type="submit">保存配置</button><button id="logout" type="button" hidden>退出配置</button></div>
   </form>
+  <section id="adminLinkCard" class="card" tabindex="-1" hidden><h2>进入 Web 管理台</h2><p>管理台需要使用刚保存的 API Token 重新登录。请先在上方复制并保存令牌，再打开管理台。</p><div class="row"><a id="adminLink" class="primary" href="#">进入管理台</a></div></section>
   <section id="filesCard" class="card" hidden><h2>文件位置与运行日志</h2><p>群晖使用目录映射后，可在 File Station 的对应目录找到这些文件。使用 Docker named volume 时，文件由 Docker 管理。</p><dl><dt>配置文件</dt><dd><code id="configPath"></code></dd><dt>运行日志</dt><dd><code id="logPath"></code></dd></dl><p id="overrides" class="hint"></p><p class="hint">环境变量的非空值优先于配置文件。数据库、MQTT 配置和元件资料继续保留在原数据目录中。</p><button id="loadLogs" type="button">查看最近日志</button><pre id="logs" tabindex="0" hidden></pre></section>
   <footer>Component Vault · Rafael-Ikaros · <a href="https://github.com/Rafael-ban/Component_Manager" target="_blank" rel="noopener noreferrer">项目与部署教程</a></footer>
 </main>
@@ -59,6 +62,11 @@
     el('origins').value = (data.admin_web_origins || ['http://localhost:8081']).join('\n');
     el('origins').disabled = locked.includes('ADMIN_WEB_ORIGINS');
     el('originLock').hidden = !el('origins').disabled;
+    el('adminWebUrl').value = data.admin_web_url || '';
+    el('adminWebUrl').readOnly = locked.includes('ADMIN_WEB_URL');
+    el('adminWebUrlLock').hidden = !el('adminWebUrl').readOnly;
+    el('adminLinkCard').hidden = !data.admin_web_url;
+    if (data.admin_web_url) el('adminLink').href = data.admin_web_url;
     el('webWrites').checked = data.web_inventory_enabled || false;
     el('webWrites').disabled = locked.includes('WEB_INVENTORY_ENABLED');
     el('writesLock').hidden = !el('webWrites').disabled;
@@ -84,6 +92,12 @@
     el('copyToken').disabled = false; message('已生成令牌，保存配置后才会生效。');
   };
   el('apiToken').oninput = () => { el('copyToken').disabled = !el('apiToken').value; };
+  el('adminWebUrl').onchange = () => {
+    try {
+      const origin = new URL(el('adminWebUrl').value).origin;
+      if (el('origins').value.trim() === 'http://localhost:8081') el('origins').value = origin;
+    } catch { /* The server reports an invalid URL on save. */ }
+  };
   document.querySelectorAll('[data-toggle]').forEach(button => { button.onclick = () => {
     const input = el(button.dataset.toggle); input.type = input.type === 'password' ? 'text' : 'password'; button.textContent = input.type === 'password' ? '显示令牌' : '隐藏令牌';
   }; });
@@ -102,9 +116,19 @@
     if ((!configured || newToken !== token) && newToken.length < 16) { message('新的 API Token 至少需要 16 个字符。', true); el('save').disabled = false; return; }
     message('正在保存配置…');
     try {
-      const data = await request('/setup/config', {method:'POST', body:JSON.stringify({api_token: configured && newToken === token ? '' : newToken, admin_web_origins:el('origins').value.split(/[\n,]+/).map(x=>x.trim()).filter(Boolean), web_inventory_enabled:el('webWrites').checked})});
+      const firstSetup = !configured;
+      const data = await request('/setup/config', {method:'POST', body:JSON.stringify({api_token: configured && newToken === token ? '' : newToken, admin_web_origins:el('origins').value.split(/[\n,]+/).map(x=>x.trim()).filter(Boolean), admin_web_url:el('adminWebUrl').value.trim(), web_inventory_enabled:el('webWrites').checked})});
       token = newToken || token; configured = true; renderConfig(data);
-      message('配置已保存。将 API 地址与此令牌填入客户端即可连接；修改令牌后，其他客户端也需更新。');
+      if (firstSetup && data.admin_web_url) {
+        el('adminLink').href = data.admin_web_url;
+        el('adminLinkCard').hidden = false;
+        message('配置已保存。请先复制并保存 API Token，再点击“进入管理台”；管理台会要求重新登录。');
+        el('adminLinkCard').focus();
+      } else {
+        el('adminLinkCard').hidden = !data.admin_web_url;
+        if (data.admin_web_url) el('adminLink').href = data.admin_web_url;
+        message(data.admin_web_url ? '配置已保存。可进入 Web 管理台。' : '配置已保存。未设置 Web 管理台地址，可继续使用此页面修改服务端配置。');
+      }
     } catch (error) {
       message(error.message + ' 若连接中断，请刷新后使用刚填写的令牌登录，确认是否已保存。', true);
     } finally { el('save').disabled = false; }

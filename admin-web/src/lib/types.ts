@@ -109,6 +109,16 @@ export interface AdminSettingsResponse {
   next_backend_additions: string[];
 }
 
+export interface DeploymentConfiguration {
+  configured: boolean;
+  config_path: string;
+  log_path: string;
+  environment_overrides: string[];
+  admin_web_origins: string[];
+  admin_web_url: string;
+  web_inventory_enabled: boolean;
+}
+
 export interface MqttConfiguration {
   enabled: boolean;
   host: string;

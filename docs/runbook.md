@@ -36,11 +36,16 @@ inventory movements. Exact request retries are safe; after a 409 stale-version
 response, refresh the component before deciding whether to submit a new request ID.
 
 For a new Docker deployment, copy the repository-root `.env.example` to `.env`
-and leave `API_TOKEN`, `ADMIN_WEB_ORIGINS`, and `WEB_INVENTORY_ENABLED` empty.
+and leave `API_TOKEN`, `ADMIN_WEB_ORIGINS`, `ADMIN_WEB_URL`, and `WEB_INVENTORY_ENABLED` empty.
 Start the API, then open `http://server:8787/setup`; the same-origin first-run
 page stores these settings under `/data/config.json`. Existing deployments may
 keep non-empty environment values, which take precedence and remain read-only in
 the setup UI. Run `docker compose up -d --build` to apply environment changes.
+Set the actual Web console URL in the setup page, including any reverse-proxy
+subpath. After the first save, copy the API token before selecting **Enter admin
+console**; the console asks for that token again. If the Web console is not
+deployed, leave its URL empty and continue to use authenticated `/setup`.
+Authenticated users can later edit deployment settings from the Web console.
 A `.env` in `server/` is not the Compose root environment file. For a direct
 server launch, explicitly export the variables or run uvicorn with
 `--env-file .env` from `server/`; editing a file alone does not update a running
@@ -167,6 +172,9 @@ Admin web is available at:
   container command already binds `0.0.0.0:8787`
 - `ADMIN_WEB_ORIGINS`: comma-separated origins allowed to call the API from the
   separated admin web app
+- `ADMIN_WEB_URL`: optional absolute HTTP(S) URL of the deployed Web console,
+  including its path. Non-empty values override the setup page setting; an empty
+  value leaves it editable in `/setup` and Web console Settings.
 - `LCSC_OPENAPI_KEY`: optional LCSC OpenAPI key used by
   `/admin-api/lcsc/lookup`
 - `LCSC_OPENAPI_SECRET`: optional LCSC OpenAPI secret used by

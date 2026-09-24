@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 
 DEFAULT_ADMIN_WEB_ORIGINS = (
@@ -17,12 +17,36 @@ DEFAULT_ADMIN_WEB_ORIGINS = (
 PERSISTED_ENVIRONMENT_FIELDS = {
     "api_token": "API_TOKEN",
     "admin_web_origins": "ADMIN_WEB_ORIGINS",
+    "admin_web_url": "ADMIN_WEB_URL",
     "web_inventory_enabled": "WEB_INVENTORY_ENABLED",
 }
 
 
 class ConfigurationError(RuntimeError):
     """The persisted deployment configuration cannot be used safely."""
+
+
+def normalize_admin_web_url(value: str) -> str:
+    candidate = value.strip()
+    if not candidate:
+        return ""
+    parsed = urlsplit(candidate)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or any(character.isspace() for character in candidate)
+    ):
+        raise ValueError("Admin web URL must be an absolute HTTP(S) URL without credentials, query, or fragment.")
+    try:
+        parsed.port
+    except ValueError as error:
+        raise ValueError("Admin web URL has an invalid port.") from error
+    return candidate
 
 
 @dataclass(frozen=True)
@@ -41,6 +65,7 @@ class Settings:
     import_rules_refresh_hours: int
     enable_web_fallback_resolvers: bool
     web_inventory_enabled: bool = False
+    admin_web_url: str = ""
     mqtt_enabled: bool = False
     mqtt_host: str = ""
     mqtt_port: int = 1883
@@ -94,6 +119,7 @@ def read_persisted_configuration() -> dict[str, object]:
         )
     token = raw.get("API_TOKEN", "")
     origins = raw.get("ADMIN_WEB_ORIGINS", list(DEFAULT_ADMIN_WEB_ORIGINS))
+    admin_web_url = raw.get("ADMIN_WEB_URL", "")
     enabled = raw.get("WEB_INVENTORY_ENABLED", False)
     if not isinstance(token, str):
         raise ConfigurationError("Saved api_token must be a string.")
@@ -103,9 +129,16 @@ def read_persisted_configuration() -> dict[str, object]:
         raise ConfigurationError("Saved admin_web_origins must be a list of URLs.")
     if not isinstance(enabled, bool):
         raise ConfigurationError("Saved web_inventory_enabled must be a boolean.")
+    if not isinstance(admin_web_url, str):
+        raise ConfigurationError("Saved admin_web_url must be a string.")
+    try:
+        admin_web_url = normalize_admin_web_url(admin_web_url)
+    except ValueError as error:
+        raise ConfigurationError(f"Saved admin_web_url is invalid: {error}") from error
     return {
         "api_token": token,
         "admin_web_origins": origins,
+        "admin_web_url": admin_web_url,
         "web_inventory_enabled": enabled,
     }
 
@@ -243,6 +276,12 @@ def get_settings() -> Settings:
     env_origins = os.getenv("ADMIN_WEB_ORIGINS", "").strip()
     saved_origins = persisted.get("admin_web_origins", DEFAULT_ADMIN_WEB_ORIGINS)
     origins = _csv_value(env_origins) if env_origins else tuple(saved_origins)
+    try:
+        admin_web_url = normalize_admin_web_url(
+            os.getenv("ADMIN_WEB_URL", "").strip() or str(persisted.get("admin_web_url", ""))
+        )
+    except ValueError as error:
+        raise ConfigurationError(f"ADMIN_WEB_URL is invalid: {error}") from error
     env_web_enabled = os.getenv("WEB_INVENTORY_ENABLED", "").strip()
     web_enabled = (_bool_value(env_web_enabled) if env_web_enabled else
                    bool(persisted.get("web_inventory_enabled", False)))
@@ -252,6 +291,7 @@ def get_settings() -> Settings:
         database_path=db_path, app_host=os.getenv("APP_HOST", "0.0.0.0"),
         app_port=int(os.getenv("APP_PORT", "8787")),
         admin_web_origins=origins,
+        admin_web_url=admin_web_url,
         lcsc_openapi_key=os.getenv("LCSC_OPENAPI_KEY", "").strip(),
         lcsc_openapi_secret=os.getenv("LCSC_OPENAPI_SECRET", "").strip(),
         lcsc_openapi_base_url=os.getenv(

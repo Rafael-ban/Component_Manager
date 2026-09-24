@@ -22,6 +22,7 @@ from .config import (
     environment_overrides,
     get_settings,
     log_path,
+    normalize_admin_web_url,
     read_persisted_configuration,
 )
 
@@ -35,7 +36,13 @@ class DeploymentConfigurationUpdate(BaseModel):
 
     api_token: str = Field(default="", max_length=4096)
     admin_web_origins: list[str] = Field(default_factory=list, max_length=64)
+    admin_web_url: str = Field(default="", max_length=2048)
     web_inventory_enabled: bool = False
+
+    @field_validator("admin_web_url")
+    @classmethod
+    def validate_admin_web_url(cls, value: str) -> str:
+        return normalize_admin_web_url(value)
 
     @field_validator("admin_web_origins")
     @classmethod
@@ -150,6 +157,7 @@ def setup_config(
         "log_path": str(log_path()),
         "environment_overrides": list(environment_overrides()),
         "admin_web_origins": list(settings.admin_web_origins),
+        "admin_web_url": settings.admin_web_url,
         "web_inventory_enabled": settings.web_inventory_enabled,
     }
 
@@ -194,11 +202,16 @@ def update_setup_config(
         candidate = {
             "api_token": requested_token or current.api_token,
             "admin_web_origins": update.admin_web_origins,
+            "admin_web_url": (
+                update.admin_web_url if "admin_web_url" in update.model_fields_set
+                else current.admin_web_url
+            ),
             "web_inventory_enabled": update.web_inventory_enabled,
         }
         effective = {
             "api_token": current.api_token,
             "admin_web_origins": list(current.admin_web_origins),
+            "admin_web_url": current.admin_web_url,
             "web_inventory_enabled": current.web_inventory_enabled,
         }
         for field, env_name in PERSISTED_ENVIRONMENT_FIELDS.items():
@@ -220,6 +233,7 @@ def update_setup_config(
         "log_path": str(log_path()),
         "environment_overrides": list(environment_overrides()),
         "admin_web_origins": list(settings.admin_web_origins),
+        "admin_web_url": settings.admin_web_url,
         "web_inventory_enabled": settings.web_inventory_enabled,
     }
 
