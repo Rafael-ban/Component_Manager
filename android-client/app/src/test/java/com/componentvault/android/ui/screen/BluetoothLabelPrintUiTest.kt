@@ -15,6 +15,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.captureToImage
 import com.componentvault.android.R
 import com.componentvault.android.data.LabelPrintItemState
 import com.componentvault.android.data.LabelPrintQueue
@@ -26,6 +28,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import kotlin.test.assertFalse
 
 @RunWith(RobolectricTestRunner::class)
@@ -33,6 +36,24 @@ import kotlin.test.assertFalse
 class BluetoothLabelPrintUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val context: Application get() = RuntimeEnvironment.getApplication()
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun replacingPaperPreviewKeepsTheDisplayedBitmapDrawable() {
+        LabelPrintQueueStore(context).clear()
+        val seed = ComponentLabelSeed("C393939", "TYPE-C16PIN", "Connector", "SMD", "A", 10, 1)
+        compose.setContent {
+            MaterialTheme { BluetoothLabelPrintScreen(emptyList(), seed, onDismiss = {}) }
+        }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("print_label_preview").fetchSemanticsNodes().isNotEmpty() }
+        for (height in listOf("61", "60", "62", "60")) {
+            compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_height))
+                .performScrollTo().performTextReplacement(height)
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("print_label_preview").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("print_label_preview").performScrollTo().captureToImage()
+        }
+        assertFalse(compose.activity.isFinishing)
+    }
 
     @Test
     fun restoredHundredLabelQueueCanReviewLastItemAndReturnToParent() {

@@ -234,7 +234,8 @@ internal fun BluetoothLabelPrintScreen(
             }
         }
     }
-    DisposableEffect(preview) { onDispose { preview.bitmap?.recycle() } }
+    // Once published to Compose, the RenderThread may retain this bitmap past disposal.
+    // Let GC release displayed previews; only recycle temporary, never-published rasters.
 
     SecondaryPageScaffold(
         title = stringResource(R.string.bluetooth_label_print_title),
@@ -365,7 +366,7 @@ internal fun BluetoothLabelPrintScreen(
                 }
                 PrintSection(stringResource(R.string.bluetooth_label_print_preview)) {
                     if (preview.bitmap != null) {
-                        Image(preview.bitmap!!.asImageBitmap(), null, Modifier.fillMaxWidth().heightIn(max = 300.dp))
+                        Image(preview.bitmap!!.asImageBitmap(), null, Modifier.fillMaxWidth().heightIn(max = 300.dp).testTag("print_label_preview"))
                     } else {
                         Text(preview.error ?: stringResource(R.string.bluetooth_label_print_preview_unavailable),
                             color = if (preview.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
@@ -419,7 +420,7 @@ internal fun BluetoothLabelPrintScreen(
                                 }
                             }
                         }
-                        if (preview.bitmap != null) Image(preview.bitmap!!.asImageBitmap(), null, Modifier.fillMaxWidth().heightIn(max = 300.dp))
+                        if (preview.bitmap != null) Image(preview.bitmap!!.asImageBitmap(), null, Modifier.fillMaxWidth().heightIn(max = 300.dp).testTag("print_label_preview"))
                         else Text(preview.error ?: stringResource(R.string.bluetooth_label_print_preview_unavailable))
                     }
                 }

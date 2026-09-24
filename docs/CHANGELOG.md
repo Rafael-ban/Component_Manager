@@ -1,6 +1,7 @@
 # Changelog
 
 Dev 预发布单独记录，不触发正式版版本递增：
+[0.7.4-dev.8：打印预览生命周期修复](releases/0.7.4-dev.8.md)、
 [0.7.4-dev.7：Android M1 标签队列与服务端设置入口](releases/0.7.4-dev.7.md)、
 [0.7.4-dev.6：M1 实机分帧与处理通知解析](releases/0.7.4-dev.6.md)、
 [0.7.4-dev.5：M1 短走纸对照](releases/0.7.4-dev.5.md)、
