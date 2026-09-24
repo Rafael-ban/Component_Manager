@@ -55,6 +55,7 @@ internal fun ComponentLabelPreviewSurface(
     onTemplateChange: (ComponentLabelTemplate) -> Unit = {},
     onIncludeCompanionTextLabelChange: (Boolean) -> Unit = {},
     onTextTemplateChange: (ComponentTextLabelTemplate) -> Unit = {},
+    onBluetoothPrint: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val strings = vaultStrings()
@@ -339,6 +340,10 @@ internal fun ComponentLabelPreviewSurface(
                     onClick = { showPrinterDiagnostics = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(stringResource(R.string.printer_probe_title)) }
+                Button(
+                    onClick = onBluetoothPrint,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.bluetooth_label_print_action)) }
             }
         }
         if (!feedbackMessage.isNullOrBlank()) {

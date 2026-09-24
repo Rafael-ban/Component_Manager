@@ -50,9 +50,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.componentvault.android.R
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.InventoryDetailUiState
 import com.componentvault.android.model.InventoryScreenUiState
@@ -79,6 +81,7 @@ internal fun InventoryScreen(
     onOpenComponentDetail: (String) -> Unit,
     onImportComponent: () -> Unit,
     onGenerateLabel: (String) -> Unit,
+    onOpenBluetoothPrint: () -> Unit = {},
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
@@ -97,6 +100,7 @@ internal fun InventoryScreen(
         onOpenComponentDetail = onOpenComponentDetail,
         onImportComponent = onImportComponent,
         onGenerateLabel = onGenerateLabel,
+        onOpenBluetoothPrint = onOpenBluetoothPrint,
         onEditComponent = onEditComponent,
         onRequestDeleteComponent = onRequestDeleteComponent,
         onRecordMovement = onRecordMovement,
@@ -119,6 +123,7 @@ internal fun InventoryContent(
     onOpenComponentDetail: (String) -> Unit,
     onImportComponent: () -> Unit,
     onGenerateLabel: (String) -> Unit,
+    onOpenBluetoothPrint: () -> Unit = {},
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
@@ -159,6 +164,7 @@ internal fun InventoryContent(
                                 )
                             }
                         },
+                        onOpenBluetoothPrint = onOpenBluetoothPrint,
                     )
                 }
             },
@@ -192,6 +198,7 @@ internal fun InventoryContent(
                 onSelectComponent(componentId)
                 onOpenComponentDetail(componentId)
             },
+            onOpenBluetoothPrint = onOpenBluetoothPrint,
         )
     }
 }
@@ -270,6 +277,7 @@ private fun InventoryListPane(
     onLocationChange: (String?) -> Unit,
     onSortChange: (InventorySortOption) -> Unit,
     onSelectComponent: (String) -> Unit,
+    onOpenBluetoothPrint: () -> Unit,
 ) {
     val strings = vaultStrings()
 
@@ -286,6 +294,10 @@ private fun InventoryListPane(
             onLocationChange = onLocationChange,
             onSortChange = onSortChange,
         )
+        OutlinedButton(
+            onClick = onOpenBluetoothPrint,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(stringResource(R.string.bluetooth_label_print_batch_action)) }
         Text(
             text = strings.inventory.resultsSummary(
                 uiState.list.items.size,

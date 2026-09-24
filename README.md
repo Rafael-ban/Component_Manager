@@ -51,6 +51,9 @@ connects to it over HTTP.
   independently of the full inventory Web console. First-run configuration saves
   to `/data/config.json`; later access requires the current token. Non-empty
   deployment environment variables override the corresponding saved fields.
+  Set the actual Web console URL during setup to show an “Enter console” action
+  after saving and copying the token. The console Settings page can then edit
+  the same configuration without opening a separate configuration page.
 - Separate API and Web images support Docker Hub distribution for `linux/amd64`
   and `linux/arm64`; API uses `<version>`/`latest`, while Web uses
   `web-<version>`/`web-latest`. SQLite uses the persistent API `/data` mount.
@@ -89,6 +92,10 @@ connects to it over HTTP.
 - Settings > Excel backup and restore also exports a separate label-printing
   workbook on Android and Windows. Select name, SKU, long/short QR text, model,
   package, category, location and quantity; the restore format is unchanged.
+- Android M1 Bluetooth printing is available from label preview or the inventory
+  batch-print entry. Choose components and copies, preview a 203 dpi paper raster,
+  then run a serial, locally saved queue with pause, stop and explicit recovery.
+  It does not change stock. See [M1 printing and verification boundaries](docs/m1-printing-feature-matrix.md).
 - Native layouts use a home summary, compact inventory cards with adjacent
   images and usage rings, local display dates, and a single Settings entry.
   About displays author `Rafael-Ikaros`, installed version, project/license
@@ -557,6 +564,9 @@ The separated admin web container is available at:
 - `APP_HOST`: bind host for local development
 - `APP_PORT`: bind port for local development
 - `ADMIN_WEB_ORIGINS`: comma-separated browser origins allowed to call the API
+- `ADMIN_WEB_URL`: optional actual browser URL of the Web console (including a
+  reverse-proxy subpath, if any). Used for navigation after setup; this is not
+  a substitute for the CORS origin list. Empty keeps the saved configuration value.
 - `LCSC_OPENAPI_KEY`: optional LCSC OpenAPI key for official part lookup
 - `LCSC_OPENAPI_SECRET`: optional LCSC OpenAPI secret for official part lookup
 - `LCSC_OPENAPI_BASE_URL`: base URL for the LCSC OpenAPI, default

@@ -82,6 +82,8 @@ fun ComponentVaultApp(
     var componentEditorInitialDraft by remember { mutableStateOf<ComponentDraft?>(null) }
     var componentEditorImportCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
     var labelPreviewSeed by remember { mutableStateOf<com.componentvault.android.model.ComponentLabelSeed?>(null) }
+    var bluetoothPrintVisible by rememberSaveable { mutableStateOf(false) }
+    var bluetoothPrintInitialSeed by remember { mutableStateOf<com.componentvault.android.model.ComponentLabelSeed?>(null) }
     var selectedLabelTemplateId by rememberSaveable { mutableStateOf(ComponentLabelTemplate.default.id) }
     var includeCompanionTextLabel by rememberSaveable { mutableStateOf(false) }
     var pendingSingleAppend by remember { mutableStateOf<PendingSingleAppend?>(null) }
@@ -232,7 +234,7 @@ fun ComponentVaultApp(
     BackHandler(enabled = importSurfaceVisible && !layoutMode.prefersDialogForms) {
         closeImportSurface()
     }
-    BackHandler(enabled = labelPreviewSeed != null && !layoutMode.prefersDialogForms) {
+    BackHandler(enabled = labelPreviewSeed != null && !bluetoothPrintVisible && !layoutMode.prefersDialogForms) {
         labelPreviewSeed = null
     }
     BackHandler(enabled = destination == InventoryDestination.Settings && selectedSettingsSection != null && !layoutMode.showsListDetail) {
@@ -377,6 +379,14 @@ fun ComponentVaultApp(
                 onCommitted=viewModel::onBatchJlcCommitted,
             )
 
+            bluetoothPrintVisible -> BluetoothLabelPrintScreen(
+                components = uiState.availableComponents,
+                initialSeed = bluetoothPrintInitialSeed,
+                initialTemplateId = selectedLabelTemplateId,
+                initialTextTemplateId = selectedTextLabelTemplateId,
+                onDismiss = { bluetoothPrintVisible = false; bluetoothPrintInitialSeed = null },
+            )
+
             labelPreviewSeed != null && !layoutMode.prefersDialogForms -> {
                 ComponentLabelPreviewSurface(
                     seed = requireNotNull(labelPreviewSeed),
@@ -388,6 +398,10 @@ fun ComponentVaultApp(
                     onTemplateChange = { selectedLabelTemplateId = it.id },
                     onIncludeCompanionTextLabelChange = { includeCompanionTextLabel = it },
                     onTextTemplateChange = { selectedTextLabelTemplateId = it.id },
+                    onBluetoothPrint = {
+                        bluetoothPrintInitialSeed = labelPreviewSeed
+                        bluetoothPrintVisible = true
+                    },
                 )
             }
 
@@ -447,6 +461,10 @@ fun ComponentVaultApp(
                         uiState.availableComponents.firstOrNull { it.id == componentId }?.let { component ->
                             labelPreviewSeed = component.toLabelSeed()
                         }
+                    },
+                    onOpenBluetoothPrint = {
+                        bluetoothPrintInitialSeed = null
+                        bluetoothPrintVisible = true
                     },
                     onEditComponent = { componentId ->
                         viewModel.selectComponent(componentId)
@@ -604,7 +622,7 @@ fun ComponentVaultApp(
                 )
             }
 
-            if (labelPreviewSeed != null) {
+            if (labelPreviewSeed != null && !bluetoothPrintVisible) {
                 ComponentLabelPreviewSurface(
                     seed = requireNotNull(labelPreviewSeed),
                     layoutMode = layoutMode,
@@ -615,6 +633,10 @@ fun ComponentVaultApp(
                     onTemplateChange = { selectedLabelTemplateId = it.id },
                     onIncludeCompanionTextLabelChange = { includeCompanionTextLabel = it },
                     onTextTemplateChange = { selectedTextLabelTemplateId = it.id },
+                    onBluetoothPrint = {
+                        bluetoothPrintInitialSeed = labelPreviewSeed
+                        bluetoothPrintVisible = true
+                    },
                 )
             }
         }

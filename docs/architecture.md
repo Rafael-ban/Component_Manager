@@ -24,7 +24,14 @@ Web image through the optional `web` profile. See [Docker Hub operations](docker
 
 The API provides a separate, small `/setup` page on its own origin for first-run
 configuration and authenticated operational logs. It does not replace the React
-inventory console. Initialization persists Token, allowed origins and the Web
+inventory console. An explicit `admin_web_url` / `ADMIN_WEB_URL` identifies the
+actual browser console entry, independently of the CORS origin list. Setup offers
+an enter-console action after saving, leaving time to copy the token; credentials
+are never appended to the navigation URL. The authenticated Web Settings form
+uses the same `/setup/config` endpoints, respects environment-controlled fields,
+and updates its browser session after a token change. Without a configured console
+URL, `/setup` remains a complete configuration entry.
+Initialization persists Token, allowed origins and the Web
 write switch to `config.json` beside SQLite. Non-empty environment overrides
 remain authoritative. Configuration writes are atomic; initializing twice cannot
 replace a configured server without its current token. Logs under `logs/` are
@@ -78,7 +85,23 @@ of label-feed and short-feed commands successfully written. No vendor binary or 
 The existing 40 × 10 / 40 × 30 mm templates supply defaults for a device-local
 test paper profile with dimensions, rotation and image offsets. It changes the
 raster only; no firmware paper-type or calibration commands are sent. Normal
-component-label printing is not enabled. Query reads separate known asynchronous
+Android component-label printing has a separate foreground print center, reached
+from label preview or inventory batch printing. `M1ComponentLabelRenderer` uses
+the existing QR payload codec and text field rules with integer QR modules at
+203 dpi; this paper raster is used for both preview and transmission. Paper
+dimensions, rotation and offsets are local rendering options, not firmware writes.
+`LabelPrintController` serializes jobs through the same M1 single-label transport
+with normal label feed. Each item stores a component snapshot and copy number;
+printing does not change inventory. `LabelPrintQueueStore` uses an app-private
+AtomicFile JSON checkpoint before sending; interrupted Sending items recover as
+Uncertain. Failed or uncertain items require explicit review/retry/skip before
+continuing, and clearing a job does not clear stock. The current queue can contain
+at most 500 labels, with up to 99 copies per selected component. Only one current
+job is retained. Queues do not sync to the server or appear in shared diagnostics.
+Automatic advancement requires a processing notification and a clean model reply
+without reported printer errors. This proves protocol readiness, not physical
+label completion; missing readiness pauses for review. Leaving the foreground
+stops the queue and closes the transport. Query reads separate known asynchronous
 status frames and exact `dithering_finish\0` processing notifications from ordinary
 model/status replies, preserving split frames across
 query boundaries. Processing-event counts do not certify paper placement. Socket write

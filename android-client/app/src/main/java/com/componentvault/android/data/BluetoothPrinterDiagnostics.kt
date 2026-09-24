@@ -69,6 +69,16 @@ internal fun confirmPostPrintModel(
 private fun strictModelResult(reply: M1QueryReply): M1SppProtocol.ModelResult =
     if (reply.overflowed) M1SppProtocol.ModelResult.Mismatch else M1SppProtocol.parseModelReply(reply.reply)
 
+internal fun m1BatchReady(postFeed: M1QueryReply, confirmation: M1PostPrintModelConfirmation): Boolean {
+    val replies = listOfNotNull(postFeed, confirmation.firstReply, confirmation.drainedReply, confirmation.retryReply)
+    val status = postFeed.classifyStatus()
+    return confirmation.result == M1SppProtocol.ModelResult.Matched &&
+        replies.sumOf { it.asyncPrintFinishCount } > 0 &&
+        replies.none { it.overflowed || it.asyncStatusCodes.any { code -> code != 0 } } &&
+        status != M1SppProtocol.StatusResult.Invalid &&
+        (status !is M1SppProtocol.StatusResult.Received || status.code == 0)
+}
+
 /** Builds the shareable portion of a probe report without device identity or label data. */
 internal fun buildPrinterProbeReportHeader(
     sdk: Int,
@@ -82,7 +92,7 @@ internal fun buildPrinterProbeReportHeader(
     advertisedServices.forEach { appendLine("advertised_service=$it") }
 }
 
-/** A foreground-only transport probe. It never sends a print command or reads characteristic values. */
+/** Foreground-only Bluetooth diagnostics and the shared, verified M1 single-label transport. */
 @SuppressLint("MissingPermission") // The UI requests permissions; revocation is also handled at every entry point.
 internal class BluetoothPrinterDiagnostics(context: Context) {
     private val context = context.applicationContext
@@ -106,7 +116,24 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         private set
     var printResult by mutableStateOf(M1TestPrintResult.None)
         private set
+    // A processing event plus a clean model reply allows the queue to send its next label.
+    // This is protocol readiness, not a claim that a physical label has been inspected.
+    var canContinueBatch by mutableStateOf(false)
+        private set
     val busy get() = status in setOf(PrinterProbeStatus.Scanning, PrinterProbeStatus.Connecting, PrinterProbeStatus.Printing)
+
+    fun refreshPaired() {
+        if (busy) return
+        candidates = emptyList()
+        try {
+            val bluetooth = adapter ?: run { status = PrinterProbeStatus.Unsupported; return }
+            if (!bluetooth.isEnabled) { status = PrinterProbeStatus.BluetoothOff; return }
+            bluetooth.bondedDevices.forEach { addCandidate(it, emptyList()) }
+            status = PrinterProbeStatus.ScanComplete
+        } catch (_: SecurityException) {
+            permissionDenied()
+        }
+    }
 
     fun scan() {
         stop()
@@ -278,13 +305,26 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
         bitmap: Bitmap,
         paperProfile: M1TestPaperProfile? = null,
         feedMode: M1FeedMode = M1FeedMode.Label,
+    ) = printM1Bitmap(candidate, bitmap, paperProfile, feedMode, "m1_single_test_print")
+
+    /** Production labels always use the tested, normal label-end command. */
+    fun printM1Label(candidate: PrinterDeviceCandidate, bitmap: Bitmap, paper: M1TestPaperProfile) =
+        printM1Bitmap(candidate, bitmap, paper, M1FeedMode.Label, "m1_component_label")
+
+    private fun printM1Bitmap(
+        candidate: PrinterDeviceCandidate,
+        bitmap: Bitmap,
+        paperProfile: M1TestPaperProfile?,
+        feedMode: M1FeedMode,
+        probeName: String,
     ) {
         prepareM1Operation(candidate.address)
         printResult = M1TestPrintResult.None
+        canContinueBatch = false
         report = buildString {
             appendLine("android_sdk=${Build.VERSION.SDK_INT}")
             appendLine("transport=spp")
-            appendLine("probe=m1_single_test_print")
+            appendLine("probe=$probeName")
             appendLine("print_stage=preflight")
             appendLine("paired=${candidate.paired}")
             appendLine("device_type=${candidate.type}")
@@ -546,6 +586,8 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             keepConnection = postPrintModelResult == M1SppProtocol.ModelResult.Matched
             postSpp(session) {
                 appendPrintProgress(session)
+                canContinueBatch = m1BatchReady(postFeedReply, confirmation)
+                report += "batch_ready=$canContinueBatch\n"
                 report += "post_feed_reply_bytes=${postFeedReply.reply.size}\n"
                 report += "post_feed_processing_events=${postFeedReply.asyncPrintFinishCount}\n"
                 if (postFeedStatus is M1SppProtocol.StatusResult.Received) {
@@ -587,7 +629,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             postSpp(session) {
                 appendPrintProgress(session)
                 finish(PrinterProbeStatus.PermissionRequired, "error=permission_required")
-                printResult = M1TestPrintResult.Rejected
+                printResult = failedPrintResult(session.bytesAttempted)
             }
         } catch (_: java.io.IOException) {
             postSpp(session) {
