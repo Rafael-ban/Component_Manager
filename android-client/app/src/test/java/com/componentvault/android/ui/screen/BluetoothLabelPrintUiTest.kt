@@ -1,6 +1,8 @@
 package com.componentvault.android.ui.screen
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -16,7 +18,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
-import androidx.compose.ui.test.captureToImage
 import com.componentvault.android.R
 import com.componentvault.android.data.LabelPrintItemState
 import com.componentvault.android.data.LabelPrintQueue
@@ -30,6 +31,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -50,7 +52,21 @@ class BluetoothLabelPrintUiTest {
             compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_height))
                 .performScrollTo().performTextReplacement(height)
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("print_label_preview").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithTag("print_label_preview").performScrollTo().captureToImage()
+            compose.onNodeWithTag("print_label_preview").performScrollTo().assertIsDisplayed()
+            // Robolectric has no device PixelCopy callback. Draw through the same
+            // native Canvas path used by the existing UI screenshot regressions.
+            compose.runOnIdle {
+                val view = compose.activity.window.decorView
+                val snapshot = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+                try {
+                    view.draw(Canvas(snapshot))
+                    val pixels = IntArray(snapshot.width * snapshot.height)
+                    snapshot.getPixels(pixels, 0, snapshot.width, 0, 0, snapshot.width, snapshot.height)
+                    assertTrue(pixels.any { it ushr 24 != 0 }, "Preview page did not draw")
+                } finally {
+                    snapshot.recycle()
+                }
+            }
         }
         assertFalse(compose.activity.isFinishing)
     }
