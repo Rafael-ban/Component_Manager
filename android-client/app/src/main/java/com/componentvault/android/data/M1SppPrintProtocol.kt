@@ -27,7 +27,9 @@ internal fun failedPrintResult(bytesAttempted: Int): M1TestPrintResult =
 
 internal object M1SppPrintProtocol {
     const val MAX_WIDTH_DOTS = 384
-    const val MAX_RAW_CHUNK_BYTES = 3072
+    // M1 / Hanma 3.3.4 runtime capture: 40-byte rows, 25 rows per frame.
+    // Keep complete rows within its observed 1 KiB package budget.
+    const val MAX_RAW_CHUNK_BYTES = 1024
     val alignRight = byteArrayOf(0x1b, 0x61, 0x02)
     val formFeed = byteArrayOf(0x1d, 0x66, 0xc0.toByte(), 0x03)
     val shortFeed = byteArrayOf(0x1b, 0x1b, 0x01, 0x5a, 0x00)

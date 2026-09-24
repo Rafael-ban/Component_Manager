@@ -21,10 +21,10 @@ class M1SppPrintProtocolTest {
     }
 
     @Test
-    fun splitsOnlyOnRowsWithRawChunksAtMost3072Bytes() {
+    fun splitsOnlyOnRowsWithinObservedM1PackageBudget() {
         val frames = M1SppPrintProtocol.frames(384, 65, IntArray(384 * 65) { 0xffffffff.toInt() })
-        assertEquals(listOf(64, 1), frames.map(M1PrintFrame::rows))
-        assertEquals(listOf(3072, 48), frames.map(M1PrintFrame::rawBytes))
+        assertEquals(listOf(21, 21, 21, 2), frames.map(M1PrintFrame::rows))
+        assertEquals(listOf(1008, 1008, 1008, 96), frames.map(M1PrintFrame::rawBytes))
         assertTrue(frames.all { it.rawBytes <= M1SppPrintProtocol.MAX_RAW_CHUNK_BYTES })
     }
 
@@ -67,9 +67,11 @@ class M1SppPrintProtocolTest {
     }
 
     @Test
-    fun feedModesShareSevenImageFramesAndDifferOnlyByGoldenTail() {
+    fun feedModesMatchCapturedTwentyFrameGeometryAndDifferOnlyByGoldenTail() {
         val frames = M1SppPrintProtocol.frames(320, 480, IntArray(320 * 480) { 0xffffffff.toInt() })
-        assertEquals(7, frames.size)
+        assertEquals(List(19) { 25 } + 5, frames.map(M1PrintFrame::rows))
+        assertEquals(480, frames.sumOf(M1PrintFrame::rows))
+        assertEquals(20, frames.size)
         val labelParts = M1SppPrintProtocol.printParts(frames, M1FeedMode.Label)
         val imageOnlyParts = M1SppPrintProtocol.printParts(frames, M1FeedMode.None)
         val shortParts = M1SppPrintProtocol.printParts(frames, M1FeedMode.Short)
@@ -80,9 +82,9 @@ class M1SppPrintProtocolTest {
             assertContentEquals(imageOnlyParts[index].bytes, labelParts[index].bytes)
             assertContentEquals(imageOnlyParts[index].bytes, shortParts[index].bytes)
         }
-        assertEquals(7, labelParts.count(M1PrintPart::isImageFrame))
-        assertEquals(7, imageOnlyParts.count(M1PrintPart::isImageFrame))
-        assertEquals(7, shortParts.count(M1PrintPart::isImageFrame))
+        assertEquals(20, labelParts.count(M1PrintPart::isImageFrame))
+        assertEquals(20, imageOnlyParts.count(M1PrintPart::isImageFrame))
+        assertEquals(20, shortParts.count(M1PrintPart::isImageFrame))
         assertEquals(1, labelParts.count(M1PrintPart::isFormFeed))
         assertEquals(0, imageOnlyParts.count(M1PrintPart::isFormFeed))
         assertEquals(0, shortParts.count(M1PrintPart::isFormFeed))

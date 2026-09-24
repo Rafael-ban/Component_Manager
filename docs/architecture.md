@@ -68,7 +68,8 @@ thread; cancellation, timeout and leaving the foreground close the socket and
 discard obsolete session callbacks. The read-only query action sends no print
 commands. A separate, explicitly confirmed test-label action rechecks the model
 and status, then sends one fixed 203-dpi raster in complete-row blocks of at most
-3072 raw bytes. Blocks use independently implemented literal-only LZO1X and the
+1024 raw bytes (20 complete-row frames for 320×480, matching the observed Hanma
+3.3.4 M1 runtime geometry). Blocks use independently implemented literal-only LZO1X and the
 M1 POLI header, preceded by right alignment and followed by a single label feed.
 Explicit, non-persistent diagnostic choices omit only that final feed or replace
 it with the upstream short-feed command; neither changes the raster or is the
@@ -78,8 +79,9 @@ The existing 40 × 10 / 40 × 30 mm templates supply defaults for a device-local
 test paper profile with dimensions, rotation and image offsets. It changes the
 raster only; no firmware paper-type or calibration commands are sent. Normal
 component-label printing is not enabled. Query reads separate known asynchronous
-status frames from ordinary model/status replies, preserving split frames across
-query boundaries. Socket write
+status frames and exact `dithering_finish\0` processing notifications from ordinary
+model/status replies, preserving split frames across
+query boundaries. Processing-event counts do not certify paper placement. Socket write
 completion means sent/unconfirmed, not physical print completion. Interrupted
 jobs are never automatically resent. M1 test printing retains a successful SPP
 connection for the next explicit print in the foreground dialog, releasing it

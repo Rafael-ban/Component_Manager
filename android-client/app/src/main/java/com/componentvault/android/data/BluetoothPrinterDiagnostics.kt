@@ -514,7 +514,10 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
 
             postSpp(session) { status = PrinterProbeStatus.Printing; report += "stage=sending\n" }
             scheduleSppDeadline(session, PRINT_STAGE_TIMEOUT_MS, "print_write")
-            postSpp(session) { report += "alignment=right\n" }
+            postSpp(session) {
+                report += "alignment=right\n"
+                report += "raw_frame_budget_bytes=${M1SppPrintProtocol.MAX_RAW_CHUNK_BYTES}\n"
+            }
             M1SppPrintProtocol.printParts(frames, feedMode).forEach { part ->
                 if (!isCurrentSpp(session)) return
                 if (!writePrintPart(output, part.bytes, session)) return
@@ -544,6 +547,7 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
             postSpp(session) {
                 appendPrintProgress(session)
                 report += "post_feed_reply_bytes=${postFeedReply.reply.size}\n"
+                report += "post_feed_processing_events=${postFeedReply.asyncPrintFinishCount}\n"
                 if (postFeedStatus is M1SppProtocol.StatusResult.Received) {
                     report += "post_feed_status_code=${postFeedStatus.code}\n"
                     report += "post_feed_status_source=${postFeedStatus.source.name.lowercase()}\n"
@@ -552,14 +556,17 @@ internal class BluetoothPrinterDiagnostics(context: Context) {
                 report += "post_print_model_first=${confirmation.firstResult.name.lowercase()}\n"
                 report += "post_print_model_first_reply_bytes=${confirmation.firstReply.reply.size}\n"
                 report += "post_print_model_first_async_frames=${confirmation.firstReply.asyncStatusCodes.size}\n"
+                report += "post_print_model_first_processing_events=${confirmation.firstReply.asyncPrintFinishCount}\n"
                 confirmation.drainedReply?.let {
                     report += "post_print_model_drain_reply_bytes=${it.reply.size}\n"
                     report += "post_print_model_drain_async_frames=${it.asyncStatusCodes.size}\n"
+                    report += "post_print_model_drain_processing_events=${it.asyncPrintFinishCount}\n"
                 }
                 confirmation.retryResult?.let {
                     report += "post_print_model_retry=${it.name.lowercase()}\n"
                     report += "post_print_model_retry_reply_bytes=${confirmation.retryReply?.reply?.size ?: 0}\n"
                     report += "post_print_model_retry_async_frames=${confirmation.retryReply?.asyncStatusCodes?.size ?: 0}\n"
+                    report += "post_print_model_retry_processing_events=${confirmation.retryReply?.asyncPrintFinishCount ?: 0}\n"
                 }
                 report += "post_print_model=${postPrintModelResult.name.lowercase()}\n"
                 report += "print_tested=sent_unconfirmed\n"

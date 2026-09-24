@@ -340,6 +340,9 @@ preferences and supports:
   in two user tests, but bottom content was incomplete. Short feed produced complete
   content across two labels, so correct label registration remains unresolved;
   neither diagnostic mode has passed normal-print acceptance.
+  USB/HCI comparison with Hanma 3.3.4 now informs a 1 KiB raw-frame budget and
+  separate parsing of `dithering_finish` notifications. These candidate changes
+  still require consecutive physical-print validation; processing events are not proof of output.
   See [M1 device test steps](docs/printer-compatibility.md).
 - user-selectable `10x40mm QR`, `30x40mm QR`, and pure text strip label
   templates, with linked QR dimensions, larger text treatment, direct

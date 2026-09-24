@@ -105,6 +105,100 @@ class M1SppProtocolTest {
     }
 
     @Test
+    fun queryDemultiplexerRemovesCompletePrintFinishBeforeAfterAndWithinModel() {
+        val finish = asyncPrintFinish()
+        for (bytes in listOf(
+            finish + "M1".toByteArray(),
+            "M1".toByteArray() + finish,
+            "M".toByteArray() + finish + "1".toByteArray(),
+        )) {
+            val demultiplexer = M1QueryReplyDemultiplexer()
+            demultiplexer.append(bytes)
+            val result = demultiplexer.finish()
+            assertEquals("M1", result.reply.toString(Charsets.US_ASCII))
+            assertEquals(1, result.asyncPrintFinishCount)
+            assertEquals(M1SppProtocol.ModelResult.Matched, M1SppProtocol.parseModelReply(result.reply))
+        }
+    }
+
+    @Test
+    fun mergedNineteenByteModelAndPrintFinishKeepsOnlyTheModel() {
+        val merged = "M1".toByteArray(Charsets.US_ASCII) + asyncPrintFinish()
+        assertEquals(19, merged.size)
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append(merged)
+        val result = demultiplexer.take()
+        assertEquals("M1", result.reply.toString(Charsets.US_ASCII))
+        assertEquals(1, result.asyncPrintFinishCount)
+    }
+
+    @Test
+    fun printFinishAloneIsOnlyAnEventAndNotAQueryReply() {
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append(asyncPrintFinish())
+        assertFalse(demultiplexer.hasReply())
+        val result = demultiplexer.take()
+        assertEquals(0, result.reply.size)
+        assertEquals(1, result.asyncPrintFinishCount)
+        assertEquals(M1SppProtocol.ModelResult.NoResponse, M1SppProtocol.parseModelReply(result.reply))
+    }
+
+    @Test
+    fun queryDemultiplexerAcceptsPrintFinishAtEveryChunkSplit() {
+        val finish = asyncPrintFinish()
+        for (split in 1 until finish.size) {
+            val demultiplexer = M1QueryReplyDemultiplexer()
+            demultiplexer.append("M1".toByteArray() + finish.copyOfRange(0, split))
+            assertEquals("M1", demultiplexer.snapshot().reply.toString(Charsets.US_ASCII))
+            assertEquals(0, demultiplexer.snapshot().asyncPrintFinishCount)
+            demultiplexer.append(finish.copyOfRange(split, finish.size))
+            val result = demultiplexer.finish()
+            assertEquals("M1", result.reply.toString(Charsets.US_ASCII), "split=$split")
+            assertEquals(1, result.asyncPrintFinishCount, "split=$split")
+        }
+    }
+
+    @Test
+    fun queryDemultiplexerTracksPrintFinishAcrossQueriesWithoutLeakingCounts() {
+        val finish = asyncPrintFinish()
+        for (split in 1 until finish.size) {
+            val demultiplexer = M1QueryReplyDemultiplexer()
+            demultiplexer.append("M1".toByteArray() + finish.copyOfRange(0, split))
+            val modelRead = demultiplexer.take()
+            assertEquals("M1", modelRead.reply.toString(Charsets.US_ASCII), "split=$split")
+            assertEquals(0, modelRead.asyncPrintFinishCount, "split=$split")
+            demultiplexer.append(finish.copyOfRange(split, finish.size) + byteArrayOf(0x00, 0x00, 0x7f))
+            val statusRead = demultiplexer.take()
+            assertEquals(byteArrayOf(0x00, 0x00, 0x7f).toList(), statusRead.reply.toList(), "split=$split")
+            assertEquals(1, statusRead.asyncPrintFinishCount, "split=$split")
+            assertEquals(0, demultiplexer.take().asyncPrintFinishCount, "split=$split")
+        }
+    }
+
+    @Test
+    fun queryDemultiplexerCountsMultiplePrintFinishEventsAndPreservesUnknownBytes() {
+        val finish = asyncPrintFinish()
+        val unknown = "noise dithering_finishX M11".toByteArray()
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append(finish + unknown + finish + asyncStatus(0x01))
+        val result = demultiplexer.finish()
+        assertEquals(unknown.toList(), result.reply.toList())
+        assertEquals(2, result.asyncPrintFinishCount)
+        assertEquals(listOf(0x01), result.asyncStatusCodes)
+        assertEquals(M1SppProtocol.ModelResult.Mismatch, M1SppProtocol.parseModelReply(result.reply))
+    }
+
+    @Test
+    fun incompletePrintFinishIsOrdinaryReplyAtFinalBoundary() {
+        val demultiplexer = M1QueryReplyDemultiplexer()
+        demultiplexer.append("M1dithering_finish".toByteArray())
+        val result = demultiplexer.finish()
+        assertEquals("M1dithering_finish", result.reply.toString(Charsets.US_ASCII))
+        assertEquals(0, result.asyncPrintFinishCount)
+        assertEquals(M1SppProtocol.ModelResult.Mismatch, M1SppProtocol.parseModelReply(result.reply))
+    }
+
+    @Test
     fun queryDemultiplexerRemovesAsyncFrameMixedBetweenModelBytes() {
         val demultiplexer = M1QueryReplyDemultiplexer()
         demultiplexer.append("M".toByteArray() + asyncStatus(0x00) + "1".toByteArray())
@@ -210,3 +304,5 @@ private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 
 private fun asyncStatus(code: Int): ByteArray =
     "pooli_sta=".toByteArray(Charsets.US_ASCII) + byteArrayOf(code.toByte())
+
+private fun asyncPrintFinish(): ByteArray = "dithering_finish\u0000".toByteArray(Charsets.US_ASCII)

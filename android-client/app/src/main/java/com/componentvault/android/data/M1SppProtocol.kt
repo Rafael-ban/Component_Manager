@@ -160,6 +160,8 @@ internal data class M1QueryReply(
     val reply: ByteArray,
     val asyncStatusCodes: List<Int>,
     val overflowed: Boolean = false,
+    /** Printer processing notifications; this does not confirm physical paper output. */
+    val asyncPrintFinishCount: Int = 0,
 ) {
     fun classifyStatus(): M1SppProtocol.StatusResult {
         if (overflowed) return M1SppProtocol.StatusResult.Invalid
@@ -172,12 +174,14 @@ internal data class M1QueryReply(
     }
 }
 
-/** Removes only complete, known asynchronous status frames while retaining all other reply bytes. */
+/** Removes complete, known asynchronous frames while retaining all other reply bytes. */
 internal class M1QueryReplyDemultiplexer(private val maxReplyBytes: Int = 512) {
     private val pending = ByteArrayOutputStream()
     private val reply = ByteArrayOutputStream()
     private val asyncStatusCodes = mutableListOf<Int>()
     private val marker = "pooli_sta=".toByteArray(Charsets.US_ASCII)
+    private val finishMarker = "dithering_finish\u0000".toByteArray(Charsets.US_ASCII)
+    private var asyncPrintFinishCount = 0
     private var overflowed = false
 
     fun append(bytes: ByteArray, count: Int = bytes.size) {
@@ -188,12 +192,15 @@ internal class M1QueryReplyDemultiplexer(private val maxReplyBytes: Int = 512) {
 
     fun hasReply(): Boolean = reply.size() > 0 || overflowed
 
-    fun snapshot(): M1QueryReply = M1QueryReply(reply.toByteArray(), asyncStatusCodes.toList(), overflowed)
+    fun snapshot(): M1QueryReply = M1QueryReply(
+        reply.toByteArray(), asyncStatusCodes.toList(), overflowed, asyncPrintFinishCount,
+    )
 
     fun take(): M1QueryReply {
         val result = snapshot()
         reply.reset()
         asyncStatusCodes.clear()
+        asyncPrintFinishCount = 0
         overflowed = false
         return result
     }
@@ -208,9 +215,20 @@ internal class M1QueryReplyDemultiplexer(private val maxReplyBytes: Int = 512) {
         pending.reset()
         var cursor = 0
         while (cursor < source.size) {
-            val markerIndex = source.indexOf(marker, cursor)
+            val statusIndex = source.indexOf(marker, cursor)
+            val finishIndex = source.indexOf(finishMarker, cursor)
+            val markerIndex = when {
+                statusIndex < 0 -> finishIndex
+                finishIndex < 0 -> statusIndex
+                else -> minOf(statusIndex, finishIndex)
+            }
             if (markerIndex >= 0) {
                 if (markerIndex > cursor) writeReply(source, cursor, markerIndex - cursor)
+                if (markerIndex == finishIndex) {
+                    asyncPrintFinishCount++
+                    cursor = markerIndex + finishMarker.size
+                    continue
+                }
                 val valueIndex = markerIndex + marker.size
                 if (valueIndex >= source.size) {
                     pending.write(source, markerIndex, source.size - markerIndex)
@@ -222,7 +240,10 @@ internal class M1QueryReplyDemultiplexer(private val maxReplyBytes: Int = 512) {
             }
 
             val remaining = source.copyOfRange(cursor, source.size)
-            val retained = if (final) 0 else longestMarkerPrefixSuffix(remaining, marker)
+            val retained = if (final) 0 else maxOf(
+                longestMarkerPrefixSuffix(remaining, marker),
+                longestMarkerPrefixSuffix(remaining, finishMarker),
+            )
             val ordinaryCount = remaining.size - retained
             if (ordinaryCount > 0) writeReply(remaining, 0, ordinaryCount)
             if (retained > 0) pending.write(remaining, ordinaryCount, retained)
