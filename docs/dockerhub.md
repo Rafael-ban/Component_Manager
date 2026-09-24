@@ -159,11 +159,11 @@ docker pull rafaelikaros/component_manager:web-0.7.0
 部署机需要 Docker Engine 与 Docker Compose 2，命令应为 `docker compose`。Windows 用户可使用 Docker Desktop，并切换到 Linux containers，因为本项目发布的是 Linux 容器镜像。
 
 先执行 `docker version` 和 `docker compose version`，确认能连接 Docker 服务且 Compose 可用。
-当前 `0.7.0` 与 `web-0.7.0` 已发布，可直接部署。从对应的 `v0.7.0` tag 下载 `docker-compose.hub.yml` 和 `.env.example`。
+当前仓库的 `docker-compose.hub.yml` 默认使用 API `0.7.1` 与 Web `web-0.7.1`；部署前在 Docker Hub Tags 核对这两个 tag。请从当前仓库下载配套的 `docker-compose.hub.yml` 和 `.env.example`。`0.7.0` 没有首次配置页，不能用它验证下文的 `/setup` 流程。
 
 把两个文件放到一个固定部署目录，例如 `component-manager-server/`。将 `.env.example` 复制为同目录的 `.env`。如果目录中已经有 `.env`，先备份和对比，不要直接覆盖现有 Token、CORS 或 MQTT 配置。
 
-新安装将以下三项保持为空，以便通过首次配置页管理：
+新安装将以下配置保持为空，以便通过首次配置页管理支持的项目：
 
 ```dotenv
 API_TOKEN=
@@ -172,7 +172,7 @@ ADMIN_WEB_URL=
 WEB_INVENTORY_ENABLED=
 ```
 
-Compose 已默认固定到已发布的 API `0.7.0` 与 Web `web-0.7.0`。只有在切换到另一个已发布版本时，才需要在 `.env` 覆盖 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE`。
+Compose 默认固定到 API `0.7.1` 与 Web `web-0.7.1`。确认两个 tag 已发布后再拉取；只有切换到另一个已发布版本时，才需要在 `.env` 覆盖 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE`。
 
 确认文件名为 `.env` 而非 `.env.txt`。API 启动后打开
 `http://服务器IP:8787/setup`，生成或填写 Token、Web 页面 origin 和库存写入开关。
@@ -180,7 +180,7 @@ Compose 已默认固定到已发布的 API `0.7.0` 与 Web `web-0.7.0`。只有�
 已有部署可保留 `.env` 中的非空值，它们优先于配置文件且在网页中只读。
 
 `ADMIN_WEB_ORIGINS` 填浏览器访问 Web 管理页时的来源，格式是 `scheme://host:port`，例如 `http://192.168.1.10:8081`。它不是服务端 API URL，不要填 `http://192.168.1.20:8787`，除非浏览器中的 Web 页面本身确实由该 origin 提供。多个 Web 来源用逗号分隔。API 自带的 `/setup` 页面与 API 同源，不依赖这项 CORS 设置。
-`ADMIN_WEB_URL` 可留空，待 Web 管理页实际部署后在 `/setup` 填写完整浏览器地址（可包含反向代理子路径）。首次保存后先复制 API Token，再点“进入管理台”；Web 管理台需用该 Token 重新登录。后续可在管理台的设置页修改服务端配置。若未部署 Web 管理页，继续使用已认证的 `/setup`。非空 `ADMIN_WEB_URL` 环境变量优先并锁定网页输入。
+管理台实际地址 `ADMIN_WEB_URL` 和在管理台直接编辑服务端配置是当前 `master` 新增功能，将随 `0.7.4` 正式镜像交付；开发预发布不发布 Docker 镜像。当前 `0.7.1` 部署请继续使用已认证的 `/setup` 修改配置，不要把这些新入口当作已在 Hub 镜像中可用。正式镜像发布后，可在 `/setup` 填写管理台完整地址（支持反向代理子路径），首次保存后先复制 API Token，再点“进入管理台”；非空 `ADMIN_WEB_URL` 环境变量优先并锁定网页输入。
 
 ## 八、拉取并启动服务端
 
@@ -232,8 +232,8 @@ Web 库存写入默认关闭。可在已认证的 `/setup` 配置页启用；若
 更新时将 `.env` 中两个镜像都固定到 Docker Hub 已实际发布的版本：
 
 ```dotenv
-COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.7.0
-COMPONENT_VAULT_WEB_IMAGE=rafaelikaros/component_manager:web-0.7.0
+COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.7.1
+COMPONENT_VAULT_WEB_IMAGE=rafaelikaros/component_manager:web-0.7.1
 ```
 
 如果已启用 Web，在原部署目录执行以下命令以同时更新两个服务；只部署 API 时去掉 `--profile web`：
@@ -264,7 +264,7 @@ docker compose -p 原项目名 -f docker-compose.hub.yml up -d
 | --- | --- | --- |
 | Actions 登录时报 `unauthorized` / authentication failed | Token 错误、过期或已撤销 | 重新生成 Read & Write Token，更新 `DOCKERHUB_TOKEN` |
 | 推送时报 `denied` | namespace/repository 不匹配，或 Token 没有 Write 权限 | 核对 `rafaelikaros/component_manager` 与 Token 权限 |
-| 拉取时报 `manifest unknown` | tag 尚未发布或拼写错误 | 在 Docker Hub Tags 核对 `0.7.0` / `web-0.7.0` 是否真实存在 |
+| 拉取时报 `manifest unknown` | tag 尚未发布或拼写错误 | 在 Docker Hub Tags 核对 Compose 当前指定的 API 与 Web tag 是否真实存在 |
 | `v0.7.0` 拉不到但 `0.7.0` 存在 | API tag 去掉 Git tag 的 `v`；Web 另加 `web-` | 使用 `:0.7.0` 或 `:web-0.7.0` |
 | GitHub Actions 全绿但 Hub 没有镜像 | 跑的是普通 CI、`push_image=false`，或自动 Release 跳过了镜像任务 | 检查 Login/Publish 是否 skipped，按第五节补发 |
 | `pull` 超时 | Docker Hub 网络、DNS 或代理问题 | 先用 `docker pull` 单独诊断网络，再重试 Compose |

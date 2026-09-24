@@ -4,7 +4,7 @@
 
 ## 1. 准备并启动
 
-下载同一版本的 `docker-compose.hub.yml` 和 `.env.example`，放进固定部署目录。将 `.env.example` 复制为同目录的 `.env`。新安装保持下面三项为空，让首次配置页面管理它们：
+下载配套的 `docker-compose.hub.yml` 和 `.env.example`，放进固定部署目录。将 `.env.example` 复制为同目录的 `.env`。新安装保持下面的配置为空，让首次配置页面管理支持的项目：
 
 ```dotenv
 API_TOKEN=
@@ -68,7 +68,7 @@ services:
 已有部署可继续在 `.env` 或群晖 **api 容器 → 环境变量** 中设置 `API_TOKEN`、`ADMIN_WEB_ORIGINS`、`ADMIN_WEB_URL` 和 `WEB_INVENTORY_ENABLED`。非空环境变量优先于 `/data/config.json`；被环境变量接管的值不能在网页中修改。若希望网页管理某一项，应清空对应环境变量并执行 `up -d` 重建容器，仅执行 `restart` 不会重新读取 `.env`。
 
 `ADMIN_WEB_ORIGINS` 填浏览器访问 Web 页面的 origin，例如 `http://NAS地址:8081`，不是 API 的 `8787` 地址。后端未配置时仍采用内置 CORS 默认值，Web 库存写入默认关闭。
-`ADMIN_WEB_URL` 是可选的实际 Web 页面完整地址，可包含反向代理子路径；留空时不跳转，仍可使用 `/setup`。首次保存后先复制 API Token，再点“进入管理台”并用同一 Token 登录。后续可在管理台设置页修改服务端配置。
+管理台实际地址 `ADMIN_WEB_URL` 和在管理台直接编辑服务端配置是当前 `master` 新增功能，将随 `0.7.4` 正式镜像交付；开发预发布不发布 Docker 镜像。当前 `0.7.1` 镜像请继续使用已认证的 `/setup` 修改配置。正式镜像发布后，`ADMIN_WEB_URL` 可填写实际 Web 页面完整地址（支持反向代理子路径）；首次保存后先复制 API Token，再点“进入管理台”并用同一 Token 登录。
 
 `.env.example` 后半部分列出全部可由 Compose 传入的 LCSC、远程识别规则和 MQTT 高级选项。普通部署无需填写。Web 设置页保存的 MQTT 配置也位于 SQLite，并在 API 下次启动时优先于 MQTT 环境变量默认值。
 
