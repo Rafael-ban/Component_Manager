@@ -1,6 +1,7 @@
 package com.componentvault.android.ui.screen
 
 import android.app.Application
+import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,9 +25,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -34,20 +38,30 @@ class MovementScanFlowTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val context: Application get() = RuntimeEnvironment.getApplication()
 
+    private fun waitForModel(model: InventoryViewModel, condition: () -> Boolean) {
+        compose.waitUntil(10_000) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            condition() || model.startupFailure != null
+        }
+        assertNull(model.startupFailure, "InventoryViewModel failed to load test inventory")
+    }
+
     @Test
-    fun successfulScanClosesCameraAndOnlyExplicitRescanAddsAnotherCount() = runBlocking {
+    fun successfulScanClosesCameraAndOnlyExplicitRescanAddsAnotherCount() {
         val helper = InventoryDatabaseHelper(context)
         try { context.deleteDatabase(helper.databaseName) } finally { helper.close() }
         val repository = InventoryRepository(context)
-        repository.saveStorageLocation("A", "A", StorageLocationSaveIntent.Create)
-        repository.saveComponent(ComponentDraft(
-            sku = "C70565", name = "Existing part", category = "IC",
-            packageName = "SOT-23", location = "A", description = "",
-            quantity = 10, minStock = 1,
-        ))
+        runBlocking {
+            assertTrue(repository.saveStorageLocation("A", "A", StorageLocationSaveIntent.Create).isSuccess)
+            assertTrue(repository.saveComponent(ComponentDraft(
+                sku = "C70565", name = "Existing part", category = "IC",
+                packageName = "SOT-23", location = "A", description = "",
+                quantity = 10, minStock = 1,
+            )).isSuccess)
+        }
         val model = InventoryViewModel(context)
         compose.setContent { MaterialTheme { Text("Scanner host") } }
-        compose.waitUntil(10_000) { model.uiState.availableComponents.any { it.sku == "C70565" } }
+        waitForModel(model) { model.uiState.availableComponents.any { it.sku == "C70565" } }
 
         val label = "cvl2|C70565|Existing%20part|IC|SOT-23|||10"
         compose.runOnIdle {
@@ -55,7 +69,7 @@ class MovementScanFlowTest {
             model.resolveMovementComponentFromLabel(label)
             model.resolveMovementComponentFromLabel(label)
         }
-        compose.waitUntil(10_000) { model.uiState.movements.batchSession.totalScans == 1 }
+        waitForModel(model) { model.uiState.movements.batchSession.totalScans == 1 }
         compose.runOnIdle {
             assertFalse(model.uiState.movements.scan.isScannerVisible)
             assertEquals(MovementBatchStage.Review, model.uiState.movements.batchSession.stage)
@@ -63,7 +77,7 @@ class MovementScanFlowTest {
             model.openMovementScanner()
             model.resolveMovementComponentFromLabel(label)
         }
-        compose.waitUntil(10_000) { model.uiState.movements.batchSession.totalScans == 2 }
+        waitForModel(model) { model.uiState.movements.batchSession.totalScans == 2 }
         compose.runOnIdle {
             assertFalse(model.uiState.movements.scan.isScannerVisible)
             assertEquals(2, model.uiState.movements.batchSession.queuedItems.single().scanCount)
