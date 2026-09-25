@@ -8,6 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import org.json.JSONObject
 
 @RunWith(RobolectricTestRunner::class)
 class LabelPrintQueueStoreTest {
@@ -72,5 +73,21 @@ class LabelPrintQueueStoreTest {
         } finally {
             store.clear()
         }
+    }
+
+    @Test
+    fun editedDesignIsSnapshottedForEveryCopyAndLegacyQueueStillLoads() {
+        val paper = M1TestPaperProfile(40f, 60f)
+        val design = LabelDesign.default(seed, ComponentLabelTemplate.Qr30x40,
+            ComponentTextLabelTemplate.default, paper).withText("name", "Custom")
+        val queue = LabelPrintQueue.create(listOf(seed to 2), paper = paper,
+            designs = mapOf(seed.sku to design))
+        val restored = LabelPrintQueueCodec.decode(LabelPrintQueueCodec.encode(queue))
+        assertEquals(listOf(design, design), restored.items.map { it.design })
+
+        val legacy = JSONObject(LabelPrintQueueCodec.encode(queue)).put("version", 1)
+        val items = legacy.getJSONArray("items")
+        for (index in 0 until items.length()) items.getJSONObject(index).remove("design")
+        assertEquals(listOf(null, null), LabelPrintQueueCodec.decode(legacy.toString()).items.map { it.design })
     }
 }

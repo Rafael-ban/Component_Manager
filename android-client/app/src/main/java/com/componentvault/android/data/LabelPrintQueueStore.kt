@@ -42,7 +42,7 @@ internal class LabelPrintQueueStore(context: Context) {
 }
 
 internal object LabelPrintQueueCodec {
-    private const val Version = 1
+    private const val Version = 2
 
     fun encode(queue: LabelPrintQueue): String = JSONObject()
         .put("version", Version)
@@ -62,13 +62,14 @@ internal object LabelPrintQueueCodec {
                     .put("copyNumber", item.copyNumber)
                     .put("copies", item.copies)
                     .put("state", item.state.name)
-                    .put("detail", item.detail))
+                    .put("detail", item.detail)
+                    .put("design", item.design?.let(::encodeDesign) ?: JSONObject.NULL))
             }
         }).toString()
 
     fun decode(json: String): LabelPrintQueue {
         val root = JSONObject(json)
-        require(root.getInt("version") == Version) { "Unsupported label print queue version" }
+        require(root.getInt("version") in 1..Version) { "Unsupported label print queue version" }
         val paperJson = root.getJSONObject("paper")
         val paper = M1TestPaperProfile(
             paperJson.getDouble("widthMm").toFloat(),
@@ -88,6 +89,8 @@ internal object LabelPrintQueueCodec {
                 copies = item.getInt("copies"),
                 state = LabelPrintItemState.valueOf(item.getString("state")),
                 detail = item.getString("detail"),
+                design = if (item.isNull("design") || !item.has("design")) null
+                    else decodeDesign(item.getJSONObject("design")),
             ).also {
                 require(it.id.isNotBlank()) { "Label print item has no ID" }
                 require(it.copies in 1..LabelPrintQueue.MaxCopies && it.copyNumber in 1..it.copies) {
@@ -106,7 +109,7 @@ internal object LabelPrintQueueCodec {
         )
     }
 
-    private fun encodeSeed(seed: ComponentLabelSeed): JSONObject = JSONObject()
+    fun encodeSeed(seed: ComponentLabelSeed): JSONObject = JSONObject()
         .put("sku", seed.sku)
         .put("name", seed.name)
         .put("category", seed.category)
@@ -120,7 +123,7 @@ internal object LabelPrintQueueCodec {
         .put("rawPayload", seed.rawPayload ?: JSONObject.NULL)
         .put("notes", JSONArray(seed.notes))
 
-    private fun decodeSeed(json: JSONObject): ComponentLabelSeed {
+    fun decodeSeed(json: JSONObject): ComponentLabelSeed {
         val notes = json.getJSONArray("notes")
         return ComponentLabelSeed(
             sku = json.getString("sku"),
@@ -136,6 +139,31 @@ internal object LabelPrintQueueCodec {
             rawPayload = json.nullableString("rawPayload"),
             notes = (0 until notes.length()).map(notes::getString),
         )
+    }
+
+    private fun encodeDesign(design: LabelDesign): JSONObject = JSONObject().put("elements", JSONArray().apply {
+        design.elements.forEach { element ->
+            put(JSONObject().put("id", element.id).put("type", element.type.name)
+                .put("text", element.text).put("xMm", element.xMm).put("yMm", element.yMm)
+                .put("widthMm", element.widthMm).put("heightMm", element.heightMm))
+        }
+    })
+
+    private fun decodeDesign(json: JSONObject): LabelDesign {
+        val array = json.getJSONArray("elements")
+        require(array.length() <= 16) { "标签元素过多。" }
+        return LabelDesign((0 until array.length()).map { index ->
+            val element = array.getJSONObject(index)
+            LabelElement(
+                id = element.getString("id"),
+                type = LabelElementType.valueOf(element.getString("type")),
+                text = element.getString("text"),
+                xMm = element.getDouble("xMm").toFloat(),
+                yMm = element.getDouble("yMm").toFloat(),
+                widthMm = element.getDouble("widthMm").toFloat(),
+                heightMm = element.getDouble("heightMm").toFloat(),
+            )
+        })
     }
 
     private fun JSONObject.nullableString(key: String): String? {

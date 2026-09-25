@@ -26,17 +26,24 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.componentvault.android.data.ComponentLabelTemplate
-import com.componentvault.android.data.ComponentTextLabelTemplate
+import com.componentvault.android.data.LabelPrintQueueCodec
 import com.componentvault.android.data.ExistingImportTarget
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentImportCandidate
+import com.componentvault.android.model.ComponentLabelSeed
 import com.componentvault.android.model.InventoryStockFilter
 import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.toLabelSeed
+import org.json.JSONObject
+
+private val LabelSeedSaver = Saver<ComponentLabelSeed?, String>(
+    save = { seed -> seed?.let { LabelPrintQueueCodec.encodeSeed(it).toString() } ?: "" },
+    restore = { json -> json.takeIf(String::isNotEmpty)?.let { LabelPrintQueueCodec.decodeSeed(JSONObject(it)) } },
+)
 
 private data class PendingSingleAppend(
     val target: ExistingImportTarget,
@@ -86,16 +93,10 @@ fun ComponentVaultApp(
     var showAddEntrySheet by rememberSaveable { mutableStateOf(false) }
     var componentEditorInitialDraft by remember { mutableStateOf<ComponentDraft?>(null) }
     var componentEditorImportCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
-    var labelPreviewSeed by remember { mutableStateOf<com.componentvault.android.model.ComponentLabelSeed?>(null) }
-    var bluetoothPrintVisible by rememberSaveable { mutableStateOf(false) }
-    var bluetoothPrintInitialSeed by remember { mutableStateOf<com.componentvault.android.model.ComponentLabelSeed?>(null) }
-    var selectedLabelTemplateId by rememberSaveable { mutableStateOf(ComponentLabelTemplate.default.id) }
-    var includeCompanionTextLabel by rememberSaveable { mutableStateOf(false) }
+    var labelPrintSeed by rememberSaveable(stateSaver = LabelSeedSaver) { mutableStateOf<ComponentLabelSeed?>(null) }
+    var labelPrintVisible by rememberSaveable { mutableStateOf(false) }
     var pendingSingleAppend by remember { mutableStateOf<PendingSingleAppend?>(null) }
     var singleAppendBusy by remember { mutableStateOf(false) }
-    var selectedTextLabelTemplateId by rememberSaveable {
-        mutableStateOf(ComponentTextLabelTemplate.default.id)
-    }
 
     LaunchedEffect(uiState.movements.batchSession.totalScans) {
         val totalScans = uiState.movements.batchSession.totalScans
@@ -200,7 +201,8 @@ fun ComponentVaultApp(
                 closeComponentEditor()
                 revealSavedComponent(result)
                 if (generateLabelAfterSave) {
-                    labelPreviewSeed = draft.toLabelSeed()
+                    labelPrintSeed = draft.toLabelSeed()
+                    labelPrintVisible = true
                 }
             }
         }
@@ -234,7 +236,9 @@ fun ComponentVaultApp(
                     singleAppendBusy = false
                     onComplete(result)
                     if (result.isSuccess) {
-                        closeImportSurface(); revealSavedComponent(result); labelPreviewSeed = draft.toLabelSeed()
+                        closeImportSurface(); revealSavedComponent(result)
+                        labelPrintSeed = draft.toLabelSeed()
+                        labelPrintVisible = true
                     }
                 }
             }
@@ -249,9 +253,6 @@ fun ComponentVaultApp(
     }
     BackHandler(enabled = importSurfaceVisible && !layoutMode.prefersDialogForms) {
         closeImportSurface()
-    }
-    BackHandler(enabled = labelPreviewSeed != null && !bluetoothPrintVisible && !layoutMode.prefersDialogForms) {
-        labelPreviewSeed = null
     }
     BackHandler(enabled = destination == InventoryDestination.Settings && selectedSettingsSection != null && !layoutMode.showsListDetail) {
         if (selectedSettingsSection != null) {
@@ -423,31 +424,11 @@ fun ComponentVaultApp(
                 onCommitted=viewModel::onBatchJlcCommitted,
             )
 
-            bluetoothPrintVisible -> BluetoothLabelPrintScreen(
+            labelPrintVisible -> BluetoothLabelPrintScreen(
                 components = uiState.availableComponents,
-                initialSeed = bluetoothPrintInitialSeed,
-                initialTemplateId = selectedLabelTemplateId,
-                initialTextTemplateId = selectedTextLabelTemplateId,
-                onDismiss = { bluetoothPrintVisible = false; bluetoothPrintInitialSeed = null },
+                initialSeed = labelPrintSeed,
+                onDismiss = { labelPrintVisible = false; labelPrintSeed = null },
             )
-
-            labelPreviewSeed != null && !layoutMode.prefersDialogForms -> {
-                ComponentLabelPreviewSurface(
-                    seed = requireNotNull(labelPreviewSeed),
-                    layoutMode = layoutMode,
-                    onDismiss = { labelPreviewSeed = null },
-                    selectedTemplate = ComponentLabelTemplate.fromId(selectedLabelTemplateId),
-                    includeCompanionTextLabel = includeCompanionTextLabel,
-                    selectedTextTemplate = ComponentTextLabelTemplate.fromId(selectedTextLabelTemplateId),
-                    onTemplateChange = { selectedLabelTemplateId = it.id },
-                    onIncludeCompanionTextLabelChange = { includeCompanionTextLabel = it },
-                    onTextTemplateChange = { selectedTextLabelTemplateId = it.id },
-                    onBluetoothPrint = {
-                        bluetoothPrintInitialSeed = labelPreviewSeed
-                        bluetoothPrintVisible = true
-                    },
-                )
-            }
 
             compactDetailComponentId != null && !layoutMode.showsListDetail -> {
                 InventoryDetailRoute(
@@ -458,7 +439,8 @@ fun ComponentVaultApp(
                     onDismiss = { compactDetailComponentId = null },
                     onEditComponent = { componentId -> openComponentEditor(componentId) },
                     onGenerateLabel = { component ->
-                        labelPreviewSeed = component.toLabelSeed()
+                        labelPrintSeed = component.toLabelSeed()
+                        labelPrintVisible = true
                     },
                     onRequestDeleteComponent = { componentId ->
                         viewModel.selectComponent(componentId)
@@ -503,12 +485,13 @@ fun ComponentVaultApp(
                     onImportComponent = { importSurfaceVisible = true },
                     onGenerateLabel = { componentId ->
                         uiState.availableComponents.firstOrNull { it.id == componentId }?.let { component ->
-                            labelPreviewSeed = component.toLabelSeed()
+                            labelPrintSeed = component.toLabelSeed()
+                            labelPrintVisible = true
                         }
                     },
                     onOpenBluetoothPrint = {
-                        bluetoothPrintInitialSeed = null
-                        bluetoothPrintVisible = true
+                        labelPrintSeed = null
+                        labelPrintVisible = true
                     },
                     onEditComponent = { componentId ->
                         viewModel.selectComponent(componentId)
@@ -670,23 +653,6 @@ fun ComponentVaultApp(
                 )
             }
 
-            if (labelPreviewSeed != null && !bluetoothPrintVisible) {
-                ComponentLabelPreviewSurface(
-                    seed = requireNotNull(labelPreviewSeed),
-                    layoutMode = layoutMode,
-                    onDismiss = { labelPreviewSeed = null },
-                    selectedTemplate = ComponentLabelTemplate.fromId(selectedLabelTemplateId),
-                    includeCompanionTextLabel = includeCompanionTextLabel,
-                    selectedTextTemplate = ComponentTextLabelTemplate.fromId(selectedTextLabelTemplateId),
-                    onTemplateChange = { selectedLabelTemplateId = it.id },
-                    onIncludeCompanionTextLabelChange = { includeCompanionTextLabel = it },
-                    onTextTemplateChange = { selectedTextLabelTemplateId = it.id },
-                    onBluetoothPrint = {
-                        bluetoothPrintInitialSeed = labelPreviewSeed
-                        bluetoothPrintVisible = true
-                    },
-                )
-            }
         }
 
         if (showAddEntrySheet) {

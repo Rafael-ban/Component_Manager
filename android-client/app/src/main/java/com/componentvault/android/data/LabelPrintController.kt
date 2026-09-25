@@ -68,6 +68,7 @@ internal class LabelPrintController(context: Context) {
         templateId: String,
         textTemplateId: String,
         paper: M1TestPaperProfile,
+        designs: Map<String, LabelDesign> = emptyMap(),
     ) {
         if (!loaded || working || running || closed) return
         if (queue.items.isNotEmpty()) {
@@ -75,7 +76,7 @@ internal class LabelPrintController(context: Context) {
             return
         }
         val next = try {
-            LabelPrintQueue.create(selections, templateId, textTemplateId, paper)
+            LabelPrintQueue.create(selections, templateId, textTemplateId, paper, designs)
         } catch (_: IllegalArgumentException) {
             error = "queue_invalid_selection"
             return
@@ -145,6 +146,7 @@ internal class LabelPrintController(context: Context) {
                                 ComponentLabelTemplate.fromId(queue.templateId),
                                 ComponentTextLabelTemplate.fromId(queue.textTemplateId),
                                 queue.paper,
+                                item.design,
                             ).also { rendered = it }
                         }
                     } catch (exception: CancellationException) {

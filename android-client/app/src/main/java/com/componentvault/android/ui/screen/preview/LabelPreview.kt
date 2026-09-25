@@ -3,32 +3,31 @@ package com.componentvault.android.ui.screen.preview
 import androidx.compose.runtime.Composable
 import com.componentvault.android.data.ComponentLabelTemplate
 import com.componentvault.android.data.ComponentTextLabelTemplate
-import com.componentvault.android.ui.screen.ComponentLabelPreviewSurface
+import com.componentvault.android.ui.screen.BluetoothLabelPrintScreen
 
 @InventoryDialogPreview
 @Composable
 private fun ComponentLabelPreviewStandard() {
     PreviewHost {
-        ComponentLabelPreviewSurface(
-            seed = InventoryPreviewData.selectedLabelSeed,
-            layoutMode = DialogPreviewLayout,
+        BluetoothLabelPrintScreen(
+            components = emptyList(),
+            initialSeed = InventoryPreviewData.selectedLabelSeed,
             onDismiss = {},
-            selectedTemplate = ComponentLabelTemplate.Qr30x40,
+            initialTemplateId = ComponentLabelTemplate.Qr30x40.id,
         )
     }
 }
 
 @InventoryDialogPreview
 @Composable
-private fun ComponentLabelPreviewCompactWithCompanion() {
+private fun ComponentLabelPreviewCompact() {
     PreviewHost {
-        ComponentLabelPreviewSurface(
-            seed = InventoryPreviewData.selectedLabelSeed,
-            layoutMode = DialogPreviewLayout,
+        BluetoothLabelPrintScreen(
+            components = emptyList(),
+            initialSeed = InventoryPreviewData.selectedLabelSeed,
             onDismiss = {},
-            selectedTemplate = ComponentLabelTemplate.Qr10x40,
-            includeCompanionTextLabel = true,
-            selectedTextTemplate = ComponentTextLabelTemplate.NamePackageSku,
+            initialTemplateId = ComponentLabelTemplate.Qr10x40.id,
+            initialTextTemplateId = ComponentTextLabelTemplate.NamePackageSku.id,
         )
     }
 }
@@ -37,11 +36,11 @@ private fun ComponentLabelPreviewCompactWithCompanion() {
 @Composable
 private fun ComponentLabelPreview30x40LandscapeZhCn() {
     PreviewHost(strings = PreviewComponentVaultStrings.ZhCn) {
-        ComponentLabelPreviewSurface(
-            seed = InventoryPreviewData.wideLabelSeed,
-            layoutMode = DialogPreviewLayout,
+        BluetoothLabelPrintScreen(
+            components = emptyList(),
+            initialSeed = InventoryPreviewData.wideLabelSeed,
             onDismiss = {},
-            selectedTemplate = ComponentLabelTemplate.Qr30x40,
+            initialTemplateId = ComponentLabelTemplate.Qr30x40.id,
         )
     }
 }
@@ -50,12 +49,12 @@ private fun ComponentLabelPreview30x40LandscapeZhCn() {
 @Composable
 private fun ComponentLabelPreviewZhCnLongText() {
     PreviewHost(strings = PreviewComponentVaultStrings.ZhCn) {
-        ComponentLabelPreviewSurface(
-            seed = InventoryPreviewData.longLabelSeed,
-            layoutMode = DialogPreviewLayout,
+        BluetoothLabelPrintScreen(
+            components = emptyList(),
+            initialSeed = InventoryPreviewData.longLabelSeed,
             onDismiss = {},
-            selectedTemplate = ComponentLabelTemplate.TextOnly,
-            selectedTextTemplate = ComponentTextLabelTemplate.NamePackageSku,
+            initialTemplateId = ComponentLabelTemplate.TextOnly.id,
+            initialTextTemplateId = ComponentTextLabelTemplate.NamePackageSku.id,
         )
     }
 }

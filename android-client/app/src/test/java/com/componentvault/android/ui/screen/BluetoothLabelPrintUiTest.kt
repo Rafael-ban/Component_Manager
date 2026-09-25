@@ -7,7 +7,12 @@ import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -18,8 +23,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import com.componentvault.android.R
 import com.componentvault.android.data.LabelPrintItemState
+import com.componentvault.android.data.LabelDesign
+import com.componentvault.android.data.LabelElement
+import com.componentvault.android.data.LabelElementType
+import com.componentvault.android.data.M1TestPaperProfile
 import com.componentvault.android.data.LabelPrintQueue
 import com.componentvault.android.data.LabelPrintQueueStore
 import com.componentvault.android.model.ComponentLabelSeed
@@ -38,6 +48,28 @@ import kotlin.test.assertTrue
 class BluetoothLabelPrintUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val context: Application get() = RuntimeEnvironment.getApplication()
+
+    @Test
+    fun draggingAnElementContinuesAcrossMultipleMovesAndRecompositions() {
+        val paper = M1TestPaperProfile(40f, 60f)
+        val bitmap = Bitmap.createBitmap(320, 480, Bitmap.Config.ARGB_8888)
+        var design by mutableStateOf(LabelDesign(listOf(
+            LabelElement("name", LabelElementType.Text, "Part", 1f, 1f, 12f, 6f),
+        )))
+        compose.setContent {
+            MaterialTheme {
+                LabelEditorCanvas(bitmap, design, paper, "name", true,
+                    onSelect = {}, onMove = { id, x, y -> design = design.moved(id, x, y, paper) })
+            }
+        }
+        compose.onNodeWithTag("label_element_name").performTouchInput {
+            down(center)
+            moveBy(Offset(32f, 0f))
+            moveBy(Offset(32f, 0f))
+            up()
+        }
+        compose.runOnIdle { assertTrue(design.elements.single().xMm > 3f) }
+    }
 
     @Test
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -69,6 +101,52 @@ class BluetoothLabelPrintUiTest {
             }
         }
         assertFalse(compose.activity.isFinishing)
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun editedLabelCanBeRepairedAfterAnOutOfBoundsPosition() {
+        LabelPrintQueueStore(context).clear()
+        val seed = ComponentLabelSeed("EDIT-1", "Editable part", "Connector", "SMD", "A", 10, 1)
+        compose.setContent { MaterialTheme { BluetoothLabelPrintScreen(emptyList(), seed, onDismiss = {}) } }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("label_element_name").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("label_element_name").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.label_editor_text))
+            .performScrollTo().performTextReplacement("Custom display")
+        compose.onNodeWithText(context.getString(R.string.label_editor_x))
+            .performScrollTo().performTextReplacement("999")
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText(context.getString(R.string.label_editor_invalid), substring = true)
+                .fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodesWithTag("print_label_preview").fetchSemanticsNodes().isEmpty()
+        }
+        compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_create)).assertIsNotEnabled()
+        compose.onNodeWithText(context.getString(R.string.label_editor_x))
+            .performScrollTo().performTextReplacement("1")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("print_label_preview").fetchSemanticsNodes().isNotEmpty() }
+        LabelPrintQueueStore(context).clear()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun allIncompleteGeometryFieldsMustBeRepairedBeforeQueueCreation() {
+        LabelPrintQueueStore(context).clear()
+        val seed = ComponentLabelSeed("EDIT-2", "Connector", "Connector", "SMD", "A", 10, 1)
+        compose.setContent { MaterialTheme { BluetoothLabelPrintScreen(emptyList(), seed, onDismiss = {}) } }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("label_element_name").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("label_element_name").performScrollTo().performClick()
+        val x = compose.onNodeWithText(context.getString(R.string.label_editor_x))
+        val y = compose.onNodeWithText(context.getString(R.string.label_editor_y))
+        x.performScrollTo().performTextReplacement("")
+        y.performScrollTo().performTextReplacement("")
+        y.performScrollTo().performTextReplacement("1")
+        compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_create)).assertIsNotEnabled()
+        x.performScrollTo().performTextReplacement("1")
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("print_label_preview").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_create)).assertIsEnabled()
+        LabelPrintQueueStore(context).clear()
     }
 
     @Test

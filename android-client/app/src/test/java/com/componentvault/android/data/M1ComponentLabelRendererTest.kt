@@ -96,6 +96,61 @@ class M1ComponentLabelRendererTest {
         } finally { bitmap.recycle() }
     }
 
+    @Test fun editedTextAndMovedQrStillDecodeTheOriginalInventoryPayload() {
+        val template = ComponentLabelTemplate.Qr30x40
+        val paper = M1TestPaperProfile(40f, 60f)
+        val original = LabelDesign.default(seed, template, ComponentTextLabelTemplate.default, paper)
+        val qr = original.elements.first { it.id == "qr" }
+        val edited = original.withText("name", "用户自定义显示文字")
+            .moved("qr", qr.xMm + 0.5f, qr.yMm, paper)
+        val bitmap = M1ComponentLabelRenderer.render(seed, template,
+            ComponentTextLabelTemplate.default, paper, edited)
+        try {
+            assertEquals(ComponentLabelCodec.buildQrPayload(seed, template)!!.rawValue, decode(bitmap))
+        } finally { bitmap.recycle() }
+    }
+
+    @Test fun editedQrCannotBeMovedIntoTextOrBeyondPaper() {
+        val paper = M1TestPaperProfile(40f, 60f)
+        val design = LabelDesign.default(seed, ComponentLabelTemplate.Qr30x40,
+            ComponentTextLabelTemplate.default, paper)
+        assertFailsWith<IllegalArgumentException> {
+            M1ComponentLabelRenderer.render(seed, ComponentLabelTemplate.Qr30x40,
+                ComponentTextLabelTemplate.default, paper,
+                design.copy(elements = design.elements.map {
+                    if (it.id == "qr") it.copy(xMm = 0f, yMm = 0f) else it
+                }))
+        }
+    }
+
+    @Test fun editedDesignKeepsQrScannableAfterPaperRotation() {
+        val compactSeed = seed.copy(name = "R")
+        for (rotation in listOf(90, 180, 270)) {
+            val paper = M1TestPaperProfile(40f, 60f, rotation)
+            val design = LabelDesign.default(compactSeed, ComponentLabelTemplate.Qr10x40,
+                ComponentTextLabelTemplate.default, paper).withText("name", "Custom")
+            val bitmap = M1ComponentLabelRenderer.render(compactSeed, ComponentLabelTemplate.Qr10x40,
+                ComponentTextLabelTemplate.default, paper, design)
+            try {
+                assertEquals(ComponentLabelCodec.buildQrPayload(compactSeed,
+                    ComponentLabelTemplate.Qr10x40)!!.rawValue, decode(bitmap))
+            } finally { bitmap.recycle() }
+        }
+    }
+
+    @Test fun editableMultilineTextDoesNotChangeQrPayload() {
+        val compactSeed = seed.copy(name = "R")
+        val paper = M1TestPaperProfile(40f, 60f)
+        val template = ComponentLabelTemplate.Qr30x40
+        val design = LabelDesign.default(compactSeed, template,
+            ComponentTextLabelTemplate.default, paper).withText("name", "R\nNew")
+        val bitmap = M1ComponentLabelRenderer.render(compactSeed, template,
+            ComponentTextLabelTemplate.default, paper, design)
+        try {
+            assertEquals(ComponentLabelCodec.buildQrPayload(compactSeed, template)!!.rawValue, decode(bitmap))
+        } finally { bitmap.recycle() }
+    }
+
     private fun decode(bitmap: Bitmap): String {
         val pixels = IntArray(bitmap.width * bitmap.height)
         bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)

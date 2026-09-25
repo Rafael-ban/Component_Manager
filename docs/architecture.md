@@ -1,5 +1,7 @@
 # Architecture Notes
 
+> 开发版标签界面调整：Android 的单元件标签与批量打印统一进入 `BluetoothLabelPrintScreen`，原独立预览页及诊断弹窗已移除。可编辑 `LabelDesign` 与原元件 `ComponentLabelSeed` 分开保存；前者决定显示文字和纸面位置，后者决定二维码身份。队列 v2 按张保存设计快照，并兼容读取旧 v1 队列。预览、导出和打印共用 M1 纸面渲染器，底层分帧与走纸协议保持不变。开发版功能以对应 Release 说明为准。
+
 ## Topology
 
 - `android-client/` is the Android Jetpack Compose client.

@@ -26,6 +26,7 @@ internal object M1ComponentLabelRenderer {
         template: ComponentLabelTemplate,
         textTemplate: ComponentTextLabelTemplate,
         paper: M1TestPaperProfile,
+        design: LabelDesign? = null,
     ): Bitmap {
         val width = dots(paper.widthMm)
         val height = dots(paper.heightMm)
@@ -49,12 +50,14 @@ internal object M1ComponentLabelRenderer {
             val canvas = Canvas(bitmap)
             canvas.drawColor(Color.WHITE)
             canvas.save()
-            when (paper.rotationDegrees) {
+            if (design == null) when (paper.rotationDegrees) {
                 90 -> { canvas.translate(width.toFloat(), 0f); canvas.rotate(90f) }
                 180 -> { canvas.translate(width.toFloat(), height.toFloat()); canvas.rotate(180f) }
                 270 -> { canvas.translate(0f, height.toFloat()); canvas.rotate(-90f) }
             }
-            val qrBounds = if (template.isQrLabel) {
+            val qrBounds = if (design != null) {
+                drawEdited(canvas, seed, template, paper, design)
+            } else if (template.isQrLabel) {
                 val payload = requireNotNull(ComponentLabelCodec.buildQrPayload(seed, template))
                 drawQrLabel(canvas, bounds, seed, payload.rawValue).also { canvas.matrix.mapRect(it) }
             } else {
@@ -93,6 +96,95 @@ internal object M1ComponentLabelRenderer {
             bitmap.recycle()
             throw error
         }
+    }
+
+    private fun drawEdited(
+        canvas: Canvas,
+        seed: ComponentLabelSeed,
+        template: ComponentLabelTemplate,
+        paper: M1TestPaperProfile,
+        design: LabelDesign,
+    ): RectF? {
+        design.validate(paper)
+        val qrElements = design.elements.filter { it.type == LabelElementType.Qr }
+        require(qrElements.size == if (template.isQrLabel) 1 else 0) {
+            "标签模板与二维码元素不匹配。"
+        }
+        val boxes = design.elements.associateWith { element ->
+            RectF(
+                element.xMm * Dpi / 25.4f,
+                element.yMm * Dpi / 25.4f,
+                (element.xMm + element.widthMm) * Dpi / 25.4f,
+                (element.yMm + element.heightMm) * Dpi / 25.4f,
+            )
+        }
+        val qrBounds = qrElements.singleOrNull()?.let { qrElement ->
+            val payload = requireNotNull(ComponentLabelCodec.buildQrPayload(seed, template))
+            val qr = try {
+                QRCodeWriter().encode(payload.rawValue, BarcodeFormat.QR_CODE, 0, 0,
+                    mapOf(EncodeHintType.MARGIN to 4, EncodeHintType.CHARACTER_SET to "UTF-8"))
+            } catch (error: Exception) {
+                throw IllegalArgumentException("库存二维码内容无法编码，请缩短数据后重试。", error)
+            }
+            val box = boxes.getValue(qrElement)
+            val moduleDots = floor(min(box.width(), box.height()) / qr.width).toInt()
+            require(moduleDots >= MinQrModuleDots) {
+                "二维码需要至少 $MinQrModuleDots 点/模块和完整静区，请增大二维码或纸张。"
+            }
+            val side = qr.width * moduleDots
+            val x = floor(box.centerX() - side / 2f).toInt()
+            val y = floor(box.centerY() - side / 2f).toInt()
+            val actual = RectF(x.toFloat(), y.toFloat(), (x + side).toFloat(), (y + side).toFloat())
+            require(actual.left >= 0f && actual.top >= 0f &&
+                actual.right <= canvas.width && actual.bottom <= canvas.height) {
+                "二维码静区超出纸张。"
+            }
+            val paint = Paint().apply { color = Color.BLACK; isAntiAlias = false; style = Paint.Style.FILL }
+            for (row in 0 until qr.height) for (column in 0 until qr.width) {
+                if (qr[column, row]) canvas.drawRect(
+                    (x + column * moduleDots).toFloat(), (y + row * moduleDots).toFloat(),
+                    (x + (column + 1) * moduleDots).toFloat(), (y + (row + 1) * moduleDots).toFloat(), paint)
+            }
+            actual
+        }
+        boxes.forEach { (element, box) ->
+            if (element.type == LabelElementType.Text && element.text.isNotBlank()) {
+                require(qrBounds == null || !RectF.intersects(box, qrBounds)) {
+                    "文字与二维码静区重叠，请移动文字或二维码。"
+                }
+                canvas.save()
+                val textBox = when (paper.rotationDegrees) {
+                    90 -> {
+                        canvas.translate(canvas.width.toFloat(), 0f)
+                        canvas.rotate(90f)
+                        RectF(box.top, canvas.width - box.right, box.bottom, canvas.width - box.left)
+                    }
+                    180 -> {
+                        canvas.translate(canvas.width.toFloat(), canvas.height.toFloat())
+                        canvas.rotate(180f)
+                        RectF(canvas.width - box.right, canvas.height - box.bottom,
+                            canvas.width - box.left, canvas.height - box.top)
+                    }
+                    270 -> {
+                        canvas.translate(0f, canvas.height.toFloat())
+                        canvas.rotate(-90f)
+                        RectF(canvas.height - box.bottom, box.left,
+                            canvas.height - box.top, box.right)
+                    }
+                    else -> box
+                }
+                try {
+                    drawLines(canvas, textBox,
+                        element.text.split(Regex("\\r\\n|\\r|\\n| \\| ")), allowEllipsis = false)
+                } finally {
+                    canvas.restore()
+                }
+            }
+        }
+        require(boxes.keys.any { it.type == LabelElementType.Text && it.text.isNotBlank() } || qrBounds != null) {
+            "标签没有可打印内容。"
+        }
+        return qrBounds
     }
 
     private fun drawQrLabel(canvas: Canvas, bounds: RectF, seed: ComponentLabelSeed, payload: String): RectF {

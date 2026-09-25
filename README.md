@@ -26,6 +26,8 @@ Component Vault 面向电子元器件的入库、出库、查找与盘点。Andr
 
 同步遵循本地优先：原生客户端先写入自己的 SQLite，再按需推送和拉取。BOM 扣料是客户端本地事务；它没有跨设备共享的工程扣料账本。Web 库存写入默认关闭，启用后直接写入服务端 SQLite，并可同步回原生客户端。详见[架构与数据流](docs/architecture.md)和[接口集成](docs/integration-guide.md)。
 
+开发版正在整合 Android 标签编辑与蓝牙打印：可修改显示文字、拖动元素和数值微调，预览、导出与发送共用布局。普通流程移除独立诊断弹窗；操作与实机验证边界见 [M1 标签指南](docs/m1-printing-feature-matrix.md)。
+
 ### 账户与数据隔离
 
 0.7.5 加入账户隔离：首次配置的密钥作为管理员账户，继续使用原有库存数据库；管理员可在 Web 设置中创建普通账户，普通账户使用各自的密钥和独立的库存数据库。客户端绑定已认证的服务器和账户身份后才上传本地数据，避免把原有库存推到其他账户。普通账户不能管理部署、日志、其他账户或 MQTT。操作步骤见[多用户账户教程](docs/accounts.md)，设计与迁移边界见[账户隔离实施计划](docs/account-isolation-plan.md)。安装包与镜像的发布状态以对应 [Release](https://github.com/Rafael-ban/Component_Manager/releases) 为准。

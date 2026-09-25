@@ -12,6 +12,7 @@ internal data class LabelPrintItem(
     val copies: Int,
     val state: LabelPrintItemState = LabelPrintItemState.Pending,
     val detail: String = "",
+    val design: LabelDesign? = null,
 )
 
 internal data class LabelPrintQueue(
@@ -45,6 +46,7 @@ internal data class LabelPrintQueue(
             templateId: String = ComponentLabelTemplate.default.id,
             textTemplateId: String = ComponentTextLabelTemplate.default.id,
             paper: M1TestPaperProfile = M1TestPaperProfile(40f, 60f),
+            designs: Map<String, LabelDesign> = emptyMap(),
         ): LabelPrintQueue {
             require(selections.isNotEmpty()) { "Select at least one component to print" }
             var total = 0
@@ -53,7 +55,10 @@ internal data class LabelPrintQueue(
                 total += copies
                 require(total <= MaxItems) { "Print job may contain at most $MaxItems labels" }
                 (1..copies).map { copyNumber ->
-                    LabelPrintItem(UUID.randomUUID().toString(), seed, copyNumber, copies)
+                    val design = designs[seed.sku]
+                    design?.validate(paper)
+                    LabelPrintItem(UUID.randomUUID().toString(), seed, copyNumber, copies,
+                        design = design?.copy(elements = design.elements.toList()))
                 }
             }
             return LabelPrintQueue(items, templateId, textTemplateId, paper)
