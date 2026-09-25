@@ -1,5 +1,6 @@
 package com.componentvault.android.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -54,7 +55,7 @@ internal fun MovementsScreen(
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
     onDiscardMovementBatch: () -> Unit,
-    onCommitMovementBatch: () -> Unit,
+    onOpenMovementBatchReview: () -> Unit,
     onUpdateMovementBatchItemMovementType: (String, String) -> Unit,
     onUpdateMovementBatchItemQuantity: (String, String) -> Unit,
     onUpdateMovementBatchItemReason: (String, String) -> Unit,
@@ -75,7 +76,7 @@ internal fun MovementsScreen(
         onRetryMovementScan = onRetryMovementScan,
         onDismissMovementScanResult = onDismissMovementScanResult,
         onDiscardMovementBatch = onDiscardMovementBatch,
-        onCommitMovementBatch = onCommitMovementBatch,
+        onOpenMovementBatchReview = onOpenMovementBatchReview,
         onUpdateMovementBatchItemMovementType = onUpdateMovementBatchItemMovementType,
         onUpdateMovementBatchItemQuantity = onUpdateMovementBatchItemQuantity,
         onUpdateMovementBatchItemReason = onUpdateMovementBatchItemReason,
@@ -100,7 +101,7 @@ internal fun MovementsContent(
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
     onDiscardMovementBatch: () -> Unit,
-    onCommitMovementBatch: () -> Unit,
+    onOpenMovementBatchReview: () -> Unit,
     onUpdateMovementBatchItemMovementType: (String, String) -> Unit,
     onUpdateMovementBatchItemQuantity: (String, String) -> Unit,
     onUpdateMovementBatchItemReason: (String, String) -> Unit,
@@ -145,7 +146,7 @@ internal fun MovementsContent(
                         onRetryMovementScan = onRetryMovementScan,
                         onDismissMovementScanResult = onDismissMovementScanResult,
                         onDiscardMovementBatch = onDiscardMovementBatch,
-                        onCommitMovementBatch = onCommitMovementBatch,
+                        onOpenMovementBatchReview = onOpenMovementBatchReview,
                         onUpdateMovementBatchItemMovementType = onUpdateMovementBatchItemMovementType,
                         onUpdateMovementBatchItemQuantity = onUpdateMovementBatchItemQuantity,
                         onUpdateMovementBatchItemReason = onUpdateMovementBatchItemReason,
@@ -182,7 +183,7 @@ internal fun MovementsContent(
             onRetryMovementScan = onRetryMovementScan,
             onDismissMovementScanResult = onDismissMovementScanResult,
             onDiscardMovementBatch = onDiscardMovementBatch,
-            onCommitMovementBatch = onCommitMovementBatch,
+            onOpenMovementBatchReview = onOpenMovementBatchReview,
             onUpdateMovementBatchItemMovementType = onUpdateMovementBatchItemMovementType,
             onUpdateMovementBatchItemQuantity = onUpdateMovementBatchItemQuantity,
             onUpdateMovementBatchItemReason = onUpdateMovementBatchItemReason,
@@ -235,6 +236,60 @@ internal fun MovementDetailRoute(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun MovementBatchReviewRoute(
+    uiState: MovementsUiState,
+    onDismiss: () -> Unit,
+    onScanMovementLabel: () -> Unit,
+    onCommitMovementBatch: () -> Unit,
+    onDiscardMovementBatch: () -> Unit,
+    onUpdateMovementBatchItemMovementType: (String, String) -> Unit,
+    onUpdateMovementBatchItemQuantity: (String, String) -> Unit,
+    onUpdateMovementBatchItemReason: (String, String) -> Unit,
+    onUpdateMovementBatchItemNote: (String, String) -> Unit,
+    onRemoveMovementBatchItem: (String) -> Unit,
+) {
+    val strings = vaultStrings()
+    BackHandler(onBack = onDismiss)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(strings.movements.batchReviewTitle) },
+                navigationIcon = {
+                    TextButton(onClick = onDismiss) { Text(strings.common.actionBack) }
+                },
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
+            contentPadding = rememberContentPadding(padding, horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                MovementBatchReviewSummaryPane(
+                    uiState = uiState,
+                    onScanMovementLabel = onScanMovementLabel,
+                    onCommitMovementBatch = onCommitMovementBatch,
+                    onDiscardMovementBatch = onDiscardMovementBatch,
+                )
+            }
+            items(uiState.batchSession.queuedItems, key = { it.componentId }) { item ->
+                MovementBatchQueueItemCard(
+                    item = item,
+                    onMovementTypeChange = { onUpdateMovementBatchItemMovementType(item.componentId, it) },
+                    onQuantityChange = { onUpdateMovementBatchItemQuantity(item.componentId, it) },
+                    onReasonChange = { onUpdateMovementBatchItemReason(item.componentId, it) },
+                    onNoteChange = { onUpdateMovementBatchItemNote(item.componentId, it) },
+                    onRemove = { onRemoveMovementBatchItem(item.componentId) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun MovementMasterPane(
     modifier: Modifier,
     contentPadding: PaddingValues,
@@ -245,7 +300,7 @@ private fun MovementMasterPane(
     onRetryMovementScan: () -> Unit,
     onDismissMovementScanResult: () -> Unit,
     onDiscardMovementBatch: () -> Unit,
-    onCommitMovementBatch: () -> Unit,
+    onOpenMovementBatchReview: () -> Unit,
     onUpdateMovementBatchItemMovementType: (String, String) -> Unit,
     onUpdateMovementBatchItemQuantity: (String, String) -> Unit,
     onUpdateMovementBatchItemReason: (String, String) -> Unit,
@@ -278,31 +333,9 @@ private fun MovementMasterPane(
 
         if (uiState.batchSession.queuedItems.isNotEmpty()) {
             item {
-                MovementBatchReviewSummaryPane(
-                    uiState = uiState,
-                    onScanMovementLabel = onScanMovementLabel,
-                    onCommitMovementBatch = onCommitMovementBatch,
-                    onDiscardMovementBatch = onDiscardMovementBatch,
-                )
-            }
-
-            items(uiState.batchSession.queuedItems, key = { it.componentId }) { item ->
-                MovementBatchQueueItemCard(
-                    item = item,
-                    onMovementTypeChange = { movementType ->
-                        onUpdateMovementBatchItemMovementType(item.componentId, movementType)
-                    },
-                    onQuantityChange = { quantityText ->
-                        onUpdateMovementBatchItemQuantity(item.componentId, quantityText)
-                    },
-                    onReasonChange = { reason ->
-                        onUpdateMovementBatchItemReason(item.componentId, reason)
-                    },
-                    onNoteChange = { note ->
-                        onUpdateMovementBatchItemNote(item.componentId, note)
-                    },
-                    onRemove = { onRemoveMovementBatchItem(item.componentId) },
-                )
+                OutlinedButton(onClick = onOpenMovementBatchReview, modifier = Modifier.fillMaxWidth()) {
+                    Text(strings.movements.batchReviewTitle)
+                }
             }
         }
 

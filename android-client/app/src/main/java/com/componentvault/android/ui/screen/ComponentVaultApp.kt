@@ -22,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -68,6 +69,10 @@ fun ComponentVaultApp(
     var componentEditorVisible by rememberSaveable { mutableStateOf(false) }
     var componentEditorTargetId by rememberSaveable { mutableStateOf<String?>(null) }
     var movementEditorVisible by rememberSaveable { mutableStateOf(false) }
+    var movementBatchReviewVisible by rememberSaveable { mutableStateOf(false) }
+    var lastObservedBatchScans by rememberSaveable {
+        mutableIntStateOf(uiState.movements.batchSession.totalScans)
+    }
     var movementEditorTargetId by rememberSaveable { mutableStateOf<String?>(null) }
     var movementEditorInitialType by rememberSaveable { mutableStateOf<String?>(null) }
     var movementEditorAllowManualSelection by rememberSaveable { mutableStateOf(true) }
@@ -90,6 +95,17 @@ fun ComponentVaultApp(
     var singleAppendBusy by remember { mutableStateOf(false) }
     var selectedTextLabelTemplateId by rememberSaveable {
         mutableStateOf(ComponentTextLabelTemplate.default.id)
+    }
+
+    LaunchedEffect(uiState.movements.batchSession.totalScans) {
+        val totalScans = uiState.movements.batchSession.totalScans
+        if (totalScans > lastObservedBatchScans &&
+            uiState.movements.batchSession.queuedItems.isNotEmpty() &&
+            !uiState.movements.scan.isScannerVisible
+        ) {
+            movementBatchReviewVisible = true
+        }
+        lastObservedBatchScans = totalScans
     }
 
     val editingComponent = uiState.availableComponents.firstOrNull { it.id == componentEditorTargetId }
@@ -253,7 +269,10 @@ fun ComponentVaultApp(
         when {
             uiState.movements.scan.isScannerVisible -> {
                 JlcQrScannerSurface(
-                    onDismiss = viewModel::dismissMovementScanner,
+                    onDismiss = {
+                        viewModel.dismissMovementScanner()
+                        movementBatchReviewVisible = uiState.movements.batchSession.queuedItems.isNotEmpty()
+                    },
                     onScanResult = viewModel::resolveMovementComponentFromLabel,
                     scanSessionToken = uiState.movements.scan.scanSessionToken,
                     title = strings.movements.quickScanAction,
@@ -278,6 +297,31 @@ fun ComponentVaultApp(
                         strings.common.actionBack
                     },
                     scannerMode = JlcQrScannerMode.MovementSmallLabel,
+                )
+            }
+
+            movementBatchReviewVisible && uiState.movements.batchSession.queuedItems.isNotEmpty() -> {
+                MovementBatchReviewRoute(
+                    uiState = uiState.movements,
+                    onDismiss = { movementBatchReviewVisible = false },
+                    onScanMovementLabel = {
+                        movementBatchReviewVisible = false
+                        viewModel.openMovementScanner()
+                    },
+                    onCommitMovementBatch = {
+                        viewModel.commitMovementBatch { result ->
+                            if (result.isSuccess) movementBatchReviewVisible = false
+                        }
+                    },
+                    onDiscardMovementBatch = {
+                        viewModel.discardMovementBatchSession()
+                        movementBatchReviewVisible = false
+                    },
+                    onUpdateMovementBatchItemMovementType = viewModel::updateMovementBatchItemMovementType,
+                    onUpdateMovementBatchItemQuantity = viewModel::updateMovementBatchItemQuantity,
+                    onUpdateMovementBatchItemReason = viewModel::updateMovementBatchItemReason,
+                    onUpdateMovementBatchItemNote = viewModel::updateMovementBatchItemNote,
+                    onRemoveMovementBatchItem = viewModel::removeMovementBatchItem,
                 )
             }
 
@@ -476,12 +520,16 @@ fun ComponentVaultApp(
                     },
                     onScanMovementLabel = {
                         destination = InventoryDestination.Movements
+                        movementBatchReviewVisible = false
                         viewModel.openMovementScanner()
                     },
                     onRetryMovementScan = viewModel::openMovementScanner,
                     onDismissMovementScanResult = viewModel::clearMovementScanState,
-                    onDiscardMovementBatch = viewModel::discardMovementBatchSession,
-                    onCommitMovementBatch = { viewModel.commitMovementBatch() },
+                    onDiscardMovementBatch = {
+                        viewModel.discardMovementBatchSession()
+                        movementBatchReviewVisible = false
+                    },
+                    onOpenMovementBatchReview = { movementBatchReviewVisible = true },
                     onUpdateMovementBatchItemMovementType = viewModel::updateMovementBatchItemMovementType,
                     onUpdateMovementBatchItemQuantity = viewModel::updateMovementBatchItemQuantity,
                     onUpdateMovementBatchItemReason = viewModel::updateMovementBatchItemReason,

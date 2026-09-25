@@ -400,7 +400,9 @@ class InventoryViewModel(
     fun discardMovementBatchSession() {
         uiState = uiState.copy(
             movements = buildMovementsUiState(
-                scanState = MovementScanUiState(),
+                scanState = MovementScanUiState(
+                    scanSessionToken = uiState.movements.scan.scanSessionToken,
+                ),
                 batchSession = MovementBatchSessionUiState(),
             ),
         )
@@ -508,7 +510,9 @@ class InventoryViewModel(
             if (result.isSuccess) {
                 uiState = uiState.copy(
                     movements = buildMovementsUiState(
-                        scanState = MovementScanUiState(),
+                        scanState = MovementScanUiState(
+                            scanSessionToken = uiState.movements.scan.scanSessionToken,
+                        ),
                         batchSession = MovementBatchSessionUiState(),
                     ),
                 )
@@ -529,34 +533,35 @@ class InventoryViewModel(
     }
 
     fun resolveMovementComponentFromLabel(rawValue: String) {
-        viewModelScope.launch {
-            uiState = uiState.copy(
-                movements = buildMovementsUiState(
-                    scanState = uiState.movements.scan.copy(
-                        isScannerVisible = true,
-                        isResolving = true,
-                        resolution = MovementScanResolutionUiState(),
-                    ),
-                    batchSession = uiState.movements.batchSession.copy(
-                        stage = MovementBatchStage.Scanning,
-                    ),
+        val scanState = uiState.movements.scan
+        if (!scanState.isScannerVisible || scanState.isResolving) return
+        uiState = uiState.copy(
+            movements = buildMovementsUiState(
+                scanState = scanState.copy(
+                    isResolving = true,
+                    resolution = MovementScanResolutionUiState(),
                 ),
-            )
+                batchSession = uiState.movements.batchSession,
+            ),
+        )
+        viewModelScope.launch {
             val resolution = repository.resolveComponentByScannedLabel(rawValue)
+            if (uiState.movements.scan.scanSessionToken != scanState.scanSessionToken ||
+                !uiState.movements.scan.isResolving
+            ) return@launch
             val matchedComponent = resolution.matchedComponent
             if (matchedComponent != null) {
                 uiState = uiState.copy(
                     movements = buildMovementsUiState(
                         scanState = uiState.movements.scan.copy(
-                            isScannerVisible = true,
+                            isScannerVisible = false,
                             isResolving = false,
                             resolution = MovementScanResolutionUiState(),
-                            scanSessionToken = uiState.movements.scan.scanSessionToken + 1,
                         ),
                         batchSession = enqueueMovementBatchItem(
                             session = uiState.movements.batchSession,
                             component = matchedComponent,
-                        ),
+                        ).copy(stage = MovementBatchStage.Review),
                     ),
                 )
             } else {
