@@ -28,7 +28,7 @@ Component Vault 面向电子元器件的入库、出库、查找与盘点。Andr
 
 ### 账户与数据隔离
 
-当前开发中的账户功能以首次配置的密钥作为管理员账户，继续使用原有库存数据库。管理员可在 Web 设置中创建普通账户；普通账户使用各自的密钥和独立的库存数据库。客户端绑定已认证的服务器和账户身份后才上传本地数据，避免把原有库存推到其他账户。普通账户不能管理部署、日志、其他账户或 MQTT。此功能仍在本轮开发和验证中；使用已发布版本时，以对应 [Release](https://github.com/Rafael-ban/Component_Manager/releases) 的功能说明为准。设计与迁移边界见[账户隔离实施计划](docs/account-isolation-plan.md)。
+0.7.5 加入账户隔离：首次配置的密钥作为管理员账户，继续使用原有库存数据库；管理员可在 Web 设置中创建普通账户，普通账户使用各自的密钥和独立的库存数据库。客户端绑定已认证的服务器和账户身份后才上传本地数据，避免把原有库存推到其他账户。普通账户不能管理部署、日志、其他账户或 MQTT。操作步骤见[多用户账户教程](docs/accounts.md)，设计与迁移边界见[账户隔离实施计划](docs/account-isolation-plan.md)。安装包与镜像的发布状态以对应 [Release](https://github.com/Rafael-ban/Component_Manager/releases) 为准。
 
 ## 快速部署 API 与管理 Web
 
@@ -52,6 +52,7 @@ docker compose -f docker-compose.hub.yml --profile web up -d
 
 | 任务 | 文档 |
 | --- | --- |
+| 创建普通用户、分发密钥、隔离库存及完整备份 | [多用户账户教程](docs/accounts.md) |
 | BOM 预览、缺料导出、批量扣库及 component-hub 数据迁移 | [BOM 与迁移](docs/bom-and-migration.md) |
 | 嘉立创包装扫码、连续采集及批量入库 | [批量入库](docs/batch-jlc-inbound.md) |
 | 多库位、库存转移、Excel 备份与恢复 | [库位与备份](docs/storage-and-backup.md) |
