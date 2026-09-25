@@ -159,7 +159,7 @@ docker pull rafaelikaros/component_manager:web-0.7.0
 部署机需要 Docker Engine 与 Docker Compose 2，命令应为 `docker compose`。Windows 用户可使用 Docker Desktop，并切换到 Linux containers，因为本项目发布的是 Linux 容器镜像。
 
 先执行 `docker version` 和 `docker compose version`，确认能连接 Docker 服务且 Compose 可用。
-当前仓库的 `docker-compose.hub.yml` 默认使用 API `0.7.1` 与 Web `web-0.7.1`；部署前在 Docker Hub Tags 核对这两个 tag。请从当前仓库下载配套的 `docker-compose.hub.yml` 和 `.env.example`。`0.7.0` 没有首次配置页，不能用它验证下文的 `/setup` 流程。
+当前仓库的 `docker-compose.hub.yml` 默认使用 API `latest` 与 Web `web-latest`；部署前在 Docker Hub Tags 核对它们当前对应的版本。请从当前仓库下载配套的 `docker-compose.hub.yml` 和 `.env.example`。`0.7.0` 没有首次配置页，不能用它验证下文的 `/setup` 流程。
 
 把两个文件放到一个固定部署目录，例如 `component-manager-server/`。将 `.env.example` 复制为同目录的 `.env`。如果目录中已经有 `.env`，先备份和对比，不要直接覆盖现有 Token、CORS 或 MQTT 配置。
 
@@ -172,7 +172,7 @@ ADMIN_WEB_URL=
 WEB_INVENTORY_ENABLED=
 ```
 
-Compose 默认固定到 API `0.7.1` 与 Web `web-0.7.1`。确认两个 tag 已发布后再拉取；只有切换到另一个已发布版本时，才需要在 `.env` 覆盖 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE`。
+Compose 默认使用 API `latest` 与 Web `web-latest`。这两个浮动标签只有在正式镜像发布后才会指向新版本；不能仅凭默认值判断镜像已包含 `0.7.4` 功能。需要固定版本时，在 Docker Hub Tags 确认 API 和 Web 的对应 tag 均已发布，再在 `.env` 覆盖 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE`。
 
 确认文件名为 `.env` 而非 `.env.txt`。API 启动后打开
 `http://服务器IP:8787/setup`，生成或填写 Token、Web 页面 origin 和库存写入开关。
@@ -180,7 +180,7 @@ Compose 默认固定到 API `0.7.1` 与 Web `web-0.7.1`。确认两个 tag 已�
 已有部署可保留 `.env` 中的非空值，它们优先于配置文件且在网页中只读。
 
 `ADMIN_WEB_ORIGINS` 填浏览器访问 Web 管理页时的来源，格式是 `scheme://host:port`，例如 `http://192.168.1.10:8081`。它不是服务端 API URL，不要填 `http://192.168.1.20:8787`，除非浏览器中的 Web 页面本身确实由该 origin 提供。多个 Web 来源用逗号分隔。API 自带的 `/setup` 页面与 API 同源，不依赖这项 CORS 设置。
-管理台实际地址 `ADMIN_WEB_URL` 和在管理台直接编辑服务端配置是当前 `master` 新增功能，将随 `0.7.4` 正式镜像交付；开发预发布不发布 Docker 镜像。当前 `0.7.1` 部署请继续使用已认证的 `/setup` 修改配置，不要把这些新入口当作已在 Hub 镜像中可用。正式镜像发布后，可在 `/setup` 填写管理台完整地址（支持反向代理子路径），首次保存后先复制 API Token，再点“进入管理台”；非空 `ADMIN_WEB_URL` 环境变量优先并锁定网页输入。
+`0.7.4` 的 API 支持管理台实际地址 `ADMIN_WEB_URL`；`0.7.4` 的 Web 管理台支持直接编辑服务端配置。使用前须确认所用的 API 与 Web 镜像都已包含 `0.7.4`：固定标签需核对 `0.7.4` 和 `web-0.7.4` 均已发布，默认的 `latest` 和 `web-latest` 则需核对实际指向；开发预发布不发布 Docker 镜像。已有 `0.7.1` 部署可继续使用已认证的 `/setup` 修改配置。可在 `/setup` 填写管理台完整地址（支持反向代理子路径），首次保存后先复制 API Token，再点“进入管理台”；非空 `ADMIN_WEB_URL` 环境变量优先并锁定网页输入。
 
 ## 八、拉取并启动服务端
 
@@ -216,6 +216,8 @@ docker compose -f docker-compose.hub.yml --profile web pull
 docker compose -f docker-compose.hub.yml --profile web up -d
 ```
 
+若在群晖 Container Manager 的项目图形界面操作，可在 Compose 编辑器中删除 `admin-web` 下的 `profiles:` 和 `- web` 两行，保留 `8081:80` 端口映射，再重新部署项目。此操作只让独立的 Web 容器随项目启动；API、Web 仍使用各自镜像，原有 `/data` 映射不变。仅重启 API 容器不会创建 Web 服务。
+
 Web 页面位于 `http://服务器IP:8081/`。若 Web 镜像尚未发布，仍可从 GitHub
 Release 下载 `component-vault-admin-web.zip` 并用静态服务器单独部署。无论采用
 哪种方式，都要把实际页面 origin 加入 `ADMIN_WEB_ORIGINS`。
@@ -229,11 +231,11 @@ Web 库存写入默认关闭。可在已认证的 `/setup` 配置页启用；若
 
 ## 九、更新、迁移与备份
 
-更新时将 `.env` 中两个镜像都固定到 Docker Hub 已实际发布的版本：
+日常更新继续使用 `.env.example` 中的 `latest` 与 `web-latest`。如果已有 `.env` 固定了旧版本，需要把两个镜像变量一起改为这组浮动标签；更新前核对 Docker Hub Tags 当前指向的版本。需要固定到 `0.7.4` 时，先确认两个固定 tag 均已发布，再在 `.env` 中设置：
 
 ```dotenv
-COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.7.1
-COMPONENT_VAULT_WEB_IMAGE=rafaelikaros/component_manager:web-0.7.1
+COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.7.4
+COMPONENT_VAULT_WEB_IMAGE=rafaelikaros/component_manager:web-0.7.4
 ```
 
 如果已启用 Web，在原部署目录执行以下命令以同时更新两个服务；只部署 API 时去掉 `--profile web`：
@@ -244,7 +246,7 @@ docker compose -f docker-compose.hub.yml --profile web up -d
 docker compose -f docker-compose.hub.yml ps
 ```
 
-固定版本 tag 便于审计和回退；`latest` 更适合临时体验。保持原部署目录和 Compose project name，才能自然复用原 named volume。
+`latest` 与 `web-latest` 便于日常更新，但不会在容器运行期间自动拉取；每次更新都要先执行上述 `pull`，再执行 `up -d`，仅执行 `restart` 不会换用新镜像。固定版本 tag 便于审计和回退。保持原部署目录和 Compose project name，才能自然复用原 named volume。
 不要执行 `docker compose down -v`，`-v` 会删除库存数据库所在 volume。
 
 从源码版 Compose 迁移到 Hub Compose 时，也应保留原目录和 project name。如果必须更换目录，在所有命令中显式使用原 project name，例如：

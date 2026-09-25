@@ -8,7 +8,7 @@
   <Identity
     Name="ComponentVault.ComponentVaultWinUI"
     Publisher="CN=ComponentVault"
-    Version="0.7.3.0" />
+    Version="0.7.4.0" />
 
   <Properties>
     <DisplayName>Component Vault</DisplayName>

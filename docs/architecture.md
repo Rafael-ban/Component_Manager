@@ -20,7 +20,9 @@ and `latest`, plus Web tags `web-<version>` and `web-latest`, for amd64/arm64.
 The 0.7.0 API and Web tags were verified published. Each subsequent release must
 still verify its own publication. SQLite persists under `/data`.
 `docker-compose.hub.yml` retains the source Compose data volume and exposes the
-Web image through the optional `web` profile. See [Docker Hub operations](dockerhub.md).
+Web image through the optional `web` profile. Its default API/Web images use
+`latest` / `web-latest`; updating requires pulling and recreating the containers.
+See [Docker Hub operations](dockerhub.md).
 
 The API provides a separate, small `/setup` page on its own origin for first-run
 configuration and authenticated operational logs. It does not replace the React
@@ -90,6 +92,11 @@ from label preview or inventory batch printing. `M1ComponentLabelRenderer` uses
 the existing QR payload codec and text field rules with integer QR modules at
 203 dpi; this paper raster is used for both preview and transmission. Paper
 dimensions, rotation and offsets are local rendering options, not firmware writes.
+Actual labels have no outer frame. Offsets translate the raster on the paper axes
+without resizing QR modules; positive horizontal values move ink right. Physical
+validation on one M1 / Android 15 / 40×60 mm gap stock confirmed scannable labels
+and two automatic copies with consistent placement and no extra paper after a
+device-specific +0.5 mm horizontal adjustment. Default offsets remain zero.
 `LabelPrintController` serializes jobs through the same M1 single-label transport
 with normal label feed. Each item stores a component snapshot and copy number;
 printing does not change inventory. `LabelPrintQueueStore` uses an app-private
@@ -215,10 +222,11 @@ See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
   phones and split history/detail arrangements on larger widths. It now also
   supports a scan-first workflow for already-generated warehouse labels:
   CameraX + bundled ML Kit barcode scanning returns raw QR content, the client
-  resolves the label locally by parsed `sku`, and the user then chooses a
-  quick `Inbound`, `Outbound`, or `Adjustment` action and completes the final
-  movement form inside the same matched bottom sheet instead of navigating to a
-  separate movement page. The movement scanner now runs in a dedicated
+  resolves the label locally by parsed `sku`. A successful match closes the
+  scanner and opens a dedicated batch review page for `Inbound`, `Outbound`,
+  or `Adjustment`, quantities and notes. Adding another scanned item requires
+  an explicit action. Returning to history preserves the pending review;
+  inventory changes only when the reviewed batch is confirmed. The scanner runs in a dedicated
   small-label mode with higher analysis resolution, ML Kit
   potential-barcode detection, zoom suggestions, and tap-to-focus to improve
   read rates on narrow printed labels.

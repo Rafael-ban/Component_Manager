@@ -57,6 +57,8 @@ connects to it over HTTP.
 - Separate API and Web images support Docker Hub distribution for `linux/amd64`
   and `linux/arm64`; API uses `<version>`/`latest`, while Web uses
   `web-<version>`/`web-latest`. SQLite uses the persistent API `/data` mount.
+  Hub Compose defaults to `latest` and `web-latest`; pull both images and run
+  `up -d` to update an existing deployment. Fixed release tags remain optional.
   API `0.7.0` and Web `web-0.7.0` were verified published. Later tags still require
   successful publishing checks. Start with the [Docker / Synology quickstart](docs/docker-quickstart.md);
   maintainers can use the [Docker Hub release setup](docs/dockerhub.md).
@@ -95,7 +97,11 @@ connects to it over HTTP.
 - Android M1 Bluetooth printing is available from label preview or the inventory
   batch-print entry. Choose components and copies, preview a 203 dpi paper raster,
   then run a serial, locally saved queue with pause, stop and explicit recovery.
-  It does not change stock. See [M1 printing and verification boundaries](docs/m1-printing-feature-matrix.md).
+  It does not change stock. Actual labels have no outer frame. Version 0.7.4 was
+  validated on one M1 with Android 15 and 40×60 mm gap labels: real QR labels
+  scanned correctly and two automatic copies printed completely with consistent
+  placement and no extra blank label. Horizontal calibration is device/paper-specific;
+  the default remains zero. See [M1 printing and verification boundaries](docs/m1-printing-feature-matrix.md).
 - Native layouts use a home summary, compact inventory cards with adjacent
   images and usage rings, local display dates, and a single Settings entry.
   About displays author `Rafael-Ikaros`, installed version, project/license
@@ -205,8 +211,8 @@ connects to it over HTTP.
   switching with first-launch default `zh-CN`, stronger vendor-aware QR
   package/category inference, generated-label QR round-trip parsing for
   warehouse and JLC-compatible labels, scan-first stock movement entry with
-  quick `Inbound`, `Outbound`, and `Adjustment` actions completed inside the
-  matched scan sheet, movement-side small-label scan tuning with higher
+  `Inbound`, `Outbound`, and `Adjustment` actions in a dedicated review page
+  after a single successful scan, movement-side small-label scan tuning with higher
   analysis resolution, potential-barcode detection, auto-zoom suggestions, and
   tap-to-focus, a shorter lookup-first `10x40mm` warehouse QR payload
   (`cvl3|sku|qty`) for narrow labels while preserving legacy `cvl2` and
@@ -325,6 +331,9 @@ preferences and supports:
 - inventory movement entry
 - generated warehouse label scan for quick component locate plus
   scan-first `Inbound`, `Outbound`, and `Adjustment` movement entry
+- movement scanning stops after one successful match and opens a dedicated batch
+  review page. Add another item only through an explicit scan action; returning
+  to history retains the pending review, and stock changes only after confirmation
 - JLC copied-text import with automatic field mapping
 - JLC package QR import through an in-app CameraX scanner backed by bundled
   ML Kit barcode scanning, with runtime camera permission handling

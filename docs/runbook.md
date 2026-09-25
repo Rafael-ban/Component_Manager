@@ -4,9 +4,10 @@
 
 Use `docker-compose.hub.yml` to pull a published API image instead of building
 the server locally. Copy `.env.example` to the root `.env`; an existing deployment
-may continue supplying its `API_TOKEN` there. The Compose defaults target API `0.7.1` and Web
-`web-0.7.1` images; check their published tags before pulling. Override the image
-variables only to select another fixed, published tag.
+may continue supplying its `API_TOKEN` there. The Compose defaults use the
+floating API `latest` and Web `web-latest` tags. Check their
+current versions on Docker Hub before pulling. Override both image variables
+to select another fixed, published release, such as `0.7.4` and `web-0.7.4`.
 The server image listens on port 8787 and stores SQLite under `/data`; preserve
 the Compose project name and `component_vault_data` volume when upgrading.
 The admin Web app remains a separate image. Start the optional profile with
@@ -37,10 +38,18 @@ response, refresh the component before deciding whether to submit a new request 
 
 For a new Docker deployment, copy the repository-root `.env.example` to `.env`
 and leave `API_TOKEN`, `ADMIN_WEB_ORIGINS`, `ADMIN_WEB_URL`, and `WEB_INVENTORY_ENABLED` empty.
+Confirm the versions currently behind `latest` and `web-latest` before deploying;
+first-run `/setup` requires API 0.7.1 or later.
 Start the API, then open `http://server:8787/setup`; the same-origin first-run
 page stores these settings under `/data/config.json`. Existing deployments may
 keep non-empty environment values, which take precedence and remain read-only in
-the setup UI. Run `docker compose up -d --build` to apply environment changes.
+the setup UI. To update Hub images, run `docker compose -f docker-compose.hub.yml --profile web pull`
+followed by `docker compose -f docker-compose.hub.yml --profile web up -d` when the
+Web profile is enabled; omit `--profile web` for API-only deployments. `restart`
+alone does not pull new images or reload changed `.env` values. The `ADMIN_WEB_URL`
+entry and direct server configuration editing in the Web console are 0.7.4
+features. Verify that both images contain 0.7.4 before using them; the floating
+tags do not establish that until the stable Docker images are published.
 Set the actual Web console URL in the setup page, including any reverse-proxy
 subpath. After the first save, copy the API token before selecting **Enter admin
 console**; the console asks for that token again. If the Web console is not

@@ -1,8 +1,9 @@
 # Pull the published API image instead of building from source.
-# Override COMPONENT_VAULT_IMAGE only when deploying another fixed release tag.
+# Defaults to the floating latest/web-latest API and Web tags.
+# Pull before updating; check Docker Hub tags before selecting fixed release tags.
 services:
   api:
-    image: ${COMPONENT_VAULT_IMAGE:-rafaelikaros/component_manager:0.7.1}
+    image: ${COMPONENT_VAULT_IMAGE:-rafaelikaros/component_manager:latest}
     ports:
       - "8787:8787"
     environment:
@@ -35,7 +36,7 @@ services:
   admin-web:
     profiles:
       - web
-    image: ${COMPONENT_VAULT_WEB_IMAGE:-rafaelikaros/component_manager:web-0.7.1}
+    image: ${COMPONENT_VAULT_WEB_IMAGE:-rafaelikaros/component_manager:web-latest}
     depends_on:
       - api
     ports:

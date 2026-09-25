@@ -13,7 +13,7 @@ ADMIN_WEB_URL=
 WEB_INVENTORY_ENABLED=
 ```
 
-首次网页配置从 `0.7.1` 开始提供。Hub Compose 默认使用 API `0.7.1` 和 Web `web-0.7.1`；部署前在 Docker Hub Tags 确认该版本已经发布。`0.7.0` 没有首次配置页，不能用旧镜像测试这条流程。需要部署另一个已发布版本时再覆盖 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE`。
+首次网页配置从 `0.7.1` 开始提供。Hub Compose 默认使用 API `latest` 和 Web `web-latest`；先在 Docker Hub Tags 核对它们当前对应的版本，再拉取镜像。浮动标签只有在正式镜像发布后才会指向新版本，不能仅凭 Compose 默认值判断它们已经包含 `0.7.4` 功能。`0.7.0` 没有首次配置页，不能用旧镜像测试这条流程。需要固定版本时，可在确认两个 tag 均已发布后，覆盖 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE`，例如使用 `0.7.4` 与 `web-0.7.4`。
 
 在部署目录中先启动 API：
 
@@ -34,6 +34,8 @@ docker compose -f docker-compose.hub.yml --profile web up -d
 
 管理 Web 位于 `http://服务器IP:8081/`。库存数据保存在 `/data/component_vault.db`；不要执行 `docker compose down -v`。
 
+以后使用默认浮动标签更新时，先在 Docker Hub 核对 `latest` 和 `web-latest` 当前对应的版本，再在原部署目录执行 `docker compose -f docker-compose.hub.yml --profile web pull` 和 `docker compose -f docker-compose.hub.yml --profile web up -d`；仅部署 API 时去掉 `--profile web`。单独执行 `restart` 不会拉取新镜像。
+
 ## 2. 群晖 Container Manager 与文件映射
 
 在群晖 File Station 中建立共享目录，例如 `/volume1/docker/component-manager/`，把 Compose 和 `.env` 放在其中，再建立 `data/` 子目录。通过 Container Manager 的 **项目** 导入 Compose 时，可将 API 的 volume 改成宿主目录映射：
@@ -44,6 +46,8 @@ services:
     volumes:
       - /volume1/docker/component-manager/data:/data
 ```
+
+若通过 Container Manager 图形界面同时启用 Web，在项目的 Compose 编辑器中删除 `admin-web` 下的 `profiles:` 和紧随其后的 `- web` 两行，保留 `8081:80` 端口映射，然后重新部署项目。这样会启动独立的 Web 容器，API 与 Web 镜像仍分开，原有 `/data` 映射不变；只重启 API 容器不会创建 Web 服务。部署后用 `http://NAS地址:8081/` 打开管理台，以 `http://NAS地址:8787` 为 API 地址，使用同一 API Token 登录，并将 `http://NAS地址:8081` 加入 `ADMIN_WEB_ORIGINS`。
 
 部署后可在 File Station 看到这些持久文件：
 
@@ -68,7 +72,7 @@ services:
 已有部署可继续在 `.env` 或群晖 **api 容器 → 环境变量** 中设置 `API_TOKEN`、`ADMIN_WEB_ORIGINS`、`ADMIN_WEB_URL` 和 `WEB_INVENTORY_ENABLED`。非空环境变量优先于 `/data/config.json`；被环境变量接管的值不能在网页中修改。若希望网页管理某一项，应清空对应环境变量并执行 `up -d` 重建容器，仅执行 `restart` 不会重新读取 `.env`。
 
 `ADMIN_WEB_ORIGINS` 填浏览器访问 Web 页面的 origin，例如 `http://NAS地址:8081`，不是 API 的 `8787` 地址。后端未配置时仍采用内置 CORS 默认值，Web 库存写入默认关闭。
-管理台实际地址 `ADMIN_WEB_URL` 和在管理台直接编辑服务端配置是当前 `master` 新增功能，将随 `0.7.4` 正式镜像交付；开发预发布不发布 Docker 镜像。当前 `0.7.1` 镜像请继续使用已认证的 `/setup` 修改配置。正式镜像发布后，`ADMIN_WEB_URL` 可填写实际 Web 页面完整地址（支持反向代理子路径）；首次保存后先复制 API Token，再点“进入管理台”并用同一 Token 登录。
+`0.7.4` 的 API 支持设置管理台实际地址 `ADMIN_WEB_URL`；`0.7.4` 的 Web 管理台支持直接编辑服务端配置。使用这些功能前，须确认所用的 API 与 Web 镜像都已包含 `0.7.4`：固定标签需核对 `0.7.4` 和 `web-0.7.4` 均已发布，默认的 `latest` 和 `web-latest` 则需核对实际指向；开发预发布不发布 Docker 镜像。已有 `0.7.1` 部署可继续使用已认证的 `/setup` 修改配置。`ADMIN_WEB_URL` 可填写实际 Web 页面完整地址（支持反向代理子路径）；首次保存后先复制 API Token，再点“进入管理台”并用同一 Token 登录。
 
 `.env.example` 后半部分列出全部可由 Compose 传入的 LCSC、远程识别规则和 MQTT 高级选项。普通部署无需填写。Web 设置页保存的 MQTT 配置也位于 SQLite，并在 API 下次启动时优先于 MQTT 环境变量默认值。
 
