@@ -376,11 +376,7 @@ public sealed class InventoryStore
                 server_base_url = $server_base_url,
                 fallback_server_base_url = $fallback_server_base_url,
                 api_token = $api_token,
-                auto_sync_enabled = $auto_sync_enabled,
-                last_sync_cursor = CASE
-                    WHEN server_base_url = $server_base_url THEN last_sync_cursor
-                    ELSE NULL
-                END
+                auto_sync_enabled = $auto_sync_enabled
             WHERE id = 1
             """;
         command.Parameters.AddWithValue("$server_base_url", normalizedUrl);
@@ -850,10 +846,46 @@ public sealed class InventoryStore
         };
     }
 
+    public string? ValidateAndBindSyncIdentity(SyncAccountIdentity identity, SyncConfiguration settings)
+    {
+        if (string.IsNullOrWhiteSpace(identity.ServerId) || string.IsNullOrWhiteSpace(identity.AccountId))
+            return "服务器无法确认账户身份。请先升级服务器；本地库存和同步进度已保留。";
+
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        if (!StoredSyncConfigurationMatches(connection, settings))
+            return "同步期间服务器配置已变化，请重试。";
+
+        using var read = connection.CreateCommand();
+        read.CommandText = "SELECT bound_server_id, bound_account_id, last_synced_at, last_sync_cursor FROM sync_settings WHERE id = 1";
+        using var reader = read.ExecuteReader();
+        reader.Read();
+        var boundServer = reader.GetString(0);
+        var boundAccount = reader.GetString(1);
+        var previouslySynced = !reader.IsDBNull(2) || !reader.IsDBNull(3);
+        reader.Close();
+
+        if (boundServer.Length != 0 || boundAccount.Length != 0)
+            return boundServer == identity.ServerId && boundAccount == identity.AccountId
+                ? null
+                : "此本地库存已绑定其他服务器或账户。请恢复原账户密钥，或导出库存后使用新的本地工作区。";
+        if (previouslySynced && identity.Role != "admin")
+            return "此库存曾在记录账户身份前同步。请使用管理员密钥绑定原库存；若要切换账户，请导出数据并使用新的本地工作区。";
+
+        using var update = connection.CreateCommand();
+        update.CommandText = "UPDATE sync_settings SET bound_server_id = $server, bound_account_id = $account WHERE id = 1";
+        update.Parameters.AddWithValue("$server", identity.ServerId);
+        update.Parameters.AddWithValue("$account", identity.AccountId);
+        update.ExecuteNonQuery();
+        transaction.Commit();
+        return null;
+    }
+
     public bool ApplySyncResult(
         SyncRunResult result,
         IReadOnlyList<SyncEntityReference> pushedEntities,
-        string expectedServerBaseUrl
+        string expectedServerBaseUrl,
+        SyncConfiguration? expectedSettings = null
     )
     {
         if (result.PullResponse is null)
@@ -864,7 +896,8 @@ public sealed class InventoryStore
         using var connection = OpenConnection();
         using var transaction = connection.BeginTransaction();
 
-        if (!StoredServerMatches(connection, expectedServerBaseUrl))
+        if (!StoredServerMatches(connection, expectedServerBaseUrl)
+            || expectedSettings is not null && !StoredSyncConfigurationMatches(connection, expectedSettings))
         {
             transaction.Rollback();
             return false;
@@ -1036,6 +1069,8 @@ public sealed class InventoryStore
                 api_token TEXT NOT NULL DEFAULT '',
                 auto_sync_enabled INTEGER NOT NULL DEFAULT 0,
                 last_sync_cursor INTEGER,
+                bound_server_id TEXT NOT NULL DEFAULT '',
+                bound_account_id TEXT NOT NULL DEFAULT '',
                 last_synced_at TEXT,
                 last_sync_message TEXT NOT NULL DEFAULT '尚未同步。'
             )
@@ -1068,6 +1103,8 @@ public sealed class InventoryStore
 
         EnsureColumnExists(connection, "sync_settings", "last_sync_cursor", "INTEGER");
         EnsureColumnExists(connection, "sync_settings", "fallback_server_base_url", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumnExists(connection, "sync_settings", "bound_server_id", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumnExists(connection, "sync_settings", "bound_account_id", "TEXT NOT NULL DEFAULT ''");
         EnsureColumnExists(connection, "components", "base_updated_at", "TEXT");
         EnsureColumnExists(connection, "stock_movements", "location_id", "TEXT");
         EnsureColumnExists(connection, "stock_movements", "destination_location_id", "TEXT");
@@ -1590,6 +1627,20 @@ public sealed class InventoryStore
             NormalizeServerBaseUrl(expectedServerBaseUrl),
             StringComparison.Ordinal
         );
+    }
+
+    private static bool StoredSyncConfigurationMatches(
+        SqliteConnection connection,
+        SyncConfiguration expected
+    )
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT server_base_url, fallback_server_base_url, api_token FROM sync_settings WHERE id = 1";
+        using var reader = command.ExecuteReader();
+        return reader.Read()
+            && string.Equals(reader.GetString(0), expected.ServerBaseUrl, StringComparison.Ordinal)
+            && string.Equals(reader.GetString(1), expected.FallbackServerBaseUrl, StringComparison.Ordinal)
+            && string.Equals(reader.GetString(2), expected.ApiToken, StringComparison.Ordinal);
     }
 
     private static SyncComponentDto? GetComponentDtoById(

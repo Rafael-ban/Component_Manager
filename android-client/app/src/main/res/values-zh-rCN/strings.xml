@@ -187,6 +187,9 @@
     <string name="sync_enter_api_token_before_sync">同步前请先填写 API 令牌。</string>
     <string name="sync_complete_summary">同步完成。已推送元器件：%1$d，已推送变动：%2$d，已拉取元器件：%3$d，已拉取变动：%4$d。</string>
     <string name="sync_failed">同步失败。</string>
+    <string name="sync_identity_unavailable">服务器无法确认账户身份。请先升级服务器；本地库存和同步进度已保留。</string>
+    <string name="sync_account_mismatch">此本地库存已绑定其他服务器或账户。请恢复原账户密钥，或导出库存后使用新的本地工作区。</string>
+    <string name="sync_legacy_admin_only">此库存曾在记录账户身份前同步。请使用管理员密钥绑定原库存；若要切换账户，请导出数据并使用新的本地工作区。</string>
     <string name="sync_server_error">服务器返回 HTTP %1$d。</string>
     <string name="sync_server_error_detail">服务器返回 HTTP %1$d：%2$s</string>
     <string name="sync_component_required_fields">请填写 SKU、名称、分类、封装和仓位。</string>

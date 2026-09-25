@@ -55,8 +55,8 @@ export function clearPendingRequest(key: string) {
   }
 }
 
-export function pendingStorageKey(apiBaseUrl: string, action: string): string {
-  return `component-vault:pending:${encodeURIComponent(apiBaseUrl)}:${action}`;
+export function pendingStorageKey(apiBaseUrl: string, action: string, accountId = "admin"): string {
+  return `component-vault:pending:${encodeURIComponent(apiBaseUrl)}:${encodeURIComponent(accountId)}:${action}`;
 }
 
 export function shouldRetainPending(status: number): boolean {

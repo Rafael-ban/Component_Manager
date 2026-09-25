@@ -203,6 +203,9 @@
     <string name="sync_enter_api_token_before_sync">Enter the API token before syncing.</string>
     <string name="sync_complete_summary">Sync completed. Pushed components: %1$d, pushed movements: %2$d, pulled components: %3$d, pulled movements: %4$d.</string>
     <string name="sync_failed">Sync failed.</string>
+    <string name="sync_identity_unavailable">The server could not confirm its account identity. Update the server before syncing; local inventory and sync progress were kept.</string>
+    <string name="sync_account_mismatch">This local inventory is linked to a different server or account. Restore the original account key, or export this inventory and start with a fresh local workspace.</string>
+    <string name="sync_legacy_admin_only">This inventory was synced before account identities were stored. Use an administrator key to link it to the original inventory; export the data and use a fresh local workspace for another account.</string>
     <string name="sync_server_error">Server returned HTTP %1$d.</string>
     <string name="sync_server_error_detail">Server returned HTTP %1$d: %2$s</string>
     <string name="sync_component_required_fields">Fill in SKU, name, category, package, and location.</string>

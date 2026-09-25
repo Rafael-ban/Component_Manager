@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCount, useI18n } from "@/lib/i18n";
 
 interface StatCardProps {
   title: string;
@@ -7,13 +8,14 @@ interface StatCardProps {
 }
 
 export function StatCard({ subtitle, title, value }: StatCardProps) {
+  const { locale } = useI18n();
   return (
     <Card className="bg-white/90">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-slate-600">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-semibold tracking-tight text-slate-950">{value}</div>
+        <div className="text-3xl font-semibold tracking-tight text-slate-950">{formatCount(value, locale)}</div>
         <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
       </CardContent>
     </Card>

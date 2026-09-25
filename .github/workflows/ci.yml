@@ -137,6 +137,7 @@ jobs:
         run: >-
           gradle -p android-client :app:testDebugUnitTest
           --tests 'com.componentvault.android.data.SyncProtocolTest'
+          --tests 'com.componentvault.android.data.SyncAccountIdentityTest'
           --tests 'com.componentvault.android.data.SyncEndpointResolverTest'
           --tests 'com.componentvault.android.data.LcscPublicCatalogTest'
           --tests 'com.componentvault.android.data.LcscDomesticCatalogTest'

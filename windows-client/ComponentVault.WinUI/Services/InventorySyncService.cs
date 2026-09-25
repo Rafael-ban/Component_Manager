@@ -33,7 +33,8 @@ public sealed class InventorySyncService
             envelope.Settings,
             envelope.PushRequest,
             envelope.Cursor,
-            cancellationToken
+            cancellationToken,
+            identity => _store.ValidateAndBindSyncIdentity(identity, envelope.Settings)
         );
 
         if (result.IsSuccess)
@@ -42,7 +43,8 @@ public sealed class InventorySyncService
                 !_store.ApplySyncResult(
                     result,
                     envelope.QueuedEntities,
-                    envelope.Settings.ServerBaseUrl
+                    envelope.Settings.ServerBaseUrl,
+                    envelope.Settings
                 )
             )
             {

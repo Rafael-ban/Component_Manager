@@ -1,3 +1,4 @@
+import { formatCount, useI18n } from "@/lib/i18n";
 import {
   useEffect,
   useId,
@@ -28,6 +29,7 @@ import type {
 } from "@/lib/types";
 
 export function InventoryPage() {
+  const { t, locale } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q") ?? "";
   const requestedFilter = searchParams.get("stock") ?? "all";
@@ -87,14 +89,14 @@ export function InventoryPage() {
   return (
     <section className="space-y-6" aria-busy={loading}>
       <header className="space-y-2">
-        <h2 className="text-3xl font-semibold tracking-tight">库存核对</h2>
+        <h2 className="text-3xl font-semibold tracking-tight">{t("库存核对")}</h2>
         <p className="max-w-3xl text-sm text-slate-600">
-          搜索服务器上的有效元器件。服务端开启 Web 库存操作后，可创建库位和元件，并执行可靠的入出库。
+          {t("搜索服务器上的有效元器件。服务端开启 Web 库存操作后，可创建库位和元件，并执行可靠的入出库。")}
         </p>
       </header>
 
-      {settings.error ? <Alert variant="destructive"><AlertTitle>无法确认库存操作开关</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-3"><span>{settings.error}</span><Button variant="outline" size="sm" onClick={() => void settings.reload()}>重试</Button></AlertDescription></Alert> : null}
-      {inventoryEnabled && locations.error ? <Alert variant="destructive"><AlertTitle>无法读取库位</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-3"><span>{locations.error}</span><Button variant="outline" size="sm" onClick={() => void locations.reload()}>重试</Button></AlertDescription></Alert> : null}
+      {settings.error ? <Alert variant="destructive"><AlertTitle>{t("无法确认库存操作开关")}</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-3"><span>{settings.error}</span><Button variant="outline" size="sm" onClick={() => void settings.reload()}>{t("重试")}</Button></AlertDescription></Alert> : null}
+      {inventoryEnabled && locations.error ? <Alert variant="destructive"><AlertTitle>{t("无法读取库位")}</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-3"><span>{locations.error}</span><Button variant="outline" size="sm" onClick={() => void locations.reload()}>{t("重试")}</Button></AlertDescription></Alert> : null}
 
       <InventoryActions
         scope="create"
@@ -113,11 +115,11 @@ export function InventoryPage() {
         <CardContent className="pt-6">
           <form className="grid gap-3 md:grid-cols-[minmax(0,1fr),180px,auto]" onSubmit={submitSearch}>
             <div className="space-y-2">
-              <label htmlFor={searchInputId} className="block text-sm font-medium">料号、名称、分类或库位</label>
-              <Input id={searchInputId} value={input} onChange={(event) => setInput(event.target.value)} placeholder="例如 C30926、连接器或 A-01" />
+              <label htmlFor={searchInputId} className="block text-sm font-medium">{t("料号、名称、分类或库位")}</label>
+              <Input id={searchInputId} value={input} onChange={(event) => setInput(event.target.value)} placeholder={t("例如 C30926、连接器或 A-01")} />
             </div>
             <div className="space-y-2">
-              <label htmlFor={stockFilterId} className="block text-sm font-medium">库存状态</label>
+              <label htmlFor={stockFilterId} className="block text-sm font-medium">{t("库存状态")}</label>
               <select
                 id={stockFilterId}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -127,22 +129,22 @@ export function InventoryPage() {
                   setSearchParams(buildPageParams(query, event.target.value, 1));
                 }}
               >
-                <option value="all">全部</option>
-                <option value="low">低库存</option>
-                <option value="healthy">库存充足</option>
+                <option value="all">{t("全部")}</option>
+                <option value="low">{t("低库存")}</option>
+                <option value="healthy">{t("库存充足")}</option>
               </select>
             </div>
-            <Button className="self-end" type="submit">搜索</Button>
+            <Button className="self-end" type="submit">{t("搜索")}</Button>
           </form>
         </CardContent>
       </Card>
 
       {error ? (
         <Alert variant="destructive">
-          <AlertTitle>无法读取库存</AlertTitle>
+          <AlertTitle>{t("无法读取库存")}</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
             <span>{error}</span>
-            <Button size="sm" variant="outline" onClick={() => void reload()}>重试</Button>
+            <Button size="sm" variant="outline" onClick={() => void reload()}>{t("重试")}</Button>
           </AlertDescription>
         </Alert>
       ) : null}
@@ -150,58 +152,58 @@ export function InventoryPage() {
       <Card className="bg-white/90">
         <CardHeader>
           <CardTitle className="flex flex-wrap items-center justify-between gap-2">
-            <span>元器件列表</span>
+            <span>{t("元器件列表")}</span>
             <span className="text-sm font-normal text-muted-foreground" aria-live="polite">
-              {loading ? "正在加载…" : `共 ${data?.total ?? 0} 项`}
+              {loading ? t("正在加载…") : `${t("共")}${formatCount(data?.total ?? 0, locale)}${t(" 项")}`}
             </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {!loading && data?.items.length === 0 ? (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-              没有符合条件的元器件。请调整搜索词或库存状态。
+              {t("没有符合条件的元器件。请调整搜索词或库存状态。")}
             </div>
           ) : data ? (<>
-            <div className="grid gap-3 md:hidden" aria-label="库存结果">
+            <div className="grid gap-3 md:hidden" aria-label={t("库存结果")}>
               {data.items.map((item) => <article key={item.id} className="rounded-2xl border bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div><button className="min-h-11 text-left font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={(event) => selectComponent(event, item.id)}>{item.sku}</button><p className="text-sm text-slate-700">{item.name}</p></div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${item.low_stock ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{item.low_stock ? "低库存" : "库存充足"}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${item.low_stock ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{item.low_stock ? t("低库存") : t("库存充足")}</span>
                 </div>
-                <dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><Detail label="分类" value={displayCategory(item.category)} /><Detail label="库位" value={locationLabel(item.location)} /><Detail label="库存 / 最低" value={`${item.quantity} / ${item.min_stock}`} /><Detail label="更新时间" value={formatDateTime(item.updated_at)} /></dl>
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><Detail label={t("分类")} value={locale === "zh-CN" ? displayCategory(item.category) : item.category} /><Detail label={t("库位")} value={locationLabel(item.location)} /><Detail label={t("库存 / 最低")} value={`${formatCount(item.quantity, locale)} / ${formatCount(item.min_stock, locale)}`} /><Detail label={t("更新时间")} value={formatDateTime(item.updated_at, locale)} /></dl>
               </article>)}
             </div>
-            <div className="hidden overflow-x-auto md:block" tabIndex={0} aria-label="库存结果">
+            <div className="hidden overflow-x-auto md:block" tabIndex={0} aria-label={t("库存结果")}>
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>料号</TableHead><TableHead>名称</TableHead>
-                  <TableHead className="hidden md:table-cell">分类</TableHead>
-                  <TableHead>库位</TableHead><TableHead>库存 / 最低</TableHead>
-                  <TableHead className="hidden lg:table-cell">更新时间</TableHead>
+                  <TableHead>{t("料号")}</TableHead><TableHead>{t("名称")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("分类")}</TableHead>
+                  <TableHead>{t("库位")}</TableHead><TableHead>{t("库存 / 最低")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("更新时间")}</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>{data.items.map((item) => (
                   <TableRow key={item.id} data-state={selectedId === item.id ? "selected" : undefined}>
                     <TableCell><button className="font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={(event) => selectComponent(event, item.id)}>{item.sku}</button></TableCell>
                     <TableCell>{item.name}</TableCell>
-                    <TableCell className="hidden md:table-cell">{displayCategory(item.category)}</TableCell>
+                    <TableCell className="hidden md:table-cell">{locale === "zh-CN" ? displayCategory(item.category) : item.category}</TableCell>
                     <TableCell>{locationLabel(item.location)}</TableCell>
                     <TableCell className={item.low_stock ? "font-semibold text-amber-700" : ""}>
-                      {item.quantity} / {item.min_stock}
-                      {item.low_stock ? <span className="ml-2 whitespace-nowrap">低库存</span> : null}
+                      {formatCount(item.quantity, locale)} / {formatCount(item.min_stock, locale)}
+                      {item.low_stock ? <span className="ml-2 whitespace-nowrap">{t("低库存")}</span> : null}
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell">{formatDateTime(item.updated_at)}</TableCell>
+                    <TableCell className="hidden lg:table-cell">{formatDateTime(item.updated_at, locale)}</TableCell>
                   </TableRow>
                 ))}</TableBody>
               </Table>
             </div>
-          </>) : <div className="h-48 animate-pulse rounded-xl bg-slate-100" aria-label="正在加载库存" />}
+          </>) : <div className="h-48 animate-pulse rounded-xl bg-slate-100" aria-label={t("正在加载库存")} />}
 
           {data && data.page_count > 0 ? (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">第 {data.page} / {data.page_count} 页</p>
+              <p className="text-sm text-muted-foreground">{t("第")}{formatCount(data.page, locale)} / {formatCount(data.page_count, locale)}{t(" 页")}</p>
               <div className="flex gap-2">
-                <Button variant="outline" disabled={loading || data.page <= 1} onClick={() => { setSearchParams(buildPageParams(query, stockFilter, page - 1)); setSelectedId(null); }}>上一页</Button>
-                <Button variant="outline" disabled={loading || data.page >= data.page_count} onClick={() => { setSearchParams(buildPageParams(query, stockFilter, page + 1)); setSelectedId(null); }}>下一页</Button>
+                <Button variant="outline" disabled={loading || data.page <= 1} onClick={() => { setSearchParams(buildPageParams(query, stockFilter, page - 1)); setSelectedId(null); }}>{t("上一页")}</Button>
+                <Button variant="outline" disabled={loading || data.page >= data.page_count} onClick={() => { setSearchParams(buildPageParams(query, stockFilter, page + 1)); setSelectedId(null); }}>{t("下一页")}</Button>
               </div>
             </div>
           ) : null}
@@ -212,23 +214,23 @@ export function InventoryPage() {
         <Card className="scroll-mt-20 bg-white/90" aria-busy={detail.loading}>
           <CardHeader className="flex flex-row items-start justify-between gap-3">
             <CardTitle ref={detailHeading} tabIndex={-1} className="scroll-mt-20 focus:outline-none">
-              元器件详情
+              {t("元器件详情")}
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={closeDetail}>关闭详情</Button>
+            <Button variant="outline" size="sm" onClick={closeDetail}>{t("关闭详情")}</Button>
           </CardHeader>
           <CardContent>
-            {detail.error ? <Alert variant="destructive"><AlertTitle>无法读取详情</AlertTitle><AlertDescription>{detail.error}</AlertDescription></Alert> : null}
+            {detail.error ? <Alert variant="destructive"><AlertTitle>{t("无法读取详情")}</AlertTitle><AlertDescription>{detail.error}</AlertDescription></Alert> : null}
             {detail.data ? (
               <><dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                <Detail label="料号" value={detail.data.sku} /><Detail label="名称" value={detail.data.name} />
-                <Detail label="分类" value={displayCategory(detail.data.category)} /><Detail label="封装" value={detail.data.package_name} />
-                <Detail label="默认库位" value={locationLabel(detail.data.location)} /><Detail label="库存 / 最低库存" value={`${detail.data.quantity} / ${detail.data.min_stock}`} />
-                <Detail label="库存模式" value={detail.data.inventory_managed ? "独立库位库存" : "旧版标量库存"} />
-                <Detail label="说明" value={detail.data.description || "—"} />
-                <Detail label="库位分配" value={detail.data.allocations.length ? detail.data.allocations.map((item) => `${locations.data?.find((location) => location.id === item.location_id)?.name ?? item.location_id}: ${item.quantity}`).join("；") : "未提供独立库位分配"} />
-                <Detail label="更新时间" value={formatDateTime(detail.data.updated_at)} />
+                <Detail label={t("料号")} value={detail.data.sku} /><Detail label={t("名称")} value={detail.data.name} />
+                <Detail label={t("分类")} value={locale === "zh-CN" ? displayCategory(detail.data.category) : detail.data.category} /><Detail label={t("封装")} value={detail.data.package_name} />
+                <Detail label={t("默认库位")} value={locationLabel(detail.data.location)} /><Detail label={t("库存 / 最低库存")} value={`${formatCount(detail.data.quantity, locale)} / ${formatCount(detail.data.min_stock, locale)}`} />
+                <Detail label={t("库存模式")} value={detail.data.inventory_managed ? t("独立库位库存") : t("旧版标量库存")} />
+                <Detail label={t("说明")} value={detail.data.description || "—"} />
+                <Detail label={t("库位分配")} value={detail.data.allocations.length ? detail.data.allocations.map((item) => `${locations.data?.find((location) => location.id === item.location_id)?.name ?? item.location_id}: ${formatCount(item.quantity, locale)}`).join(locale === "zh-CN" ? "；" : "; ") : t("未提供独立库位分配")} />
+                <Detail label={t("更新时间")} value={formatDateTime(detail.data.updated_at, locale)} />
               </dl></>
-            ) : detail.loading ? <p className="text-sm text-muted-foreground" aria-live="polite">正在加载详情…</p> : null}
+            ) : detail.loading ? <p className="text-sm text-muted-foreground" aria-live="polite">{t("正在加载详情…")}</p> : null}
             <InventoryActions
               scope="component"
               enabled={inventoryEnabled}

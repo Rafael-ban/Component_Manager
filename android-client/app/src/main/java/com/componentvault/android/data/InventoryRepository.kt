@@ -308,21 +308,11 @@ class InventoryRepository(
         ensureDefaultSettings()
         val normalizedServerUrl = serverBaseUrl.trim().trimEnd('/')
         synchronized(syncConfigurationLock) {
-            val serverChanged = normalizedServerUrl != preferences.getString(
-                KEY_SERVER_BASE_URL,
-                "",
-            ).orEmpty()
             preferences.edit()
                 .putString(KEY_SERVER_BASE_URL, normalizedServerUrl)
                 .putString(KEY_EXTERNAL_SERVER_BASE_URL, externalServerBaseUrl.trim().trimEnd('/'))
                 .putString(KEY_API_TOKEN, apiToken.trim())
                 .putBoolean(KEY_AUTO_SYNC_ENABLED, autoSyncEnabled)
-                .apply {
-                    if (serverChanged) {
-                        remove(KEY_SYNC_CURSOR)
-                        remove(KEY_LAST_SYNCED_AT)
-                    }
-                }
                 .commit()
         }
 
@@ -1167,12 +1157,46 @@ class InventoryRepository(
                 check(capability.optInt("inventory_protocol", 0) == 1) {
                     "The server does not support inventory_protocol=1. Local changes were kept for retry."
                 }
+                val identity = callJson(endpoint.configuration, "GET", "/auth/me", null)
+                val serverId = identity.optString("server_id").trim()
+                val accountId = identity.optString("account_id").trim()
+                check(serverId.isNotBlank() && accountId.isNotBlank()) {
+                    text(R.string.sync_identity_unavailable)
+                }
+                synchronized(syncConfigurationLock) {
+                    checkSyncConfigurationUnchanged(settings)
+                    val boundServer = preferences.getString(KEY_BOUND_SERVER_ID, "").orEmpty()
+                    val boundAccount = preferences.getString(KEY_BOUND_ACCOUNT_ID, "").orEmpty()
+                    check(boundServer.isBlank() && boundAccount.isBlank() ||
+                        boundServer == serverId && boundAccount == accountId) {
+                        text(R.string.sync_account_mismatch)
+                    }
+                    if (boundServer.isBlank() && boundAccount.isBlank()) {
+                        val priorSync = readStoredSyncCursor() != null ||
+                            preferences.getString(KEY_LAST_SYNCED_AT, "").orEmpty()
+                                .matches(Regex("^\\d{4}-\\d{2}-\\d{2}T.*")) ||
+                            databaseHelper.readableDatabase.use { db ->
+                                db.rawQuery(
+                                    "SELECT 1 FROM components WHERE base_updated_at IS NOT NULL LIMIT 1",
+                                    null,
+                                ).use { it.moveToFirst() }
+                            }
+                        check(!priorSync || identity.optString("role") == "admin") {
+                            text(R.string.sync_legacy_admin_only)
+                        }
+                        check(preferences.edit()
+                            .putString(KEY_BOUND_SERVER_ID, serverId)
+                            .putString(KEY_BOUND_ACCOUNT_ID, accountId)
+                            .commit()) { text(R.string.sync_identity_unavailable) }
+                    }
+                }
                 val pushPayload = buildPushPayload(settings.deviceId)
                 val pushResponse = callJson(
                     settings = endpoint.configuration,
                     method = "POST",
                     path = "/sync/push",
                     body = pushPayload.payload,
+                    accountId = accountId,
                 )
                 val cursor = readStoredSyncCursor()
                 val pullResponse = callJson(
@@ -1180,6 +1204,7 @@ class InventoryRepository(
                     method = "GET",
                     path = SyncProtocol.pullPath(cursor),
                     body = null,
+                    accountId = accountId,
                 )
                 val rawCursor = pullResponse.opt("sync_cursor")
                 val cursorDecision = SyncProtocol.cursorFromResponse(
@@ -2513,12 +2538,14 @@ class InventoryRepository(
         path: String,
         body: JSONObject?,
         timeoutMillis: Int = 60_000,
+        accountId: String? = null,
     ): JSONObject {
         val connection = URL("${settings.serverBaseUrl.trimEnd('/')}$path").openConnection() as HttpURLConnection
         connection.connectTimeout = timeoutMillis
         connection.readTimeout = timeoutMillis
         connection.requestMethod = method
         connection.setRequestProperty("Authorization", "Bearer ${settings.apiToken}")
+        if (accountId != null) connection.setRequestProperty("X-Component-Vault-Account-Id", accountId)
         connection.setRequestProperty("Accept", "application/json")
         return try {
             if (body != null) {
@@ -2531,6 +2558,9 @@ class InventoryRepository(
             val responseCode = connection.responseCode
             val responseText = readResponseText(connection, responseCode)
             if (responseCode !in 200..299) {
+                if (path == "/auth/me" && responseCode == 404) {
+                    throw IllegalStateException(text(R.string.sync_identity_unavailable))
+                }
                 throw IllegalStateException(buildErrorMessage(responseCode, responseText))
             }
             if (responseText.isBlank()) {
@@ -2932,6 +2962,8 @@ class InventoryRepository(
         const val KEY_LAST_SYNCED_AT = "last_synced_at"
         const val KEY_LAST_SYNC_MESSAGE = "last_sync_message"
         const val KEY_SYNC_CURSOR = "sync_cursor"
+        const val KEY_BOUND_SERVER_ID = "bound_server_id"
+        const val KEY_BOUND_ACCOUNT_ID = "bound_account_id"
         const val KEY_INVENTORY_PROTOCOL_MIGRATED = "inventory_protocol_migrated_v1"
         const val KEY_DEFAULT_IMPORT_LOCATION = "default_import_location"
         const val KEY_LAST_IMPORT_LOCATION = "last_import_location"

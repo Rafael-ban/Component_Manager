@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { ApiError, requestJson } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { currentTranslation } from "@/lib/i18n";
 
 export function useAdminResource<T>(path: string | null) {
   const { logout, session } = useAuth();
@@ -40,7 +41,7 @@ export function useAdminResource<T>(path: string | null) {
           replace: true,
           state: {
             from: `${location.pathname}${location.search}`,
-            reason: "登录已失效，请重新验证 API 令牌。",
+            reason: currentTranslation("登录已失效，请重新验证 API 令牌。"),
           },
         });
         return;
@@ -49,7 +50,7 @@ export function useAdminResource<T>(path: string | null) {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Unable to load admin data.",
+          : currentTranslation("Unable to load admin data."),
       );
     } finally {
       if (generation === requestGeneration.current) {

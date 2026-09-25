@@ -11,9 +11,9 @@ to select another fixed, published release, such as `0.7.4` and `web-0.7.4`.
 The server image listens on port 8787 and stores SQLite under `/data`; preserve
 the Compose project name and `component_vault_data` volume when upgrading.
 The admin Web app remains a separate image. Start the optional profile with
-`docker compose -f docker-compose.hub.yml --profile web up -d`. The 0.7.0
-tags API `0.7.0`/`latest` and Web `web-0.7.0`/`web-latest` are published in the
-same repository. The verified release and digest details are recorded in the
+`docker compose -f docker-compose.hub.yml --profile web up -d`. API `0.7.4`
+and Web `web-0.7.4` were published in the same repository; floating tags can
+move with later stable releases. Historical verification details are in the
 Docker Hub guide.
 
 Repository maintainers configure Actions variables `DOCKERHUB_USERNAME` and
@@ -26,6 +26,23 @@ release afterward; normal CI never pushes an image. Follow the complete
 [Docker Hub setup, verification and upgrade instructions](dockerhub.md).
 
 ## Admin console deployment and API token
+
+The first setup token is the administrator account key. Keep it for deployment
+and account management; issue a distinct ordinary key per user's inventory from
+Web Settings. The user's Android, Windows and Web sessions use that same key.
+Creation/reset shows a key once; copy it for the user. If lost, reset the key;
+disabling or rotating access does not delete stock. There is no public signup.
+
+Back up the entire `/data` directory consistently while writes are stopped,
+including the original administrator database, its account registry, `users/`,
+configuration and logs. A backup of only `component_vault.db` does not contain
+ordinary users' inventory. Keep the same mount on upgrade. Ordinary accounts
+need account-aware native clients; older admin clients remain usable. A native
+workspace identity mismatch must be resolved with a separate local workspace or
+an explicit export/reset process, never automatic inventory deletion.
+
+Web language is selected in login/settings; `/setup` has its own selector.
+The preference is saved in each browser origin, not as a server-wide language.
 
 The admin console is read-only by default. Set `WEB_INVENTORY_ENABLED=true` on
 the API only when authenticated browser users should create locations and

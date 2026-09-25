@@ -79,6 +79,14 @@ public sealed class SyncTokenStatusResponse
     public int InventoryProtocol { get; init; }
 }
 
+public sealed class SyncAccountIdentity
+{
+    public required string ServerId { get; init; }
+    public required string AccountId { get; init; }
+    public required string Name { get; init; }
+    public required string Role { get; init; }
+}
+
 public sealed class ApiErrorResponse
 {
     public string? Detail { get; init; }

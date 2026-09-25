@@ -11,8 +11,11 @@ Examples in this document assume `http://localhost:8787`.
 - All sync endpoints require `Authorization: Bearer <API_TOKEN>`.
 - All `/admin-api/*` endpoints also require `Authorization: Bearer <API_TOKEN>`.
 - The server also accepts `X-API-Token`, but the client uses bearer auth.
+- The setup token authenticates the administrator. Ordinary account keys resolve
+  independent inventory databases and cannot access setup, logs, accounts or
+  global MQTT configuration. Disabled accounts and replaced keys return 401.
 - The separated `admin-web/` console authenticates through `POST /auth/ping`
-  and then calls `/admin-api/*`.
+  and resolves `GET /auth/me` before calling role-appropriate `/admin-api/*` routes.
 - Native JLC import enrichment queries public catalogs directly without a
   server token. The separate server-side `GET /admin-api/part-lookup` and
   `GET /admin-api/lcsc/lookup` helpers remain authenticated.
@@ -22,7 +25,7 @@ Examples in this document assume `http://localhost:8787`.
 From 0.7.1, `GET /` redirects to the built-in `GET /setup` page. It is served on
 the API's own origin, so initial setup does not depend on the React admin app.
 `GET /setup/status` returns only `{ "configured": true | false }` anonymously.
-`GET /setup/config` and `GET /setup/logs` require the current Bearer token.
+`GET /setup/config` and `GET /setup/logs` require the current administrator Bearer token.
 
 `POST /setup/config` accepts `api_token`, `admin_web_origins` (an array of HTTP(S)
 origins), and `web_inventory_enabled`. A fresh, unconfigured deployment accepts
@@ -70,6 +73,23 @@ curl -X POST http://localhost:8787/auth/ping `
 ### `POST /sync/push`
 
 Uploads the latest client-side state for synchronized entities.
+
+Account-aware clients first call `GET /auth/me`, whose response contains
+`server_id`, `account_id`, `name` and `role` (`admin` or `user`). Validate the
+server/account against the local workspace before any push or pull. Send
+`X-Component-Vault-Account-Id: <account_id>` on both sync routes. This header is
+required for ordinary accounts (409 if missing, 403 if mismatched); legacy
+administrator clients may omit it. The server always derives the database from
+the key, never from this header. Cursors are scoped to a single account database.
+
+Administrator-only account routes:
+
+- `GET /admin-api/accounts`: array of `{account_id, name, active, role}` for ordinary accounts.
+- `POST /admin-api/accounts` with `{name}`: creates an account, returns its metadata and `api_token` once.
+- `PATCH /admin-api/accounts/{id}` with `{name}` and/or `{active}`: updates metadata or access, preserving inventory.
+- `POST /admin-api/accounts/{id}/rotate-key`: returns `{account_id, api_token}`; the old key immediately stops authenticating.
+
+The implicit administrator is configured through `/setup`, not these account routes.
 
 ```powershell
 $body = @'

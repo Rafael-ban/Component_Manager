@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "node --experimental-strip-types --test src/lib/pending-request.test.ts src/lib/category-display.test.ts src/lib/request-id.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/pending-request.test.ts src/lib/category-display.test.ts src/lib/request-id.test.ts src/lib/locale.test.ts",
     "preview": "vite preview --host 0.0.0.0 --port 4173"
   },
   "dependencies": {

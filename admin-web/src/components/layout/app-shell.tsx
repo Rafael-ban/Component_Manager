@@ -1,3 +1,4 @@
+import { useI18n } from "@/lib/i18n";
 import { DatabaseZap, LayoutDashboard, LogOut, Settings, ShieldCheck } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
@@ -11,10 +12,11 @@ const navigationItems = [
   { to: "/inventory", label: "库存", icon: DatabaseZap },
   { to: "/sync", label: "同步", icon: ShieldCheck },
   { to: "/settings", label: "设置", icon: Settings },
-];
+] as const;
 
 export function AppShell() {
-  const { logout, session } = useAuth();
+  const { t } = useI18n();
+  const { identity, logout, session } = useAuth();
 
   return (
     <div className="min-h-screen">
@@ -22,12 +24,12 @@ export function AppShell() {
         <aside className="border-b border-white/60 bg-white/85 px-4 py-4 backdrop-blur lg:w-72 lg:border-b-0 lg:border-r lg:px-6 lg:py-6">
           <div className="space-y-2">
             <Badge variant="secondary" className="rounded-full px-3 py-1">
-              独立管理台
+              {t("独立管理台")}
             </Badge>
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Component Vault</h1>
               <p className="text-sm text-muted-foreground">
-                库存默认只读，服务端启用后可操作；同时支持 MQTT 配置。
+                {t("库存默认只读，服务端启用后可操作；同时支持 MQTT 配置。")}
               </p>
             </div>
           </div>
@@ -47,7 +49,7 @@ export function AppShell() {
                 }
               >
                 <Icon className="h-4 w-4" />
-                {label}
+                {t(label)}
               </NavLink>
             ))}
           </nav>
@@ -57,14 +59,15 @@ export function AppShell() {
           <header className="sticky top-0 z-20 border-b border-white/70 bg-background/75 px-4 py-3 backdrop-blur md:px-6 md:py-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-600">已连接 API</p>
+                <p className="text-sm font-medium text-slate-600">{t("已连接 API")}</p>
                 <p className="text-sm text-slate-500">{session?.apiBaseUrl}</p>
+                {identity ? <p className="text-sm text-slate-600">{identity.role === "admin" && identity.name === "Administrator" ? t("管理员") : `${identity.name} · ${identity.role === "admin" ? t("管理员") : t("普通用户")}`}</p> : null}
               </div>
               <div className="flex items-center gap-3">
-                <Badge variant="success">令牌有效</Badge>
+                <Badge variant="success">{t("令牌有效")}</Badge>
                 <Button variant="outline" onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  退出登录
+                  {t("退出登录")}
                 </Button>
               </div>
             </div>

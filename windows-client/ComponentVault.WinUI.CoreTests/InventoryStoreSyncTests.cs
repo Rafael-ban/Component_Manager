@@ -91,7 +91,7 @@ public sealed class InventoryStoreSyncTests : IDisposable
     }
 
     [Fact]
-    public void SyncCursor_IsIndependentFromDisplayTimeAndClearedForNewServer()
+    public void SyncCursor_IsIndependentFromDisplayTimeAndPreservedUntilIdentityCheck()
     {
         var store = CreateStore();
         Assert.Null(store.CreateSyncEnvelope().Cursor);
@@ -108,7 +108,7 @@ public sealed class InventoryStoreSyncTests : IDisposable
         Assert.Equal(13, store.CreateSyncEnvelope().Cursor);
 
         store.SaveSyncConfiguration("https://new-server.example/", "", "token", true);
-        Assert.Null(store.CreateSyncEnvelope().Cursor);
+        Assert.Equal(13, store.CreateSyncEnvelope().Cursor);
     }
 
     [Fact]
@@ -204,7 +204,58 @@ public sealed class InventoryStoreSyncTests : IDisposable
         Assert.True(settings.AutoSyncEnabled);
         Assert.Equal("legacy status", settings.LastSyncMessage);
         Assert.Equal(42, store.CreateSyncEnvelope().Cursor);
+        Assert.Contains("管理员", store.ValidateAndBindSyncIdentity(
+            Identity("server-1", "ordinary-1", "user"), settings)!);
+        Assert.Equal(42, store.CreateSyncEnvelope().Cursor);
     }
+
+    [Fact]
+    public void BoundIdentity_RejectsOtherAccountAndServerWithoutChangingQueueOrCursor()
+    {
+        var store = CreateStore();
+        store.SaveSyncConfiguration("https://internal.example", "https://external.example", "first-key", true);
+        store.SaveComponent(CreateDraft("local"));
+        var settings = store.GetSyncConfiguration();
+        Assert.Null(store.ValidateAndBindSyncIdentity(Identity("server-1", "account-1"), settings));
+
+        store.SaveSyncConfiguration("https://external.example", "https://internal.example", "rotated-key", true);
+        settings = store.GetSyncConfiguration();
+        Assert.Null(store.ValidateAndBindSyncIdentity(Identity("server-1", "account-1"), settings));
+        Assert.Contains("已绑定", store.ValidateAndBindSyncIdentity(Identity("server-1", "account-2"), settings)!);
+        Assert.Contains("已绑定", store.ValidateAndBindSyncIdentity(Identity("server-2", "account-1"), settings)!);
+        Assert.Single(store.CreateSyncEnvelope().QueuedEntities, item => item.EntityType == "component");
+        Assert.Null(store.CreateSyncEnvelope().Cursor);
+    }
+
+    [Fact]
+    public void PreviouslySyncedUnboundWorkspace_RequiresAdminIdentity()
+    {
+        var store = CreateStore();
+        store.ApplySyncResult(CreateSuccess(24), [], string.Empty);
+        var settings = store.GetSyncConfiguration();
+        Assert.Contains("管理员", store.ValidateAndBindSyncIdentity(Identity("server-1", "user-1", "user"), settings)!);
+        Assert.Equal(24, store.CreateSyncEnvelope().Cursor);
+        Assert.Null(store.ValidateAndBindSyncIdentity(Identity("server-1", "admin-1"), settings));
+    }
+
+    [Fact]
+    public void ChangedKeyDuringIdentityLookup_CannotBindOrApplyOldSyncResult()
+    {
+        var store = CreateStore();
+        store.SaveSyncConfiguration("https://server.example", "", "old-key", true);
+        var snapshot = store.CreateSyncEnvelope();
+        store.SaveSyncConfiguration("https://server.example", "", "new-key", true);
+
+        Assert.Contains("配置已变化", store.ValidateAndBindSyncIdentity(
+            Identity("server-1", "account-1"), snapshot.Settings)!);
+        Assert.False(store.ApplySyncResult(
+            CreateSuccess(99), snapshot.QueuedEntities,
+            snapshot.Settings.ServerBaseUrl, snapshot.Settings));
+        Assert.Null(store.CreateSyncEnvelope().Cursor);
+    }
+
+    private static SyncAccountIdentity Identity(string server, string account, string role = "admin") =>
+        new() { ServerId = server, AccountId = account, Name = "test", Role = role };
 
     private InventoryStore CreateStore()
     {

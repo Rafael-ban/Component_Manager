@@ -62,7 +62,8 @@ public sealed class SyncApiClient
         SyncConfiguration settings,
         SyncPushRequest pushRequest,
         long? cursor,
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken = default,
+        Func<SyncAccountIdentity, string?>? validateAndBindIdentity = null
     )
     {
         if (string.IsNullOrWhiteSpace(settings.ServerBaseUrl))
@@ -80,13 +81,18 @@ public sealed class SyncApiClient
             var (serverBaseUrl, capability) = await ResolveServerAsync(settings, cancellationToken);
             if (capability.InventoryProtocol != 1)
                 return SyncRunResult.Failure("服务器不支持多库位库存协议 inventory_protocol=1；同步已停止，本地待同步内容已保留。");
-            var pushResponse = await PushAsync(settings, serverBaseUrl, pushRequest, cancellationToken);
+            var identity = await GetIdentityAsync(serverBaseUrl, settings.ApiToken, cancellationToken);
+            if (string.IsNullOrWhiteSpace(identity.ServerId) || string.IsNullOrWhiteSpace(identity.AccountId))
+                return SyncRunResult.Failure("服务器无法确认账户身份。请先升级服务器；本地库存和同步进度已保留。");
+            var identityError = validateAndBindIdentity?.Invoke(identity);
+            if (identityError is not null) return SyncRunResult.Failure(identityError);
+            var pushResponse = await PushAsync(settings, serverBaseUrl, pushRequest, identity.AccountId, cancellationToken);
             if (pushResponse.Result is not null)
             {
                 return pushResponse.Result;
             }
 
-            var pullResponse = await PullAsync(settings, serverBaseUrl, cursor, cancellationToken);
+            var pullResponse = await PullAsync(settings, serverBaseUrl, cursor, identity.AccountId, cancellationToken);
             if (pullResponse.Result is not null)
             {
                 return pullResponse.Result;
@@ -164,10 +170,27 @@ public sealed class SyncApiClient
         return await DeserializeAsync<SyncTokenStatusResponse>(response, cancellationToken);
     }
 
+    private async Task<SyncAccountIdentity> GetIdentityAsync(
+        string serverBaseUrl,
+        string apiToken,
+        CancellationToken cancellationToken
+    )
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, BuildUri(serverBaseUrl, "/auth/me"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            throw new InvalidOperationException("服务器尚未支持账户身份接口，请升级服务器后同步；本地库存和同步进度已保留。");
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(await BuildErrorMessageAsync(response, cancellationToken));
+        return await DeserializeAsync<SyncAccountIdentity>(response, cancellationToken);
+    }
+
     private async Task<(SyncPushResponse? Payload, SyncRunResult? Result)> PushAsync(
         SyncConfiguration settings,
         string serverBaseUrl,
         SyncPushRequest pushRequest,
+        string accountId,
         CancellationToken cancellationToken
     )
     {
@@ -177,6 +200,7 @@ public sealed class SyncApiClient
             BuildUri(serverBaseUrl, "/sync/push")
         );
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiToken);
+        request.Headers.Add("X-Component-Vault-Account-Id", accountId);
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -195,6 +219,7 @@ public sealed class SyncApiClient
         SyncConfiguration settings,
         string serverBaseUrl,
         long? cursor,
+        string accountId,
         CancellationToken cancellationToken
     )
     {
@@ -207,6 +232,7 @@ public sealed class SyncApiClient
             BuildUri(serverBaseUrl, path)
         );
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiToken);
+        request.Headers.Add("X-Component-Vault-Account-Id", accountId);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)

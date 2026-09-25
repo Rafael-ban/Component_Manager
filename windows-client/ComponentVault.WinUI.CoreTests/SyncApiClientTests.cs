@@ -20,6 +20,7 @@ public sealed class SyncApiClientTests
         Assert.Equal(
             [
                 "POST https://primary.example/auth/ping",
+                "GET https://primary.example/auth/me",
                 "POST https://primary.example/sync/push",
                 "GET https://primary.example/sync/pull?cursor=7",
             ],
@@ -37,14 +38,24 @@ public sealed class SyncApiClientTests
             return Task.FromResult(SuccessFor(request));
         });
 
-        var result = await CreateClient(handler).RunSyncAsync(Settings(), EmptyPush(), cursor: 7);
+        var identityChecked = false;
+        var result = await CreateClient(handler).RunSyncAsync(
+            Settings(), EmptyPush(), cursor: 7,
+            validateAndBindIdentity: identity =>
+            {
+                identityChecked = identity.ServerId == "server-1" && identity.AccountId == "account-1";
+                return identityChecked ? null : "unexpected identity";
+            }
+        );
 
         Assert.True(result.IsSuccess);
+        Assert.True(identityChecked);
         Assert.Equal("https://fallback.example", result.UsedServerBaseUrl);
         Assert.Equal(
             [
                 "POST https://primary.example/auth/ping",
                 "POST https://fallback.example/auth/ping",
+                "GET https://fallback.example/auth/me",
                 "POST https://fallback.example/sync/push",
                 "GET https://fallback.example/sync/pull?cursor=7",
             ],
@@ -83,6 +94,38 @@ public sealed class SyncApiClientTests
     }
 
     [Fact]
+    public async Task RunSync_IdentityMismatch_StopsBeforePushOrPull()
+    {
+        var handler = new RecordingHandler((request, _) => Task.FromResult(SuccessFor(request)));
+        var result = await CreateClient(handler).RunSyncAsync(
+            Settings(), EmptyPush(), cursor: 7,
+            validateAndBindIdentity: identity => identity.AccountId == "other"
+                ? null : "本地库存已绑定其他账户。"
+        );
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal([
+            "POST https://primary.example/auth/ping",
+            "GET https://primary.example/auth/me",
+        ], handler.Requests);
+    }
+
+    [Fact]
+    public async Task RunSync_SendsAccountHeaderToBothSyncRequests()
+    {
+        var headers = new List<string>();
+        var handler = new RecordingHandler((request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath.StartsWith("/sync/"))
+                headers.Add(request.Headers.GetValues("X-Component-Vault-Account-Id").Single());
+            return Task.FromResult(SuccessFor(request));
+        });
+
+        Assert.True((await CreateClient(handler).RunSyncAsync(Settings(), EmptyPush(), cursor: null)).IsSuccess);
+        Assert.Equal(["account-1", "account-1"], headers);
+    }
+
+    [Fact]
     public async Task RunSync_UserCancellation_DoesNotTryFallback()
     {
         using var cancellation = new CancellationTokenSource();
@@ -116,6 +159,7 @@ public sealed class SyncApiClientTests
         Assert.Equal(
             [
                 "POST https://primary.example/auth/ping",
+                "GET https://primary.example/auth/me",
                 "POST https://primary.example/sync/push",
             ],
             handler.Requests
@@ -180,6 +224,7 @@ public sealed class SyncApiClientTests
         request.RequestUri!.AbsolutePath switch
         {
             "/auth/ping" => Json(HttpStatusCode.OK, "{\"status\":\"ok\",\"server_time\":\"2026-09-16T00:00:00Z\",\"inventory_protocol\":1}"),
+            "/auth/me" => Json(HttpStatusCode.OK, "{\"server_id\":\"server-1\",\"account_id\":\"account-1\",\"name\":\"Admin\",\"role\":\"admin\"}"),
             "/sync/push" => Json(HttpStatusCode.OK, "{\"accepted_components\":0,\"accepted_stock_movements\":0,\"server_time\":\"2026-09-16T00:00:00Z\"}"),
             "/sync/pull" => Json(HttpStatusCode.OK, "{\"inventory_protocol\":1,\"server_time\":\"2026-09-16T00:00:00Z\",\"sync_cursor\":8,\"components\":[],\"stock_movements\":[],\"storage_locations\":[]}"),
             _ => throw new InvalidOperationException($"Unexpected request: {request.RequestUri}"),

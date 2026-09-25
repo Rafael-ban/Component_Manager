@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 import sqlite3
 
 from ..config import Settings
@@ -28,17 +27,13 @@ class AdminComponentPage:
 
 
 def load_admin_components(
-    settings: Settings,
+    connection: sqlite3.Connection,
     *,
     query: str | None,
     low_stock: bool | None,
     page: int,
     page_size: int,
 ) -> AdminComponentPage:
-    database_path = Path(settings.database_path)
-    if not database_path.exists():
-        return AdminComponentPage([], page, page_size, 0)
-
     clauses = ["deleted = 0"]
     parameters: list[object] = []
     if query and query.strip():
@@ -54,16 +49,13 @@ def load_admin_components(
         clauses.append("quantity <= min_stock" if low_stock else "quantity > min_stock")
 
     where = " AND ".join(clauses)
-    connection = sqlite3.connect(str(database_path))
-    connection.row_factory = sqlite3.Row
-    try:
-        total = int(
+    total = int(
             connection.execute(
                 f"SELECT COUNT(*) FROM components WHERE {where}",
                 parameters,
             ).fetchone()[0]
         )
-        rows = connection.execute(
+    rows = connection.execute(
             f"""
             SELECT id, sku, name, category, package_name, location,
                    quantity, min_stock, updated_at,
@@ -75,8 +67,6 @@ def load_admin_components(
             """,
             [*parameters, page_size, (page - 1) * page_size],
         ).fetchall()
-    finally:
-        connection.close()
     return AdminComponentPage(
         items=[dict(row) for row in rows],
         page=page,
@@ -86,16 +76,10 @@ def load_admin_components(
 
 
 def load_admin_component(
-    settings: Settings,
+    connection: sqlite3.Connection,
     component_id: str,
 ) -> dict[str, object] | None:
-    database_path = Path(settings.database_path)
-    if not database_path.exists():
-        return None
-    connection = sqlite3.connect(str(database_path))
-    connection.row_factory = sqlite3.Row
-    try:
-        row = connection.execute(
+    row = connection.execute(
             """
             SELECT id, sku, name, category, package_name, location, description,
                    quantity, min_stock, updated_at, inventory_managed,
@@ -105,11 +89,11 @@ def load_admin_component(
             """,
             (component_id,),
         ).fetchone()
-        if row is None:
-            return None
-        result = dict(row)
-        result["inventory_managed"] = bool(result["inventory_managed"])
-        result["allocations"] = [
+    if row is None:
+        return None
+    result = dict(row)
+    result["inventory_managed"] = bool(result["inventory_managed"])
+    result["allocations"] = [
             dict(allocation)
             for allocation in connection.execute(
                 """
@@ -121,36 +105,17 @@ def load_admin_component(
                 (component_id,),
             ).fetchall()
         ]
-        return result
-    finally:
-        connection.close()
+    return result
 
 
 def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def load_admin_snapshot(settings: Settings) -> AdminSnapshot:
-    database_path = Path(settings.database_path)
-    if not database_path.exists():
-        return AdminSnapshot(
-            component_count=0,
-            total_units=0,
-            low_stock_count=0,
-            movement_count=0,
-            low_stock_components=[],
-            recent_components=[],
-            recent_movements=[],
-            sync_notes=[
-                'Database file has not been created yet.',
-                'Run the API once or push data from a client to populate records.',
-            ],
-        )
-
-    connection = sqlite3.connect(str(database_path))
-    connection.row_factory = sqlite3.Row
-    try:
-        aggregate = connection.execute(
+def load_admin_snapshot(
+    connection: sqlite3.Connection, settings: Settings, *, role: str = "admin"
+) -> AdminSnapshot:
+    aggregate = connection.execute(
             """
             SELECT
                 COUNT(*) AS component_count,
@@ -161,10 +126,10 @@ def load_admin_snapshot(settings: Settings) -> AdminSnapshot:
             WHERE deleted = 0
             """
         ).fetchone()
-        movement_row = connection.execute(
+    movement_row = connection.execute(
             "SELECT COUNT(*) AS movement_count FROM stock_movements WHERE deleted = 0"
         ).fetchone()
-        low_stock_rows = connection.execute(
+    low_stock_rows = connection.execute(
             """
             SELECT
                 id,
@@ -180,7 +145,7 @@ def load_admin_snapshot(settings: Settings) -> AdminSnapshot:
             LIMIT 8
             """
         ).fetchall()
-        component_rows = connection.execute(
+    component_rows = connection.execute(
             """
             SELECT
                 id,
@@ -202,7 +167,7 @@ def load_admin_snapshot(settings: Settings) -> AdminSnapshot:
             LIMIT 12
             """
         ).fetchall()
-        movement_rows = connection.execute(
+    movement_rows = connection.execute(
             """
             SELECT
                 m.id,
@@ -221,15 +186,13 @@ def load_admin_snapshot(settings: Settings) -> AdminSnapshot:
             LIMIT 12
             """
         ).fetchall()
-    finally:
-        connection.close()
 
     sync_notes = [
         f'API health endpoint remains available at http://{settings.app_host}:{settings.app_port}/health.',
         'Managed inventory uses base_updated_at conflict checks; legacy snapshots use last-write-wins.',
         'Device registry is not implemented yet; sync visibility is derived from server-side inventory state.',
     ]
-    if settings.api_token == 'change-me':
+    if role == "admin" and settings.api_token == 'change-me':
         sync_notes.insert(0, 'API token is still the default value. Replace it before deployment.')
 
     return AdminSnapshot(

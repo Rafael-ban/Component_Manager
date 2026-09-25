@@ -1,3 +1,4 @@
+import { useI18n } from "@/lib/i18n";
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Copy, Eye, EyeOff, LockKeyhole, Server } from "lucide-react";
@@ -14,16 +15,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
 import { copyText, serverSetupUrl } from "@/lib/clipboard";
+import { LanguageSelect } from "@/components/language-select";
+import { loadStoredSession } from "@/lib/storage";
 
 const DEFAULT_API_BASE_URL = import.meta.env.VITE_DEFAULT_API_BASE_URL
   || `${window.location.protocol}//${window.location.hostname}:8787`;
 
 export function LoginPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const { login, session } = useAuth();
-  const [apiBaseUrl, setApiBaseUrl] = useState(session?.apiBaseUrl ?? DEFAULT_API_BASE_URL);
-  const [token, setToken] = useState(session?.token ?? "");
+  const [apiBaseUrl, setApiBaseUrl] = useState(() => session?.apiBaseUrl ?? loadStoredSession()?.apiBaseUrl ?? DEFAULT_API_BASE_URL);
+  const [token, setToken] = useState(() => session?.token ?? loadStoredSession()?.token ?? "");
   const [showToken, setShowToken] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,37 +45,34 @@ export function LoginPage() {
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr,0.9fr]">
         <Card className="border-white/70 bg-white/85 backdrop-blur">
           <CardHeader>
-            <CardTitle className="text-3xl">Component Vault 管理台</CardTitle>
+            <div className="mb-2 flex justify-end"><LanguageSelect compact /></div>
+            <CardTitle className="text-3xl">{t("Component Vault 管理台")}</CardTitle>
             <CardDescription className="max-w-xl text-base">
-              连接自托管 FastAPI 同步服务，使用与同步 API 相同的 Bearer
-              令牌核对库存与配置 MQTT。库存默认只读；服务端启用 Web 库存操作后，可创建库位、元件并办理入出库。
+              {t("使用管理员或用户密钥连接自托管同步服务。每个账户拥有独立库存；服务端启用 Web 库存操作后，可以创建库位和元件并办理入出库。")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 text-sm text-slate-600">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-              <p className="font-medium text-slate-900">管理台提供的功能</p>
+              <p className="font-medium text-slate-900">{t("管理台提供的功能")}</p>
               <ul className="mt-3 space-y-2">
-                <li>服务端库存统计与低库存提醒</li>
-                <li>完整库存检索与同步记录核对</li>
-                <li>运行配置与部署状态</li>
-                <li>供下次服务重启使用的 MQTT Broker 配置</li>
+                <li>{t("服务端库存统计与低库存提醒")}</li>
+                <li>{t("完整库存检索与同步记录核对")}</li>
+                <li>{t("运行配置与部署状态")}</li>
+                <li>{t("供下次服务重启使用的 MQTT Broker 配置")}</li>
               </ul>
             </div>
             <div className="rounded-2xl border border-sky-100 bg-sky-50/80 p-4">
-              <p className="font-medium text-sky-950">推荐的本地配置</p>
-              <p className="mt-2">
-                开发时可在 <code>http://localhost:8787</code> 运行 API，并在
-                <code>http://localhost:5173</code> 运行管理台。
-              </p>
+              <p className="font-medium text-sky-950">{t("连接地址提示")}</p>
+              <p className="mt-2">{t("通常在 API 地址中填写服务器 IP 和 8787 端口；Web 管理台默认使用 8081 端口。")}</p>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-white/70 bg-white/92">
           <CardHeader>
-            <CardTitle>连接 API</CardTitle>
+            <CardTitle>{t("连接 API")}</CardTitle>
             <CardDescription>
-              进入管理台前，将通过 <code>/auth/ping</code> 验证令牌。
+              {t("验证账户密钥后，加载此账户的库存。")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -88,7 +89,7 @@ export function LoginPage() {
                   setError(
                     loginError instanceof Error
                       ? loginError.message
-                      : "无法登录管理台。",
+                      : t("无法登录管理台。"),
                   );
                 } finally {
                   setIsSubmitting(false);
@@ -97,14 +98,14 @@ export function LoginPage() {
             >
               {sessionReason ? (
                 <Alert>
-                  <AlertTitle>需要重新登录</AlertTitle>
+                  <AlertTitle>{t("需要重新登录")}</AlertTitle>
                   <AlertDescription>{sessionReason}</AlertDescription>
                 </Alert>
               ) : null}
               <label className="block space-y-2">
                 <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
                   <Server className="h-4 w-4" />
-                  API 地址
+                  {t("API 地址")}
                 </span>
                 <Input
                   autoComplete="url"
@@ -124,12 +125,12 @@ export function LoginPage() {
                   autoComplete="current-password"
                   value={token}
                   onChange={(event) => { setToken(event.target.value); setTokenCopied(false); }}
-                  placeholder="粘贴部署时设置的 API_TOKEN"
+                  placeholder={t("粘贴部署时设置的 API_TOKEN")}
                 />
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={() => setShowToken((value) => !value)}>
                     {showToken ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-                    {showToken ? "隐藏令牌" : "显示令牌"}
+                    {showToken ? t("隐藏令牌") : t("显示令牌")}
                   </Button>
                   <Button
                     type="button"
@@ -139,27 +140,27 @@ export function LoginPage() {
                     onClick={async () => {
                       const copied = await copyText(token);
                       setTokenCopied(copied);
-                      if (!copied) setError("浏览器未允许复制，请显示令牌后手动复制。");
+                      if (!copied) setError(t("浏览器未允许复制，请显示令牌后手动复制。"));
                     }}
                   >
                     <Copy className="mr-2 h-4 w-4" />
-                    {tokenCopied ? "已复制" : "复制令牌"}
+                    {tokenCopied ? t("已复制") : t("复制令牌")}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">API Token 由部署者设置。可在服务端配置页显示与复制当前令牌；也可查看 API 容器的 <code>API_TOKEN</code> 环境变量、部署目录的 <code>.env</code>，或映射目录中 <code>config.json</code> 的 <code>API_TOKEN</code>。它不是 <code>GPG_KEY</code> 或 <code>DOCKERHUB_TOKEN</code>。非部署者请联系管理员。</p>
+                <p className="text-xs text-muted-foreground">{t("管理员可在账户管理中创建用户并获取其密钥。")}</p>
               </label>
 
-              {serverSetupUrl(apiBaseUrl) ? <a className="block text-sm font-medium text-teal-700 underline" href={serverSetupUrl(apiBaseUrl)} target="_blank" rel="noopener noreferrer">首次部署？打开服务端配置与日志</a> : null}
+              {serverSetupUrl(apiBaseUrl) ? <a className="block text-sm font-medium text-teal-700 underline" href={serverSetupUrl(apiBaseUrl)} target="_blank" rel="noopener noreferrer">{t("首次部署？打开服务端配置与日志")}</a> : null}
 
               {error ? (
                 <Alert variant="destructive">
-                  <AlertTitle>连接失败</AlertTitle>
+                  <AlertTitle>{t("连接失败")}</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               ) : null}
 
               <Button className="w-full" disabled={isSubmitting} type="submit">
-                {isSubmitting ? "正在验证令牌…" : "进入管理台"}
+                {isSubmitting ? t("正在验证令牌…") : t("进入管理台")}
               </Button>
             </form>
           </CardContent>

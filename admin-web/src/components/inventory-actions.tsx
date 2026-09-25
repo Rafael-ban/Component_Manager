@@ -1,3 +1,4 @@
+import { currentTranslation, formatCount, useI18n } from "@/lib/i18n";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { RefreshCw } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -27,13 +28,14 @@ const emptyComponent = {
 };
 
 export function InventoryActions({ scope, enabled, component, locations, onChanged, onLocationsChanged }: InventoryActionsProps) {
-  const { logout, session } = useAuth();
+  const { t, locale } = useI18n();
+  const { identity, logout, session } = useAuth();
   const navigate = useNavigate();
   const route = useLocation();
   const [locationDraft, setLocationDraft] = useState({ id: "", name: "" });
   const [createDraft, setCreateDraft] = useState(emptyComponent);
   const [editDraft, setEditDraft] = useState(emptyComponent);
-  const [movement, setMovement] = useState({ movement_type: "inbound", quantity: 1, reason: "库存操作", note: "", location_id: "" });
+  const [movement, setMovement] = useState({ movement_type: "inbound", quantity: 1, reason: currentTranslation("库存操作"), note: "", location_id: "" });
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [recoverableMovement, setRecoverableMovement] = useState<ReturnType<typeof loadPendingRequest>>(null);
@@ -64,9 +66,9 @@ export function InventoryActions({ scope, enabled, component, locations, onChang
       setRecoverableMovement(null);
       return;
     }
-    const key = pendingStorageKey(session.apiBaseUrl, `movement:${component.id}`);
+    const key = pendingStorageKey(session.apiBaseUrl, `movement:${component.id}`, identity?.account_id);
     setRecoverableMovement(loadPendingRequest(key) ?? memoryPending.current.get(key) ?? null);
-  }, [component, session]);
+  }, [component, identity?.account_id, session]);
 
   const movementLocations = useMemo(() => {
     if (!component?.inventory_managed) return [];
@@ -77,7 +79,7 @@ export function InventoryActions({ scope, enabled, component, locations, onChang
 
   async function submit<T>(key: string, payload: object, request: (body: object) => Promise<T>, done: (value: T) => void) {
     if (!session) return;
-    const storageKey = pendingStorageKey(session.apiBaseUrl, key);
+    const storageKey = pendingStorageKey(session.apiBaseUrl, key, identity?.account_id);
     const previous = loadPendingRequest(storageKey) ?? memoryPending.current.get(storageKey) ?? null;
     const pending = requestForPayload(previous, payload);
     memoryPending.current.set(storageKey, pending);
@@ -99,13 +101,13 @@ export function InventoryActions({ scope, enabled, component, locations, onChang
       }
       if (error instanceof ApiError && error.status === 401) {
         logout();
-        navigate("/login", { replace: true, state: { from: `${route.pathname}${route.search}`, reason: "登录已失效，请重新验证 API 令牌。" } });
+        navigate("/login", { replace: true, state: { from: `${route.pathname}${route.search}`, reason: t("登录已失效，请重新验证 API 令牌。") } });
         return;
       }
       if (error instanceof ApiError && error.status === 409) onChanged();
-      const baseText = error instanceof ApiError ? error.message : "操作失败，请稍后重试。";
+      const baseText = error instanceof ApiError ? error.message : t("操作失败，请稍后重试。");
       const text = !persisted && error instanceof ApiError && error.status === 0
-        ? `${baseText} 浏览器无法保存恢复信息，请保持本页打开并使用原表单重试。`
+        ? `${baseText} ${t("浏览器无法保存恢复信息，请保持本页打开并使用原表单重试。")}`
         : baseText;
       setNotice({ kind: "error", text });
     } finally {
@@ -119,7 +121,7 @@ export function InventoryActions({ scope, enabled, component, locations, onChang
     void submit<AdminStorageLocation>("create-location", payload, (body) => postJson(session!, "/admin-api/storage-locations", body), () => {
       setLocationDraft({ id: "", name: "" });
       setCreatePanel(null);
-      setNotice({ kind: "success", text: "库位已创建，可以用于新元件和入库。" });
+      setNotice({ kind: "success", text: t("库位已创建，可以用于新元件和入库。") });
       onLocationsChanged();
     });
   }
@@ -130,7 +132,7 @@ export function InventoryActions({ scope, enabled, component, locations, onChang
     void submit<AdminComponentDetail>("create-component", payload, (body) => postJson(session!, "/admin-api/components", body), (value) => {
       setCreateDraft(emptyComponent);
       setCreatePanel(null);
-      setNotice({ kind: "success", text: `已创建 ${value.sku}，初始库存为 0。` });
+      setNotice({ kind: "success", text: `${t("已创建")} ${value.sku}${t("，初始库存为 0。")}` });
       onChanged(value);
     });
   }
@@ -140,7 +142,7 @@ export function InventoryActions({ scope, enabled, component, locations, onChang
     if (!component) return;
     const payload = { expected_updated_at: component.updated_at, sku: editDraft.sku.trim(), name: editDraft.name.trim(), category: editDraft.category.trim(), package_name: editDraft.package_name.trim(), description: editDraft.description.trim() || null, min_stock: Number(editDraft.min_stock) };
     void submit<AdminComponentDetail>(`edit:${component.id}`, payload, (body) => putJson(session!, `/admin-api/components/${encodeURIComponent(component.id)}`, body), (value) => {
-      setNotice({ kind: "success", text: "元器件资料已保存。" });
+      setNotice({ kind: "success", text: t("元器件资料已保存。") });
       onChanged(value);
     });
   }
@@ -149,7 +151,7 @@ export function InventoryActions({ scope, enabled, component, locations, onChang
     event.preventDefault();
     if (!component) return;
     if (recoverableMovement) {
-      setNotice({ kind: "error", text: "请先恢复并确认上一笔库存操作，再发起新的入出库。" });
+      setNotice({ kind: "error", text: t("请先恢复并确认上一笔库存操作，再发起新的入出库。") });
       return;
     }
     const payload: Record<string, unknown> = {
@@ -161,7 +163,7 @@ export function InventoryActions({ scope, enabled, component, locations, onChang
     };
     payload.location_id = component.inventory_managed ? movement.location_id : null;
     void submit<AdminComponentDetail>(`movement:${component.id}`, payload, (body) => postJson(session!, `/admin-api/components/${encodeURIComponent(component.id)}/movements`, body), (value) => {
-      setNotice({ kind: "success", text: `${movement.movement_type === "inbound" ? "入库" : "出库"}完成，当前库存 ${value.quantity}。` });
+      setNotice({ kind: "success", text: `${movement.movement_type === "inbound" ? t("入库") : t("出库")}${t("完成，当前库存")}${formatCount(value.quantity, locale)}${t("。")}` });
       setMovement((item) => ({ ...item, quantity: 1, note: "", location_id: "" }));
       onChanged(value);
     });
@@ -171,40 +173,40 @@ export function InventoryActions({ scope, enabled, component, locations, onChang
     if (!component || !recoverableMovement) return;
     const payload = JSON.parse(recoverableMovement.payload) as Record<string, unknown>;
     void submit<AdminComponentDetail>(`movement:${component.id}`, payload, (body) => postJson(session!, `/admin-api/components/${encodeURIComponent(component.id)}/movements`, body), (value) => {
-      setNotice({ kind: "success", text: `已通过原请求编号核对操作结果，当前库存 ${value.quantity}。` });
+      setNotice({ kind: "success", text: `${t("已通过原请求编号核对操作结果，当前库存")}${formatCount(value.quantity, locale)}${t("。")}` });
       onChanged(value);
     });
   }
 
   if (!enabled) {
-    return scope === "create" ? <Alert><AlertTitle>当前为只读模式</AlertTitle><AlertDescription>服务端未启用 Web 库存操作。你仍可搜索、筛选和查看库存详情。</AlertDescription></Alert> : null;
+    return scope === "create" ? <Alert><AlertTitle>{t("当前为只读模式")}</AlertTitle><AlertDescription>{t("服务端未启用 Web 库存操作。你仍可搜索、筛选和查看库存详情。")}</AlertDescription></Alert> : null;
   }
 
   if (scope === "create") return (
     <div className="space-y-5">
-      {notice ? <Alert variant={notice.kind === "error" ? "destructive" : "default"}><AlertTitle>{notice.kind === "error" ? "操作未完成" : "操作完成"}</AlertTitle><AlertDescription>{notice.text}</AlertDescription></Alert> : null}
+      {notice ? <Alert variant={notice.kind === "error" ? "destructive" : "default"}><AlertTitle>{notice.kind === "error" ? t("操作未完成") : t("操作完成")}</AlertTitle><AlertDescription>{notice.text}</AlertDescription></Alert> : null}
       <Card className="bg-white/90"><CardContent className="flex flex-wrap gap-2 pt-6">
-        <Button type="button" variant={createPanel === "component" ? "default" : "outline"} onClick={() => setCreatePanel(createPanel === "component" ? null : "component")}>{createPanel === "component" ? "收起新建元器件" : "新建元器件"}</Button>
-        <Button type="button" variant={createPanel === "location" ? "default" : "outline"} onClick={() => setCreatePanel(createPanel === "location" ? null : "location")}>{createPanel === "location" ? "收起创建库位" : "创建库位"}</Button>
+        <Button type="button" variant={createPanel === "component" ? "default" : "outline"} onClick={() => setCreatePanel(createPanel === "component" ? null : "component")}>{createPanel === "component" ? t("收起新建元器件") : t("新建元器件")}</Button>
+        <Button type="button" variant={createPanel === "location" ? "default" : "outline"} onClick={() => setCreatePanel(createPanel === "location" ? null : "location")}>{createPanel === "location" ? t("收起创建库位") : t("创建库位")}</Button>
       </CardContent></Card>
-      {createPanel === "location" ? <Card className="bg-white/90"><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle>创建库位</CardTitle><Button type="button" size="sm" variant="ghost" onClick={() => setCreatePanel(null)}>取消</Button></CardHeader><CardContent>
+      {createPanel === "location" ? <Card className="bg-white/90"><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle>{t("创建库位")}</CardTitle><Button type="button" size="sm" variant="ghost" onClick={() => setCreatePanel(null)}>{t("取消")}</Button></CardHeader><CardContent>
           <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={createLocation}>
-            <Field label="库位编码" labelFor={locationCodeId} className="flex-1"><Input id={locationCodeId} required minLength={1} maxLength={120} value={locationDraft.id} onChange={(event) => setLocationDraft({ ...locationDraft, id: event.target.value })} placeholder="例如 A01 或 主仓-01" disabled={busy === "create-location"} /></Field>
-            <Field label="库位名称" labelFor={locationNameId} className="flex-1"><Input id={locationNameId} required maxLength={200} value={locationDraft.name} onChange={(event) => setLocationDraft({ ...locationDraft, name: event.target.value })} placeholder="例如 主货架 A-01" disabled={busy === "create-location"} /></Field>
-            <Button className="min-h-11" disabled={busy !== null}>{busy === "create-location" ? "正在创建…" : "创建库位"}</Button>
+            <Field label={t("库位编码")} labelFor={locationCodeId} className="flex-1"><Input id={locationCodeId} required minLength={1} maxLength={120} value={locationDraft.id} onChange={(event) => setLocationDraft({ ...locationDraft, id: event.target.value })} placeholder={t("例如 A01 或 主仓-01")} disabled={busy === "create-location"} /></Field>
+            <Field label={t("库位名称")} labelFor={locationNameId} className="flex-1"><Input id={locationNameId} required maxLength={200} value={locationDraft.name} onChange={(event) => setLocationDraft({ ...locationDraft, name: event.target.value })} placeholder={t("例如 主货架 A-01")} disabled={busy === "create-location"} /></Field>
+            <Button className="min-h-11" disabled={busy !== null}>{busy === "create-location" ? t("正在创建…") : t("创建库位")}</Button>
           </form>
         </CardContent></Card> : null}
-      {createPanel === "component" ? <Card className="bg-white/90"><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle>新建元器件</CardTitle><Button type="button" size="sm" variant="ghost" onClick={() => setCreatePanel(null)}>取消</Button></CardHeader><CardContent>
-          {locations.length === 0 ? <p className="mb-4 text-sm text-amber-700">请先创建一个库位。新元件会以 0 库存建立初始分配。</p> : null}
+      {createPanel === "component" ? <Card className="bg-white/90"><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle>{t("新建元器件")}</CardTitle><Button type="button" size="sm" variant="ghost" onClick={() => setCreatePanel(null)}>{t("取消")}</Button></CardHeader><CardContent>
+          {locations.length === 0 ? <p className="mb-4 text-sm text-amber-700">{t("请先创建一个库位。新元件会以 0 库存建立初始分配。")}</p> : null}
           <form className="grid gap-3 sm:grid-cols-2" onSubmit={createComponent}>
-            <TextField label="料号" required value={createDraft.sku} onChange={(value) => setCreateDraft({ ...createDraft, sku: value })} />
-            <TextField label="名称" required value={createDraft.name} onChange={(value) => setCreateDraft({ ...createDraft, name: value })} />
-            <TextField label="分类" required value={createDraft.category} onChange={(value) => setCreateDraft({ ...createDraft, category: value })} />
-            <TextField label="封装" required value={createDraft.package_name} onChange={(value) => setCreateDraft({ ...createDraft, package_name: value })} />
-            <TextField label="最低库存" type="number" min="0" required value={String(createDraft.min_stock)} onChange={(value) => setCreateDraft({ ...createDraft, min_stock: Number(value) })} />
-            <LocationSelect label="初始库位" required locations={locations} value={createDraft.location_id} onChange={(value) => setCreateDraft({ ...createDraft, location_id: value })} />
-            <TextField label="说明（可选）" className="sm:col-span-2" value={createDraft.description} onChange={(value) => setCreateDraft({ ...createDraft, description: value })} />
-            <Button className="min-h-11 sm:col-span-2" disabled={busy !== null || locations.length === 0}>{busy === "create-component" ? "正在创建…" : "创建元器件"}</Button>
+            <TextField label={t("料号")} required value={createDraft.sku} onChange={(value) => setCreateDraft({ ...createDraft, sku: value })} />
+            <TextField label={t("名称")} required value={createDraft.name} onChange={(value) => setCreateDraft({ ...createDraft, name: value })} />
+            <TextField label={t("分类")} required value={createDraft.category} onChange={(value) => setCreateDraft({ ...createDraft, category: value })} />
+            <TextField label={t("封装")} required value={createDraft.package_name} onChange={(value) => setCreateDraft({ ...createDraft, package_name: value })} />
+            <TextField label={t("最低库存")} type="number" min="0" required value={String(createDraft.min_stock)} onChange={(value) => setCreateDraft({ ...createDraft, min_stock: Number(value) })} />
+            <LocationSelect label={t("初始库位")} required locations={locations} value={createDraft.location_id} onChange={(value) => setCreateDraft({ ...createDraft, location_id: value })} />
+            <TextField label={t("说明（可选）")} className="sm:col-span-2" value={createDraft.description} onChange={(value) => setCreateDraft({ ...createDraft, description: value })} />
+            <Button className="min-h-11 sm:col-span-2" disabled={busy !== null || locations.length === 0}>{busy === "create-component" ? t("正在创建…") : t("创建元器件")}</Button>
           </form>
         </CardContent></Card> : null}
     </div>
@@ -216,33 +218,33 @@ export function InventoryActions({ scope, enabled, component, locations, onChang
     : Math.max(0, component.quantity - Number(movement.quantity || 0));
   return (
     <div className="mt-5 space-y-4 border-t pt-5">
-      {notice ? <Alert variant={notice.kind === "error" ? "destructive" : "default"}><AlertTitle>{notice.kind === "error" ? "操作未完成" : "操作完成"}</AlertTitle><AlertDescription>{notice.text}</AlertDescription></Alert> : null}
-      {recoverableMovement ? <Alert><AlertTitle>有一笔结果未确认的库存操作</AlertTitle><AlertDescription className="space-y-3"><p>请先恢复上一笔操作。系统会识别这次重试，不会重复增加或扣减库存。你也可以先刷新详情核对最新库存。</p><div className="flex flex-wrap gap-2"><Button type="button" size="sm" disabled={busy !== null} onClick={recoverMovement}>恢复上次操作</Button><Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => onChanged()}>刷新库存详情</Button></div></AlertDescription></Alert> : null}
+      {notice ? <Alert variant={notice.kind === "error" ? "destructive" : "default"}><AlertTitle>{notice.kind === "error" ? t("操作未完成") : t("操作完成")}</AlertTitle><AlertDescription>{notice.text}</AlertDescription></Alert> : null}
+      {recoverableMovement ? <Alert><AlertTitle>{t("有一笔结果未确认的库存操作")}</AlertTitle><AlertDescription className="space-y-3"><p>{t("请先恢复上一笔操作。系统会识别这次重试，不会重复增加或扣减库存。你也可以先刷新详情核对最新库存。")}</p><div className="flex flex-wrap gap-2"><Button type="button" size="sm" disabled={busy !== null} onClick={recoverMovement}>{t("恢复上次操作")}</Button><Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => onChanged()}>{t("刷新库存详情")}</Button></div></AlertDescription></Alert> : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant={componentPanel === "edit" ? "default" : "outline"} onClick={() => setComponentPanel(componentPanel === "edit" ? null : "edit")}>{componentPanel === "edit" ? "收起编辑" : "编辑资料"}</Button>
-        <Button type="button" variant={componentPanel === "movement" ? "default" : "outline"} onClick={() => setComponentPanel(componentPanel === "movement" ? null : "movement")}>{componentPanel === "movement" ? "收起入出库" : "办理入出库"}</Button>
+        <Button type="button" variant={componentPanel === "edit" ? "default" : "outline"} onClick={() => setComponentPanel(componentPanel === "edit" ? null : "edit")}>{componentPanel === "edit" ? t("收起编辑") : t("编辑资料")}</Button>
+        <Button type="button" variant={componentPanel === "movement" ? "default" : "outline"} onClick={() => setComponentPanel(componentPanel === "movement" ? null : "movement")}>{componentPanel === "movement" ? t("收起入出库") : t("办理入出库")}</Button>
       </div>
-      {componentPanel === "edit" ? <Card className="bg-slate-50/70"><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle>编辑 {component.sku}</CardTitle><Button type="button" size="sm" variant="ghost" onClick={() => setComponentPanel(null)}>取消</Button></CardHeader><CardContent>
+      {componentPanel === "edit" ? <Card className="bg-slate-50/70"><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle>{t("编辑")} {component.sku}</CardTitle><Button type="button" size="sm" variant="ghost" onClick={() => setComponentPanel(null)}>{t("取消")}</Button></CardHeader><CardContent>
           <form className="grid gap-3 sm:grid-cols-2" onSubmit={updateComponent}>
-            <TextField label="料号" required value={editDraft.sku} onChange={(value) => setEditDraft({ ...editDraft, sku: value })} />
-            <TextField label="名称" required value={editDraft.name} onChange={(value) => setEditDraft({ ...editDraft, name: value })} />
-            <TextField label="分类" required value={editDraft.category} onChange={(value) => setEditDraft({ ...editDraft, category: value })} />
-            <TextField label="封装" required value={editDraft.package_name} onChange={(value) => setEditDraft({ ...editDraft, package_name: value })} />
-            <TextField label="最低库存" type="number" min="0" required value={String(editDraft.min_stock)} onChange={(value) => setEditDraft({ ...editDraft, min_stock: Number(value) })} />
-            <TextField label="说明（可选）" value={editDraft.description} onChange={(value) => setEditDraft({ ...editDraft, description: value })} />
-            <Button className="min-h-11 sm:col-span-2" disabled={busy !== null}>{busy === `edit:${component.id}` ? "正在保存…" : "保存资料"}</Button>
+            <TextField label={t("料号")} required value={editDraft.sku} onChange={(value) => setEditDraft({ ...editDraft, sku: value })} />
+            <TextField label={t("名称")} required value={editDraft.name} onChange={(value) => setEditDraft({ ...editDraft, name: value })} />
+            <TextField label={t("分类")} required value={editDraft.category} onChange={(value) => setEditDraft({ ...editDraft, category: value })} />
+            <TextField label={t("封装")} required value={editDraft.package_name} onChange={(value) => setEditDraft({ ...editDraft, package_name: value })} />
+            <TextField label={t("最低库存")} type="number" min="0" required value={String(editDraft.min_stock)} onChange={(value) => setEditDraft({ ...editDraft, min_stock: Number(value) })} />
+            <TextField label={t("说明（可选）")} value={editDraft.description} onChange={(value) => setEditDraft({ ...editDraft, description: value })} />
+            <Button className="min-h-11 sm:col-span-2" disabled={busy !== null}>{busy === `edit:${component.id}` ? t("正在保存…") : t("保存资料")}</Button>
           </form>
         </CardContent></Card> : null}
-      {componentPanel === "movement" ? <Card className="bg-slate-50/70"><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle>库存入出库</CardTitle><Button type="button" size="sm" variant="ghost" onClick={() => setComponentPanel(null)}>取消</Button></CardHeader><CardContent>
-          {!component.inventory_managed ? <p className="mb-4 text-sm text-muted-foreground">这是旧版库存记录，入出库会继续沿用当前默认库位。</p> : null}
+      {componentPanel === "movement" ? <Card className="bg-slate-50/70"><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle>{t("库存入出库")}</CardTitle><Button type="button" size="sm" variant="ghost" onClick={() => setComponentPanel(null)}>{t("取消")}</Button></CardHeader><CardContent>
+          {!component.inventory_managed ? <p className="mb-4 text-sm text-muted-foreground">{t("这是旧版库存记录，入出库会继续沿用当前默认库位。")}</p> : null}
           <form className="grid gap-3 sm:grid-cols-2" onSubmit={applyMovement}>
-            <Field label="操作" labelFor={movementTypeId}><select id={movementTypeId} className="h-11 w-full rounded-xl border bg-white px-3 text-sm" value={movement.movement_type} onChange={(event) => setMovement({ ...movement, movement_type: event.target.value, location_id: "" })}><option value="inbound">入库</option><option value="outbound">出库</option></select></Field>
-            <TextField label="数量" type="number" min="1" required value={String(movement.quantity)} onChange={(value) => setMovement({ ...movement, quantity: Number(value) })} />
-            {component.inventory_managed ? <LocationSelect label="操作库位" required locations={movementLocations} allocations={component.allocations} value={movement.location_id} onChange={(value) => setMovement({ ...movement, location_id: value })} /> : null}
-            <TextField label="原因" required value={movement.reason} onChange={(value) => setMovement({ ...movement, reason: value })} />
-            <TextField label="备注（可选）" className="sm:col-span-2" value={movement.note} onChange={(value) => setMovement({ ...movement, note: value })} />
-            <p className="rounded-xl bg-white p-3 text-sm font-medium sm:col-span-2" aria-live="polite">总库存预计：{component.quantity} → {projectedQuantity}</p>
-            <Button className="min-h-11 sm:col-span-2" disabled={busy !== null || recoverableMovement !== null || (component.inventory_managed && movementLocations.length === 0)}>{busy?.startsWith("movement:") ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}{recoverableMovement ? "请先处理上次操作" : `确认${movement.movement_type === "inbound" ? "入库" : "出库"}`}</Button>
+            <Field label={t("操作")} labelFor={movementTypeId}><select id={movementTypeId} className="h-11 w-full rounded-xl border bg-white px-3 text-sm" value={movement.movement_type} onChange={(event) => setMovement({ ...movement, movement_type: event.target.value, location_id: "" })}><option value="inbound">{t("入库")}</option><option value="outbound">{t("出库")}</option></select></Field>
+            <TextField label={t("数量")} type="number" min="1" required value={String(movement.quantity)} onChange={(value) => setMovement({ ...movement, quantity: Number(value) })} />
+            {component.inventory_managed ? <LocationSelect label={t("操作库位")} required locations={movementLocations} allocations={component.allocations} value={movement.location_id} onChange={(value) => setMovement({ ...movement, location_id: value })} /> : null}
+            <TextField label={t("原因")} required value={movement.reason} onChange={(value) => setMovement({ ...movement, reason: value })} />
+            <TextField label={t("备注（可选）")} className="sm:col-span-2" value={movement.note} onChange={(value) => setMovement({ ...movement, note: value })} />
+            <p className="rounded-xl bg-white p-3 text-sm font-medium sm:col-span-2" aria-live="polite">{t("总库存预计：")}{formatCount(component.quantity, locale)} → {formatCount(projectedQuantity, locale)}</p>
+            <Button className="min-h-11 sm:col-span-2" disabled={busy !== null || recoverableMovement !== null || (component.inventory_managed && movementLocations.length === 0)}>{busy?.startsWith("movement:") ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}{recoverableMovement ? t("请先处理上次操作") : `${t("确认")}${movement.movement_type === "inbound" ? t("入库") : t("出库")}`}</Button>
           </form>
         </CardContent></Card> : null}
     </div>
@@ -259,7 +261,8 @@ function TextField({ label, value, onChange, className, ...input }: { label: str
 }
 
 function LocationSelect({ label, locations, allocations = [], value, onChange, required }: { label: string; locations: AdminStorageLocation[]; allocations?: Array<{ location_id: string; quantity: number }>; value: string; onChange: (value: string) => void; required?: boolean }) {
+  const { t, locale } = useI18n();
   const quantities = new Map(allocations.map((item) => [item.location_id, item.quantity]));
   const id = useId();
-  return <Field label={label} labelFor={id}><select id={id} required={required} className="h-11 w-full rounded-xl border bg-white px-3 text-sm" value={value} onChange={(event) => onChange(event.target.value)}><option value="">请选择库位</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}{quantities.has(location.id) ? `（${quantities.get(location.id)}）` : ""}</option>)}</select></Field>;
+  return <Field label={label} labelFor={id}><select id={id} required={required} className="h-11 w-full rounded-xl border bg-white px-3 text-sm" value={value} onChange={(event) => onChange(event.target.value)}><option value="">{t("请选择库位")}</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}{quantities.has(location.id) ? ` (${formatCount(quantities.get(location.id)!, locale)})` : ""}</option>)}</select></Field>;
 }

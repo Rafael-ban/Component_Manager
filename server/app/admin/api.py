@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from ..auth import require_token
+from ..accounts import Account
+from ..auth import require_token, require_admin
 from ..config import Settings, get_settings
 from ..database import get_db
 from ..lcsc import LookupConfigurationError, LookupRequestError, lookup_lcsc_product
@@ -58,8 +60,10 @@ router = APIRouter(
 @router.get("/dashboard", response_model=AdminDashboardResponse)
 def get_dashboard(
     settings: Settings = Depends(get_settings),
+    connection: sqlite3.Connection = Depends(get_db),
+    account: Account = Depends(require_token),
 ) -> AdminDashboardResponse:
-    snapshot = load_admin_snapshot(settings)
+    snapshot = load_admin_snapshot(connection, settings, role=account.role)
     return AdminDashboardResponse(
         metrics=_metrics(snapshot),
         recent_components=snapshot.recent_components,
@@ -70,8 +74,10 @@ def get_dashboard(
 @router.get("/inventory", response_model=AdminInventoryResponse)
 def get_inventory(
     settings: Settings = Depends(get_settings),
+    connection: sqlite3.Connection = Depends(get_db),
+    account: Account = Depends(require_token),
 ) -> AdminInventoryResponse:
-    snapshot = load_admin_snapshot(settings)
+    snapshot = load_admin_snapshot(connection, settings, role=account.role)
     return AdminInventoryResponse(
         metrics=_metrics(snapshot),
         low_stock_components=snapshot.low_stock_components,
@@ -104,9 +110,10 @@ def get_components(
     page: int = Query(default=1, ge=1, le=1_000_000),
     page_size: int = Query(default=25, ge=1, le=100),
     settings: Settings = Depends(get_settings),
+    connection: sqlite3.Connection = Depends(get_db),
 ) -> AdminComponentListResponse:
     result = load_admin_components(
-        settings,
+        connection,
         query=q,
         low_stock=low_stock,
         page=page,
@@ -126,8 +133,9 @@ def get_components(
 def get_component_detail(
     component_id: str,
     settings: Settings = Depends(get_settings),
+    connection: sqlite3.Connection = Depends(get_db),
 ) -> AdminComponentDetail:
-    component = load_admin_component(settings, component_id)
+    component = load_admin_component(connection, component_id)
     if component is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -175,11 +183,12 @@ def post_component(
     draft: AdminComponentCreate,
     settings: Settings = Depends(get_settings),
     connection: sqlite3.Connection = Depends(get_db),
+    account: Account = Depends(require_token),
 ) -> AdminComponentDetail:
     _require_web_inventory(settings)
     return _run_admin_operation(
         AdminComponentDetail,
-        lambda: create_component(connection, settings, draft),
+        lambda: create_component(connection, _account_settings(settings, account), draft),
     )
 
 
@@ -192,11 +201,12 @@ def put_component(
     draft: AdminComponentUpdate,
     settings: Settings = Depends(get_settings),
     connection: sqlite3.Connection = Depends(get_db),
+    account: Account = Depends(require_token),
 ) -> AdminComponentDetail:
     _require_web_inventory(settings)
     return _run_admin_operation(
         AdminComponentDetail,
-        lambda: update_component(connection, settings, component_id, draft),
+        lambda: update_component(connection, _account_settings(settings, account), component_id, draft),
     )
 
 
@@ -209,19 +219,22 @@ def post_component_movement(
     draft: AdminStockMovementCreate,
     settings: Settings = Depends(get_settings),
     connection: sqlite3.Connection = Depends(get_db),
+    account: Account = Depends(require_token),
 ) -> AdminComponentDetail:
     _require_web_inventory(settings)
     return _run_admin_operation(
         AdminComponentDetail,
-        lambda: record_stock_movement(connection, settings, component_id, draft),
+        lambda: record_stock_movement(connection, _account_settings(settings, account), component_id, draft),
     )
 
 
 @router.get("/sync", response_model=AdminSyncResponse)
 def get_sync(
     settings: Settings = Depends(get_settings),
+    connection: sqlite3.Connection = Depends(get_db),
+    account: Account = Depends(require_token),
 ) -> AdminSyncResponse:
-    snapshot = load_admin_snapshot(settings)
+    snapshot = load_admin_snapshot(connection, settings, role=account.role)
     return AdminSyncResponse(
         metrics=_metrics(snapshot),
         recent_movements=snapshot.recent_movements,
@@ -234,14 +247,22 @@ def get_sync(
                 value="/auth/ping, /sync/push, /sync/pull, /admin-api/*",
             ),
         ],
-        attention_items=_attention_items(settings),
+        attention_items=_attention_items(settings, role=account.role),
     )
 
 
 @router.get("/settings", response_model=AdminSettingsResponse)
 def get_settings_overview(
     settings: Settings = Depends(get_settings),
+    account: Account = Depends(require_token),
 ) -> AdminSettingsResponse:
+    if account.role == "user":
+        return AdminSettingsResponse(
+            web_inventory_enabled=settings.web_inventory_enabled,
+            runtime_configuration=[AdminKeyValueItem(label="App name", value=settings.app_name)],
+            access_posture=[],
+            next_backend_additions=[],
+        )
     return AdminSettingsResponse(
         web_inventory_enabled=settings.web_inventory_enabled,
         runtime_configuration=[
@@ -409,7 +430,11 @@ def _metrics(snapshot: AdminSnapshot) -> AdminMetricSnapshot:
     )
 
 
-def _attention_items(settings: Settings) -> list[str]:
+def _account_settings(settings: Settings, account: Account) -> Settings:
+    return settings if account.role == "admin" else replace(settings, mqtt_enabled=False)
+
+
+def _attention_items(settings: Settings, *, role: str = "admin") -> list[str]:
     if settings.api_token == "change-me":
         token_item = (
             "API token is still the default value. Replace it before deployment."
@@ -418,7 +443,7 @@ def _attention_items(settings: Settings) -> list[str]:
         token_item = "Custom API token is configured for authenticated routes."
 
     return [
-        token_item,
+        *([token_item] if role == "admin" else []),
         (
             "Authenticated web inventory writes are enabled."
             if settings.web_inventory_enabled

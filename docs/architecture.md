@@ -6,7 +6,7 @@
 - `windows-client/` is the WinUI 3 Windows desktop client.
 - `admin-web/` is a separated React + `shadcn/ui` operations console.
 - `client/` remains as a legacy Flutter reference only.
-- `server/` is a FastAPI service for single-user self-hosted sync and
+- `server/` is a FastAPI service for account-isolated self-hosted sync and
   inventory admin APIs, optional authenticated Web inventory writes, and MQTT
   configuration writes.
 - Android, Windows, and server all use SQLite in the current architecture, and
@@ -38,6 +38,36 @@ write switch to `config.json` beside SQLite. Non-empty environment overrides
 remain authoritative. Configuration writes are atomic; initializing twice cannot
 replace a configured server without its current token. Logs under `logs/` are
 bounded and contain operational events, not request bodies or credentials.
+
+## Account ownership
+
+The original `DATABASE_PATH` remains the administrator inventory. Its account
+registry and stable server identity resolve high-entropy user keys to separate
+`users/<account-id>.db` files beside it. Authentication, not request input,
+chooses a database. Components, active SKU uniqueness, locations, allocations,
+movements, tombstones, revision cursors and operation receipts are therefore
+isolated together. User key digests are stored; full keys are returned only on
+creation or reset. Disabling an account retains its database.
+
+`/auth/me` identifies the server, account and role. Setup, logs, account creation
+and global MQTT settings require the administrator. The first iteration keeps
+MQTT publishing for administrator inventory only; ordinary writes never enter
+that publisher's outbox. Shared public catalog caches contain no private stock.
+Authenticated Web CRUD uses the account database and the existing global Web
+write switch. The Web shell uses identity to show role-appropriate settings.
+
+Each native installation currently has one local inventory workspace. Before
+sync, it verifies the remote identity against a persistent local binding. A
+mismatch stops both push and pull without modifying stock or adopting the new
+identity. Legacy previously-synced workspaces initially bind only to admin;
+ordinary sync requires the matching `X-Component-Vault-Account-Id` header so old
+clients cannot accidentally upload an existing workspace to a new user key.
+This header is a client compatibility check, not an authentication credential.
+See [implementation plan and recovery boundaries](account-isolation-plan.md).
+
+Web language preference uses browser-local `component-vault.language` with
+`system`, `zh-CN` or `en`. It is a personal display choice, independent of server
+configuration and stock values. Separate Web/API origins store it independently.
 
 ## Android Client
 

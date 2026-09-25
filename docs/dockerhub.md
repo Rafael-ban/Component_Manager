@@ -11,7 +11,7 @@
 - API：`sha256:81985ac9cced8b12de193d67818e9fd5d814be4af46c0a42a32a87d174bf98dc`
 - Web：`sha256:5e022b6aa65025fc360bdfda8b12a40ac4ef4d83a0a10e29ed69bd14219ef076`
 
-未来版本仍应核对 Actions 与 Docker Hub Tags，不能仅凭 GitHub Release 存在就推断镜像发布成功。
+以上 digest 是 `0.7.0` 的历史记录。`0.7.4` 的 API 与 Web 镜像已发布；后续部署仍应核对 Docker Hub Tags，不能仅凭 GitHub Release 存在就推断镜像发布成功。
 
 ## 先分清账号、仓库和两种 Token
 
@@ -172,7 +172,7 @@ ADMIN_WEB_URL=
 WEB_INVENTORY_ENABLED=
 ```
 
-Compose 默认使用 API `latest` 与 Web `web-latest`。这两个浮动标签只有在正式镜像发布后才会指向新版本；不能仅凭默认值判断镜像已包含 `0.7.4` 功能。需要固定版本时，在 Docker Hub Tags 确认 API 和 Web 的对应 tag 均已发布，再在 `.env` 覆盖 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE`。
+Compose 默认使用 API `latest` 与 Web `web-latest`。这两个浮动标签随正式镜像发布而更新；部署前核对其当前指向。需要固定版本时，在 `.env` 覆盖 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE`，并成对选择已发布的 API 与 Web 标签。
 
 确认文件名为 `.env` 而非 `.env.txt`。API 启动后打开
 `http://服务器IP:8787/setup`，生成或填写 Token、Web 页面 origin 和库存写入开关。

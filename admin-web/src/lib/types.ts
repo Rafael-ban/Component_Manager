@@ -89,6 +89,22 @@ export interface AdminComponentDetail extends AdminComponentListItem {
   inventory_managed: boolean;
 }
 
+export interface AccountIdentity {
+  server_id: string;
+  account_id: string;
+  name: string;
+  role: "admin" | "user";
+}
+
+export interface ManagedAccount {
+  account_id: string;
+  name: string;
+  active: boolean;
+  role: "user";
+}
+
+export interface IssuedKey { account_id: string; api_token: string }
+
 export interface AdminStorageLocation {
   id: string;
   name: string;

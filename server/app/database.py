@@ -4,9 +4,11 @@ from collections.abc import Generator
 from pathlib import Path
 import sqlite3
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 
 from .config import Settings, get_settings
+from .auth import require_token
+from .accounts import Account
 
 
 SCHEMA_STATEMENTS = (
@@ -100,14 +102,15 @@ SCHEMA_STATEMENTS = (
 )
 
 
-def _connect(database_path: str) -> sqlite3.Connection:
-    connection = sqlite3.connect(database_path, check_same_thread=False)
+def _connect(database_path: str, *, existing_only: bool = False) -> sqlite3.Connection:
+    target = Path(database_path).resolve().as_uri() + "?mode=rw" if existing_only else database_path
+    connection = sqlite3.connect(target, check_same_thread=False, uri=existing_only)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
-def init_db(settings: Settings) -> None:
+def init_db(settings: Settings, *, initialize_accounts: bool = True) -> None:
     database_path = Path(settings.database_path)
     database_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -150,6 +153,14 @@ def init_db(settings: Settings) -> None:
         connection.commit()
     finally:
         connection.close()
+    if initialize_accounts:
+        from dataclasses import replace
+        from .accounts import init_registry, user_database_paths
+
+        init_registry(settings)
+        for user_path in user_database_paths(settings):
+            if Path(user_path).is_file():
+                init_db(replace(settings, database_path=user_path), initialize_accounts=False)
 
 
 def _migrate_storage(connection: sqlite3.Connection) -> None:
@@ -228,9 +239,17 @@ def _migrate_sync_revisions(connection: sqlite3.Connection) -> None:
 
 
 def get_db(
-    settings: Settings = Depends(get_settings),
+    account: Account = Depends(require_token),
 ) -> Generator[sqlite3.Connection, None, None]:
-    connection = _connect(settings.database_path)
+    try:
+        connection = _connect(account.database_path, existing_only=account.role == "user")
+    except sqlite3.OperationalError as error:
+        if account.role != "user":
+            raise
+        raise HTTPException(
+            status_code=503,
+            detail="Account database is unavailable; restore it before syncing.",
+        ) from error
     try:
         yield connection
     finally:

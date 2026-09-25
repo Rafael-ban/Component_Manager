@@ -29,6 +29,10 @@ test("pending keys isolate servers and component actions", () => {
   );
 });
 
+test("pending keys isolate accounts sharing a server", () => {
+  assert.notEqual(pendingStorageKey("https://api.example", "movement:1", "account-a"), pendingStorageKey("https://api.example", "movement:1", "account-b"));
+});
+
 test("storage failure is reported without throwing", () => {
   assert.equal(savePendingRequest("unavailable", { requestId: "request-1", payload: "{}" }), false);
 });

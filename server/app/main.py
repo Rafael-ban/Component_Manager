@@ -11,7 +11,9 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .admin.api import router as admin_router
-from .auth import require_token
+from .account_api import router as account_router
+from .accounts import Account
+from .auth import require_admin, require_sync_account, require_token
 from .application_logging import (
     close_application_logger,
     configure_application_logger,
@@ -74,8 +76,8 @@ class DynamicCORSMiddleware:
             self.app,
             allow_origins=list(settings.admin_web_origins),
             allow_credentials=False,
-            allow_methods=["GET", "POST", "PUT", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type", "X-API-Token"],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", "X-API-Token", "X-Component-Vault-Account-Id"],
         )
         await middleware(scope, receive, send)
 
@@ -119,6 +121,7 @@ def create_app() -> FastAPI:
         )
     app.add_middleware(DynamicCORSMiddleware)
     app.include_router(deployment_configuration_router)
+    app.include_router(account_router)
     app.include_router(admin_router)
 
     @app.middleware("http")
@@ -158,26 +161,25 @@ def create_app() -> FastAPI:
     @app.post(
         "/sync/push",
         response_model=PushResponse,
-        dependencies=[Depends(require_token)],
+        dependencies=[Depends(require_sync_account)],
     )
     def sync_push(
         payload: PushRequest,
         connection: sqlite3.Connection = Depends(get_db),
+        account: Account = Depends(require_sync_account),
     ) -> PushResponse:
         try:
             accepted_components, accepted_stock_movements = save_sync_payload(
                 connection,
                 payload,
-                mqtt_topic_prefix=(
-                    settings.mqtt_topic_prefix if settings.mqtt_enabled else None
-                ),
+                mqtt_topic_prefix=(settings.mqtt_topic_prefix if settings.mqtt_enabled and account.role == "admin" else None),
             )
         except ValueError as error:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=str(error),
             ) from error
-        if settings.mqtt_enabled and accepted_components:
+        if settings.mqtt_enabled and account.role == "admin" and accepted_components:
             app.state.mqtt_publisher.notify()
         return PushResponse(
             accepted_components=accepted_components,
@@ -187,7 +189,7 @@ def create_app() -> FastAPI:
 
     @app.get(
         "/admin-api/mqtt/status",
-        dependencies=[Depends(require_token)],
+        dependencies=[Depends(require_admin)],
     )
     def mqtt_status() -> dict[str, object]:
         return app.state.mqtt_publisher.status()
@@ -195,7 +197,7 @@ def create_app() -> FastAPI:
     @app.get(
         "/admin-api/mqtt/config",
         response_model=MqttConfigurationResponse,
-        dependencies=[Depends(require_token)],
+        dependencies=[Depends(require_admin)],
     )
     def get_mqtt_config(
         connection: sqlite3.Connection = Depends(get_db),
@@ -205,7 +207,7 @@ def create_app() -> FastAPI:
     @app.post(
         "/admin-api/mqtt/config",
         response_model=MqttConfigurationResponse,
-        dependencies=[Depends(require_token)],
+        dependencies=[Depends(require_admin)],
     )
     def update_mqtt_config(
         update: MqttConfigurationUpdate,
@@ -222,7 +224,7 @@ def create_app() -> FastAPI:
     @app.get(
         "/sync/pull",
         response_model=PullResponse,
-        dependencies=[Depends(require_token)],
+        dependencies=[Depends(require_sync_account)],
     )
     def sync_pull(
         since: Annotated[datetime | None, Query()] = None,
