@@ -11,7 +11,7 @@
 - API：`sha256:81985ac9cced8b12de193d67818e9fd5d814be4af46c0a42a32a87d174bf98dc`
 - Web：`sha256:5e022b6aa65025fc360bdfda8b12a40ac4ef4d83a0a10e29ed69bd14219ef076`
 
-以上 digest 是 `0.7.0` 的历史记录。`0.7.4` 的 API 与 Web 镜像已发布；后续部署仍应核对 Docker Hub Tags，不能仅凭 GitHub Release 存在就推断镜像发布成功。
+以上 digest 是 `0.7.0` 的历史记录。2026-09-27 已核对 `latest = 0.7.6`、`web-latest = web-0.7.6`，API 与 Web 均包含 `linux/amd64` 和 `linux/arm64`。后续部署仍应核对 Docker Hub Tags，不能仅凭 GitHub Release 存在就推断镜像发布成功。
 
 ## 先分清账号、仓库和两种 Token
 
@@ -231,11 +231,11 @@ Web 库存写入默认关闭。可在已认证的 `/setup` 配置页启用；若
 
 ## 九、更新、迁移与备份
 
-日常更新继续使用 `.env.example` 中的 `latest` 与 `web-latest`。如果已有 `.env` 固定了旧版本，需要把两个镜像变量一起改为这组浮动标签；更新前核对 Docker Hub Tags 当前指向的版本。需要固定到 `0.7.4` 时，先确认两个固定 tag 均已发布，再在 `.env` 中设置：
+日常更新继续使用 `.env.example` 中的 `latest` 与 `web-latest`。如果已有 `.env` 固定了旧版本，需要把两个镜像变量一起改为这组浮动标签；更新前核对 Docker Hub Tags 当前指向的版本。需要固定到本次已发布的 `0.7.6` 时，在 `.env` 中设置：
 
 ```dotenv
-COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.7.4
-COMPONENT_VAULT_WEB_IMAGE=rafaelikaros/component_manager:web-0.7.4
+COMPONENT_VAULT_IMAGE=rafaelikaros/component_manager:0.7.6
+COMPONENT_VAULT_WEB_IMAGE=rafaelikaros/component_manager:web-0.7.6
 ```
 
 如果已启用 Web，在原部署目录执行以下命令以同时更新两个服务；只部署 API 时去掉 `--profile web`：
@@ -273,5 +273,6 @@ docker compose -p 原项目名 -f docker-compose.hub.yml up -d
 | Web 请求 API 出现 CORS 错误 | `ADMIN_WEB_ORIGINS` 填成 API 地址或遗漏实际 Web origin | 填浏览器地址栏中 Web 页面的 scheme、host 和 port |
 | 换目录后库存为空 | Compose project name 变化，创建了新的空 volume | 回到原目录，或用 `-p 原项目名` 指向原 project |
 | `/health` 正常但客户端 401 | 客户端 Token 与 `/setup` 当前生效的 `API_TOKEN` 不一致 | 更新客户端 Token 后重试；无需给 `/health` 加 Token |
+| 客户端提示服务端过老或无法确认账户身份 | 仍运行旧容器、API 地址指向 Web 端口、反向代理遗漏 `/auth/me`，或响应并非 JSON | 按 [账户接口排障](docker-quickstart.md#7-客户端提示服务端版本过老或无法确认账户身份) 核对实际容器和地址；0.7.6 镜像可从 `/health` 的 `version` / `revision` 查看构建身份 |
 
 排障时先看 `docker compose ... ps` 和 `logs`，再区分是镜像发布、镜像拉取、容器启动、鉴权还是浏览器 CORS 问题，避免用删除 volume 作为通用重试手段。
