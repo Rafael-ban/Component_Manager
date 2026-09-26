@@ -131,6 +131,7 @@ jobs:
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Build Android debug APK
+        shell: bash
         run: gradle -p android-client assembleDebug --console=plain 2>&1 | tee android-build.log
 
       - name: Annotate Android compiler errors
@@ -146,6 +147,7 @@ jobs:
           PY
 
       - name: Run Android inventory regressions
+        shell: bash
         run: >-
           gradle -p android-client :app:testDebugUnitTest
           --tests 'com.componentvault.android.data.SyncProtocolTest'
