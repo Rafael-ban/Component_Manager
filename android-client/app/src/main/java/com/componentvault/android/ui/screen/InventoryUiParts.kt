@@ -210,8 +210,8 @@ internal fun InventoryListRow(
         SwipeToDismissBox(
             state = dismissState,
             modifier = modifier,
-            enableDismissFromStart = false,
-            enableDismissFromEnd = true,
+            enableDismissFromStartToEnd = false,
+            enableDismissFromEndToStart = true,
             backgroundContent = {
                 Box(
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer),
