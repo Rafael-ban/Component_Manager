@@ -191,6 +191,7 @@ jobs:
           --tests 'com.componentvault.android.ui.screen.CategoryLocalizationTest'
           --tests 'com.componentvault.android.ui.screen.CategoryFilterSemanticsTest'
           --tests 'com.componentvault.android.data.bom.*'
+          --console=plain 2>&1 | tee android-tests.log
 
       - name: Upload Android UI review and test reports
         if: always()
@@ -209,6 +210,12 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
+          log = Path('android-tests.log')
+          if log.exists():
+              lines = log.read_text(errors='replace').splitlines()
+              errors = [line for line in lines if line.startswith('e: ') or 'error:' in line]
+              for line in errors or lines[-40:]:
+                  print('::error::' + line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           for path in Path('android-client/app/build/test-results/testDebugUnitTest').glob('TEST-*.xml'):
               for case in ET.parse(path).iter('testcase'):
                   for failure in list(case.findall('failure')) + list(case.findall('error')):
