@@ -13,7 +13,7 @@ ADMIN_WEB_URL=
 WEB_INVENTORY_ENABLED=
 ```
 
-首次网页配置从 `0.7.1` 开始提供。Hub Compose 默认使用 API `latest` 和 Web `web-latest`；部署前在 Docker Hub Tags 核对它们当前对应的版本。`0.7.5` 与 `web-0.7.5` 已发布，可在 `.env` 中用 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE` 固定这两个版本。`0.7.0` 没有首次配置页，不能用旧镜像测试这条流程。
+首次网页配置从 `0.7.1` 开始提供。Hub Compose 默认使用 API `latest` 和 Web `web-latest`；部署前在 Docker Hub Tags 核对它们当前对应的版本。需要固定版本时，在 `.env` 中将 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE` 分别设为已发布的同版本 API 标签与 `web-` 标签。`0.7.0` 没有首次配置页，不能用旧镜像测试这条流程。
 
 在部署目录中先启动 API：
 
@@ -135,7 +135,7 @@ PowerShell 可用 `[guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString(
 `/auth/ping` 成功只说明密钥可用于旧认证接口，不能证明账户接口已部署。
 最新客户端的“测试连接”同时检查库存协议和账户接口，不会执行同步或更换本地绑定。
 
-截至 2026-09-27，Docker Hub 的 `latest` / `web-latest` 对应 0.7.5；已核对公开
+2026-09-27 排查时，Docker Hub 的 `latest` / `web-latest` 对应 0.7.5；已核对该版本公开
 API 镜像中确实包含 `/auth/me`。Docker Hub 的标签更新不会自动替换 NAS 上已运行的容器。
 若 `.env` 中固定了更早的 `COMPONENT_VAULT_IMAGE`，拉取 `latest` 也不会改变 Compose
 实际使用的固定标签。先检查这两个镜像变量，再在原项目目录更新：
