@@ -156,6 +156,50 @@ public sealed class LcscPublicCatalogTests
     }
 
     [Fact]
+    public void ParsePage_RetainsOfficialAdditionalPropertiesForRclNaming()
+    {
+        const string html = """
+            <script type="application/ld+json">
+            {"@type":"Product","sku":"C25804","mpn":"RC0603FR-0710KL",
+             "additionalProperty":[{"name":"Package","value":"0603"},
+               {"name":"Resistance","value":"10kΩ"},{"name":"Tolerance","value":"±1%"}]}
+            </script>
+            """;
+
+        var metadata = LcscPublicCatalog.ParsePage("C25804", html);
+
+        Assert.NotNull(metadata);
+        Assert.Equal("0603", metadata.PackageName);
+        Assert.Equal("RC0603FR-0710KL · 10kΩ · ±1%", OfficialSpecifications.AutoName(metadata));
+    }
+
+    [Theory]
+    [InlineData("C178304", "1206X107M6R3NT", "100uF ±20% 6.3V Ceramic Capacitor X5R 1206", "Capacitors/Ceramic Capacitors", "Capacitance", "100uF", "±20%")]
+    [InlineData("C275673", "SLO252012F1R5MTT", "2.39A 1.5uH ±20% 78mΩ 3.17A Molded inductor 1008 Fixed Inductors", "Inductors, Coils, Chokes/Fixed Inductors", "Inductance", "1.5uH", "±20%")]
+    [InlineData("C2907005", "FRC0603F2201TS", "2.2kΩ ±1% 100mW 0603 Thick Film Resistor", "Resistors/Chip Resistor - Surface Mount", "Resistance", "2.2kΩ", "±1%")]
+    [InlineData("C5126214", "FRH0603B1002TS", "10kΩ ±0.1% 100mW 0603 Thick Film Resistor", "Resistors/Chip Resistor - Surface Mount", "Resistance", "10kΩ", "±0.1%")]
+    [InlineData("C5137569", "FCC0402N220J500AT", "22pF ±5% 50V Ceramic Capacitor C0G 0402", "Capacitors/Ceramic Capacitors", "Capacitance", "22pF", "±5%")]
+    public void ParsePage_ActualPublicRclValuesRemainVisibleInAutoName(
+        string sku, string model, string description, string category, string key, string value, string tolerance)
+    {
+        var payload = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["@context"] = "http://schema.org", ["@type"] = "Product", ["sku"] = sku,
+            ["mpn"] = model, ["description"] = description, ["category"] = category,
+            ["additionalProperty"] = new[]
+            {
+                new { name = key, value }, new { name = "Tolerance", value = tolerance },
+            },
+        });
+
+        var metadata = LcscPublicCatalog.ParsePage(sku, $"<script type=\"application/ld+json\">{payload}</script>");
+
+        Assert.NotNull(metadata);
+        Assert.Equal(value, metadata.Parameters![key]);
+        Assert.Equal($"{model} · {value} · {tolerance}", OfficialSpecifications.AutoName(metadata));
+    }
+
+    [Fact]
     public void ParseChinaSearchPage_PreservesJsonEscapingBeforeCleaningFields()
     {
         const string html = """

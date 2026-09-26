@@ -50,7 +50,18 @@ public sealed class SyncApiClient
             var (serverBaseUrl, payload) = await ResolveServerAsync(settings, cancellationToken);
             if (payload.InventoryProtocol != 1)
                 return OperationResult.Failure("服务器不支持多库位库存协议 inventory_protocol=1；本地待同步内容已保留。");
-            return OperationResult.Success($"连接成功（{serverBaseUrl}）。服务器时间：{payload.ServerTime}");
+            SyncAccountIdentity identity;
+            try
+            {
+                identity = await GetIdentityAsync(serverBaseUrl, settings.ApiToken, cancellationToken);
+            }
+            catch (JsonException)
+            {
+                return OperationResult.Failure("连接失败：账户身份响应的 JSON 无效或缺少必要字段；请检查服务器容器和代理路由。");
+            }
+            if (string.IsNullOrWhiteSpace(identity.ServerId) || string.IsNullOrWhiteSpace(identity.AccountId))
+                return OperationResult.Failure("账户身份响应缺少 server_id 或 account_id；请检查服务器容器和代理路由。");
+            return OperationResult.Success($"连接成功（{serverBaseUrl}，账户：{identity.Name}）。服务器时间：{payload.ServerTime}");
         }
         catch (Exception exception)
         {
@@ -180,9 +191,11 @@ public sealed class SyncApiClient
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            throw new InvalidOperationException("服务器尚未支持账户身份接口，请升级服务器后同步；本地库存和同步进度已保留。");
+            throw new InvalidOperationException("账户身份接口 /auth/me 返回 404；请检查服务器容器版本和代理路由。本地库存和同步进度已保留。");
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException(await BuildErrorMessageAsync(response, cancellationToken));
+        if (response.Content.Headers.ContentType?.MediaType?.Contains("html", StringComparison.OrdinalIgnoreCase) == true)
+            throw new InvalidOperationException("账户身份接口返回 HTML 页面；请检查代理路由是否转发到正确的服务器。");
         return await DeserializeAsync<SyncAccountIdentity>(response, cancellationToken);
     }
 

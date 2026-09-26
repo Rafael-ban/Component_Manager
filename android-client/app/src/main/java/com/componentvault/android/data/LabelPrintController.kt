@@ -84,6 +84,22 @@ internal class LabelPrintController(context: Context) {
         mutate { persist(next) }
     }
 
+    fun createFree(freeLabel: FreeLabel, copies: Int, paper: M1TestPaperProfile,
+                   design: LabelDesign) {
+        if (!loaded || working || running || closed) return
+        if (queue.items.isNotEmpty()) {
+            error = "queue_review_required"
+            return
+        }
+        val next = try {
+            LabelPrintQueue.createFree(freeLabel, copies, paper, design)
+        } catch (_: IllegalArgumentException) {
+            error = "queue_invalid_selection"
+            return
+        }
+        mutate { persist(next) }
+    }
+
     fun clear() {
         if (working || running || closed) return
         mutate {
@@ -147,6 +163,7 @@ internal class LabelPrintController(context: Context) {
                                 ComponentTextLabelTemplate.fromId(queue.textTemplateId),
                                 queue.paper,
                                 item.design,
+                                item.freeLabel,
                             ).also { rendered = it }
                         }
                     } catch (exception: CancellationException) {

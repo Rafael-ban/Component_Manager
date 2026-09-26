@@ -22,6 +22,10 @@ internal data class LabelDesign(val elements: List<LabelElement>) {
         if (it.id == id && it.type == LabelElementType.Text) it.copy(text = text) else it
     })
 
+    fun withQrPayload(id: String, payload: String): LabelDesign = copy(elements = elements.map {
+        if (it.id == id && it.type == LabelElementType.Qr) it.copy(text = payload) else it
+    })
+
     fun moved(id: String, xMm: Float, yMm: Float, paper: M1TestPaperProfile): LabelDesign = copy(
         elements = elements.map { element ->
             if (element.id != id) element else element.copy(
@@ -48,6 +52,22 @@ internal data class LabelDesign(val elements: List<LabelElement>) {
     }
 
     companion object {
+        fun free(template: FreeLabelTemplate, paper: M1TestPaperProfile): LabelDesign {
+            val width = paper.widthMm
+            val height = paper.heightMm
+            val contentWidth = width - 2f
+            val contentHeight = height - 2f
+            val text = LabelElement("text", LabelElementType.Text, "", 1f, 1f,
+                contentWidth, contentHeight)
+            if (template != FreeLabelTemplate.Qr) return LabelDesign(listOf(text))
+            val qrSide = min(contentWidth, contentHeight * 0.68f)
+            return LabelDesign(listOf(
+                text.copy(heightMm = contentHeight - qrSide - 0.8f),
+                LabelElement("qr", LabelElementType.Qr, "", 1f + (contentWidth - qrSide) / 2f,
+                    height - 1f - qrSide, qrSide, qrSide),
+            ))
+        }
+
         fun default(
             seed: ComponentLabelSeed,
             template: ComponentLabelTemplate,

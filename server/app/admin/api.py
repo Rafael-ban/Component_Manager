@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from ..accounts import Account
 from ..auth import require_token, require_admin
 from ..config import Settings, get_settings
+from ..build_info import BUILD_REVISION, BUILD_VERSION
 from ..database import get_db
 from ..lcsc import LookupConfigurationError, LookupRequestError, lookup_lcsc_product
 from ..part_lookup import (
@@ -259,7 +260,11 @@ def get_settings_overview(
     if account.role == "user":
         return AdminSettingsResponse(
             web_inventory_enabled=settings.web_inventory_enabled,
-            runtime_configuration=[AdminKeyValueItem(label="App name", value=settings.app_name)],
+            runtime_configuration=[
+                AdminKeyValueItem(label="App name", value=settings.app_name),
+                AdminKeyValueItem(label="Server version", value=BUILD_VERSION),
+                AdminKeyValueItem(label="Build revision", value=BUILD_REVISION),
+            ],
             access_posture=[],
             next_backend_additions=[],
         )
@@ -267,6 +272,8 @@ def get_settings_overview(
         web_inventory_enabled=settings.web_inventory_enabled,
         runtime_configuration=[
             AdminKeyValueItem(label="App name", value=settings.app_name),
+            AdminKeyValueItem(label="Server version", value=BUILD_VERSION),
+            AdminKeyValueItem(label="Build revision", value=BUILD_REVISION),
             AdminKeyValueItem(label="Host", value=settings.app_host),
             AdminKeyValueItem(label="Port", value=str(settings.app_port)),
             AdminKeyValueItem(label="Database path", value=settings.database_path),

@@ -90,4 +90,20 @@ class LabelPrintQueueStoreTest {
         for (index in 0 until items.length()) items.getJSONObject(index).remove("design")
         assertEquals(listOf(null, null), LabelPrintQueueCodec.decode(legacy.toString()).items.map { it.design })
     }
+
+    @Test
+    fun freeLabelRoundTripsWithoutInventingAnInventorySeed() {
+        val paper = M1TestPaperProfile(40f, 60f)
+        val design = LabelDesign.free(FreeLabelTemplate.Qr, paper).withQrPayload("qr", "https://example.test/part")
+        val queue = LabelPrintQueue.createFree(FreeLabel("Shelf note", FreeLabelTemplate.Qr),
+            copies = 2, paper = paper, design = design)
+        val restored = LabelPrintQueueCodec.decode(LabelPrintQueueCodec.encode(queue))
+        assertEquals(queue, restored)
+        assertTrue(restored.items.all { it.seed == null && it.freeLabel?.title == "Shelf note" })
+
+        val legacyV2 = JSONObject(LabelPrintQueueCodec.encode(LabelPrintQueue.create(listOf(seed to 1))))
+            .put("version", 2)
+        legacyV2.getJSONArray("items").getJSONObject(0).remove("freeLabel")
+        assertEquals(seed, LabelPrintQueueCodec.decode(legacyV2.toString()).items.single().seed)
+    }
 }

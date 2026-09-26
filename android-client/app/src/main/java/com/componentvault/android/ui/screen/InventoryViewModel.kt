@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.componentvault.android.R
 import com.componentvault.android.data.InventoryRepository
+import com.componentvault.android.data.BatchTransferLine
 import com.componentvault.android.data.InventoryWorkbookCodec
 import com.componentvault.android.data.bom.BomParseResult
 import com.componentvault.android.data.bom.BomParser
@@ -20,6 +21,7 @@ import com.componentvault.android.model.AppPreferences
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentImportCandidate
 import com.componentvault.android.model.ComponentRecord
+import com.componentvault.android.model.officialRclSpecificationSummary
 import com.componentvault.android.model.DashboardSnapshot
 import com.componentvault.android.model.InventoryDetailUiState
 import com.componentvault.android.model.InventoryFiltersUiState
@@ -292,6 +294,21 @@ class InventoryViewModel(
             if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) {
                 runSyncInternal()
             }
+        }
+    }
+
+    internal fun transferComponentsBatch(
+        sourceLocationId: String,
+        destinationLocationId: String,
+        lines: List<BatchTransferLine>,
+        onComplete: (OperationResult) -> Unit,
+    ) {
+        viewModelScope.launch {
+            uiState = uiState.copy(isBusy = true)
+            val result = repository.transferComponentsBatch(sourceLocationId, destinationLocationId, lines)
+            reloadState(result.message)
+            onComplete(result)
+            if (result.isSuccess && uiState.appPreferences.syncAfterLocalChanges) runSyncInternal()
         }
     }
 
@@ -765,6 +782,7 @@ class InventoryViewModel(
         val selectedComponent = filteredComponents.firstOrNull { it.id == selectedComponentId }
 
         return InventoryScreenUiState(
+            totalComponentCount = allComponentsCache.count { !it.deleted },
             filters = filters,
             availableCategories = CategoryFilterSemantics.options(allComponentsCache.map { it.category }),
             availableLocations = allComponentsCache
@@ -789,6 +807,7 @@ class InventoryViewModel(
                 }.orEmpty(),
             ),
             storageLocations = storageLocationsCache,
+            allocations = allocationsCache,
         )
     }
 
@@ -798,12 +817,7 @@ class InventoryViewModel(
     ): List<ComponentRecord> {
         val filtered = components.filter { component ->
             val matchesLowStock = filters.stockFilter != InventoryStockFilter.LowStock || component.isLowStock
-            val matchesQuery = filters.query.isBlank() ||
-                component.name.contains(filters.query, ignoreCase = true) ||
-                component.sku.contains(filters.query, ignoreCase = true) ||
-                CategoryFilterSemantics.matchesSearch(component.category, filters.query) ||
-                component.packageName.contains(filters.query, ignoreCase = true) ||
-                component.location.contains(filters.query, ignoreCase = true)
+            val matchesQuery = InventorySearch.matches(component, filters.query)
             val matchesCategory = filters.category.isNullOrBlank() ||
                 CategoryFilterSemantics.sameCategory(component.category, filters.category.orEmpty())
             val matchesLocation = filters.location.isNullOrBlank() || component.location == filters.location
@@ -838,6 +852,7 @@ class InventoryViewModel(
             isLowStock = component.isLowStock,
             updatedAt = component.updatedAt,
             productImageUrl = component.productImageUrl,
+            specificationSummary = component.officialRclSpecificationSummary(),
             issuedQuantity = issuedQuantitiesCache[component.id] ?: 0,
         )
     }

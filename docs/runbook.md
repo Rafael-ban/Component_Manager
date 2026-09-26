@@ -7,7 +7,7 @@ the server locally. Copy `.env.example` to the root `.env`; an existing deployme
 may continue supplying its `API_TOKEN` there. The Compose defaults use the
 floating API `latest` and Web `web-latest` tags. Check their
 current versions on Docker Hub before pulling. Override both image variables
-to select another fixed, published release, such as `0.7.4` and `web-0.7.4`.
+to select another fixed, published release, such as `0.7.5` and `web-0.7.5`.
 The server image listens on port 8787 and stores SQLite under `/data`; preserve
 the Compose project name and `component_vault_data` volume when upgrading.
 The admin Web app remains a separate image. Start the optional profile with
@@ -24,6 +24,15 @@ A manual `Server Docker Image` run with `push_image=true` can publish an existin
 release afterward; normal CI never pushes an image. Follow the complete
 [Docker quickstart and API Token lookup](docker-quickstart.md), or the complete
 [Docker Hub setup, verification and upgrade instructions](dockerhub.md).
+
+### 排查镜像与客户端账户接口不一致
+
+客户端提示服务端过老时，先按 [Docker 排障步骤](docker-quickstart.md#7-客户端提示服务端版本过老或无法确认账户身份)
+核对实际容器与客户端 API 地址。镜像构建把发布 tag 与实际 checkout commit 写入
+`/health` 的 `version` / `revision`；源码启动明确显示 `source` / `unknown`。
+容器 CI 也会验证认证后的 `/auth/me`，避免仅凭旧 `/auth/ping` 成功就放行。
+Web 读取 API 设置 15 秒超时，对地址、CORS、HTTPS/HTTP 混用及缺少账户接口提供提示。
+版本元数据不改变账户身份或同步协议。
 
 ## Admin console deployment and API token
 

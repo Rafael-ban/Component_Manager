@@ -1122,6 +1122,7 @@ class InventoryRepository(
 
         return@withContext try {
             val endpoint = resolveSyncEndpoint(settings)
+            requireSyncIdentity(endpoint)
             OperationResult(
                 isSuccess = true,
                 message = text(R.string.sync_connection_ok, endpoint.probe.optString("server_time")) +
@@ -1153,16 +1154,9 @@ class InventoryRepository(
 
             try {
                 val endpoint = resolveSyncEndpoint(settings)
-                val capability = endpoint.probe
-                check(capability.optInt("inventory_protocol", 0) == 1) {
-                    "The server does not support inventory_protocol=1. Local changes were kept for retry."
-                }
-                val identity = callJson(endpoint.configuration, "GET", "/auth/me", null)
+                val identity = requireSyncIdentity(endpoint)
                 val serverId = identity.optString("server_id").trim()
                 val accountId = identity.optString("account_id").trim()
-                check(serverId.isNotBlank() && accountId.isNotBlank()) {
-                    text(R.string.sync_identity_unavailable)
-                }
                 synchronized(syncConfigurationLock) {
                     checkSyncConfigurationUnchanged(settings)
                     val boundServer = preferences.getString(KEY_BOUND_SERVER_ID, "").orEmpty()
@@ -1187,7 +1181,7 @@ class InventoryRepository(
                         check(preferences.edit()
                             .putString(KEY_BOUND_SERVER_ID, serverId)
                             .putString(KEY_BOUND_ACCOUNT_ID, accountId)
-                            .commit()) { text(R.string.sync_identity_unavailable) }
+                            .commit()) { text(R.string.sync_identity_save_failed) }
                     }
                 }
                 val pushPayload = buildPushPayload(settings.deviceId)
@@ -1822,6 +1816,73 @@ class InventoryRepository(
             editor.putString("${LOOKUP_CACHE_PREFIX}${cacheScope?.let { "$it:" }.orEmpty()}mpn:${value.lowercase(Locale.US)}", payload)
         }
         editor.apply()
+    }
+
+    internal suspend fun transferComponentsBatch(
+        sourceLocationId: String,
+        destinationLocationId: String,
+        lines: List<BatchTransferLine>,
+    ): OperationResult = withContext(Dispatchers.IO) {
+        try {
+            val source = sourceLocationId.trim()
+            val destination = destinationLocationId.trim()
+            require(source.isNotEmpty() && destination.isNotEmpty() && source != destination) {
+                text(R.string.batch_transfer_invalid_locations)
+            }
+            require(lines.isNotEmpty() && lines.map { it.componentId }.distinct().size == lines.size) {
+                text(R.string.batch_transfer_invalid_selection)
+            }
+            require(lines.all { it.componentId.isNotBlank() && it.quantity > 0 && it.expectedUpdatedAt.isNotBlank() }) {
+                text(R.string.batch_transfer_invalid_quantity)
+            }
+
+            databaseHelper.writableDatabase.use { db ->
+                db.beginTransaction()
+                try {
+                    for (locationId in listOf(source, destination)) {
+                        val active = db.rawQuery(
+                            "SELECT 1 FROM storage_locations WHERE id = ? AND deleted = 0",
+                            arrayOf(locationId),
+                        ).use { it.moveToFirst() }
+                        check(active) { text(R.string.batch_transfer_location_gone) }
+                    }
+                    lines.forEach { line ->
+                        val component = getComponentById(db, line.componentId)
+                            ?: throw IllegalStateException(text(R.string.batch_transfer_component_gone))
+                        check(!component.deleted) {
+                            text(R.string.batch_transfer_component_gone)
+                        }
+                        check(component.updatedAt == line.expectedUpdatedAt) {
+                            text(R.string.batch_transfer_stale)
+                        }
+                        val sourceQuantity = allocationQuantity(db, line.componentId, source)
+                        check(sourceQuantity >= line.quantity) { text(R.string.batch_transfer_insufficient) }
+                        StockAllocationMath.transfer(
+                            sourceQuantity,
+                            allocationQuantity(db, line.componentId, destination),
+                            line.quantity,
+                        )
+                    }
+                    applyMovementDrafts(db, lines.map { line ->
+                        MovementEntryDraft(
+                            componentId = line.componentId,
+                            movementType = "transfer",
+                            quantity = line.quantity,
+                            reason = text(R.string.batch_transfer_reason),
+                            note = "",
+                            locationId = source,
+                            destinationLocationId = destination,
+                        )
+                    })
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+            }
+            OperationResult(true, text(R.string.sync_movement_batch_recorded_local, lines.size))
+        } catch (exception: Exception) {
+            OperationResult(false, exception.message ?: text(R.string.sync_movement_record_failed))
+        }
     }
 
     internal fun clearLookupCache() {
@@ -2532,6 +2593,17 @@ class InventoryRepository(
             callJson(configuration, "POST", "/auth/ping", null, timeout)
         }
 
+    private fun requireSyncIdentity(endpoint: ResolvedSyncEndpoint<JSONObject>): JSONObject {
+        check(endpoint.probe.optInt("inventory_protocol", 0) == 1) {
+            text(R.string.sync_inventory_protocol_unavailable)
+        }
+        val identity = callJson(endpoint.configuration, "GET", "/auth/me", null)
+        check(identity.optString("server_id").isNotBlank() && identity.optString("account_id").isNotBlank()) {
+            text(R.string.sync_identity_missing_fields)
+        }
+        return identity
+    }
+
     private fun callJson(
         settings: SyncConfiguration,
         method: String,
@@ -2559,14 +2631,21 @@ class InventoryRepository(
             val responseText = readResponseText(connection, responseCode)
             if (responseCode !in 200..299) {
                 if (path == "/auth/me" && responseCode == 404) {
-                    throw IllegalStateException(text(R.string.sync_identity_unavailable))
+                    throw IllegalStateException(text(R.string.sync_identity_route_unavailable))
                 }
                 throw IllegalStateException(buildErrorMessage(responseCode, responseText))
             }
             if (responseText.isBlank()) {
                 JSONObject()
             } else {
-                JSONObject(responseText)
+                try {
+                    JSONObject(responseText)
+                } catch (exception: org.json.JSONException) {
+                    if (path == "/auth/me") {
+                        throw IllegalStateException(text(R.string.sync_identity_invalid_response), exception)
+                    }
+                    throw exception
+                }
             }
         } finally {
             connection.disconnect()

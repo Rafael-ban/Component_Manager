@@ -13,7 +13,7 @@ ADMIN_WEB_URL=
 WEB_INVENTORY_ENABLED=
 ```
 
-首次网页配置从 `0.7.1` 开始提供。Hub Compose 默认使用 API `latest` 和 Web `web-latest`；部署前在 Docker Hub Tags 核对它们当前对应的版本。`0.7.4` 与 `web-0.7.4` 已发布，可在 `.env` 中用 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE` 固定这两个版本。`0.7.0` 没有首次配置页，不能用旧镜像测试这条流程。
+首次网页配置从 `0.7.1` 开始提供。Hub Compose 默认使用 API `latest` 和 Web `web-latest`；部署前在 Docker Hub Tags 核对它们当前对应的版本。`0.7.5` 与 `web-0.7.5` 已发布，可在 `.env` 中用 `COMPONENT_VAULT_IMAGE` 和 `COMPONENT_VAULT_WEB_IMAGE` 固定这两个版本。`0.7.0` 没有首次配置页，不能用旧镜像测试这条流程。
 
 在部署目录中先启动 API：
 
@@ -128,3 +128,41 @@ docker compose -f docker-compose.hub.yml exec api python -c 'from app.config imp
 PowerShell 可用 `[guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')` 生成随机值；Linux/macOS 可用 `openssl rand -hex 32`。
 
 完整的升级、备份、CORS、MQTT 与维护者发布说明见 [Docker Hub 镜像发布与部署教程](dockerhub.md) 和 [Runbook](runbook.md)。
+
+## 7. 客户端提示“服务端版本过老”或无法确认账户身份
+
+0.7.5 起，原生客户端同步前会读取 `GET /auth/me`，确认服务器和账户身份。
+`/auth/ping` 成功只说明密钥可用于旧认证接口，不能证明账户接口已部署。
+最新客户端的“测试连接”同时检查库存协议和账户接口，不会执行同步或更换本地绑定。
+
+截至 2026-09-27，Docker Hub 的 `latest` / `web-latest` 对应 0.7.5；已核对公开
+API 镜像中确实包含 `/auth/me`。Docker Hub 的标签更新不会自动替换 NAS 上已运行的容器。
+若 `.env` 中固定了更早的 `COMPONENT_VAULT_IMAGE`，拉取 `latest` 也不会改变 Compose
+实际使用的固定标签。先检查这两个镜像变量，再在原项目目录更新：
+
+```sh
+docker compose -f docker-compose.hub.yml --profile web pull
+docker compose -f docker-compose.hub.yml --profile web up -d
+docker compose -f docker-compose.hub.yml --profile web images
+docker compose -f docker-compose.hub.yml --profile web ps
+```
+
+只部署 API 时去掉 `--profile web`。保留原 `/data` 映射和项目名；只执行 `restart`
+不会使用刚拉取的新镜像。群晖 Container Manager 应更新项目所引用的 API 镜像后重新部署，
+不是只更新 `admin-web` 容器。
+
+按顺序核对：
+
+1. 客户端填写 API 的 `8787` 地址，不是 Web 的 `8081` 地址，也不要附加 `/setup`。
+2. 用同一地址访问 `/health`。本次改动起，镜像响应增加 `version` 和 `revision`，
+   Web 设置的运行配置也显示它们；0.7.5 和更早镜像没有这两个字段，字段缺失不能单独证明没有账户接口。
+   从源码直接启动且未注入构建信息时显示 `source` / `unknown`。
+3. 重新运行客户端“测试连接”。`/auth/me` 返回 404，表示所访问的服务没有这个路由，
+   需要检查 API 容器版本、端口及反向代理；返回 HTML 通常是请求到了 Web 页面或代理错误页。
+4. 若直连 `http://NAS地址:8787` 正常、域名异常，检查反向代理是否同时转发 `/auth/*`、
+   `/sync/*`、`/admin-api/*` 和 `/health`。不要只转发旧的 `/auth/ping`。
+5. 401 是账户密钥无效或账户已停用，不是镜像过老；账户身份不匹配是另一项保护，
+   不要通过清空库存、删数据库或伪造身份字段来绕开。
+
+向维护者提供容器日志、镜像标签、`/health` 结果和客户端的具体错误即可。
+不要发送 `config.json` 全文、Bearer Token 或带密钥的请求截图。

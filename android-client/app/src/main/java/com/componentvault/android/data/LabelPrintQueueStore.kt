@@ -42,7 +42,7 @@ internal class LabelPrintQueueStore(context: Context) {
 }
 
 internal object LabelPrintQueueCodec {
-    private const val Version = 2
+    private const val Version = 3
 
     fun encode(queue: LabelPrintQueue): String = JSONObject()
         .put("version", Version)
@@ -58,7 +58,10 @@ internal object LabelPrintQueueCodec {
             queue.items.forEach { item ->
                 put(JSONObject()
                     .put("id", item.id)
-                    .put("seed", encodeSeed(item.seed))
+                    .put("seed", item.seed?.let(::encodeSeed) ?: JSONObject.NULL)
+                    .put("freeLabel", item.freeLabel?.let { free -> JSONObject()
+                        .put("title", free.title).put("template", free.template.name)
+                    } ?: JSONObject.NULL)
                     .put("copyNumber", item.copyNumber)
                     .put("copies", item.copies)
                     .put("state", item.state.name)
@@ -69,7 +72,8 @@ internal object LabelPrintQueueCodec {
 
     fun decode(json: String): LabelPrintQueue {
         val root = JSONObject(json)
-        require(root.getInt("version") in 1..Version) { "Unsupported label print queue version" }
+        val version = root.getInt("version")
+        require(version in 1..Version) { "Unsupported label print queue version" }
         val paperJson = root.getJSONObject("paper")
         val paper = M1TestPaperProfile(
             paperJson.getDouble("widthMm").toFloat(),
@@ -84,13 +88,19 @@ internal object LabelPrintQueueCodec {
             val item = array.getJSONObject(index)
             LabelPrintItem(
                 id = item.getString("id"),
-                seed = decodeSeed(item.getJSONObject("seed")),
+                seed = if (version < 3 || !item.isNull("seed"))
+                    decodeSeed(item.getJSONObject("seed")) else null,
                 copyNumber = item.getInt("copyNumber"),
                 copies = item.getInt("copies"),
                 state = LabelPrintItemState.valueOf(item.getString("state")),
                 detail = item.getString("detail"),
                 design = if (item.isNull("design") || !item.has("design")) null
                     else decodeDesign(item.getJSONObject("design")),
+                freeLabel = if (version < 3 || item.isNull("freeLabel")) null
+                    else item.getJSONObject("freeLabel").let { free ->
+                        FreeLabel(free.getString("title"),
+                            FreeLabelTemplate.valueOf(free.getString("template")))
+                    },
             ).also {
                 require(it.id.isNotBlank()) { "Label print item has no ID" }
                 require(it.copies in 1..LabelPrintQueue.MaxCopies && it.copyNumber in 1..it.copies) {

@@ -21,6 +21,7 @@ public sealed class ComponentRecord
     public long CumulativeOutboundQuantity { get; init; }
     public IReadOnlyList<ComponentAllocationRecord> Allocations { get; init; } = [];
     public string? BaseUpdatedAt { get; init; }
+    public bool IsBatchSelected { get; set; }
 
     public bool IsLowStock => !Deleted && Quantity <= MinStock;
 
@@ -47,6 +48,8 @@ public sealed class ComponentRecord
     }
 
     public string DisplayCategory => CategoryDisplay.Localize(Category);
+
+    public string DisplaySpecifications => OfficialSpecifications.FromDescription(Description, Category);
 
     public string DisplayUpdatedAt => FormatLocalDateTime(UpdatedAt);
 

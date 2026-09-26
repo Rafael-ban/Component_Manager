@@ -21,6 +21,7 @@
     <Compile Include="..\ComponentVault.WinUI\Localization\CategoryDisplay.cs" Link="Localization\CategoryDisplay.cs" />
     <Compile Include="..\ComponentVault.WinUI\Localization\CategoryFilterSemantics.cs" Link="Localization\CategoryFilterSemantics.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\InventoryStore.cs" Link="Services\InventoryStore.cs" />
+    <Compile Include="..\ComponentVault.WinUI\Services\InventorySearch.cs" Link="Services\InventorySearch.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\AppDiagnostics.cs" Link="Services\AppDiagnostics.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\InventoryWorkbookBackup.cs" Link="Services\InventoryWorkbookBackup.cs" />
     <Compile Include="..\ComponentVault.WinUI\Services\LabelWorkbookExporter.cs" Link="Services\LabelWorkbookExporter.cs" />

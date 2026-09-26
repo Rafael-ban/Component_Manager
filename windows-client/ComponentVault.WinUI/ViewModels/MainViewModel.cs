@@ -567,6 +567,12 @@ public sealed class MainViewModel : ObservableObject
         if (result.IsSuccess) { Refresh(); ScheduleAutoSync(); }
         return result;
     }
+    public OperationResult TransferBatch(InventoryStore.BatchTransferRequest request)
+    {
+        var result = _store.TransferBatch(request);
+        if (result.IsSuccess) { Refresh(); ScheduleAutoSync(); }
+        return result;
+    }
     public bool IsBatchReceiptCommitted(string receiptId)=>_store.IsBatchReceiptCommitted(receiptId);
     public OperationResult CommitBatchInbound(BatchInboundCommitRequest request){var result=_store.CommitBatchInbound(request);if(result.IsSuccess){Refresh();ScheduleAutoSync();}return result;}
     public OperationResult AppendCatalogInbound(string sku,int quantity,string location,string expectedUpdatedAt){var result=_store.AppendCatalogInbound(sku,quantity,location,expectedUpdatedAt);if(result.IsSuccess){Refresh();ScheduleAutoSync();}return result;}
@@ -787,12 +793,8 @@ public sealed class MainViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(ComponentSearchText))
         {
             var query = ComponentSearchText.Trim();
-            filtered = filtered.Where(component =>
-                component.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || component.Sku.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || CategoryFilterSemantics.MatchesSearch(component.Category, query)
-                || component.Location.Contains(query, StringComparison.OrdinalIgnoreCase)
-            );
+            filtered = filtered.Where(component => InventorySearch.Matches(component, query)
+                || CategoryFilterSemantics.MatchesSearch(component.Category, query));
         }
 
         filtered = SelectedComponentSortOption switch

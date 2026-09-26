@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from app.build_info import BUILD_REVISION, BUILD_VERSION
 from app.config import get_settings
 from app.lcsc import LookupConfigurationError
 from app.main import create_app
@@ -16,6 +17,8 @@ def test_health_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert response.json()["version"] == BUILD_VERSION
+    assert response.json()["revision"] == BUILD_REVISION
 
 
 def test_admin_api_requires_token(tmp_path: Path, monkeypatch) -> None:

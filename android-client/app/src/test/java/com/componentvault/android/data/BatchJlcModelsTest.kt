@@ -18,13 +18,14 @@ class BatchJlcModelsTest {
     }
     @Test fun batchDescriptionContainsOnlyPublicMetadataNotPackagingPayload(){
         val description=ComponentOfficialMetadata(
-            source="lcsc_domestic_web",model="M1",brand="Maker",
+            source="lcsc_domestic_web",model="M1",brand="Maker",description="官方 10kΩ 电阻",
             imageUrl="https://assets.lcsc.com/images/a.png",
             parameters=mapOf("阻值" to "10k"),
         ).toBatchDescription()
         assertTrue("型号：M1" in description)
         assertTrue("商品图片：https://assets.lcsc.com/images/a.png" in description)
         assertTrue("参数：阻值：10k" in description)
+        assertTrue("官方描述：官方 10kΩ 电阻" in description)
         assertTrue("pc:" !in description)
         assertTrue("订单" !in description)
     }

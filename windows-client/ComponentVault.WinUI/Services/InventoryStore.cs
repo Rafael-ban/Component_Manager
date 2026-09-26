@@ -503,6 +503,59 @@ public sealed class InventoryStore
         return OperationResult.Success("元器件已在本机软删除。");
     }
 
+    public sealed record BatchTransferLine(string ComponentId, int Quantity, string ExpectedUpdatedAt);
+    public sealed record BatchTransferRequest(string SourceLocationId, string DestinationLocationId, IReadOnlyList<BatchTransferLine> Lines);
+
+    public OperationResult TransferBatch(BatchTransferRequest request)
+    {
+        if (request.Lines.Count is 0 or > 500 || request.Lines.Any(line => line.Quantity <= 0)
+            || request.Lines.Select(line => line.ComponentId).Distinct(StringComparer.Ordinal).Count() != request.Lines.Count)
+            return OperationResult.Failure("请选择 1–500 个不重复元器件，并填写正整数调拨数量。");
+        var source = NormalizeLocationId(request.SourceLocationId);
+        var destination = NormalizeLocationId(request.DestinationLocationId);
+        if (source == destination) return OperationResult.Failure("目标库位不能与来源相同。");
+
+        try
+        {
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+            using (var location = connection.CreateCommand())
+            {
+                location.CommandText = "SELECT COUNT(*) FROM storage_locations WHERE id IN ($source,$destination) AND deleted=0";
+                location.Parameters.AddWithValue("$source", source);
+                location.Parameters.AddWithValue("$destination", destination);
+                if (Convert.ToInt64(location.ExecuteScalar(), CultureInfo.InvariantCulture) != 2)
+                    return OperationResult.Failure("来源或目标库位不存在或已删除。");
+            }
+
+            var validated = new List<(ComponentRecord Component, int Quantity)>();
+            foreach (var line in request.Lines)
+            {
+                var component = GetComponentById(connection, line.ComponentId);
+                if (component is null || component.Deleted)
+                    return OperationResult.Failure("选中的元器件已不存在，请重新核对。");
+                if (component.UpdatedAt != line.ExpectedUpdatedAt)
+                    return OperationResult.Failure($"{component.Sku} 已变化，请重新核对调拨数量。");
+                if (GetAllocationQuantity(connection, component.Id, source) < line.Quantity)
+                    return OperationResult.Failure($"{component.Sku} 的来源库位库存不足。");
+                _ = checked(GetAllocationQuantity(connection, component.Id, destination) + line.Quantity);
+                validated.Add((component, line.Quantity));
+            }
+
+            foreach (var (component, quantity) in validated)
+            {
+                var result = TransferAllocation(connection, component, source, destination, quantity, "批量库位转移", "");
+                if (!result.IsSuccess) return result;
+            }
+            transaction.Commit();
+            return OperationResult.Success($"已将 {validated.Count} 个元器件从 {source} 转移到 {destination}；总库存未变化。");
+        }
+        catch (Exception exception) when (exception is OverflowException or SqliteException)
+        {
+            return OperationResult.Failure($"批量转移失败，未提交任何项目：{exception.Message}");
+        }
+    }
+
     public OperationResult RecordMovement(MovementEntryDraft draft)
     {
         ValidateMovementDraft(draft);
@@ -518,7 +571,11 @@ public sealed class InventoryStore
 
         var locationId = NormalizeLocationId(draft.LocationId ?? component.Location);
         if (draft.MovementType.Equals("transfer", StringComparison.OrdinalIgnoreCase))
-            return TransferAllocation(connection, transaction, component, locationId, NormalizeLocationId(draft.DestinationLocationId), draft.Quantity, draft.Reason, draft.Note);
+        {
+            var result = TransferAllocation(connection, component, locationId, NormalizeLocationId(draft.DestinationLocationId), draft.Quantity, draft.Reason, draft.Note);
+            if (result.IsSuccess) transaction.Commit();
+            return result;
+        }
         var quantityDelta = CalculateQuantityDelta(draft.MovementType, draft.Quantity);
         var newQuantity = component.Quantity + quantityDelta;
         if (newQuantity < 0)
@@ -1422,7 +1479,7 @@ public sealed class InventoryStore
     private static string NormalizeLocationId(string? value) => string.IsNullOrWhiteSpace(value) ? "__unassigned__" : value.Trim();
 
     private static OperationResult TransferAllocation(
-        SqliteConnection connection, SqliteTransaction transaction, ComponentRecord component,
+        SqliteConnection connection, ComponentRecord component,
         string sourceId, string destinationId, int quantity, string reason, string note)
     {
         if (quantity <= 0 || sourceId == destinationId) return OperationResult.Failure("调拨数量必须为正数，且目标库位不能与来源相同。");
@@ -1452,7 +1509,6 @@ public sealed class InventoryStore
         update.ExecuteNonQuery();
         EnqueueEntity(connection, "component", component.Id, happenedAt);
         EnqueueEntity(connection, "stock_movement", movementId, happenedAt);
-        transaction.Commit();
         return OperationResult.Success("库存已在库位间调拨；总库存未变化。");
     }
 

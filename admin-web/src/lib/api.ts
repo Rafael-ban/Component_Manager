@@ -1,3 +1,4 @@
+import { readJsonWithTimeout, ReadTimeoutError } from "./read-json";
 import type { AccountIdentity, AdminSession, DeploymentConfiguration } from "@/lib/types";
 import { currentServerTranslation, currentTranslation } from "@/lib/i18n";
 
@@ -17,21 +18,30 @@ export function normalizeBaseUrl(value: string) {
 }
 
 export async function requestJson<T>(session: AdminSession, path: string): Promise<T> {
-  const response = await fetch(`${normalizeBaseUrl(session.apiBaseUrl)}${path}`, {
-    headers: {
-      Authorization: `Bearer ${session.token}`,
-    },
-  });
+  let response: Response;
+  let payload: unknown;
+  try {
+    ({ response, payload } = await readJsonWithTimeout(
+      `${normalizeBaseUrl(session.apiBaseUrl)}${path}`,
+      { headers: { Authorization: `Bearer ${session.token}` } },
+    ));
+  } catch (error) {
+    throw new ApiError(0, currentTranslation(error instanceof ReadTimeoutError
+      ? "连接 API 超时，请确认服务器已启动及 API 地址和端口可达。"
+      : "无法读取 API。请检查 API 地址、管理台允许来源（CORS），以及 HTTPS 页面是否连接了 HTTP API。"));
+  }
 
   if (!response.ok) {
     const message =
       response.status === 401
         ? currentTranslation("登录会话已失效。")
-        : statusMessage(response.status);
+        : response.status === 404 && path === "/auth/me"
+          ? currentTranslation("API 不支持账户接口。请更新 API 与 Web 两个镜像，或检查是否误填了 Web 管理台地址。")
+          : statusMessage(response.status);
     throw new ApiError(response.status, message);
   }
 
-  return (await response.json()) as T;
+  return payload as T;
 }
 
 export async function postJson<T>(session: AdminSession, path: string, body: unknown): Promise<T> {

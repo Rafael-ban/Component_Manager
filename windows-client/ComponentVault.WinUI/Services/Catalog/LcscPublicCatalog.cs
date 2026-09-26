@@ -208,8 +208,9 @@ public static partial class LcscPublicCatalog
                     var name = model ?? Text(product, "name") ?? expected;
                     var brand = product.TryGetProperty("brand", out var brandNode) && brandNode.ValueKind == JsonValueKind.Object ? Text(brandNode, "name") : Text(product, "brand");
                     var categoryPath = Text(product, "category");
+                    var parameters = AdditionalProperties(product);
                     return new(expected, name, model, brand, AdditionalPackage(product), NormalizeCategory(categoryPath), categoryPath, ProductUri(expected)!.AbsoluteUri, ProductImage(product),
-                        Description: description is not null && !description.Equals(name, StringComparison.OrdinalIgnoreCase) ? description : null);
+                        Parameters: parameters, Description: description is not null && !description.Equals(name, StringComparison.OrdinalIgnoreCase) ? description : null);
                 }
             }
             catch (JsonException) { }
@@ -239,6 +240,19 @@ public static partial class LcscPublicCatalog
         foreach (var property in properties.EnumerateArray())
             if (Text(property, "name")?.Equals("Package", StringComparison.OrdinalIgnoreCase) == true) return Text(property, "value");
         return null;
+    }
+
+    private static IReadOnlyDictionary<string, string> AdditionalProperties(JsonElement product)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!product.TryGetProperty("additionalProperty", out var properties) || properties.ValueKind != JsonValueKind.Array) return result;
+        foreach (var property in properties.EnumerateArray())
+        {
+            var key = CleanText(Text(property, "name"));
+            var value = CleanText(Text(property, "value"));
+            if (key is not null && value is not null) result[key] = value;
+        }
+        return result;
     }
 
     private static string? ProductImage(JsonElement product)

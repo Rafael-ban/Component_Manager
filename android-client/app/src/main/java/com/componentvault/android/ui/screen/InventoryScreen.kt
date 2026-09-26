@@ -85,6 +85,7 @@ internal fun InventoryScreen(
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
+    onBatchTransfer: BatchTransferAction? = null,
 ) {
     InventoryContent(
         contentPadding = contentPadding,
@@ -104,6 +105,7 @@ internal fun InventoryScreen(
         onEditComponent = onEditComponent,
         onRequestDeleteComponent = onRequestDeleteComponent,
         onRecordMovement = onRecordMovement,
+        onBatchTransfer = onBatchTransfer,
     )
 }
 
@@ -127,6 +129,7 @@ internal fun InventoryContent(
     onEditComponent: (String) -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
+    onBatchTransfer: BatchTransferAction? = null,
 ) {
     if (layoutMode.showsListDetail) {
         val navigator = rememberListDetailPaneScaffoldNavigator<String>()
@@ -165,6 +168,8 @@ internal fun InventoryContent(
                             }
                         },
                         onOpenBluetoothPrint = onOpenBluetoothPrint,
+                        onRequestDeleteComponent = onRequestDeleteComponent,
+                        onBatchTransfer = onBatchTransfer,
                     )
                 }
             },
@@ -199,6 +204,8 @@ internal fun InventoryContent(
                 onOpenComponentDetail(componentId)
             },
             onOpenBluetoothPrint = onOpenBluetoothPrint,
+            onRequestDeleteComponent = onRequestDeleteComponent,
+            onBatchTransfer = onBatchTransfer,
         )
     }
 }
@@ -278,8 +285,18 @@ private fun InventoryListPane(
     onSortChange: (InventorySortOption) -> Unit,
     onSelectComponent: (String) -> Unit,
     onOpenBluetoothPrint: () -> Unit,
+    onRequestDeleteComponent: (String) -> Unit,
+    onBatchTransfer: BatchTransferAction?,
 ) {
     val strings = vaultStrings()
+    var selecting by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var selectedIds by androidx.compose.runtime.remember { mutableStateOf(emptySet<String>()) }
+    var transferVisible by androidx.compose.runtime.remember { mutableStateOf(false) }
+    LaunchedEffect(uiState.list.items.map { it.id }) {
+        selectedIds = selectedIds.intersect(uiState.list.items.map { it.id }.toSet())
+    }
+    val selectedItems = uiState.list.items.filter { it.id in selectedIds }
+    fun exitSelection() { selecting = false; selectedIds = emptySet(); transferVisible = false }
 
     Column(
         modifier = modifier.padding(contentPadding),
@@ -297,7 +314,20 @@ private fun InventoryListPane(
         OutlinedButton(
             onClick = onOpenBluetoothPrint,
             modifier = Modifier.fillMaxWidth(),
-        ) { Text(stringResource(R.string.bluetooth_label_print_batch_action)) }
+        ) { Text(stringResource(R.string.label_tool_title)) }
+        if (onBatchTransfer != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { if (selecting) exitSelection() else selecting = true }) {
+                    Text(stringResource(if (selecting) R.string.action_cancel else R.string.batch_transfer_select))
+                }
+                if (selecting) {
+                    FilledTonalButton(
+                        enabled = selectedItems.isNotEmpty(),
+                        onClick = { transferVisible = true },
+                    ) { Text(stringResource(R.string.batch_transfer_selected_count, selectedItems.size)) }
+                }
+            }
+        }
         Text(
             text = strings.inventory.resultsSummary(
                 uiState.list.items.size,
@@ -314,18 +344,36 @@ private fun InventoryListPane(
         ) {
             if (uiState.list.items.isEmpty()) {
                 item {
-                    EmptyPane(strings.common.emptyNoComponentsMatchFilter)
+                    EmptyPane(if (uiState.totalComponentCount == 0) {
+                        stringResource(R.string.batch_transfer_inventory_empty)
+                    } else {
+                        strings.common.emptyNoComponentsMatchFilter
+                    })
                 }
             } else {
                 items(uiState.list.items, key = { it.id }) { item ->
                     InventoryListRow(
                         item = item,
-                        selected = item.id == uiState.list.selectedComponentId,
-                        onClick = { onSelectComponent(item.id) },
+                        selected = if (selecting) item.id in selectedIds else item.id == uiState.list.selectedComponentId,
+                        selectionMode = selecting,
+                        onClick = {
+                            if (selecting) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
+                            else onSelectComponent(item.id)
+                        },
+                        onRequestDelete = if (selecting) null else ({ onRequestDeleteComponent(item.id) }),
                     )
                 }
             }
         }
+    }
+    if (transferVisible && onBatchTransfer != null) {
+        BatchTransferDialog(
+            items = selectedItems,
+            allocations = uiState.allocations,
+            locations = uiState.storageLocations,
+            onDismiss = ::exitSelection,
+            onSubmit = onBatchTransfer,
+        )
     }
 }
 

@@ -47,6 +47,84 @@ public sealed class InventoryExpansionTests : IDisposable
     }
 
     [Fact]
+    public void TransferBatch_MovesAllSelectedAllocationsInOneCommit()
+    {
+        var store = Store();
+        var first = store.SaveComponent(Draft("BATCH-1", "A", 5));
+        var second = store.SaveComponent(Draft("BATCH-2", "A", 3));
+        Assert.True(store.CreateStorageLocation("B", "Bin B").IsSuccess);
+
+        var result = store.TransferBatch(new("A", "B", [
+            new(first.Id, 4, first.UpdatedAt), new(second.Id, 3, second.UpdatedAt),
+        ]));
+
+        Assert.True(result.IsSuccess, result.Message);
+        var components = store.GetComponents().ToDictionary(item => item.Id);
+        Assert.Equal(5, components[first.Id].Quantity);
+        Assert.Equal(3, components[second.Id].Quantity);
+        Assert.Equal(1, components[first.Id].Allocations.Single(item => item.LocationId == "A").Quantity);
+        Assert.Equal(4, components[first.Id].Allocations.Single(item => item.LocationId == "B").Quantity);
+        Assert.Equal(3, components[second.Id].Allocations.Single(item => item.LocationId == "B").Quantity);
+        Assert.Equal(2, store.GetMovements().Count(item => item.MovementType == "transfer"));
+    }
+
+    [Fact]
+    public void TransferBatch_InvalidLaterItemLeavesEarlierItemAndMovementsUntouched()
+    {
+        var store = Store();
+        var first = store.SaveComponent(Draft("BATCH-3", "A", 5));
+        var second = store.SaveComponent(Draft("BATCH-4", "A", 3));
+        Assert.True(store.CreateStorageLocation("B", "Bin B").IsSuccess);
+
+        var result = store.TransferBatch(new("A", "B", [
+            new(first.Id, 4, first.UpdatedAt), new(second.Id, 4, second.UpdatedAt),
+        ]));
+
+        Assert.False(result.IsSuccess);
+        var components = store.GetComponents().ToDictionary(item => item.Id);
+        Assert.Equal(5, components[first.Id].Allocations.Single(item => item.LocationId == "A").Quantity);
+        Assert.Equal(3, components[second.Id].Allocations.Single(item => item.LocationId == "A").Quantity);
+        Assert.Empty(store.GetMovements());
+    }
+
+    [Fact]
+    public void TransferBatch_RejectsStaleReviewAndSameLocation()
+    {
+        var store = Store();
+        var component = store.SaveComponent(Draft("BATCH-5", "A", 2));
+        Assert.True(store.CreateStorageLocation("B", "Bin B").IsSuccess);
+
+        Assert.False(store.TransferBatch(new("A", "A", [new(component.Id, 1, component.UpdatedAt)])).IsSuccess);
+        Assert.False(store.TransferBatch(new("A", "B", [new(component.Id, 1, "stale")])).IsSuccess);
+        Assert.Empty(store.GetMovements());
+    }
+
+    [Fact]
+    public void TransferBatch_RequiresBothLocationsActiveWithoutRevivingSource()
+    {
+        var store = Store("batch-active-locations.db");
+        var component = store.SaveComponent(Draft("BATCH-6", "A", 2));
+        Assert.True(store.CreateStorageLocation("B", "Bin B").IsSuccess);
+        Assert.True(store.DeleteStorageLocation("B").IsSuccess);
+        var line = new InventoryStore.BatchTransferLine(component.Id, 1, component.UpdatedAt);
+
+        Assert.False(store.TransferBatch(new("A", "B", [line])).IsSuccess);
+
+        using (var connection = new SqliteConnection($"Data Source={Path.Combine(_root, "batch-active-locations.db")}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE storage_locations SET deleted=1 WHERE id='A'; UPDATE storage_locations SET deleted=0 WHERE id='B'";
+            command.ExecuteNonQuery();
+        }
+
+        Assert.False(store.TransferBatch(new("A", "B", [line])).IsSuccess);
+        Assert.Equal(2, Assert.Single(store.GetComponents()).Allocations.Single(item => item.LocationId == "A").Quantity);
+        Assert.Empty(store.GetMovements());
+        Assert.True(store.GetStorageLocations(includeDeleted: true).Single(location => location.Id == "A").Deleted);
+    }
+
+    [Fact]
     public void Movement_RejectsQuantityUnavailableAtSelectedLocation()
     {
         var store = Store();

@@ -7,15 +7,20 @@ Examples in this document assume `http://localhost:8787`.
 
 ## Authentication
 
-- `GET /health` does not require authentication.
+- `GET /health` does not require authentication. It returns `status`, `server_time`,
+  `inventory_protocol`, plus build `version` and `revision` in new images. These
+  two diagnostic fields are additive; older servers omit them. Protocol and
+  `/auth/me` identity checks remain authoritative, not a version-string comparison.
 - All sync endpoints require `Authorization: Bearer <API_TOKEN>`.
 - All `/admin-api/*` endpoints also require `Authorization: Bearer <API_TOKEN>`.
 - The server also accepts `X-API-Token`, but the client uses bearer auth.
 - The setup token authenticates the administrator. Ordinary account keys resolve
   independent inventory databases and cannot access setup, logs, accounts or
   global MQTT configuration. Disabled accounts and replaced keys return 401.
-- The separated `admin-web/` console authenticates through `POST /auth/ping`
-  and resolves `GET /auth/me` before calling role-appropriate `/admin-api/*` routes.
+- The separated `admin-web/` console authenticates through `GET /auth/me`
+  before calling role-appropriate `/admin-api/*` routes. Native connection tests
+  check both `/auth/ping` inventory capability and `/auth/me` identity without
+  persisting an account binding; the binding is verified during sync.
 - Native JLC import enrichment queries public catalogs directly without a
   server token. The separate server-side `GET /admin-api/part-lookup` and
   `GET /admin-api/lcsc/lookup` helpers remain authenticated.
@@ -525,3 +530,10 @@ the repository-root `.env` supplies it; for direct uvicorn launches explicitly
 export it or use `--env-file .env`. The web console may show/copy the token already
 held in its authenticated browser session. No endpoint reveals the server token
 without authentication, and GitHub issue-report credentials are unrelated.
+
+## 库存参数检索
+
+`GET /admin-api/components?q=...` 在 SKU、名称、分类、封装、库位和描述中匹配，
+空格分词采用 AND，可跨字段；支持 NFKC 大小写、常见型号分隔符、μ/µ/u 和 Ω/ohm 归一。
+保留数字之间的小数点，不做可能混淆规格的数字编辑距离推测。说明中的品牌与官方参数也可被检索。
+现有分页、总数、低库存和软删除过滤行为保留，查询不修改库存记录。

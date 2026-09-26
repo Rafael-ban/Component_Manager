@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .admin.api import router as admin_router
 from .account_api import router as account_router
 from .accounts import Account
+from .build_info import BUILD_REVISION, BUILD_VERSION
 from .auth import require_admin, require_sync_account, require_token
 from .application_logging import (
     close_application_logger,
@@ -56,7 +57,7 @@ async def lifespan(app: FastAPI):
     publisher = MqttPublisher(settings)
     app.state.mqtt_publisher = publisher
     publisher.start()
-    log_event("startup")
+    log_event("startup", version=BUILD_VERSION, revision=BUILD_REVISION)
     try:
         yield
     finally:

@@ -70,6 +70,7 @@
                                 <DataTemplate x:DataType="local:BatchInboundEditableRow">
                                     <StackPanel Margin="0,6" Spacing="4">
                                         <CheckBox Content="{x:Bind Summary}" IsChecked="{x:Bind Selected,Mode=TwoWay}" Click="OnDraftFieldChanged"/>
+                                        <TextBlock Text="{x:Bind Specifications}" TextWrapping="Wrap"/>
                                         <Grid ColumnSpacing="6" RowSpacing="6">
                                             <VisualStateManager.VisualStateGroups>
                                                 <VisualStateGroup>

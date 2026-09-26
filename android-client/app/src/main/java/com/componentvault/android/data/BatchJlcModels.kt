@@ -38,6 +38,7 @@ internal fun ComponentOfficialMetadata.toBatchDescription(): String = buildList 
     matchedBy?.trim()?.takeIf(String::isNotBlank)?.let { add("官方查询：匹配方式 ${it.uppercase()}") }
     categoryPath?.trim()?.takeIf(String::isNotBlank)?.let { add("官方分类路径：$it") }
     officialUrl?.trim()?.takeIf(String::isNotBlank)?.let { add("官方链接：$it") }
+    description?.trim()?.takeIf(String::isNotBlank)?.let { add("官方描述：$it") }
     trustedProductImageUrl(imageUrl)?.let { add("商品图片：$it") }
     datasheetUrl?.trim()?.takeIf(String::isNotBlank)?.let { add("数据手册：$it") }
     parameters.forEach { (key, value) ->

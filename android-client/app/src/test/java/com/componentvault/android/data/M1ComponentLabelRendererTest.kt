@@ -110,6 +110,16 @@ class M1ComponentLabelRendererTest {
         } finally { bitmap.recycle() }
     }
 
+    @Test fun freeQrUsesEditablePayloadWithoutAnInventorySeed() {
+        val paper = M1TestPaperProfile(40f, 60f)
+        val payload = "https://example.test/shelf/A1"
+        val design = LabelDesign.free(FreeLabelTemplate.Qr, paper).withQrPayload("qr", payload)
+        val bitmap = M1ComponentLabelRenderer.render(null, ComponentLabelTemplate.default,
+            ComponentTextLabelTemplate.default, paper, design,
+            FreeLabel("Shelf A1", FreeLabelTemplate.Qr))
+        try { assertEquals(payload, decode(bitmap)) } finally { bitmap.recycle() }
+    }
+
     @Test fun editedQrCannotBeMovedIntoTextOrBeyondPaper() {
         val paper = M1TestPaperProfile(40f, 60f)
         val design = LabelDesign.default(seed, ComponentLabelTemplate.Qr30x40,

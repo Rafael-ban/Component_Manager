@@ -22,11 +22,13 @@ Component Vault 面向电子元器件的入库、出库、查找与盘点。Andr
 | 管理 Web | React + `shadcn/ui`；查看服务端库存、同步状态和设置；启用 `WEB_INVENTORY_ENABLED` 后可进行受控的库存写入 |
 | 服务端 | FastAPI + SQLite；账户认证、同步、管理 API 与可选 MQTT 库存事件 |
 
-主要工作流包括按 SKU 查找元件、入库与出库、库存流水、多库位分配与转移、嘉立创料号查询、BOM 匹配和缺料导出。客户端支持 Excel 备份与恢复，恢复前会预览冲突。活动元件的 SKU 唯一，库存数量和最低库存不能为负数。
+库存检索支持型号片段、品牌与参数的多词匹配，例如 `FOJAN 10k` 或 `100uF 1206`；常见型号分隔符与微单位写法会归一。新导入的电阻、电容、电感自动名称保留官方主规格和精度，旧库存可从已保存的官方资料显示摘要；不会联网批量改写手动名称。
+
+主要工作流包括按 SKU 查找元件、入库与出库、库存流水、多库位分配与转移、嘉立创料号查询、BOM 匹配和缺料导出。Android 与 Windows 支持选择多个元件、复核数量后按库位一次批量转移，库存总量不变；Android 左滑只显示删除操作，点击后仍需确认。客户端支持 Excel 备份与恢复，恢复前会预览冲突。活动元件的 SKU 唯一，库存数量和最低库存不能为负数。
 
 同步遵循本地优先：原生客户端先写入自己的 SQLite，再按需推送和拉取。BOM 扣料是客户端本地事务；它没有跨设备共享的工程扣料账本。Web 库存写入默认关闭，启用后直接写入服务端 SQLite，并可同步回原生客户端。详见[架构与数据流](docs/architecture.md)和[接口集成](docs/integration-guide.md)。
 
-开发版正在整合 Android 标签编辑与蓝牙打印：可修改显示文字、拖动元素和数值微调，预览、导出与发送共用布局。普通流程移除独立诊断弹窗；操作与实机验证边界见 [M1 标签指南](docs/m1-printing-feature-matrix.md)。
+Android 标签工具与元件标签快捷入口共用标签编辑与蓝牙打印页面：内建元件、文字、二维码和自由标签起始模板，可修改显示文字、拖动元素和数值微调，预览、导出与发送共用布局。自由标签不创建库存记录。普通流程移除独立诊断弹窗；操作与实机验证边界见 [M1 标签指南](docs/m1-printing-feature-matrix.md)。
 
 ### 账户与数据隔离
 
@@ -49,6 +51,8 @@ docker compose -f docker-compose.hub.yml --profile web up -d
 ```
 
 管理 Web 默认位于 `http://服务器IP:8081/`，API 位于 `http://服务器IP:8787/`。Compose 默认拉取 API `latest` 与 Web `web-latest`；固定版本时应成对选用已发布的版本标签。升级前备份 `/data`，随后 `pull` 和 `up -d`；不要用 `down -v` 删除库存数据卷。群晖目录映射、首次配置、Token 查找与升级步骤见[Docker 快速部署](docs/docker-quickstart.md)，镜像发布与运维细节见[Docker Hub 指南](docs/dockerhub.md)和[运维手册](docs/runbook.md)。
+
+客户端若提示“服务端版本过老”，先核对实际运行的 API 容器和 `/auth/me` 路由，详见 [Docker 排障](docs/docker-quickstart.md#7-客户端提示服务端版本过老或无法确认账户身份)。仅更新 APK、Web 容器或重启旧容器不能更新 API。
 
 ## 使用指南
 

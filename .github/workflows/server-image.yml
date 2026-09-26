@@ -49,6 +49,14 @@ jobs:
         with:
           ref: ${{ inputs.source_ref }}
 
+      - name: Record checked-out build identity
+        id: build_identity
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          echo "version=${RELEASE_TAG:-source}" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Validate publishing configuration
         if: inputs.push_image
         env:
@@ -83,6 +91,9 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ./server
+          build-args: |
+            APP_VERSION=${{ steps.build_identity.outputs.version }}
+            APP_REVISION=${{ steps.build_identity.outputs.revision }}
           platforms: linux/amd64
           load: true
           tags: component-vault-server:ci
@@ -118,6 +129,8 @@ jobs:
             --output "$RUNNER_TEMP/server-health.json" http://127.0.0.1:18787/health
           curl --fail -X POST -H 'Authorization: Bearer ci-smoke-token' \
             http://127.0.0.1:18787/auth/ping > "$RUNNER_TEMP/server-auth.json"
+          curl --fail --silent --show-error -H 'Authorization: Bearer ci-smoke-token' \
+            http://127.0.0.1:18787/auth/me > "$RUNNER_TEMP/server-identity.json"
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18787/auth/ping)" = 401
           python - <<'PY'
           import json
@@ -130,6 +143,12 @@ jobs:
               result = json.loads((root / filename).read_text())
               assert result['status'] == 'ok', result
               assert result['inventory_protocol'] == 1, result
+          identity = json.loads((root / 'server-identity.json').read_text())
+          assert identity['server_id'] and identity['account_id'] == 'admin', identity
+          assert identity['role'] == 'admin', identity
+          health = json.loads((root / 'server-health.json').read_text())
+          assert health['version'], health
+          assert len(health['revision']) == 40, health
           database = root / 'component-vault-data' / 'component_vault.db'
           assert database.is_file(), 'Database must be persisted in the mounted /data directory.'
           with sqlite3.connect(f'file:{database}?mode=ro', uri=True) as connection:
@@ -198,12 +217,16 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ./server
+          build-args: |
+            APP_VERSION=${{ steps.build_identity.outputs.version }}
+            APP_REVISION=${{ steps.build_identity.outputs.revision }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.api_tags.outputs.tags }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ inputs.release_tag }}
+            org.opencontainers.image.revision=${{ steps.build_identity.outputs.revision }}
           cache-from: type=gha,scope=server-image
           cache-to: type=gha,mode=max,scope=server-image
 
@@ -218,5 +241,6 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ inputs.release_tag }}
+            org.opencontainers.image.revision=${{ steps.build_identity.outputs.revision }}
           cache-from: type=gha,scope=web-image
           cache-to: type=gha,mode=max,scope=web-image

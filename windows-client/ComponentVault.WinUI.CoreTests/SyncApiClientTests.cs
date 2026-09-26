@@ -203,6 +203,70 @@ public sealed class SyncApiClientTests
         Assert.Equal(["POST https://primary.example/auth/ping"], handler.Requests);
     }
 
+    [Fact]
+    public async Task TestConnection_VerifiesIdentityWithoutSyncingOrBinding()
+    {
+        var handler = new RecordingHandler((request, _) => Task.FromResult(SuccessFor(request)));
+
+        var result = await CreateClient(handler).TestConnectionAsync(Settings());
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains("Admin", result.Message);
+        Assert.Equal([
+            "POST https://primary.example/auth/ping",
+            "GET https://primary.example/auth/me",
+        ], handler.Requests);
+    }
+
+    [Fact]
+    public async Task TestConnection_Identity404_ReportsRouteAndDoesNotSync()
+    {
+        var handler = new RecordingHandler((request, _) => Task.FromResult(
+            request.RequestUri!.AbsolutePath == "/auth/me"
+                ? Json(HttpStatusCode.NotFound, "{}") : SuccessFor(request)));
+
+        var result = await CreateClient(handler).TestConnectionAsync(Settings());
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("/auth/me", result.Message);
+        Assert.Contains("404", result.Message);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData("{\"server_id\":null,\"account_id\":\"account-1\",\"name\":\"Admin\",\"role\":\"admin\"}")]
+    [InlineData("{\"account_id\":\"account-1\",\"name\":\"Admin\",\"role\":\"admin\"}")]
+    public async Task TestConnection_MissingIdentity_ReportsFailure(string body)
+    {
+        var handler = new RecordingHandler((request, _) => Task.FromResult(
+            request.RequestUri!.AbsolutePath == "/auth/me"
+                ? Json(HttpStatusCode.OK, body) : SuccessFor(request)));
+
+        var result = await CreateClient(handler).TestConnectionAsync(Settings());
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("身份", result.Message);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task TestConnection_HtmlIdentityPage_ReportsProxyRoute()
+    {
+        var handler = new RecordingHandler((request, _) => Task.FromResult(
+            request.RequestUri!.AbsolutePath == "/auth/me"
+                ? new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("<html>proxy</html>", Encoding.UTF8, "text/html"),
+                }
+                : SuccessFor(request)));
+
+        var result = await CreateClient(handler).TestConnectionAsync(Settings());
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("HTML", result.Message);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
     private static SyncApiClient CreateClient(HttpMessageHandler handler) =>
         new(new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) });
 

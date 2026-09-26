@@ -95,6 +95,9 @@ fun ComponentVaultApp(
     var componentEditorImportCandidate by remember { mutableStateOf<ComponentImportCandidate?>(null) }
     var labelPrintSeed by rememberSaveable(stateSaver = LabelSeedSaver) { mutableStateOf<ComponentLabelSeed?>(null) }
     var labelPrintVisible by rememberSaveable { mutableStateOf(false) }
+    var labelToolPickerVisible by rememberSaveable { mutableStateOf(false) }
+    var labelToolTemplate by rememberSaveable { mutableStateOf(LabelToolTemplate.Component) }
+    var labelPrintFromToolPicker by rememberSaveable { mutableStateOf(false) }
     var pendingSingleAppend by remember { mutableStateOf<PendingSingleAppend?>(null) }
     var singleAppendBusy by remember { mutableStateOf(false) }
 
@@ -424,10 +427,25 @@ fun ComponentVaultApp(
                 onCommitted=viewModel::onBatchJlcCommitted,
             )
 
+            labelToolPickerVisible -> LabelToolTemplatePicker(
+                onSelect = { template ->
+                    labelToolTemplate = template
+                    labelPrintFromToolPicker = true
+                    labelToolPickerVisible = false
+                    labelPrintVisible = true
+                },
+                onBack = { labelToolPickerVisible = false; labelPrintFromToolPicker = false },
+            )
+
             labelPrintVisible -> BluetoothLabelPrintScreen(
                 components = uiState.availableComponents,
                 initialSeed = labelPrintSeed,
-                onDismiss = { labelPrintVisible = false; labelPrintSeed = null },
+                initialToolTemplate = if (labelPrintSeed != null) LabelToolTemplate.Component else labelToolTemplate,
+                onDismiss = {
+                    labelPrintVisible = false
+                    labelPrintSeed = null
+                    if (labelPrintFromToolPicker) labelToolPickerVisible = true
+                },
             )
 
             compactDetailComponentId != null && !layoutMode.showsListDetail -> {
@@ -491,7 +509,8 @@ fun ComponentVaultApp(
                     },
                     onOpenBluetoothPrint = {
                         labelPrintSeed = null
-                        labelPrintVisible = true
+                        labelPrintFromToolPicker = false
+                        labelToolPickerVisible = true
                     },
                     onEditComponent = { componentId ->
                         viewModel.selectComponent(componentId)
@@ -501,6 +520,7 @@ fun ComponentVaultApp(
                         viewModel.selectComponent(componentId)
                         showDeleteConfirmation = true
                     },
+                    onBatchTransfer = viewModel::transferComponentsBatch,
                     onScanMovementLabel = {
                         destination = InventoryDestination.Movements
                         movementBatchReviewVisible = false

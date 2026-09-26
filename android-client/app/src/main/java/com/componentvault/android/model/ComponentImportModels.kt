@@ -302,8 +302,15 @@ fun ComponentImportCandidate.withOfficialMetadata(
     val metadataOrigin = if (metadata.source in setOf("lcsc_public_web", "lcsc_domestic_web")) {
         ComponentImportFieldOrigin.PublicWeb
     } else ComponentImportFieldOrigin.Server
-    val officialCanonicalName = metadata.model?.takeIf { it.isNotBlank() }
-        ?: metadata.name?.takeIf { it.isNotBlank() }
+    val officialCanonicalName = metadata.compactRclDisplayName()
+        ?: if (metadata.isRclCategory()) {
+            metadata.model?.trim()?.takeIf { it.isNotBlank() && it.length <= 80 }
+                ?: metadata.sku?.trim()?.takeIf(String::isNotBlank)
+                ?: sku.trim().takeIf(String::isNotBlank)
+        } else {
+            metadata.model?.takeIf { it.isNotBlank() }
+                ?: metadata.name?.takeIf { it.isNotBlank() }
+        }
     val resolvedName = when {
         officialCanonicalName == null -> name
         name.isBlank() -> officialCanonicalName
@@ -402,6 +409,85 @@ fun ComponentImportCandidate.withOfficialMetadata(
             },
         ),
     )
+}
+
+/** A concise catalog name; the complete official description remains in the component notes. */
+fun ComponentOfficialMetadata.compactRclDisplayName(): String? {
+    val specs = rclSpecificationValues(
+        listOfNotNull(category, categoryPath).joinToString(" "), parameters, description,
+    )
+    if (specs.isEmpty()) return null
+    val modelName = model?.trim()?.takeIf { it.isNotBlank() && it.length <= 80 }
+        ?: sku?.trim()?.takeIf(String::isNotBlank)
+    return (listOfNotNull(modelName) + specs).distinctBy { it.lowercase(Locale.ROOT) }.joinToString(" · ")
+}
+
+private fun ComponentOfficialMetadata.isRclCategory(): Boolean {
+    val categoryText = listOfNotNull(category, categoryPath).joinToString(" ").lowercase(Locale.ROOT)
+    return listOf("电阻", "resistor", "电容", "capacitor", "电感", "inductor")
+        .any { it in categoryText }
+}
+
+fun ComponentRecord.officialRclSpecificationSummary(): String? {
+    val officialDescription = description.lineSequence()
+        .firstOrNull { it.trim().startsWith("官方描述：") }
+        ?.trim()?.removePrefix("官方描述：")
+    val parameters = description.lineSequence().mapNotNull { line ->
+        val trimmed = line.trim()
+        val raw = when {
+            trimmed.startsWith("参数：") -> trimmed.removePrefix("参数：")
+            trimmed.startsWith("参数·") -> trimmed.removePrefix("参数·")
+            else -> return@mapNotNull null
+        }
+        val separator = raw.indexOf('：').takeIf { it >= 0 } ?: raw.indexOf(':')
+        if (separator <= 0) return@mapNotNull null
+        raw.substring(0, separator).trim() to raw.substring(separator + 1).trim()
+    }.toMap()
+    val summary = rclSpecificationValues(category, parameters, officialDescription)
+        .takeIf { it.isNotEmpty() }?.joinToString(" · ")
+    return summary?.takeUnless { name.contains(it, ignoreCase = true) }
+}
+
+private fun rclSpecificationValues(
+    category: String,
+    parameters: Map<String, String>,
+    officialDescription: String? = null,
+): List<String> {
+    val categoryText = category.lowercase(Locale.ROOT)
+    val kind = when {
+        "电阻" in categoryText || "resistor" in categoryText -> "resistance"
+        "电容" in categoryText || "capacitor" in categoryText -> "capacitance"
+        "电感" in categoryText || "inductor" in categoryText -> "inductance"
+        else -> return emptyList()
+    }
+    val primaryKeys = when (kind) {
+        "resistance" -> listOf("阻值", "电阻值", "resistance")
+        "capacitance" -> listOf("容值", "容量", "电容值", "电容量", "capacitance")
+        else -> listOf("电感量", "感值", "inductance")
+    }
+    fun parameter(keys: List<String>): String? = parameters.entries.firstOrNull { (key, value) ->
+        val normalizedKey = java.text.Normalizer.normalize(key.trim(), java.text.Normalizer.Form.NFKC)
+            .replace(Regex("\\s*\\([^()]*\\)$"), "")
+            .trim()
+        value.trim().length in 1..32 && keys.any { normalizedKey.equals(it, ignoreCase = true) }
+    }?.value?.trim()
+
+    val descriptionValue = officialDescription?.let { source ->
+        val pattern = when (kind) {
+            "resistance" -> Regex("""(?i)(?<!\d)\d{1,6}(?:\.\d{1,6})?\s*(?:[kKmM]?Ω|[kKmM]?ohm)(?!\d)""")
+            "capacitance" -> Regex("""(?i)(?<!\d)\d{1,6}(?:\.\d{1,6})?\s*(?:pF|nF|uF|μF|mF)(?!\d)""")
+            else -> Regex("""(?i)(?<!\d)\d{1,6}(?:\.\d{1,6})?\s*(?:nH|uH|μH|mH)(?!\d)""")
+        }
+        pattern.find(source)?.value?.trim()
+    }
+    val descriptionTolerance = officialDescription?.let { source ->
+        Regex("""(?:±|\+/-)\s*\d{1,3}(?:\.\d{1,3})?\s*%""").find(source)?.value?.trim()
+    }
+    val primary = parameter(primaryKeys) ?: descriptionValue ?: return emptyList()
+    return listOfNotNull(
+        primary,
+        parameter(listOf("精度", "误差", "容差", "阻值精度", "tolerance")) ?: descriptionTolerance,
+    ).distinctBy { it.lowercase(Locale.ROOT) }
 }
 
 data class ParsedImportDescription(

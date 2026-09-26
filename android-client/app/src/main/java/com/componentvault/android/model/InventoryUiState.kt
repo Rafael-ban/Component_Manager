@@ -29,12 +29,14 @@ data class OverviewUiState(
 )
 
 data class InventoryScreenUiState(
+    val totalComponentCount: Int = 0,
     val filters: InventoryFiltersUiState = InventoryFiltersUiState(),
     val availableCategories: List<String> = emptyList(),
     val availableLocations: List<String> = emptyList(),
     val list: InventoryListUiState = InventoryListUiState(),
     val detail: InventoryDetailUiState = InventoryDetailUiState(),
     val storageLocations: List<StorageLocationRecord> = emptyList(),
+    val allocations: List<ComponentAllocationRecord> = emptyList(),
 )
 
 data class InventoryFiltersUiState(
@@ -62,6 +64,7 @@ data class InventoryListItemUiState(
     val isLowStock: Boolean,
     val updatedAt: String,
     val productImageUrl: String? = null,
+    val specificationSummary: String? = null,
     val issuedQuantity: Long = 0,
 )
 

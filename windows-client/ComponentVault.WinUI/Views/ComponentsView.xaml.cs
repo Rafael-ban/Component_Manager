@@ -4,6 +4,7 @@ using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.ViewModels;
 using ComponentVault.WinUI.Services.Migration;
 using ComponentVault.WinUI.Services.Catalog;
+using ComponentVault.WinUI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -122,6 +123,108 @@ public sealed partial class ComponentsView : Page
             if (!result.IsSuccess) { error.Text = result.Message; args.Cancel = true; }
         };
         await dialog.ShowAsync();
+    }
+
+    private async void OnBatchTransferClicked(object sender, RoutedEventArgs e)
+    {
+        if (RuntimeViewModel is not { } viewModel) return;
+        var selected = viewModel.Components.Where(component => component.IsBatchSelected).ToArray();
+        if (selected.Length == 0)
+        {
+            await ShowMessageAsync("批量转移", "请先勾选要转移的元器件。");
+            return;
+        }
+
+        var sourceIds = selected.SelectMany(component => component.Allocations
+                .Where(allocation => allocation.Quantity > 0).Select(allocation => allocation.LocationId))
+            .GroupBy(id => id, StringComparer.Ordinal)
+            .Where(group => group.Count() == selected.Length)
+            .Select(group => group.Key).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+        if (sourceIds.Length == 0)
+        {
+            await ShowMessageAsync("无法批量转移", "所选元器件没有共同且有库存的来源库位。请调整勾选范围。");
+            return;
+        }
+        var targetIds = viewModel.StorageLocations.Where(location => !location.Deleted)
+            .Select(location => location.Id).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+        var sourceBox = new ComboBox { Header = "统一来源库位", ItemsSource = sourceIds, SelectedIndex = 0 };
+        var targetBox = new ComboBox { Header = "统一目标库位", ItemsSource = targetIds, SelectedIndex = -1 };
+        var locationPanel = new StackPanel { Width = 420, Spacing = 12 };
+        locationPanel.Children.Add(new TextBlock { Text = $"已勾选 {selected.Length} 个元器件。", TextWrapping = TextWrapping.Wrap });
+        locationPanel.Children.Add(sourceBox);
+        locationPanel.Children.Add(targetBox);
+        var locationError = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        locationPanel.Children.Add(locationError);
+        var locationsDialog = new ContentDialog
+        {
+            Title = "选择批量转移库位", Content = locationPanel,
+            PrimaryButtonText = "填写数量", CloseButtonText = "取消", XamlRoot = XamlRoot,
+        };
+        locationsDialog.PrimaryButtonClick += (_, args) =>
+        {
+            if (sourceBox.SelectedItem is string sourceId && targetBox.SelectedItem is string targetId && sourceId != targetId)
+                return;
+            locationError.Text = "请选择不同的来源库位和目标库位。";
+            args.Cancel = true;
+        };
+        if (await locationsDialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var source = (string)sourceBox.SelectedItem;
+        var target = (string)targetBox.SelectedItem;
+
+        var quantityPanel = new StackPanel { Width = 500, Spacing = 8 };
+        var inputs = new List<(ComponentRecord Component, NumberBox Input)>();
+        foreach (var component in selected)
+        {
+            var available = component.Allocations.First(allocation => allocation.LocationId == source).Quantity;
+            var input = new NumberBox
+            {
+                Header = $"{component.Sku} · {component.Name}（来源可用 {available}）",
+                Value = available, Minimum = 1, Maximum = available,
+                SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
+            };
+            quantityPanel.Children.Add(input);
+            inputs.Add((component, input));
+        }
+        var quantityError = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        quantityPanel.Children.Add(quantityError);
+        var quantityDialog = new ContentDialog
+        {
+            Title = $"{source} → {target} · 逐项数量", Content = new ScrollViewer
+            {
+                Content = quantityPanel, MaxHeight = 500,
+            },
+            PrimaryButtonText = "复核", CloseButtonText = "取消", XamlRoot = XamlRoot,
+        };
+        quantityDialog.PrimaryButtonClick += (_, args) =>
+        {
+            if (inputs.All(item => double.IsFinite(item.Input.Value)
+                && item.Input.Value == Math.Truncate(item.Input.Value)
+                && item.Input.Value >= 1
+                && item.Input.Value <= item.Component.Allocations.First(allocation => allocation.LocationId == source).Quantity))
+                return;
+            quantityError.Text = "每项调拨数量必须为正整数，且不能超过来源库位可用数量。";
+            args.Cancel = true;
+        };
+        if (await quantityDialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var lines = inputs.Select(item => new InventoryStore.BatchTransferLine(
+            item.Component.Id, (int)item.Input.Value, item.Component.UpdatedAt)).ToArray();
+        var review = string.Join("\n", inputs.Select(item => $"{item.Component.Sku} · {item.Input.Value:0} 件"));
+        var confirmation = new ContentDialog
+        {
+            Title = "确认批量转移", Content = new ScrollViewer
+            {
+                MaxHeight = 500, Content = new TextBlock
+                {
+                    Text = $"来源：{source}\n目标：{target}\n\n{review}\n\n总库存保持不变。",
+                    TextWrapping = TextWrapping.Wrap,
+                },
+            },
+            PrimaryButtonText = "确认一次提交", CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close, XamlRoot = XamlRoot,
+        };
+        if (await confirmation.ShowAsync() != ContentDialogResult.Primary) return;
+        var result = viewModel.TransferBatch(new(source, target, lines));
+        await ShowOperationResultAsync(result);
     }
 
     private async void OnImportComponentHubClicked(object sender, RoutedEventArgs e)
@@ -595,7 +698,7 @@ public sealed partial class ComponentsView : Page
     )
     {
         if (string.IsNullOrWhiteSpace(skuBox.Text)) skuBox.Text = metadata.Sku;
-        if (string.IsNullOrWhiteSpace(nameBox.Text)) nameBox.Text = metadata.Name;
+        if (string.IsNullOrWhiteSpace(nameBox.Text)) nameBox.Text = OfficialSpecifications.AutoName(metadata);
         if (string.IsNullOrWhiteSpace(categoryBox.Text)) categoryBox.Text = metadata.Category;
         if (string.IsNullOrWhiteSpace(packageBox.Text) && !string.IsNullOrWhiteSpace(metadata.PackageName)) packageBox.Text = metadata.PackageName;
         descriptionBox.Text = AppendOfficialNotes(descriptionBox.Text, metadata);

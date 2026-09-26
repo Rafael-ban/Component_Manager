@@ -22,12 +22,15 @@ internal object M1ComponentLabelRenderer {
     private const val MinTextDots = 8f
 
     fun render(
-        seed: ComponentLabelSeed,
+        seed: ComponentLabelSeed?,
         template: ComponentLabelTemplate,
         textTemplate: ComponentTextLabelTemplate,
         paper: M1TestPaperProfile,
         design: LabelDesign? = null,
+        freeLabel: FreeLabel? = null,
     ): Bitmap {
+        require((seed == null) != (freeLabel == null)) { "标签来源无效。" }
+        if (freeLabel != null) require(design != null) { "自由标签缺少设计。" }
         val width = dots(paper.widthMm)
         val height = dots(paper.heightMm)
         val offsetX = dots(paper.offsetXmm)
@@ -56,12 +59,13 @@ internal object M1ComponentLabelRenderer {
                 270 -> { canvas.translate(0f, height.toFloat()); canvas.rotate(-90f) }
             }
             val qrBounds = if (design != null) {
-                drawEdited(canvas, seed, template, paper, design)
+                drawEdited(canvas, seed, template, paper, design, freeLabel)
             } else if (template.isQrLabel) {
-                val payload = requireNotNull(ComponentLabelCodec.buildQrPayload(seed, template))
-                drawQrLabel(canvas, bounds, seed, payload.rawValue).also { canvas.matrix.mapRect(it) }
+                val component = requireNotNull(seed)
+                val payload = requireNotNull(ComponentLabelCodec.buildQrPayload(component, template))
+                drawQrLabel(canvas, bounds, component, payload.rawValue).also { canvas.matrix.mapRect(it) }
             } else {
-                drawTextOnly(canvas, bounds, ComponentLabelRenderer.buildTextLabelContent(seed, textTemplate))
+                drawTextOnly(canvas, bounds, ComponentLabelRenderer.buildTextLabelContent(requireNotNull(seed), textTemplate))
                 null
             }
             canvas.restore()
@@ -100,14 +104,16 @@ internal object M1ComponentLabelRenderer {
 
     private fun drawEdited(
         canvas: Canvas,
-        seed: ComponentLabelSeed,
+        seed: ComponentLabelSeed?,
         template: ComponentLabelTemplate,
         paper: M1TestPaperProfile,
         design: LabelDesign,
+        freeLabel: FreeLabel?,
     ): RectF? {
         design.validate(paper)
         val qrElements = design.elements.filter { it.type == LabelElementType.Qr }
-        require(qrElements.size == if (template.isQrLabel) 1 else 0) {
+        val expectedQrCount = if (template.isQrLabel) 1 else 0
+        require(if (freeLabel != null) qrElements.size <= 1 else qrElements.size == expectedQrCount) {
             "标签模板与二维码元素不匹配。"
         }
         val boxes = design.elements.associateWith { element ->
@@ -119,12 +125,15 @@ internal object M1ComponentLabelRenderer {
             )
         }
         val qrBounds = qrElements.singleOrNull()?.let { qrElement ->
-            val payload = requireNotNull(ComponentLabelCodec.buildQrPayload(seed, template))
+            val payload = if (freeLabel != null) {
+                qrElement.text.takeIf(String::isNotBlank)
+                    ?: throw IllegalArgumentException("请输入二维码内容。")
+            } else requireNotNull(ComponentLabelCodec.buildQrPayload(requireNotNull(seed), template)).rawValue
             val qr = try {
-                QRCodeWriter().encode(payload.rawValue, BarcodeFormat.QR_CODE, 0, 0,
+                QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 0, 0,
                     mapOf(EncodeHintType.MARGIN to 4, EncodeHintType.CHARACTER_SET to "UTF-8"))
             } catch (error: Exception) {
-                throw IllegalArgumentException("库存二维码内容无法编码，请缩短数据后重试。", error)
+                throw IllegalArgumentException("二维码内容无法编码，请缩短数据后重试。", error)
             }
             val box = boxes.getValue(qrElement)
             val moduleDots = floor(min(box.width(), box.height()) / qr.width).toInt()

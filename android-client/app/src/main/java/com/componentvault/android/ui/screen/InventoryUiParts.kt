@@ -11,21 +11,29 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,12 +45,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.componentvault.android.R
 import com.componentvault.android.data.PublicProductImageStore
 import com.componentvault.android.model.InventoryListItemUiState
 import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.ui.theme.VaultWarning
 import com.componentvault.android.ui.theme.VaultWarningContainer
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun StatusBanner(
@@ -181,13 +192,55 @@ internal fun ValueBlock(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 internal fun InventoryListRow(
     item: InventoryListItemUiState,
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    selectionMode: Boolean = false,
+    onRequestDelete: (() -> Unit)? = null,
+) {
+    if (!selectionMode && onRequestDelete != null) {
+        val dismissState = rememberSwipeToDismissBoxState(
+            confirmValueChange = { it != SwipeToDismissBoxValue.StartToEnd },
+        )
+        val scope = rememberCoroutineScope()
+        SwipeToDismissBox(
+            state = dismissState,
+            modifier = modifier,
+            enableDismissFromStart = false,
+            enableDismissFromEnd = true,
+            backgroundContent = {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    Button(onClick = {
+                        scope.launch { dismissState.reset() }
+                        onRequestDelete()
+                    }, modifier = Modifier.padding(end = 12.dp)) {
+                        Text(stringResource(R.string.action_delete))
+                    }
+                }
+            },
+        ) {
+            InventoryListRowContent(item, selected, Modifier, onClick, selectionMode)
+        }
+    } else {
+        InventoryListRowContent(item, selected, modifier, onClick, selectionMode)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InventoryListRowContent(
+    item: InventoryListItemUiState,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+    selectionMode: Boolean,
 ) {
     val strings = vaultStrings()
     val localizedCategory = localizedCategoryLabel(item.category)
@@ -209,6 +262,7 @@ internal fun InventoryListRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top,
         ) {
+                if (selectionMode) Checkbox(checked = selected, onCheckedChange = null)
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -227,6 +281,15 @@ internal fun InventoryListRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    item.specificationSummary?.let { summary ->
+                        Text(
+                            text = summary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         text = "$localizedCategory / ${item.packageName}",
                         style = MaterialTheme.typography.bodySmall,

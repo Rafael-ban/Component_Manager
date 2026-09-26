@@ -5,15 +5,25 @@ import java.util.UUID
 
 internal enum class LabelPrintItemState { Pending, Sending, Sent, Uncertain, Failed, Skipped }
 
+internal enum class FreeLabelTemplate { Text, Qr, Free }
+
+internal data class FreeLabel(val title: String, val template: FreeLabelTemplate)
+
 internal data class LabelPrintItem(
     val id: String,
-    val seed: ComponentLabelSeed,
+    val seed: ComponentLabelSeed? = null,
     val copyNumber: Int,
     val copies: Int,
     val state: LabelPrintItemState = LabelPrintItemState.Pending,
     val detail: String = "",
     val design: LabelDesign? = null,
-)
+    val freeLabel: FreeLabel? = null,
+) {
+    init {
+        require((seed == null) != (freeLabel == null)) { "Print item needs exactly one source" }
+        if (freeLabel != null) require(design != null) { "Free label needs a design" }
+    }
+}
 
 internal data class LabelPrintQueue(
     val items: List<LabelPrintItem> = emptyList(),
@@ -62,6 +72,28 @@ internal data class LabelPrintQueue(
                 }
             }
             return LabelPrintQueue(items, templateId, textTemplateId, paper)
+        }
+
+        fun createFree(
+            freeLabel: FreeLabel,
+            copies: Int,
+            paper: M1TestPaperProfile,
+            design: LabelDesign,
+        ): LabelPrintQueue {
+            require(copies in 1..MaxCopies) { "Copies must be between 1 and $MaxCopies" }
+            require(freeLabel.title.isNotBlank()) { "Label title is required" }
+            design.validate(paper)
+            require(design.elements.any { it.type == LabelElementType.Text && it.text.isNotBlank() ||
+                it.type == LabelElementType.Qr && it.text.isNotBlank() }) {
+                "标签没有可打印内容。"
+            }
+            return LabelPrintQueue(
+                items = (1..copies).map { copyNumber ->
+                    LabelPrintItem(UUID.randomUUID().toString(), null, copyNumber, copies,
+                        design = design.copy(elements = design.elements.toList()), freeLabel = freeLabel)
+                },
+                paper = paper,
+            )
         }
     }
 }

@@ -88,6 +88,84 @@ def test_component_list_searches_and_paginates_more_than_recent_limit(
     assert literal_wildcard.json()["total"] == 0
 
 
+def test_component_search_normalizes_models_and_matches_all_fields(
+    client: TestClient,
+) -> None:
+    _push_component(
+        client,
+        component_id="resistor",
+        sku="RC0603FR-0710KL",
+        name="Precision resistor",
+        category="Passives",
+        package_name="0603-SMD",
+        location="Shelf Z",
+        description="品牌：FOJAN(富捷)\n10kΩ ±1% 0.1W",
+        quantity=0,
+        min_stock=1,
+    )
+    _push_component(
+        client,
+        component_id="capacitor",
+        sku="CAP-10.5-V",
+        name="Capacitor",
+        category="Passives",
+        package_name="0805",
+        location="Shelf A",
+        description="10.5μF 20%",
+        quantity=8,
+        min_stock=1,
+    )
+    _push_component(
+        client,
+        component_id="other",
+        sku="CAP-105-V",
+        name="Capacitor",
+        category="Passives",
+        package_name="0805",
+        location="Shelf B",
+        description="105μF 20%",
+        quantity=8,
+        min_stock=1,
+    )
+
+    for query, expected in (
+        ("ｒｃ０６０３ｆｒ０７１０ｋｌ", ["resistor"]),
+        ("RC0603FR / 0710KL", ["resistor"]),
+        ("precision 0603 z 0.1w", ["resistor"]),
+        ("10kΩ 1%", ["resistor"]),
+        ("10kohm 1%", ["resistor"]),
+        ("fojan 0603", ["resistor"]),
+        ("富捷 10k", ["resistor"]),
+        ("10.5uF", ["capacitor"]),
+        ("10.5", ["capacitor"]),
+        ("105", ["other"]),
+        ("resistor 0805", []),
+    ):
+        response = client.get(
+            "/admin-api/components", headers=HEADERS, params={"q": query}
+        )
+        assert response.status_code == 200, response.text
+        assert [item["id"] for item in response.json()["items"]] == expected
+        assert response.json()["total"] == len(expected)
+
+    low_stock = client.get(
+        "/admin-api/components",
+        headers=HEADERS,
+        params={"q": "passives", "low_stock": True, "page_size": 1},
+    )
+    assert [item["id"] for item in low_stock.json()["items"]] == ["resistor"]
+    assert low_stock.json()["total"] == 1
+
+    second_page = client.get(
+        "/admin-api/components",
+        headers=HEADERS,
+        params={"q": "capacitor", "page": 2, "page_size": 1},
+    )
+    assert second_page.json()["total"] == 2
+    assert second_page.json()["page_count"] == 2
+    assert len(second_page.json()["items"]) == 1
+
+
 def test_component_detail_excludes_deleted_and_returns_missing(
     client: TestClient,
 ) -> None:
@@ -145,6 +223,7 @@ def _push_component(
     location: str,
     quantity: int,
     min_stock: int,
+    package_name: str = "TEST",
     description: str = "",
     deleted: bool = False,
     updated_at: str = "2026-09-16T00:00:00Z",
@@ -160,7 +239,7 @@ def _push_component(
                     "sku": sku,
                     "name": name,
                     "category": category,
-                    "package_name": "TEST",
+                    "package_name": package_name,
                     "location": location,
                     "description": description,
                     "quantity": quantity,

@@ -1,6 +1,6 @@
 # Architecture Notes
 
-> 开发版标签界面调整：Android 的单元件标签与批量打印统一进入 `BluetoothLabelPrintScreen`，原独立预览页及诊断弹窗已移除。可编辑 `LabelDesign` 与原元件 `ComponentLabelSeed` 分开保存；前者决定显示文字和纸面位置，后者决定二维码身份。队列 v2 按张保存设计快照，并兼容读取旧 v1 队列。预览、导出和打印共用 M1 纸面渲染器，底层分帧与走纸协议保持不变。开发版功能以对应 Release 说明为准。
+> 标签界面：Android 的单元件标签与批量打印统一进入 `BluetoothLabelPrintScreen`，原独立预览页及诊断弹窗已移除。可编辑 `LabelDesign` 与原元件 `ComponentLabelSeed` 分开保存；前者决定显示文字和纸面位置，后者决定二维码身份。队列 v3 按张保存设计快照和元件/自由标签来源，兼容读取旧 v1/v2 元件队列。自由标签没有库存身份，元件二维码仍从 ComponentLabelSeed 生成。预览、导出和打印共用 M1 纸面渲染器，底层分帧与走纸协议保持不变。开发版功能以对应 Release 说明为准。
 
 ## Topology
 
@@ -724,3 +724,23 @@ Both clients let the user map SKU, model, package, quantity, name, and reference
 source columns before preview. Missing results can be exported as UTF-8 CSV with
 an Excel UTF-8 BOM; export is read-only and contains SKU, model, required,
 available, missing quantity, and match status.
+
+## 库存搜索、官方规格与构建诊断
+
+Android、Windows 和 Web 库存检索覆盖名称、SKU、分类、封装、库位与描述（含品牌和
+官方参数）。空格词采用 AND；归一大小写、常见型号分隔符、微单位及欧姆写法，保留小数点。
+Web 在 SQLite 查询函数中执行过滤，总数与分页使用同一条件，不复制库存到额外搜索索引。
+原生客户端新增导入的 R/C/L 名称使用短型号、官方主值和精度；完整官方资料仍保存在描述，
+已有自定义名称不批量回填。旧库存摘要只读取已保存的官方字段，不推测型号编码对应的规格。
+
+Docker API 镜像通过 build args 写入发布 tag 和 checkout revision，`/health` 与管理设置
+显示构建信息。身份校验仍以 `/auth/me` 的服务器/账户 ID 为准，不用版本字符串代替身份。
+Android 和 Windows 的连接测试执行协议与账户接口检查而不保存绑定；正式同步保留原绑定保护。
+
+
+Android 与 Windows 的批量库位转移使用现有 allocations 和 transfer 流水，不增加库存 schema。
+原生端在一个本地事务内先核对所有来源、目标、复核版本与数量，再写全部分配、流水及同步队列。
+源库存不足或复核过期时不提交部分结果。Android 左滑删除先展示操作并二次确认，沿用软删除。
+
+标签工具入口只选择起始模板，再交给已有编辑器。自由标签由独立数据与 LabelDesign 组成，
+与库存 seed 二选一；没有为通用标签创建虚拟元件。队列恢复保留旧任务，中断项仍需人工核对。

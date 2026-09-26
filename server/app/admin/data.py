@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import sqlite3
+import unicodedata
 
 from ..config import Settings
 
@@ -37,14 +38,21 @@ def load_admin_components(
     clauses = ["deleted = 0"]
     parameters: list[object] = []
     if query and query.strip():
-        pattern = f"%{_escape_like(query.strip())}%"
-        clauses.append(
-            "(sku LIKE ? ESCAPE '\\' COLLATE NOCASE "
-            "OR name LIKE ? ESCAPE '\\' COLLATE NOCASE "
-            "OR category LIKE ? ESCAPE '\\' COLLATE NOCASE "
-            "OR location LIKE ? ESCAPE '\\' COLLATE NOCASE)"
-        )
-        parameters.extend([pattern] * 4)
+        terms = [_normalize_search_term(term) for term in query.split()]
+        terms = [term for term in terms if term]
+        if terms:
+            connection.create_function(
+                "component_search_text", 6, _component_search_text,
+                deterministic=True,
+            )
+            search_text = (
+                "component_search_text(sku, name, category, package_name, "
+                "location, description)"
+            )
+            clauses.extend(f"instr({search_text}, ?) > 0" for _ in terms)
+            parameters.extend(terms)
+        else:
+            clauses.append("0")
     if low_stock is not None:
         clauses.append("quantity <= min_stock" if low_stock else "quantity > min_stock")
 
@@ -108,8 +116,30 @@ def load_admin_component(
     return result
 
 
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+def _normalize_search_term(value: str) -> str:
+    normalized = (
+        unicodedata.normalize("NFKC", value)
+        .casefold()
+        .replace("μ", "u")
+        .replace("ω", "ohm")
+    )
+    result = []
+    for index, char in enumerate(normalized):
+        if char == ".":
+            if (
+                0 < index < len(normalized) - 1
+                and normalized[index - 1].isdigit()
+                and normalized[index + 1].isdigit()
+            ):
+                result.append(char)
+        elif not char.isspace() and char not in "-_ /\\":
+            result.append(char)
+    return "".join(result)
+
+
+def _component_search_text(*fields: str | None) -> str:
+    # NUL boundaries prevent a term from matching across two unrelated fields.
+    return "\x00".join(_normalize_search_term(field or "") for field in fields)
 
 
 def load_admin_snapshot(

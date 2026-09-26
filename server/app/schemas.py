@@ -12,11 +12,15 @@ from pydantic import (
     model_validator,
 )
 
+from .build_info import BUILD_REVISION, BUILD_VERSION
+
 
 class HealthResponse(BaseModel):
     status: str
     server_time: datetime
     inventory_protocol: int = 1
+    version: str = BUILD_VERSION
+    revision: str = BUILD_REVISION
 
 
 class SyncTokenStatus(BaseModel):
