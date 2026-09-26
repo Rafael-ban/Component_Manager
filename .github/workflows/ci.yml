@@ -131,7 +131,19 @@ jobs:
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Build Android debug APK
-        run: gradle -p android-client assembleDebug
+        run: gradle -p android-client assembleDebug --console=plain 2>&1 | tee android-build.log
+
+      - name: Annotate Android compiler errors
+        if: failure()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          log = Path('android-build.log')
+          if log.exists():
+              for line in log.read_text(errors='replace').splitlines():
+                  if line.startswith('e: ') or 'error:' in line:
+                      print('::error::' + line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
 
       - name: Run Android inventory regressions
         run: >-
@@ -156,6 +168,8 @@ jobs:
           --tests 'com.componentvault.android.data.BatchJlcModelsTest'
           --tests 'com.componentvault.android.data.ScannedBarcodeSelectorTest'
           --tests 'com.componentvault.android.data.StockAllocationMathTest'
+          --tests 'com.componentvault.android.data.BatchTransferTest'
+          --tests 'com.componentvault.android.ui.screen.InventorySearchTest'
           --tests 'com.componentvault.android.data.StorageLocationPersistenceTest'
           --tests 'com.componentvault.android.data.InventoryWorkbookCodecTest'
           --tests 'com.componentvault.android.data.LabelWorkbookExporterTest'
@@ -188,6 +202,19 @@ jobs:
             android-client/app/build/reports/tests/testDebugUnitTest/
             android-client/app/build/test-results/testDebugUnitTest/
           if-no-files-found: warn
+
+      - name: Annotate Android test failures
+        if: failure()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for path in Path('android-client/app/build/test-results/testDebugUnitTest').glob('TEST-*.xml'):
+              for case in ET.parse(path).iter('testcase'):
+                  for failure in list(case.findall('failure')) + list(case.findall('error')):
+                      message = f"{case.get('classname')}.{case.get('name')}: {failure.get('message')}"
+                      print('::error::' + message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
 
   windows-build:
     runs-on: windows-latest
