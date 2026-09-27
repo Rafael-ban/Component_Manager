@@ -136,7 +136,7 @@ class InventoryInteractionUiTest {
         }
         compose.runOnIdle { assertEquals(listOf(0, 0, 0, 0), listOf(inbound, outbound, transfers, deletes)) }
 
-        card.performTouchInput { click(Offset(size.width - 16f, center.y)) }
+        card.performTouchInput { click(Offset(width - 16f, center.y)) }
         compose.waitForIdle()
         val afterTapLeft = card.getUnclippedBoundsInRoot().left
         assertTrue(abs((afterTapLeft - closedLeft).value) < 2f,
@@ -148,7 +148,7 @@ class InventoryInteractionUiTest {
         compose.waitForIdle()
         val closeDragPx = actionWidth.value * context.resources.displayMetrics.density * 0.75f
         card.performTouchInput {
-            val start = Offset(size.width - 16f, center.y)
+            val start = Offset(width - 16f, center.y)
             swipe(start, start.copy(x = start.x + closeDragPx), 300L)
         }
         compose.waitForIdle()
