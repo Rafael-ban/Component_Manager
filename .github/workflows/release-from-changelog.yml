@@ -92,7 +92,7 @@ jobs:
         run: python tools/versioning/sync_version.py --sync-latest-stable
 
       - name: Configure git author
-        if: steps.existing.outputs.skip == 'false' && steps.existing.outputs.tag_exists != 'true' && steps.release_entry.outputs.prerelease != 'true'
+        if: steps.existing.outputs.skip == 'false' && steps.existing.outputs.tag_exists != 'true'
         run: |
           git config user.name "component-vault-release-bot"
           git config user.email "component-vault-release-bot@users.noreply.github.com"
