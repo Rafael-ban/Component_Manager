@@ -483,6 +483,9 @@ fun officialParameterKind(key: String): String? {
         "耐压", "额定电压", "工作电压", "电压", "voltage", "rated voltage", "voltage rating" -> "voltage"
         "精度", "误差", "容差", "阻值精度", "tolerance" -> "tolerance"
         "功率", "额定功率", "power", "power rating", "rated power" -> "power"
+        "工作温度", "工作温度范围", "operating temperature", "operating temp", "operating temperature range" -> "operating_temperature"
+        "类型", "元件类型", "type", "component type" -> "type"
+        "温度系数", "电阻温度系数", "temperature coefficient", "resistance temperature coefficient", "tempco" -> "temperature_coefficient"
         else -> null
     }
 }
@@ -495,6 +498,9 @@ fun ComponentRecord.officialParameterSearchAliases(): String = officialParameter
         "voltage" -> listOf("耐压", "voltage")
         "tolerance" -> listOf("精度", "tolerance")
         "power" -> listOf("功率", "power")
+        "operating_temperature" -> listOf("工作温度", "operating temperature")
+        "type" -> listOf("类型", "type")
+        "temperature_coefficient" -> listOf("温度系数", "temperature coefficient")
         else -> emptyList()
     }
     aliases.takeIf { it.isNotEmpty() }?.joinToString(" ") { "$it$value" }

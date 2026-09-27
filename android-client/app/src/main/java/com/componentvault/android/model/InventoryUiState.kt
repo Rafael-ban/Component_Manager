@@ -77,6 +77,7 @@ data class InventoryDetailUiState(
 
 data class MovementsUiState(
     val items: List<StockMovementRecord> = emptyList(),
+    val activeComponentIds: Set<String>? = null,
     val componentCount: Int = 0,
     val selectedMovementId: String? = null,
     val scan: MovementScanUiState = MovementScanUiState(),

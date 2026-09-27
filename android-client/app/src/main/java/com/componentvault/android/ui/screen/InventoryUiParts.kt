@@ -483,6 +483,7 @@ internal fun ProductThumbnail(
 internal fun MovementHistoryRow(
     movement: StockMovementRecord,
     selected: Boolean,
+    componentDeleted: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
 ) {
@@ -548,6 +549,11 @@ internal fun MovementHistoryRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 MovementTypePill(movement.movementType)
+                if (componentDeleted) InventoryTag(
+                    text = stringResource(R.string.movements_deleted_component),
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                )
                 Text(
                     text = movement.reason.ifBlank { strings.common.labelNoReasonRecorded },
                     style = MaterialTheme.typography.bodySmall,

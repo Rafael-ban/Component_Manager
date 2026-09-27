@@ -1,6 +1,7 @@
 package com.componentvault.android.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -25,12 +28,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -45,6 +51,8 @@ import com.componentvault.android.model.StorageLocationRecord
 internal fun ComponentEditorSurface(
     existing: ComponentRecord?,
     initialDraft: ComponentDraft? = null,
+    availableCategories: List<String> = emptyList(),
+    storageLocations: List<StorageLocationRecord> = emptyList(),
     layoutMode: InventoryLayoutMode,
     onDismiss: () -> Unit,
     onSave: (ComponentDraft, (OperationResult) -> Unit) -> Unit,
@@ -149,12 +157,13 @@ internal fun ComponentEditorSurface(
                     label = { Text(strings.common.fieldName) },
                     singleLine = true,
                 )
-                OutlinedTextField(
+                EditableChoiceField(
                     value = category,
                     onValueChange = { category = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(strings.common.fieldCategory) },
-                    singleLine = true,
+                    label = strings.common.fieldCategory,
+                    options = availableCategories.distinct(),
+                    optionLabel = ::localizedCategoryLabel,
+                    tag = "component_editor_category",
                 )
                 OutlinedTextField(
                     value = packageName,
@@ -187,12 +196,13 @@ internal fun ComponentEditorSurface(
         }
         item {
             SectionPane(title = strings.forms.componentStorageTitle) {
-                OutlinedTextField(
+                EditableChoiceField(
                     value = location,
                     onValueChange = { location = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(strings.common.fieldLocation) },
-                    singleLine = true,
+                    label = strings.common.fieldLocation,
+                    options = storageLocations.filterNot(StorageLocationRecord::deleted).map { it.id }.distinct(),
+                    optionLabel = { id -> storageLocations.firstOrNull { it.id == id }?.let { "${it.name} (${it.id})" } ?: id },
+                    tag = "component_editor_location",
                 )
                 OutlinedTextField(
                     value = description,
@@ -215,6 +225,40 @@ internal fun ComponentEditorSurface(
     }
 }
 
+@Composable
+private fun EditableChoiceField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    options: List<String>,
+    optionLabel: (String) -> String,
+    tag: String,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth().testTag(tag),
+            label = { Text(label) },
+            singleLine = true,
+            trailingIcon = {
+                IconButton(onClick = { expanded = true }, enabled = options.isNotEmpty(),
+                    modifier = Modifier.testTag("${tag}_choices")) {
+                    Icon(Icons.Outlined.ArrowDropDown, contentDescription = label)
+                }
+            },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(text = { Text(optionLabel(option)) }, onClick = {
+                    onValueChange(option)
+                    expanded = false
+                })
+            }
+        }
+    }
+}
 private fun validateComponentDraft(
     strings: ComponentVaultStrings,
     existingId: String?,
@@ -600,7 +644,7 @@ internal fun AdaptiveFormSurface(
                         ),
                     )
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().testTag("component_editor_fields"),
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         content = content,
@@ -638,7 +682,8 @@ internal fun AdaptiveFormSurface(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
+                    .padding(padding)
+                    .testTag("component_editor_fields"),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 content = content,

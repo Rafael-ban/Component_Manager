@@ -20,6 +20,7 @@ import { useAdminResource } from "@/hooks/use-admin-resource";
 import { formatDateTime, formatMovementType } from "@/lib/format";
 import type { AdminSyncResponse } from "@/lib/types";
 import { StatCard } from "@/components/layout/stat-card";
+import { SyncObservability } from "@/components/sync-observability";
 
 export function SyncPage() {
   const { t, locale } = useI18n();
@@ -35,6 +36,7 @@ export function SyncPage() {
           {t("Recent stock movement activity and read-only sync posture.")}
         </p>
       </header>
+      <SyncObservability />
 
       {error ? (
         <Alert variant="destructive">

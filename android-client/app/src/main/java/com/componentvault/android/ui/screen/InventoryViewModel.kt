@@ -761,6 +761,7 @@ class InventoryViewModel(
         }
         return MovementsUiState(
             items = allMovementsCache,
+            activeComponentIds = allComponentsCache.mapTo(mutableSetOf()) { it.id },
             componentCount = allComponentsCache.size,
             selectedMovementId = selectedMovementId,
             scan = scanState,

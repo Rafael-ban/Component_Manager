@@ -23,7 +23,7 @@ export async function requestJson<T>(session: AdminSession, path: string): Promi
   try {
     ({ response, payload } = await readJsonWithTimeout(
       `${normalizeBaseUrl(session.apiBaseUrl)}${path}`,
-      { headers: { Authorization: `Bearer ${session.token}` } },
+      { credentials: "include" },
     ));
   } catch (error) {
     throw new ApiError(0, currentTranslation(error instanceof ReadTimeoutError
@@ -60,7 +60,8 @@ export async function saveDeploymentConfiguration(
   try {
     response = await fetch(`${normalizeBaseUrl(session.apiBaseUrl)}/setup/config`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${session.token}`, "Content-Type": "application/json" },
+      credentials: "include",
+      headers: { "X-CSRF-Token": session.csrfToken, "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15_000),
     });
@@ -83,13 +84,14 @@ export async function patchJson<T>(session: AdminSession, path: string, body: un
   return mutateJson<T>(session, path, "PATCH", body);
 }
 
-async function mutateJson<T>(session: AdminSession, path: string, method: "POST" | "PUT" | "PATCH", body: unknown): Promise<T> {
+async function mutateJson<T>(session: AdminSession, path: string, method: "POST" | "PUT" | "PATCH" | "DELETE", body: unknown): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${normalizeBaseUrl(session.apiBaseUrl)}${path}`, {
       method,
+      credentials: "include",
       headers: {
-        Authorization: `Bearer ${session.token}`,
+        "X-CSRF-Token": session.csrfToken,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -116,4 +118,28 @@ async function mutateJson<T>(session: AdminSession, path: string, method: "POST"
     );
   }
   return (await response.json()) as T;
+}
+
+export async function deleteJson<T>(session: AdminSession, path: string): Promise<T> {
+  return mutateJson<T>(session, path, "DELETE", undefined);
+}
+export interface SessionResponse {
+  identity: AccountIdentity;
+  csrf_token: string;
+  expires_at: string | null;
+}
+export async function openSession(apiBaseUrl: string, apiKey?: string): Promise<SessionResponse> {
+  let response: Response; let payload: unknown;
+  try {
+    ({response, payload} = await readJsonWithTimeout(`${normalizeBaseUrl(apiBaseUrl)}/auth/session`, {
+      method: apiKey === undefined ? "GET" : "POST",
+      credentials: "include",
+      headers: apiKey === undefined ? undefined : { "Content-Type": "application/json" },
+      body: apiKey === undefined ? undefined : JSON.stringify({ api_key: apiKey }),
+    }));
+  } catch { throw new ApiError(0, currentTranslation("无法建立登录会话，请检查 API 地址与允许来源。")); }
+  if (!response.ok) throw new ApiError(response.status, currentTranslation(response.status === 401
+    ? "登录会话已失效。" : response.status === 404
+      ? "服务端不支持会话登录，请更新 API 镜像。" : "无法建立登录会话。"));
+  return payload as SessionResponse;
 }

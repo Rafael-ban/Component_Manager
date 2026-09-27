@@ -760,3 +760,13 @@ Android 和 Windows 将官方参数保存在既有元件 `description` 的参数
 Web 库存页的 `SpecEnrichmentPanel` 使用 `/admin-api/components/spec-enrichment/*`，按已认证账户预览、启动、恢复、取消和重试参数补全。服务端 `EnrichmentJobs` 逐项查询明确的 LCSC SKU；优先配置的 API，否则查询公开详情，独立于自动识别 fallback 开关。仅保存官方明确参数及描述，不改名称、数量、库位或流水。
 
 查询不持有写事务；回写以 updated_at/SKU/删除状态复核，复用 `save_sync_payload_in_transaction` 和原有账户同步 revision，因此原生客户端可通过增量同步获取。任务进度为进程内状态，每账户只保留最近完成任务及活动任务，提供清除入口；重启不自动重跑，已完成资料持久化，其余由候选重新选择。完整行为和部署边界见[旧库存参数补全](parameter-enrichment.md)。
+
+## 会话、设备与审计（0.7.7）
+
+- 管理员库中的 `web_sessions` 保存随机会话令牌的摘要、对应账户/密钥摘要和 12 小时有效期。浏览器持有 HttpOnly、SameSite=Lax Cookie；HTTPS 时加 Secure。Web/API 需同站点，允许来源仍精确匹配。非只读 cookie 请求验证 CSRF；原生 Bearer 认证不变。
+- 账户数据库新增 `sync_devices`、`sync_audit`、`sync_conflicts`、`sync_conflict_resolutions`、`sync_entity_sources`，启动时幂等迁移。登记从新版本开始；推送携带 device_id，拉取可附 `X-Component-Vault-Device-Id`。两端原生客户端已附此请求头。
+- 成功写入和审计在短事务中提交；失败的 CAS 推送回滚后保存冲突快照及失败审计。legacy 旧版本/同时间戳异值被丢弃也留记录。没有共同基线的 LWW 不能完整检测所有并发覆盖，不把正常新版本覆盖伪造为冲突。
+- 处理冲突接口只追加“保留服务端/已从客户端重新提交”的处理记录、账户、时间和备注，不盲目重放旧快照。需要实际修改时重新拉取、编辑、同步。
+- 删除普通账户先撤销访问并取消该账户参数补全，待任务停止后删除其数据库与 SQLite sidecar，再删除注册记录和会话。失败保留停用状态可重试；管理员原库与其他用户数据不动。已有本地客户端副本不会远程删除。
+- 设置关于仅检测更新，容器更新交给部署者选择的 Watchtower；应用本身不挂宿主 Docker socket。
+- Android 标签工具复用既有编辑器/队列；新增模板与选纸步骤，自定义尺寸遵循当前 M1 打印头范围。保存草稿的旋转不强制归零，只有新建纸张为 0°。记录页过滤是展示层行为，不修改流水或同步墓碑。

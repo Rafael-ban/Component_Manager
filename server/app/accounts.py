@@ -58,6 +58,14 @@ def init_registry(settings: Settings) -> None:
                 database_name TEXT NOT NULL UNIQUE
             )
         """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS web_sessions (
+                token_digest TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                key_digest TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+        """)
 
 
 def _server_id(connection: sqlite3.Connection) -> str:
@@ -99,6 +107,14 @@ def authenticate(settings: Settings, token: str) -> Account | None:
             _server_id(connection), str(row["account_id"]), str(row["name"]), "user",
             _user_path(settings, str(row["account_id"])),
         )
+
+
+def is_active_account(settings: Settings, account_id: str) -> bool:
+    with _connect(settings) as connection:
+        return connection.execute(
+            "SELECT 1 FROM accounts WHERE account_id = ? AND active = 1",
+            (account_id,),
+        ).fetchone() is not None
 
 
 def list_accounts(settings: Settings) -> list[dict[str, object]]:
@@ -169,3 +185,39 @@ def rotate_key(settings: Settings, account_id: str) -> str | None:
         if result.rowcount == 0:
             return None
     return token
+
+
+def deactivate_account_for_deletion(settings: Settings, account_id: str) -> str | None:
+    if account_id == ADMIN_ID:
+        raise ValueError("The administrator account cannot be deleted.")
+    with _connect(settings) as connection:
+        row = connection.execute(
+            "SELECT account_id FROM accounts WHERE account_id = ?", (account_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        connection.execute(
+            "UPDATE accounts SET active = 0 WHERE account_id = ?", (account_id,),
+        )
+    return _user_path(settings, account_id)
+
+
+def finish_account_deletion(settings: Settings, account_id: str) -> None:
+    """Remove a deactivated account's database, then its registry entry."""
+    path = Path(_user_path(settings, account_id))
+    if path.is_file():
+        connection = sqlite3.connect(path.resolve().as_uri() + "?mode=rw", uri=True)
+        try:
+            busy = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            if busy is not None and busy[0]:
+                raise OSError("Account database is busy; retry deletion.")
+        finally:
+            connection.close()
+    try:
+        for suffix in ("-wal", "-shm", ""):
+            Path(str(path) + suffix).unlink(missing_ok=True)
+    except OSError as error:
+        raise OSError("Account database is busy; retry deletion.") from error
+    with _connect(settings) as connection:
+        connection.execute("DELETE FROM web_sessions WHERE account_id = ?", (account_id,))
+        connection.execute("DELETE FROM accounts WHERE account_id = ?", (account_id,))

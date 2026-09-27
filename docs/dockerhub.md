@@ -180,6 +180,8 @@ Compose 默认使用 API `latest` 与 Web `web-latest`。这两个浮动标签�
 已有部署可保留 `.env` 中的非空值，它们优先于配置文件且在网页中只读。
 
 `ADMIN_WEB_ORIGINS` 填浏览器访问 Web 管理页时的来源，格式是 `scheme://host:port`，例如 `http://192.168.1.10:8081`。它不是服务端 API URL，不要填 `http://192.168.1.20:8787`，除非浏览器中的 Web 页面本身确实由该 origin 提供。多个 Web 来源用逗号分隔。API 自带的 `/setup` 页面与 API 同源，不依赖这项 CORS 设置。
+新管理 Web 的登录状态仅在 localStorage 保留 API URL；账户密钥通过 `POST /auth/session` 换取 API 发放的 12 小时 `HttpOnly`、`SameSite=Lax` Cookie，Web 请求使用凭据模式并携带允许来源。Web 与 API 应同站点（相同协议和主机，不同端口可用），但不同端口仍是不同 origin，必须将实际 Web `scheme://host:port` 精确列入 `ADMIN_WEB_ORIGINS`，不能使用通配符；API 开启了带凭据 CORS。原生 Android/Windows 继续使用 Bearer 密钥。服务器通过 `/auth/session` 认证浏览器会话；“检查更新”与这条登录流程无自动部署关联。
+
 `0.7.4` 的 API 支持管理台实际地址 `ADMIN_WEB_URL`；`0.7.4` 的 Web 管理台支持直接编辑服务端配置。使用前须确认所用的 API 与 Web 镜像都已包含 `0.7.4`：固定标签需核对 `0.7.4` 和 `web-0.7.4` 均已发布，默认的 `latest` 和 `web-latest` 则需核对实际指向；开发预发布不发布 Docker 镜像。已有 `0.7.1` 部署可继续使用已认证的 `/setup` 修改配置。可在 `/setup` 填写管理台完整地址（支持反向代理子路径），首次保存后先复制 API Token，再点“进入管理台”；非空 `ADMIN_WEB_URL` 环境变量优先并锁定网页输入。
 
 ## 八、拉取并启动服务端
@@ -246,7 +248,7 @@ docker compose -f docker-compose.hub.yml --profile web up -d
 docker compose -f docker-compose.hub.yml ps
 ```
 
-`latest` 与 `web-latest` 便于日常更新，但不会在容器运行期间自动拉取；每次更新都要先执行上述 `pull`，再执行 `up -d`，仅执行 `restart` 不会换用新镜像。固定版本 tag 便于审计和回退。保持原部署目录和 Compose project name，才能自然复用原 named volume。
+`latest` 与 `web-latest` 便于日常更新，但浮动标签本身不会在容器运行期间自动拉取。未启用下文可选的 Watchtower 时，每次手动更新都要先执行上述 `pull`，再执行 `up -d`；仅执行 `restart` 不会换用新镜像。固定版本 tag 便于审计和回退。保持原部署目录和 Compose project name，才能自然复用原 named volume。
 不要执行 `docker compose down -v`，`-v` 会删除库存数据库所在 volume。
 
 从源码版 Compose 迁移到 Hub Compose 时，也应保留原目录和 project name。如果必须更换目录，在所有命令中显式使用原 project name，例如：
@@ -259,6 +261,29 @@ docker compose -p 原项目名 -f docker-compose.hub.yml up -d
 
 数据库位于容器 `/data/component_vault.db`，保存在 named volume 中。备份 SQLite 时需要一致 snapshot：优先使用 SQLite backup 机制；若只能复制文件，应先暂停写入或停止容器，再完整复制 `/data` 中的数据库相关文件，避免只复制主 `.db` 而遗漏仍有数据的 WAL 文件。
 回退应用版本前还需确认数据库结构兼容，不能假设旧程序能够打开已经被新版迁移的数据库。
+
+## 可选 Watchtower 自动更新
+
+默认 `docker-compose.hub.yml` **不运行自动更新器**。Web “检查更新”只是手动向 GitHub 查询正式版信息，`POST /admin-api/about/check-update` 不拉取镜像、不重建容器。需要自动跟随 Docker Hub 的 API `latest` 和 Web `web-latest` 时，可显式启用仓库根目录的 [`docker-compose.watchtower.yml`](../docker-compose.watchtower.yml)。固定版本标签不会因出现新版本号而自动切换；启用前确认 `.env` 中 `COMPONENT_VAULT_IMAGE` 与 `COMPONENT_VAULT_WEB_IMAGE` 是配套的浮动标签，并在 Docker Hub 核对它们当前实际版本。
+
+[原项目 `containrrr/watchtower`](https://github.com/containrrr/watchtower) 已于 2025-12-17 归档。示例明确选用仍维护的社区 fork [`nicholas-fedor/watchtower`](https://github.com/nicholas-fedor/watchtower)，对应镜像 `nickfedor/watchtower:latest`。该 fork 的说明称默认协商 Docker API；[Docker 官方兼容表](https://docs.docker.com/reference/api/engine/)显示例如 Engine 29.0–29.2 的最低 API 为 1.44，故老 Watchtower 镜像可能连接失败。先用 `docker version` 和 Watchtower 日志核对本机兼容性，不在示例中无理由强制 `DOCKER_API_VERSION`。fork 的[容器选择文档](https://watchtower.nickfedor.com/v1.21.0/getting-started/container-selection/)说明：`WATCHTOWER_LABEL_ENABLE=true` 时，只管理带 `com.centurylinklabs.watchtower.enable=true` 的容器。
+
+启用前先取得**一致备份**：停止写入或用 SQLite backup，并保存整个 `/data`（管理员数据库、`users/`、`config.json` 及其他所需文件）。若使用 named volume，保留原项目名；若群晖已把 `/data` 映射到宿主目录，继续用原映射，不要切换成空目录。自动更新没有内置数据库备份步骤，应另行安排定期备份，且能够在更新前拿到可恢复的备份；做不到时继续使用上一节的手动 `pull` + `up -d`。
+
+将覆盖文件和现有 `docker-compose.hub.yml`、`.env` 放在**同一个原部署目录**，在该目录执行：
+
+```sh
+docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web config --quiet
+docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web up -d
+docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web ps
+docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web logs --tail=100 watchtower
+```
+
+只运行 API 时省略 `--profile web`；若原部署显式使用 `-p 项目名`，上述**每条**命令也要带同一 `-p`。覆盖文件只给现有 `api`、`admin-web` 服务加启用标签，再启动独立的 Watchtower 服务；Docker socket 仅挂在 Watchtower 容器，API 和 Web 均不挂。Watchtower 默认约每 24 小时检查一次，拉取新镜像后停止并**重建**受管理容器，沿用原配置与数据挂载；这不是 `docker compose restart`。[fork 的运行说明](https://watchtower.nickfedor.com/v1.12.3/quickstart/)与 [Docker Compose `up` 文档](https://docs.docker.com/reference/cli/docker/compose/up/)分别说明更新器和手动重建行为。Watchtower 的 Docker socket 具备管理宿主 Docker 容器的能力，应只在受信任的 NAS/主机上启用。覆盖文件不启用 Watchtower 自更新；需要维护它时在原项目中手动拉取并重建该服务。
+
+群晖 Container Manager 若只能导入一个项目 Compose 文件，应在**原项目**的 Compose 编辑器中把覆盖文件的 `api`、`admin-web` 标签和 `watchtower` 服务合并进去，保存并**重新部署项目**使标签实际进入容器；不要只在容器环境变量界面填写标签，也不要新建第二个项目。沿用现有 `/data` 映射、端口、`.env` 和项目名。若原 GUI 部署已去掉 Web 的 `profiles` 以启动 Web，保持该设置。关闭自动更新时移除 Watchtower 服务和目标标签，再在原项目重新部署；数据卷无需删除。
+
+API 与 Web 是两次独立的容器更新，**不能保证同时切换**。每次更新后核查 `ps` 和 `logs api`，读取同一外部地址的 `/health` 中 `status`、`version`、`revision`，用 `docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web images api admin-web` 核对两个容器当前镜像与 Docker Hub 配套标签（仅部署 API 时只查 `api`），再打开 Web 设置页检查登录与库存读取；若两者版本不配套或有迁移/认证故障，先停用 Watchtower，按上节从一致备份及已确认兼容的一对版本恢复。不要将 Watchtower 日志中“发现新镜像”当作应用升级已验收。本示例仅经配置与文档核对，尚未在真实 NAS 上验证自动更新。
 
 ## 十、常见问题
 

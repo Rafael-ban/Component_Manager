@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -235,46 +236,48 @@ internal fun ComponentVaultAppShellContent(
             snackbarHost = { SnackbarHost(effectiveSnackbarHostState) },
             containerColor = MaterialTheme.colorScheme.background,
         ) { padding ->
-            ShellContent(
-                contentPadding = padding,
-                uiState = uiState,
-                destination = destination,
-                layoutMode = layoutMode,
-                onQueryChange = onQueryChange,
-                onStockFilterChange = onStockFilterChange,
-                onCategoryChange = onCategoryChange,
-                onLocationChange = onLocationChange,
-                onSortChange = onSortChange,
-                onSelectComponent = onSelectComponent,
-                onOpenComponentDetail = onOpenComponentDetail,
-                onImportComponent = onImportComponent,
-                onGenerateLabel = onGenerateLabel,
-                onOpenBluetoothPrint = onOpenBluetoothPrint,
-                onEditComponent = onEditComponent,
-                onRequestDeleteComponent = onRequestDeleteComponent,
-                onBatchTransfer = onBatchTransfer,
-                onQuickMovement = onQuickMovement,
-                onScanMovementLabel = onScanMovementLabel,
-                onRetryMovementScan = onRetryMovementScan,
-                onDismissMovementScanResult = onDismissMovementScanResult,
-                onDiscardMovementBatch = onDiscardMovementBatch,
-                onOpenMovementBatchReview = onOpenMovementBatchReview,
-                onUpdateMovementBatchItemMovementType = onUpdateMovementBatchItemMovementType,
-                onUpdateMovementBatchItemQuantity = onUpdateMovementBatchItemQuantity,
-                onUpdateMovementBatchItemReason = onUpdateMovementBatchItemReason,
-                onUpdateMovementBatchItemNote = onUpdateMovementBatchItemNote,
-                onRemoveMovementBatchItem = onRemoveMovementBatchItem,
-                onSearchInventoryBySku = onSearchInventoryBySku,
-                onRecordMovement = onRecordMovement,
-                onOpenLowStockInventory = onOpenLowStockInventory,
-                onSelectOverviewComponent = onSelectOverviewComponent,
-                onOpenMovements = onOpenMovements,
-                onSelectMovement = onSelectMovement,
-                onOpenMovementDetail = onOpenMovementDetail,
-                onOpenSettings = onOpenSettingsHome,
-                onOpenSyncSettings = onOpenSyncSettings,
-                settingsContent = settingsContent,
-            )
+            key(destination) {
+                ShellContent(
+                    contentPadding = padding,
+                    uiState = uiState,
+                    destination = destination,
+                    layoutMode = layoutMode,
+                    onQueryChange = onQueryChange,
+                    onStockFilterChange = onStockFilterChange,
+                    onCategoryChange = onCategoryChange,
+                    onLocationChange = onLocationChange,
+                    onSortChange = onSortChange,
+                    onSelectComponent = onSelectComponent,
+                    onOpenComponentDetail = onOpenComponentDetail,
+                    onImportComponent = onImportComponent,
+                    onGenerateLabel = onGenerateLabel,
+                    onOpenBluetoothPrint = onOpenBluetoothPrint,
+                    onEditComponent = onEditComponent,
+                    onRequestDeleteComponent = onRequestDeleteComponent,
+                    onBatchTransfer = onBatchTransfer,
+                    onQuickMovement = onQuickMovement,
+                    onScanMovementLabel = onScanMovementLabel,
+                    onRetryMovementScan = onRetryMovementScan,
+                    onDismissMovementScanResult = onDismissMovementScanResult,
+                    onDiscardMovementBatch = onDiscardMovementBatch,
+                    onOpenMovementBatchReview = onOpenMovementBatchReview,
+                    onUpdateMovementBatchItemMovementType = onUpdateMovementBatchItemMovementType,
+                    onUpdateMovementBatchItemQuantity = onUpdateMovementBatchItemQuantity,
+                    onUpdateMovementBatchItemReason = onUpdateMovementBatchItemReason,
+                    onUpdateMovementBatchItemNote = onUpdateMovementBatchItemNote,
+                    onRemoveMovementBatchItem = onRemoveMovementBatchItem,
+                    onSearchInventoryBySku = onSearchInventoryBySku,
+                    onRecordMovement = onRecordMovement,
+                    onOpenLowStockInventory = onOpenLowStockInventory,
+                    onSelectOverviewComponent = onSelectOverviewComponent,
+                    onOpenMovements = onOpenMovements,
+                    onSelectMovement = onSelectMovement,
+                    onOpenMovementDetail = onOpenMovementDetail,
+                    onOpenSettings = onOpenSettingsHome,
+                    onOpenSyncSettings = onOpenSyncSettings,
+                    settingsContent = settingsContent,
+                )
+            }
         }
     }
 }

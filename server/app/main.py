@@ -5,12 +5,13 @@ from datetime import datetime, timezone
 import sqlite3
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .admin.api import router as admin_router
+from .admin.about import router as about_router
 from .admin.spec_enrichment import EnrichmentJobs
 from .account_api import router as account_router
 from .accounts import Account
@@ -30,6 +31,7 @@ from .repositories import (
     pull_sync_snapshot,
     save_sync_payload,
 )
+from .sync_observability import record_pull, record_push, record_rejected_managed_conflicts
 from .schemas import (
     HealthResponse,
     PullResponse,
@@ -78,9 +80,9 @@ class DynamicCORSMiddleware:
         middleware = CORSMiddleware(
             self.app,
             allow_origins=list(settings.admin_web_origins),
-            allow_credentials=False,
-            allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type", "X-API-Token", "X-Component-Vault-Account-Id"],
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", "X-API-Token", "X-CSRF-Token", "X-Component-Vault-Account-Id", "X-Component-Vault-Device-Id"],
         )
         await middleware(scope, receive, send)
 
@@ -127,6 +129,7 @@ def create_app() -> FastAPI:
     app.include_router(deployment_configuration_router)
     app.include_router(account_router)
     app.include_router(admin_router)
+    app.include_router(about_router)
 
     @app.middleware("http")
     async def application_request_log(request: Request, call_next):
@@ -179,6 +182,19 @@ def create_app() -> FastAPI:
                 mqtt_topic_prefix=(settings.mqtt_topic_prefix if settings.mqtt_enabled and account.role == "admin" else None),
             )
         except ValueError as error:
+            managed_conflict = str(error).startswith(
+                ("Inventory conflict", "A changed inventory snapshot")
+            )
+            try:
+                if managed_conflict:
+                    record_rejected_managed_conflicts(connection, payload)
+                with connection:
+                    record_push(
+                        connection, payload.device_id, 0, 0,
+                        status="conflict" if managed_conflict else "rejected",
+                    )
+            except Exception as audit_error:
+                log_event("sync_audit_failed", error_type=type(audit_error).__name__)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=str(error),
@@ -233,6 +249,7 @@ def create_app() -> FastAPI:
     def sync_pull(
         since: Annotated[datetime | None, Query()] = None,
         cursor: Annotated[int | None, Query(ge=0)] = None,
+        x_component_vault_device_id: Annotated[str | None, Header(max_length=120)] = None,
         connection: sqlite3.Connection = Depends(get_db),
     ) -> PullResponse:
         locations = []
@@ -242,6 +259,7 @@ def create_app() -> FastAPI:
             since=since,
             locations_out=locations,
         )
+        record_pull(connection, x_component_vault_device_id, sync_cursor)
         return PullResponse(
             server_time=_utc_now(),
             sync_cursor=sync_cursor,

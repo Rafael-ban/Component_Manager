@@ -7,7 +7,7 @@ import {
   type PropsWithChildren,
 } from "react";
 
-import { ApiError, fetchIdentity, normalizeBaseUrl } from "@/lib/api";
+import { ApiError, openSession, deleteJson, normalizeBaseUrl } from "@/lib/api";
 import { clearStoredSession, loadStoredSession, saveStoredSession } from "@/lib/storage";
 import type { AccountIdentity, AdminSession } from "@/lib/types";
 
@@ -17,11 +17,13 @@ interface AuthContextValue {
   identity: AccountIdentity | null;
   login: (apiBaseUrl: string, token: string) => Promise<void>;
   logout: () => void;
+  logoutError: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [session, setSession] = useState<AdminSession | null>(null);
   const [identity, setIdentity] = useState<AccountIdentity | null>(null);
@@ -30,10 +32,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
     let active = true;
     const stored = loadStoredSession();
     if (!stored) { setIsReady(true); return; }
-    void fetchIdentity(stored).then((nextIdentity) => {
+    void openSession(stored.apiBaseUrl).then((result) => {
       if (!active) return;
-      setSession(stored);
-      setIdentity(nextIdentity);
+      setSession({ ...stored, csrfToken: result.csrf_token });
+      setIdentity(result.identity);
     }).catch((error) => {
       if (active && error instanceof ApiError && error.status === 401) clearStoredSession();
     }).finally(() => { if (active) setIsReady(true); });
@@ -45,23 +47,33 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isReady,
       session,
       identity,
+      logoutError,
       async login(apiBaseUrl: string, token: string) {
-        const normalizedSession = {
-          apiBaseUrl: normalizeBaseUrl(apiBaseUrl),
-          token: token.trim(),
-        };
-        const nextIdentity = await fetchIdentity(normalizedSession);
-        saveStoredSession(normalizedSession);
-        setSession(normalizedSession);
-        setIdentity(nextIdentity);
+        const normalizedUrl = normalizeBaseUrl(apiBaseUrl);
+        await openSession(normalizedUrl, token.trim());
+        // Confirm the browser accepted the cookie before entering the console.
+        const result = await openSession(normalizedUrl);
+        const next = { apiBaseUrl: normalizedUrl, csrfToken: result.csrf_token };
+        saveStoredSession(next);
+        setSession(next);
+        setIdentity(result.identity);
+        setLogoutError(null);
       },
       logout() {
-        clearStoredSession();
-        setSession(null);
-        setIdentity(null);
+        if (!session) return;
+        setLogoutError(null);
+        void deleteJson(session, "/auth/session").then(() => {
+          clearStoredSession(); setSession(null); setIdentity(null);
+        }).catch((error) => {
+          if (error instanceof ApiError && error.status === 401) {
+            clearStoredSession(); setSession(null); setIdentity(null);
+          } else {
+            setLogoutError(error instanceof Error ? error.message : "Logout failed");
+          }
+        });
       },
     }),
-    [identity, isReady, session],
+    [identity, isReady, session, logoutError],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

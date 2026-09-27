@@ -249,4 +249,12 @@ class ComponentImportModelsTest {
         assertEquals("power", officialParameterKind("额定功率(W)"))
         assertEquals("inductance", officialParameterKind("电感值(uH)"))
     }
+    @Test
+    fun commonOfficialEnglishParameterNamesHaveStableKinds() {
+        assertEquals("operating_temperature", officialParameterKind("Operating Temperature"))
+        assertEquals("type", officialParameterKind("Type"))
+        assertEquals("temperature_coefficient", officialParameterKind("Temperature Coefficient"))
+        assertEquals("temperature_coefficient", officialParameterKind("Resistance Temperature Coefficient"))
+        assertEquals(null, officialParameterKind("Supplier Marketing Label"))
+    }
 }

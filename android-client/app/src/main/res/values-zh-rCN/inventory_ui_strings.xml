@@ -24,4 +24,9 @@
     <string name="inventory_param_voltage">耐压</string>
     <string name="inventory_param_tolerance">精度</string>
     <string name="inventory_param_power">功率</string>
+    <string name="movements_include_deleted_components">包含已删除元件（%1$d）</string>
+    <string name="movements_deleted_component">已删除元件</string>
+    <string name="inventory_param_operating_temperature">工作温度</string>
+    <string name="inventory_param_type">类型</string>
+    <string name="inventory_param_temperature_coefficient">温度系数</string>
 </resources>

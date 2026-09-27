@@ -2636,6 +2636,7 @@ class InventoryRepository(
         connection.requestMethod = method
         connection.setRequestProperty("Authorization", "Bearer ${settings.apiToken}")
         if (accountId != null) connection.setRequestProperty("X-Component-Vault-Account-Id", accountId)
+        if (method == "GET" && path.startsWith("/sync/pull")) connection.setRequestProperty("X-Component-Vault-Device-Id", settings.deviceId)
         connection.setRequestProperty("Accept", "application/json")
         return try {
             if (body != null) {

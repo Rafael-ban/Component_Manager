@@ -99,6 +99,63 @@ SCHEMA_STATEMENTS = (
         created_at TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS sync_devices (
+        device_id TEXT PRIMARY KEY,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        last_push_at TEXT,
+        last_pull_at TEXT,
+        push_count INTEGER NOT NULL DEFAULT 0,
+        pull_count INTEGER NOT NULL DEFAULT 0
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sync_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_id TEXT,
+        direction TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'success',
+        observed_at TEXT NOT NULL,
+        accepted_components INTEGER NOT NULL DEFAULT 0,
+        accepted_stock_movements INTEGER NOT NULL DEFAULT 0,
+        cursor INTEGER
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sync_conflicts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        device_id TEXT,
+        server_device_id TEXT,
+        kind TEXT NOT NULL,
+        winner TEXT NOT NULL,
+        server_value TEXT NOT NULL,
+        incoming_value TEXT NOT NULL,
+        detected_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sync_entity_sources (
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        device_id TEXT,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(entity_type, entity_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sync_conflict_resolutions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conflict_id INTEGER NOT NULL,
+        resolution TEXT NOT NULL,
+        actor_account_id TEXT,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (conflict_id) REFERENCES sync_conflicts(id)
+    )
+    """,
 )
 
 
@@ -130,6 +187,7 @@ def init_db(settings: Settings, *, initialize_accounts: bool = True) -> None:
             connection.execute(statement)
         _migrate_storage(connection)
         _migrate_sync_revisions(connection)
+        _migrate_sync_observability(connection)
         connection.execute(
             "INSERT OR IGNORE INTO mqtt_state (id, snapshot_seeded) VALUES (1, 0)"
         )
@@ -238,9 +296,25 @@ def _migrate_sync_revisions(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_sync_observability(connection: sqlite3.Connection) -> None:
+    for table, column, definition in (
+        ("sync_audit", "status", "TEXT NOT NULL DEFAULT 'success'"),
+        ("sync_conflict_resolutions", "actor_account_id", "TEXT"),
+    ):
+        columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+        if column not in columns:
+            connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def get_db(
     account: Account = Depends(require_token),
+    settings: Settings = Depends(get_settings),
 ) -> Generator[sqlite3.Connection, None, None]:
+    if account.role == "user":
+        from .accounts import is_active_account
+
+        if not is_active_account(settings, account.account_id):
+            raise HTTPException(status_code=401, detail="Account is no longer active.")
     try:
         connection = _connect(account.database_path, existing_only=account.role == "user")
     except sqlite3.OperationalError as error:

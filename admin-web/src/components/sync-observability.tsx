@@ -1,0 +1,78 @@
+import { useState } from "react";
+import { useAdminResource } from "@/hooks/use-admin-resource";
+import { useAuth } from "@/hooks/use-auth";
+import { postJson } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
+import { formatDateTime } from "@/lib/format";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+interface Device { device_id: string; first_seen_at: string; last_seen_at: string; push_count: number; pull_count: number }
+interface Audit { id: number; device_id: string | null; direction: string; status: string; observed_at: string; accepted_components: number; accepted_stock_movements: number; cursor: number | null }
+interface Resolution { id: number; resolution: string; note: string | null; created_at: string }
+interface Conflict { id: number; entity_type: string; entity_id: string; device_id: string | null; server_device_id: string | null; detected_at: string; kind: string; winner: string; server_value: Record<string, unknown>; incoming_value: Record<string, unknown>; resolutions: Resolution[] }
+
+export function SyncObservability() {
+  const { t, locale } = useI18n();
+  const [tab, setTab] = useState<"devices" | "audit" | "conflicts">("devices");
+  return <Card><CardHeader><CardTitle>{t("设备与同步审计")}</CardTitle><CardDescription>{t("仅显示当前账户的数据。从此版本开始记录，旧客户端未提供设备标识的拉取会显示为未知设备。")}</CardDescription></CardHeader>
+    <CardContent className="space-y-4">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t("同步视图")}>
+        {(["devices", "audit", "conflicts"] as const).map((value) => <Button key={value} variant={tab === value ? "default" : "outline"} aria-pressed={tab === value} onClick={() => setTab(value)}>{t(({ devices: "设备注册表", audit: "同步日志", conflicts: "冲突历史" } as const)[value])}</Button>)}
+      </div>
+      {tab === "devices" ? <Devices /> : tab === "audit" ? <AuditLog /> : <Conflicts />}
+      <p className="text-xs text-muted-foreground">{t("当前账户")} · {locale}</p>
+    </CardContent>
+  </Card>;
+}
+
+function Devices() {
+  const { t, locale } = useI18n();
+  const resource = useAdminResource<{ items: Device[] }>("/admin-api/sync/devices");
+  return <><ResourceState {...resource} /><Table><TableHeader><TableRow>{(["设备", "首次同步", "最近同步", "上传 / 拉取次数"] as const).map((label) => <TableHead key={label}>{t(label)}</TableHead>)}</TableRow></TableHeader><TableBody>{resource.data?.items.map((device) => <TableRow key={device.device_id}>
+    <TableCell className="break-all font-mono">{device.device_id}</TableCell><TableCell>{formatDateTime(device.first_seen_at, locale)}</TableCell><TableCell>{formatDateTime(device.last_seen_at, locale)}</TableCell><TableCell>{device.push_count} / {device.pull_count}</TableCell>
+  </TableRow>)}</TableBody></Table></>;
+}
+
+function AuditLog() {
+  const { t, locale } = useI18n();
+  const resource = useAdminResource<{ items: Audit[] }>("/admin-api/sync/audit?limit=100");
+  return <><p className="text-sm text-muted-foreground">{t("显示最近 100 条同步记录。")}</p><ResourceState {...resource} /><Table><TableHeader><TableRow>{(["时间", "设备", "方向", "结果", "接收元件 / 流水", "同步游标"] as const).map((label) => <TableHead key={label}>{t(label)}</TableHead>)}</TableRow></TableHeader><TableBody>{resource.data?.items.map((entry) => <TableRow key={entry.id}>
+    <TableCell>{formatDateTime(entry.observed_at, locale)}</TableCell><TableCell className="break-all">{entry.device_id || t("未知设备")}</TableCell><TableCell>{t(entry.direction === "push" ? "上传" : "拉取")}</TableCell><TableCell>{t(entry.status === "success" ? "成功" : entry.status === "conflict" ? "冲突" : "拒绝")}</TableCell><TableCell>{entry.direction === "push" ? `${entry.accepted_components} / ${entry.accepted_stock_movements}` : "—"}</TableCell><TableCell>{entry.cursor ?? "—"}</TableCell>
+  </TableRow>)}</TableBody></Table></>;
+}
+
+function Conflicts() {
+  const { t } = useI18n();
+  const resource = useAdminResource<{ items: Conflict[] }>("/admin-api/sync/conflicts?limit=100");
+  return <div className="space-y-3"><p className="text-sm text-muted-foreground">{t("显示最近 100 次被拒绝的冲突写入。处理记录用于追溯，不会重放旧数据；需要修改时，请刷新客户端后重新编辑并同步。")}</p><ResourceState {...resource} />{resource.data?.items.map((conflict) => <ConflictItem key={conflict.id} conflict={conflict} reload={resource.reload} />)}</div>;
+}
+
+function ConflictItem({ conflict, reload }: { conflict: Conflict; reload: () => Promise<void> }) {
+  const { t, locale } = useI18n(); const { session } = useAuth();
+  const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
+  async function resolve(resolution: string) {
+    if (!session) return;
+    setBusy(true); setError(null);
+    try { await postJson(session, `/admin-api/sync/conflicts/${conflict.id}/resolve`, { resolution, note: note.trim() || null }); await reload(); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : t("提交失败")); }
+    finally { setBusy(false); }
+  }
+  return <details className="rounded-xl border p-4"><summary className="cursor-pointer text-sm font-medium">
+    {String(conflict.server_value.sku || conflict.incoming_value.sku || conflict.entity_id)} · {conflict.device_id || t("未知设备")} · {formatDateTime(conflict.detected_at, locale)} · {t(conflict.resolutions.length ? "已记录处理" : "待处理")}
+  </summary><div className="mt-4 space-y-3">
+    <p className="text-sm">{t("服务端保留了当前版本，传入数据未覆盖。")}</p><p className="text-sm">{t("服务端数据来源：")}{conflict.server_device_id || t("未知设备")}</p>
+    <div className="grid gap-3 md:grid-cols-2">{([["服务端版本", conflict.server_value], ["传入版本", conflict.incoming_value]] as const).map(([label, value]) => <div key={String(label)}><h4 className="mb-2 text-sm font-medium">{t(label)}</h4><pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-50 p-3 text-xs">{JSON.stringify(value, null, 2)}</pre></div>)}</div>
+    {conflict.resolutions.map((resolution) => <p key={resolution.id} className="text-sm">{formatDateTime(resolution.created_at, locale)} · {t(resolution.resolution === "server_kept" ? "确认保留服务端" : "已在客户端重新提交")} {resolution.note}</p>)}
+    <label className="block text-sm">{t("处理备注")}<Input value={note} maxLength={1000} onChange={(event) => setNote(event.target.value)} /></label>
+    <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={() => void resolve("server_kept")}>{t("确认保留服务端")}</Button><Button variant="outline" disabled={busy} onClick={() => void resolve("client_resubmitted")}>{t("记录：已在客户端重新提交")}</Button></div>
+    {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+  </div></details>;
+}
+
+function ResourceState({ data, loading, error, reload }: { data: { items: unknown[] } | null; loading: boolean; error: string | null; reload: () => Promise<void> }) {
+  const { t } = useI18n();
+  return <div className="flex flex-wrap items-center gap-3 text-sm"><Button size="sm" variant="outline" disabled={loading} onClick={() => void reload()}>{t(loading ? "正在读取…" : "刷新")}</Button>{error ? <span role="alert" className="text-red-700">{error}</span> : !loading && data?.items.length === 0 ? <span>{t("暂无记录")}</span> : null}</div>;
+}

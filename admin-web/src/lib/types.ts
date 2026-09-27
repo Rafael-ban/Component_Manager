@@ -1,6 +1,6 @@
 export interface AdminSession {
   apiBaseUrl: string;
-  token: string;
+  csrfToken: string;
 }
 
 export interface AdminMetricSnapshot {

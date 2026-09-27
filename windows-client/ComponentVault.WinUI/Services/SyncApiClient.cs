@@ -246,6 +246,7 @@ public sealed class SyncApiClient
         );
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiToken);
         request.Headers.Add("X-Component-Vault-Account-Id", accountId);
+        request.Headers.Add("X-Component-Vault-Device-Id", settings.DeviceId);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)

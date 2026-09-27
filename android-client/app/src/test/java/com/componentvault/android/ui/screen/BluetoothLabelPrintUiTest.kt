@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasTestTag
@@ -257,5 +258,77 @@ class BluetoothLabelPrintUiTest {
         compose.onNodeWithText("库存父页面").assertIsDisplayed()
         assertFalse(compose.activity.isFinishing)
         LabelPrintQueueStore(context).clear()
+    }
+    @Test
+    fun labelToolChoosesTemplateThenPaperBeforeOpeningExistingEditor() {
+        var selected: Pair<LabelToolTemplate, M1TestPaperProfile>? = null
+        setLabelContent {
+            MaterialTheme {
+                LabelToolTemplatePicker(onSelect = { template, paper -> selected = template to paper }, onBack = {})
+            }
+        }
+        compose.onNodeWithText(context.getString(R.string.label_tool_text)).performClick()
+        compose.onNodeWithText(context.getString(R.string.label_ui_choose_paper)).assertIsDisplayed()
+        compose.onNodeWithText("30 × 20").performClick()
+        compose.onNodeWithText(context.getString(R.string.label_ui_open_editor)).performClick()
+        compose.runOnIdle {
+            assertTrue(selected?.first == LabelToolTemplate.Text)
+            assertTrue(selected?.second == M1TestPaperProfile(30f, 20f))
+        }
+    }
+    @Test
+    fun restoredQueueKeepsItsSavedRotationWhenNewPaperWasChosen() {
+        val seed = ComponentLabelSeed("ROT-90", "Saved label", "IC", "SMD", "A", 1, 0)
+        LabelPrintQueueStore(context).save(LabelPrintQueue.create(listOf(seed to 1),
+            paper = M1TestPaperProfile(40f, 60f, 90)))
+        try {
+            setLabelContent {
+                MaterialTheme { BluetoothLabelPrintScreen(emptyList(), null,
+                    initialPaper = M1TestPaperProfile(30f, 20f), onDismiss = {}) }
+            }
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithTag("print_queue_list").fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithText(context.getString(R.string.label_ui_paper_summary,
+                "40.0", "60.0", "90")).assertExists()
+        } finally {
+            LabelPrintQueueStore(context).clear()
+        }
+    }
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun componentTextTemplateUsesTheExistingEditorWithoutQr() {
+        LabelPrintQueueStore(context).clear()
+        val seed = ComponentLabelSeed("TEXT-1", "Resistor", "Passive", "0603", "A", 2, 0)
+        setLabelContent {
+            MaterialTheme { BluetoothLabelPrintScreen(emptyList(), seed,
+                initialToolTemplate = LabelToolTemplate.ComponentText,
+                initialPaper = M1TestPaperProfile(40f, 30f), onDismiss = {}) }
+        }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("label_element_text").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("print_label_preview").assertIsDisplayed()
+        assertTrue(compose.onAllNodesWithTag("label_element_qr").fetchSemanticsNodes().isEmpty())
+        LabelPrintQueueStore(context).clear()
+    }
+    @Test
+    fun customPaperRequiresSupportedCanvasRangeBeforeEditing() {
+        var selectedPaper: M1TestPaperProfile? = null
+        setLabelContent {
+            MaterialTheme {
+                LabelToolTemplatePicker(onSelect = { _, paper -> selectedPaper = paper }, onBack = {})
+            }
+        }
+        compose.onNodeWithText(context.getString(R.string.label_tool_qr)).performClick()
+        compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_width))
+            .performTextReplacement("60")
+        compose.onNodeWithText(context.getString(R.string.label_ui_open_editor)).assertIsNotEnabled()
+        compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_width))
+            .performTextReplacement("35")
+        compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_height))
+            .performTextReplacement("25")
+        compose.onNodeWithText(context.getString(R.string.label_ui_open_editor)).performClick()
+        compose.runOnIdle { assertTrue(selectedPaper == M1TestPaperProfile(35f, 25f)) }
     }
 }

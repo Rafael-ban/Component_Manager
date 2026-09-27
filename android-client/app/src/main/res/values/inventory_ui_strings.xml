@@ -24,4 +24,9 @@
     <string name="inventory_param_voltage">Rated voltage</string>
     <string name="inventory_param_tolerance">Tolerance</string>
     <string name="inventory_param_power">Power</string>
+    <string name="movements_include_deleted_components">Include deleted components (%1$d)</string>
+    <string name="movements_deleted_component">Deleted component</string>
+    <string name="inventory_param_operating_temperature">Operating temperature</string>
+    <string name="inventory_param_type">Type</string>
+    <string name="inventory_param_temperature_coefficient">Temperature coefficient</string>
 </resources>

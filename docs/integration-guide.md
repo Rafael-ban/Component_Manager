@@ -12,12 +12,12 @@ Examples in this document assume `http://localhost:8787`.
   two diagnostic fields are additive; older servers omit them. Protocol and
   `/auth/me` identity checks remain authoritative, not a version-string comparison.
 - All sync endpoints require `Authorization: Bearer <API_TOKEN>`.
-- All `/admin-api/*` endpoints also require `Authorization: Bearer <API_TOKEN>`.
+- `/admin-api/*` accepts native Bearer auth or the authenticated Web session described below.
 - The server also accepts `X-API-Token`, but the client uses bearer auth.
 - The setup token authenticates the administrator. Ordinary account keys resolve
   independent inventory databases and cannot access setup, logs, accounts or
   global MQTT configuration. Disabled accounts and replaced keys return 401.
-- The separated `admin-web/` console authenticates through `GET /auth/me`
+- The separated `admin-web/` console exchanges its key through `POST /auth/session`
   before calling role-appropriate `/admin-api/*` routes. Native connection tests
   check both `/auth/ping` inventory capability and `/auth/me` identity without
   persisting an account binding; the binding is verified during sync.
@@ -559,3 +559,14 @@ Android 和 Windows 将官方参数保存在既有元件 `description` 的参数
 | `POST /jobs/{id}/clear` | 清除已结束任务的内存记录，不删除业务数据 |
 
 状态为 `queued/running/completed/cancelled`；计数含 `total/processed/updated/skipped/failed`。同账户同时只能有一项活动任务，重复启动返回 409；任务跨账户不可访问。联网在事务外执行，提交前检查元件版本；成功写入 description、updated_at 与 sync revision，增量 `/sync/pull` 可获取更新。服务重启后任务 ID 失效，需重新预览剩余候选。具体使用范围见[操作指南](parameter-enrichment.md)。
+
+## Web session and sync observability
+
+- `POST /auth/session` accepts `{ "api_key": "..." }` and returns `identity`, `csrf_token`, `expires_at`; it sets the HttpOnly `cv_session` cookie (12 hours). Browser calls use `credentials: include`; persist only the API address. `GET /auth/session` restores identity/CSRF; `DELETE /auth/session` revokes the session. Cookie-authenticated POST/PUT/PATCH/DELETE requires `X-CSRF-Token`. Rotating the account key, disabling/deleting the account, or expiry invalidates its sessions. Native Bearer/X-API-Token stays supported.
+- `DELETE /admin-api/accounts/{account_id}` is administrator-only and deletes an ordinary account with its server database. Administrator deletion is rejected. Busy database returns 409 with account disabled so deletion can be retried; missing account returns 404. It does not erase local client copies.
+- `GET /admin-api/sync/devices` returns `{items:[...]}` with device ID, first/last seen and push/pull counts. It registers on activity, not by trusting a client-provided database path. This is an activity registry, not hardware attestation.
+- `GET /admin-api/sync/audit?limit=100` returns per-device direction, observed_at, status, accepted entity counts and pull cursor. For GET `/sync/pull`, clients may add `X-Component-Vault-Device-Id`; absent IDs remain null. Existing sync payloads and account-binding requirements are unchanged.
+- `GET /admin-api/sync/conflicts?limit=100` returns detected conflict snapshots, submitted device_id, known server_device_id, kind, timestamp and resolutions. `POST /admin-api/sync/conflicts/{id}/resolve` accepts `{resolution:"server_kept"|"client_resubmitted",note?:string}` (note at most 1000 chars); it records a human decision only. Refresh/edit/sync from a client to actually change inventory.
+- `GET /admin-api/about` reports author, build version/revision and container/source-or-service detection. `POST /admin-api/about/check-update` checks the latest stable GitHub release. `update_available:null` means source/unknown version cannot be compared; failure is 502 rather than a false “up to date”. No self-update endpoint is provided.
+
+All device/audit/conflict APIs use the authenticated account inventory database. Old activity is not reconstructed. About/update checks require authentication but do not change deployment.

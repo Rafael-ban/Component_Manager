@@ -25,6 +25,43 @@ release afterward; normal CI never pushes an image. Follow the complete
 [Docker quickstart and API Token lookup](docker-quickstart.md), or the complete
 [Docker Hub setup, verification and upgrade instructions](dockerhub.md).
 
+### Optional Watchtower updates for the Hub deployment
+
+The base Hub Compose file does not start an updater. For opt-in updates of
+`api` (`latest`) and `admin-web` (`web-latest`), place
+[`docker-compose.watchtower.yml`](../docker-compose.watchtower.yml) beside the
+existing Hub file and `.env`, and retain the original project name and `/data`
+mount. Back up the entire data directory consistently **before** enabling
+updates, including `users/` and `config.json`; schedule recurring backups
+before the update window. The original
+[`containrrr/watchtower`](https://github.com/containrrr/watchtower) is
+archived. The override explicitly uses the maintained
+[`nicholas-fedor/watchtower` fork](https://github.com/nicholas-fedor/watchtower)
+(`nickfedor/watchtower:latest`); check Docker Engine/API compatibility on the
+host. It adds enable labels only to the existing API and Web services, sets
+`WATCHTOWER_LABEL_ENABLE=true`, and mounts the Docker socket only into the
+updater. It does not enable in-app updates or change the database volume.
+
+```sh
+docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web config --quiet
+docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web up -d
+docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web logs --tail=100 watchtower
+```
+
+Omit `--profile web` for API-only installations. Reuse `-p <original-project>`
+on every command if the deployment used it. On Synology Container Manager,
+merge the override labels and `watchtower` service into the **existing** project
+Compose definition, then redeploy the project; container restart alone does
+not apply labels or a new image. Keep the original bind mount or named volume.
+Watchtower checks once per day and recreates selected containers when floating
+images change. API and Web updates are independent, not atomic. After a change,
+check Compose `ps`, `logs api`, `/health` `version`/`revision`, and
+`compose images api admin-web` against the paired Hub tags; then verify browser
+login and inventory read. Stop Watchtower and restore a
+compatible API/Web pair from the consistent backup if necessary. Automatic
+updates have not been verified on a NAS in this change. Full steps are in
+[Docker Hub deployment](dockerhub.md#可选-watchtower-自动更新).
+
 ### 排查镜像与客户端账户接口不一致
 
 客户端提示服务端过老时，先按 [Docker 排障步骤](docker-quickstart.md#7-客户端提示服务端版本过老或无法确认账户身份)
@@ -53,6 +90,17 @@ an explicit export/reset process, never automatic inventory deletion.
 Web language is selected in login/settings; `/setup` has its own selector.
 The preference is saved in each browser origin, not as a server-wide language.
 
+The new Web login sends the account key once to `POST /auth/session`; browser login state in
+localStorage retains only the API URL. The API issues a 12-hour `HttpOnly`,
+`SameSite=Lax` cookie, and logout revokes the session. Native Android and
+Windows clients still authenticate with `Authorization: Bearer <account-key>`.
+Serve Web and API from the same site (the same scheme and hostname; ports 8081
+and 8787 may differ). Because those ports are different origins, configure the
+exact Web `scheme://host:port` in `ADMIN_WEB_ORIGINS`; credentialed CORS does not
+work with a wildcard. After changing an environment-provided origin, recreate
+the API with `compose up -d`; `restart` does not reload `.env`. A saved origin
+in `/data/config.json` is read dynamically. Ensure a reverse proxy forwards
+`/auth/session`, `/auth/me`, and `/admin-api/*` to the API.
 The admin console is read-only by default. Set `WEB_INVENTORY_ENABLED=true` on
 the API only when authenticated browser users should create locations and
 components, edit metadata, and record inbound/outbound movements. Writes use

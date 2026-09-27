@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -30,6 +31,7 @@ import androidx.compose.ui.test.swipe
 import com.componentvault.android.R
 import com.componentvault.android.model.ComponentAllocationRecord
 import com.componentvault.android.model.ComponentRecord
+import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.InventoryDetailUiState
 import com.componentvault.android.model.InventoryFiltersUiState
 import com.componentvault.android.model.InventoryListItemUiState
@@ -371,6 +373,33 @@ class InventoryInteractionUiTest {
         compose.runOnIdle { assertEquals(1, submitted) }
     }
 
+    @Test
+    fun componentEditorOffersCategoryAndLocationChoicesWhileKeepingManualEntry() {
+        var saved: ComponentDraft? = null
+        val component = ComponentRecord(id = "part-editor", sku = "C-42", name = "Maker R42",
+            category = "Resistor", packageName = "0603", location = "A", description = "",
+            quantity = 4, minStock = 0, updatedAt = "2026-09-27", deleted = false)
+        setInventoryContent {
+            MaterialTheme {
+                ComponentEditorSurface(existing = component, availableCategories = listOf("Widget"),
+                    storageLocations = listOf(StorageLocationRecord("A", "Shelf A", ""),
+                        StorageLocationRecord("B", "Shelf B", "")),
+                    layoutMode = compactMode, onDismiss = {}, onSave = { draft, _ -> saved = draft })
+            }
+        }
+        compose.onNodeWithTag("component_editor_category_choices").performClick()
+        compose.onNodeWithText("Widget").performClick()
+        compose.onNodeWithTag("component_editor_fields")
+            .performScrollToNode(hasTestTag("component_editor_location_choices"))
+        compose.onNodeWithTag("component_editor_location_choices").performClick()
+        compose.onNodeWithText("Shelf B (B)").performClick()
+        compose.onNodeWithTag("component_editor_location").performTextReplacement("CUSTOM")
+        compose.onNodeWithText(context.getString(R.string.action_save)).performClick()
+        compose.runOnIdle {
+            assertEquals("Widget", saved?.category)
+            assertEquals("CUSTOM", saved?.location)
+        }
+    }
     private val compactMode = InventoryLayoutMode(
         widthClass = InventoryWidthClass.Compact,
         supportsListDetail = false,

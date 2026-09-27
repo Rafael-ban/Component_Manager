@@ -17,6 +17,18 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.7.7-dev.6] - 2026-09-27
+
+### 账户、同步与界面验收版
+
+- 管理员可删除普通账户及其服务端数据库资料；保护管理员原库，取消该账户后台补全后清理，繁忙时保留停用状态供重试。
+- Web 使用 12 小时 HttpOnly 后端会话，刷新可恢复，退出/密钥轮换撤销；旧浏览器保存的原始密钥清除，原生客户端 Bearer 不变。
+- 同步页增加当前账户设备注册表、上传/拉取审计、冲突双方快照与人工处理记录。新原生客户端拉取附设备 ID，旧历史不补造。
+- 设置增加服务端关于、作者 Rafael-Ikaros、构建版本与正式版检测。取消应用内自更新，提供可选 Watchtower 配置；默认不自动更新容器。
+- Android 修正跨页详情状态隔离、分类/仓位可选可手填、筛选菜单主题与部分官方参数中文；记录页默认隐藏已删元件，开关可查看保留历史。
+- 标签工具复用原编辑器，先选六种模板之一与常用/自定义纸张，再编辑预览。新建默认 0°，恢复草稿保留保存角度；M1 走纸协议未改，其他纸张仍需设备验证。
+- 本版用于 GitHub CI 与实机验收；尚不作为正式版发布，不移动 Docker 稳定标签。
+
 ## [0.7.7-dev.5] - 2026-09-27
 
 ### 旧库存参数批量补全
@@ -72,6 +84,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
+
 ### 新增与改进
 
 - Android、Windows 与 Web 库存支持型号片段、品牌、官方参数和多个关键词组合搜索，兼容大小写、常见分隔符及 `µ/u`、`Ω/ohm` 写法；数值不做编辑距离猜测，避免混淆不同规格。
@@ -99,6 +115,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
+
 ### 新增
 
 - 服务端支持管理员创建普通账户、分发独立密钥、改名、启停和重置密钥；各账户使用独立 SQLite 库存。首次配置的管理员密钥与原有库存保持不变。
@@ -117,6 +137,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
+
 - 新增 Android 汉印 M1 日常蓝牙标签打印：从元件标签预览或库存批量入口选择元件和份数，支持紧凑二维码、完整二维码、纯文字、纸张尺寸、旋转及整图偏移。实际标签不打印外围边框，预览与发送使用同一份 203 dpi 位图。
 - 新增本地持久化打印队列，支持逐张进度、当前张完成后暂停、立即停止，以及核对后重打或跳过。发送前保存检查点，中断后的发送中标签转为待核对，不自动重复打印；打印不改变库存。
 - 修复 M1 连续打印跨标签、多出纸与打印后回复误判。根据汉码实机通信按最多 1024 原始字节分帧，分离处理通知与型号回复，普通打印统一使用正常标签结束命令。
@@ -131,6 +155,10 @@ bump: patch
 ## [0.7.3] - 2026-09-22
 
 <!-- Add unreleased notes below this line. -->
+
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
 
 - Add an opt-in Android M1 connection test in label-preview Bluetooth diagnostics.
   Paired Classic/dual-mode printers use SPP to query the model and, only after an
@@ -152,6 +180,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
+
 - Fix duplicate storage-location creation on Android and Windows: creating an
   existing code now reports an error instead of renaming the original location
   or reviving a deleted one. Trim surrounding whitespace before checking.
@@ -167,6 +199,10 @@ bump: patch
 ## [0.7.1] - 2026-09-22
 
 <!-- Add unreleased notes below this line. -->
+
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
 
 - Fix domestic LCSC lookup false positives by parsing valid product data before
   verification-page markers. Distinguish verification blocks, rate limits and
@@ -198,6 +234,10 @@ bump: patch
 ## [0.7.0] - 2026-09-22
 
 <!-- Add unreleased notes below this line. -->
+
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
 
 - Expand Chinese display of official LCSC categories, including current LDO
   category names. Known English categories in existing Android and Windows
@@ -231,6 +271,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
+
 - Added Android batch-scan settings: a persistent 0.5–5 second capture interval
   (default 1.5 seconds), independent success sound/vibration switches and visible
   success/duplicate/cooldown feedback. Only newly accepted packages trigger
@@ -255,6 +299,10 @@ bump: patch
 ## [0.5.4] - 2026-09-17
 
 <!-- Add unreleased notes below this line. -->
+
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
 
 - Fixed Windows WinUI 3 startup failing on a missing theme color resource; use
   the Windows App SDK background brush, including system high-contrast support.
@@ -285,6 +333,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
+
 - Preserved Android's Import and scan bottom sheet over the inventory page;
   separated Project BOM and data migration choices without replacing the entry
   workflow with a new page.
@@ -306,6 +358,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
+
 - Simplified Android inventory actions into an Import and scan menu, with batch
   JLC inbound grouped there and location management / Excel backup moved to Settings.
 - Fixed long batch inbound review and edit layouts with scrollable content,
@@ -322,6 +378,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
+
 - Fixed Android upgrades from existing databases failing before startup because
   the pre-upgrade backup executed a result-returning PRAGMA with execSQL.
 - Added a data-preserving startup failure page with retry and redacted diagnostics;
@@ -333,6 +393,10 @@ bump: patch
 ## [0.5.0] - 2026-09-15
 
 <!-- Add unreleased notes below this line. -->
+
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
 
 - Added visible import error dialogs and explicit duplicate-SKU inbound
   confirmation showing current quantity, added quantity and resulting total,
@@ -353,6 +417,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
+
 - Unified JLC text/QR parsing and improved Android multi-code selection so
   decoded packaging payloads are not rejected by the text-only entry point.
 - Added Android and Windows feedback forms with editable, opt-in diagnostic
@@ -367,6 +435,10 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
+
 - Unified Android and Windows inventory workbook size/row limits, separating
   full inventory backups from the smaller BOM import limit. Export validates its
   result before publishing the file so it can be read back by the clients.
@@ -377,6 +449,10 @@ bump: patch
 ## [0.4.0] - 2026-09-15
 
 <!-- Add unreleased notes below this line. -->
+
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
 
 - Added Chinese LCSC public catalog search, keyword candidates, structured
   parameter details and exact C-number fallback to the international storefront.
@@ -479,6 +555,10 @@ bump: patch
 ## [0.3.8] - 2026-05-16
 
 <!-- Add unreleased notes below this line. -->
+
+- 开发中：账户删除与数据清理、Web 后端会话、设备注册表、同步审计、冲突历史及处理记录；设置关于和正式版检测。
+- 开发中：Android 库存导航、参数中文、筛选主题、分类/仓位建议、已删除元件历史开关；标签模板与选纸流程。
+- 部署文档增加可选 Watchtower labels 配置；取消应用内服务端自更新。须 CI 与实机验收后再发布正式版。
 
 - Tightened Android small-label warehouse scanning with a dedicated movement
   scan mode that raises CameraX analysis resolution, enables bundled ML Kit

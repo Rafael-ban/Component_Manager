@@ -245,7 +245,7 @@ def load_admin_snapshot(
     sync_notes = [
         f'API health endpoint remains available at http://{settings.app_host}:{settings.app_port}/health.',
         'Managed inventory uses base_updated_at conflict checks; legacy snapshots use last-write-wins.',
-        'Device registry is not implemented yet; sync visibility is derived from server-side inventory state.',
+        'Device activity, push and pull audit, and detected conflicts are available on the Sync page.',
     ]
     if role == "admin" and settings.api_token == 'change-me':
         sync_notes.insert(0, 'API token is still the default value. Replace it before deployment.')

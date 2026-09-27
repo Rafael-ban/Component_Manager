@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.componentvault.android.data.LabelPrintQueueCodec
+import com.componentvault.android.data.M1TestPaperProfile
 import com.componentvault.android.data.ExistingImportTarget
 import com.componentvault.android.model.ComponentDraft
 import com.componentvault.android.model.ComponentImportCandidate
@@ -97,6 +98,7 @@ fun ComponentVaultApp(
     var labelPrintVisible by rememberSaveable { mutableStateOf(false) }
     var labelToolPickerVisible by rememberSaveable { mutableStateOf(false) }
     var labelToolTemplate by rememberSaveable { mutableStateOf(LabelToolTemplate.Component) }
+    var labelToolPaper by remember { mutableStateOf<M1TestPaperProfile?>(null) }
     var labelPrintFromToolPicker by rememberSaveable { mutableStateOf(false) }
     var pendingSingleAppend by remember { mutableStateOf<PendingSingleAppend?>(null) }
     var singleAppendBusy by remember { mutableStateOf(false) }
@@ -262,10 +264,10 @@ fun ComponentVaultApp(
             selectedSettingsSectionName = null
         }
     }
-    BackHandler(enabled = compactDetailComponentId != null && !layoutMode.showsListDetail) {
+    BackHandler(enabled = destination == InventoryDestination.Inventory && compactDetailComponentId != null && !layoutMode.showsListDetail) {
         compactDetailComponentId = null
     }
-    BackHandler(enabled = compactMovementDetailId != null && !layoutMode.showsListDetail) {
+    BackHandler(enabled = destination == InventoryDestination.Movements && compactMovementDetailId != null && !layoutMode.showsListDetail) {
         compactMovementDetailId = null
     }
 
@@ -333,6 +335,8 @@ fun ComponentVaultApp(
                 ComponentEditorSurface(
                     existing = editingComponent,
                     initialDraft = componentEditorInitialDraft,
+                    availableCategories = uiState.inventory.availableCategories,
+                    storageLocations = uiState.inventory.storageLocations,
                     layoutMode = layoutMode,
                     onDismiss = ::closeComponentEditor,
                     onSave = { draft, onComplete ->
@@ -428,8 +432,9 @@ fun ComponentVaultApp(
             )
 
             labelToolPickerVisible -> LabelToolTemplatePicker(
-                onSelect = { template ->
+                onSelect = { template, paper ->
                     labelToolTemplate = template
+                    labelToolPaper = paper
                     labelPrintFromToolPicker = true
                     labelToolPickerVisible = false
                     labelPrintVisible = true
@@ -441,6 +446,7 @@ fun ComponentVaultApp(
                 components = uiState.availableComponents,
                 initialSeed = labelPrintSeed,
                 initialToolTemplate = if (labelPrintSeed != null) LabelToolTemplate.Component else labelToolTemplate,
+                initialPaper = if (labelPrintFromToolPicker) labelToolPaper else null,
                 onDismiss = {
                     labelPrintVisible = false
                     labelPrintSeed = null
@@ -448,7 +454,7 @@ fun ComponentVaultApp(
                 },
             )
 
-            compactDetailComponentId != null && !layoutMode.showsListDetail -> {
+            destination == InventoryDestination.Inventory && compactDetailComponentId != null && !layoutMode.showsListDetail -> {
                 InventoryDetailRoute(
                     component = compactDetailComponent,
                     recentMovements = compactDetailMovements,
@@ -469,7 +475,7 @@ fun ComponentVaultApp(
                 )
             }
 
-            compactMovementDetailId != null && !layoutMode.showsListDetail -> {
+            destination == InventoryDestination.Movements && compactMovementDetailId != null && !layoutMode.showsListDetail -> {
                 MovementDetailRoute(
                     movement = compactMovementDetail,
                     onDismiss = { compactMovementDetailId = null },
@@ -611,6 +617,8 @@ fun ComponentVaultApp(
                 ComponentEditorSurface(
                     existing = editingComponent,
                     initialDraft = componentEditorInitialDraft,
+                    availableCategories = uiState.inventory.availableCategories,
+                    storageLocations = uiState.inventory.storageLocations,
                     layoutMode = layoutMode,
                     onDismiss = ::closeComponentEditor,
                     onSave = { draft, onComplete ->

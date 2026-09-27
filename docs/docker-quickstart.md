@@ -36,6 +36,18 @@ docker compose -f docker-compose.hub.yml --profile web up -d
 
 以后使用默认浮动标签更新时，先在 Docker Hub 核对 `latest` 和 `web-latest` 当前对应的版本，再在原部署目录执行 `docker compose -f docker-compose.hub.yml --profile web pull` 和 `docker compose -f docker-compose.hub.yml --profile web up -d`；仅部署 API 时去掉 `--profile web`。单独执行 `restart` 不会拉取新镜像。
 
+### 可选：Watchtower 自动更新 API 与 Web
+
+默认只使用 `docker-compose.hub.yml`，**不会自动更新**。若决定启用自动更新，先备份整个 `/data`（含管理员数据库、`users/`、`config.json`），确认 `.env` 的两个镜像变量仍是 `latest` / `web-latest` 且 Docker Hub 已发布配套版本，再把 [`docker-compose.watchtower.yml`](../docker-compose.watchtower.yml) 放进原部署目录。不要新建项目或换目录；保持原 Compose project name、`.env` 和数据卷。
+
+```sh
+docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web config --quiet
+docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web up -d
+docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web logs --tail=100 watchtower
+```
+
+只部署 API 时可省略 `--profile web`。覆盖文件仅给 `api`、`admin-web` 加 `com.centurylinklabs.watchtower.enable=true`，由独立 Watchtower 容器以 `WATCHTOWER_LABEL_ENABLE=true` 每 24 小时检查；Docker socket 只挂在 Watchtower 上。它会拉取新镜像并**重建**目标容器，`restart` 不会完成镜像升级。API 与 Web 是两个容器，更新不是同一事务；更新后查看 `docker compose ... ps`、`logs api`、`http://服务器IP:8787/health` 的 `version`/`revision`，再用相同 `-f` 参数执行 `images api admin-web` 核对配套镜像（仅部署 API 时只查 `api`），并打开 Web 确认登录、库存读取正常。出错时停用 Watchtower，再使用备份和已核对兼容的 API/Web 成对版本恢复；不要删除数据卷。完整边界与群晖配置见 [Watchtower 更新说明](dockerhub.md#可选-watchtower-自动更新)。
+
 ## 2. 群晖 Container Manager 与文件映射
 
 在群晖 File Station 中建立共享目录，例如 `/volume1/docker/component-manager/`，把 Compose 和 `.env` 放在其中，再建立 `data/` 子目录。通过 Container Manager 的 **项目** 导入 Compose 时，可将 API 的 volume 改成宿主目录映射：
@@ -72,6 +84,10 @@ services:
 已有部署可继续在 `.env` 或群晖 **api 容器 → 环境变量** 中设置 `API_TOKEN`、`ADMIN_WEB_ORIGINS`、`ADMIN_WEB_URL` 和 `WEB_INVENTORY_ENABLED`。非空环境变量优先于 `/data/config.json`；被环境变量接管的值不能在网页中修改。若希望网页管理某一项，应清空对应环境变量并执行 `up -d` 重建容器，仅执行 `restart` 不会重新读取 `.env`。
 
 `ADMIN_WEB_ORIGINS` 填浏览器访问 Web 页面的 origin，例如 `http://NAS地址:8081`，不是 API 的 `8787` 地址。后端未配置时仍采用内置 CORS 默认值，Web 库存写入默认关闭。
+新管理 Web 的登录状态仅将 **API 地址**保存在浏览器 localStorage；账户密钥只提交给 `POST /auth/session`，由 API 发放有效期 12 小时的 `HttpOnly` 会话 Cookie。登出会撤销会话；Android、Windows 仍使用各自账户密钥的 `Authorization: Bearer`，不依赖浏览器 Cookie。Web 与 API 应使用同一站点的主机名和协议，例如 `http://nas:8081` 与 `http://nas:8787`（不同端口可以）；混用 `nas`/IP、HTTP/HTTPS 或跨站域名可能令 `SameSite=Lax` Cookie 无法随请求发送。
+
+由于 8081 和 8787 是不同 **origin**，须把浏览器实际打开的 Web `scheme://host:port` 精确加入 `ADMIN_WEB_ORIGINS`，例如 `http://nas:8081`，不要填 API origin 或通配符。API 对允许来源启用带凭据 CORS；改动环境变量后在原项目目录执行 `up -d` **重建** API，单独 `restart` 不会读取新 `.env`。若设置保存于 `/data/config.json`，服务端会动态读取。反向代理应同时正确转发 `/auth/session`、`/auth/me` 与 `/admin-api/*`。
+
 `0.7.4` 的 API 支持设置管理台实际地址 `ADMIN_WEB_URL`；`0.7.4` 的 Web 管理台支持直接编辑服务端配置。默认的 `latest` 和 `web-latest` 应核对实际指向；开发预发布不发布 Docker 镜像。已有 `0.7.1` 部署可继续使用已认证的 `/setup` 修改配置。`ADMIN_WEB_URL` 可填写实际 Web 页面完整地址（支持反向代理子路径）；首次保存后先复制 API Token，再点“进入管理台”并用同一 Token 登录。
 
 `.env.example` 后半部分列出全部可由 Compose 传入的 LCSC、远程识别规则和 MQTT 高级选项。普通部署无需填写。Web 设置页保存的 MQTT 配置也位于 SQLite，并在 API 下次启动时优先于 MQTT 环境变量默认值。

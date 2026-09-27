@@ -5,6 +5,7 @@ from dataclasses import replace
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
+from typing import Literal
 
 from ..accounts import Account
 from ..auth import require_token, require_admin
@@ -52,6 +53,9 @@ from .operations import (
     update_component,
 )
 from .spec_enrichment import EnrichmentJobs, candidates
+from ..sync_observability import (
+    append_resolution, list_audit, list_conflicts, list_devices,
+)
 
 router = APIRouter(
     prefix="/admin-api",
@@ -88,7 +92,7 @@ def get_inventory(
         inventory_rules=[
             AdminKeyValueItem(
                 label="Conflict mode",
-                value="Last write wins on updated_at",
+                value="Managed inventory checks base_updated_at; legacy snapshots use last-write-wins on updated_at",
             ),
             AdminKeyValueItem(
                 label="Soft delete",
@@ -149,6 +153,47 @@ def get_component_detail(
 
 class SpecEnrichmentStart(BaseModel):
     component_ids: list[str] | None = Field(default=None, max_length=5000)
+
+
+class ConflictResolution(BaseModel):
+    resolution: Literal["server_kept", "client_resubmitted"]
+    note: str | None = Field(default=None, max_length=1000)
+
+
+@router.get("/sync/devices")
+def get_sync_devices(
+    connection: sqlite3.Connection = Depends(get_db),
+) -> dict[str, object]:
+    return {"items": list_devices(connection)}
+
+
+@router.get("/sync/audit")
+def get_sync_audit(
+    limit: int = Query(default=100, ge=1, le=500),
+    connection: sqlite3.Connection = Depends(get_db),
+) -> dict[str, object]:
+    return {"items": list_audit(connection, limit)}
+
+
+@router.get("/sync/conflicts")
+def get_sync_conflicts(
+    limit: int = Query(default=100, ge=1, le=500),
+    connection: sqlite3.Connection = Depends(get_db),
+) -> dict[str, object]:
+    return {"items": list_conflicts(connection, limit)}
+
+
+@router.post("/sync/conflicts/{conflict_id}/resolve")
+def post_sync_conflict_resolution(
+    conflict_id: int, draft: ConflictResolution,
+    connection: sqlite3.Connection = Depends(get_db),
+    account: Account = Depends(require_token),
+) -> dict[str, object]:
+    if not append_resolution(
+        connection, conflict_id, draft.resolution, draft.note, account.account_id,
+    ):
+        raise HTTPException(status_code=404, detail="Conflict not found.")
+    return {"conflict_id": conflict_id, "resolution": draft.resolution}
 
 
 @router.get("/components/spec-enrichment/candidates")
@@ -363,9 +408,12 @@ def get_sync(
         metrics=_metrics(snapshot),
         recent_movements=snapshot.recent_movements,
         sync_assumptions=[
-            AdminKeyValueItem(label="Conflict mode", value="Last write wins"),
+            AdminKeyValueItem(
+                label="Conflict mode",
+                value="Managed inventory checks base_updated_at; legacy snapshots use last-write-wins",
+            ),
             AdminKeyValueItem(label="Soft delete", value="Enabled"),
-            AdminKeyValueItem(label="Device registry", value="Not implemented"),
+            AdminKeyValueItem(label="Device registry", value="Available with per-device push and pull activity"),
             AdminKeyValueItem(
                 label="Authenticated routes",
                 value="/auth/ping, /sync/push, /sync/pull, /admin-api/*",
@@ -455,11 +503,7 @@ def get_settings_overview(
                 ),
             ),
         ],
-        next_backend_additions=[
-            "Per-device sync audit log",
-            "Conflict history and resolution records",
-            "Backend session auth for the web admin",
-        ],
+        next_backend_additions=[],
     )
 
 
@@ -579,7 +623,7 @@ def _attention_items(settings: Settings, *, role: str = "admin") -> list[str]:
             if settings.web_inventory_enabled
             else "Web inventory writes are disabled; clients own inventory writes."
         ),
-        "Sync visibility is derived from the latest accepted server-side rows.",
+        "Device activity, sync audit, and detected conflicts are available on the Sync page.",
     ]
 
 

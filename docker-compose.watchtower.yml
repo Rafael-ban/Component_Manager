@@ -1,0 +1,21 @@
+# Optional override for the published Hub Compose deployment.
+# Use with: docker compose -f docker-compose.hub.yml -f docker-compose.watchtower.yml --profile web up -d
+# The base Compose file alone never starts automatic updates.
+services:
+  api:
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  admin-web:
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  watchtower:
+    # Maintained Watchtower fork; original containrrr/watchtower is archived.
+    image: nickfedor/watchtower:latest
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: "86400"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped

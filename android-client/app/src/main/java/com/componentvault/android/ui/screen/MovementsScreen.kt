@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -28,13 +29,20 @@ import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
 import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneScaffold
 import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.componentvault.android.R
 import com.componentvault.android.model.MovementBatchQueueItemUiState
 import com.componentvault.android.model.MovementQuickAction
 import com.componentvault.android.model.MovementScanMatchStatus
@@ -43,6 +51,13 @@ import com.componentvault.android.model.MovementsUiState
 import com.componentvault.android.model.StockMovementRecord
 import kotlinx.coroutines.launch
 
+internal fun visibleMovementsForActiveComponents(
+    items: List<StockMovementRecord>,
+    activeComponentIds: Set<String>?,
+    includeDeletedComponents: Boolean,
+): List<StockMovementRecord> =
+    if (includeDeletedComponents || activeComponentIds == null) items
+    else items.filter { it.componentId in activeComponentIds }
 @Composable
 internal fun MovementsScreen(
     contentPadding: PaddingValues,
@@ -111,8 +126,18 @@ internal fun MovementsContent(
     onImportComponent: () -> Unit,
     onRecordMovement: () -> Unit,
 ) {
-    val effectiveSelectedMovement = uiState.items.firstOrNull { it.id == uiState.selectedMovementId }
-        ?: uiState.items.firstOrNull()
+    var includeDeletedComponents by rememberSaveable { mutableStateOf(false) }
+    val visibleItems = visibleMovementsForActiveComponents(uiState.items, uiState.activeComponentIds, includeDeletedComponents)
+    val hiddenDeletedCount = uiState.items.size -
+        visibleMovementsForActiveComponents(uiState.items, uiState.activeComponentIds, false).size
+    val visibleState = uiState.copy(
+        items = visibleItems,
+        selectedMovementId = uiState.selectedMovementId?.takeIf { selectedId ->
+            visibleItems.any { it.id == selectedId }
+        },
+    )
+    val effectiveSelectedMovement = visibleItems.firstOrNull { it.id == uiState.selectedMovementId }
+        ?: visibleItems.firstOrNull()
 
     if (layoutMode.showsListDetail) {
         val navigator = rememberListDetailPaneScaffoldNavigator<String>()
@@ -134,7 +159,10 @@ internal fun MovementsContent(
                     MovementMasterPane(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(),
-                        uiState = uiState,
+                        uiState = visibleState,
+                        hiddenDeletedCount = hiddenDeletedCount,
+                        includeDeletedComponents = includeDeletedComponents,
+                        onIncludeDeletedChange = { includeDeletedComponents = it },
                         statusMessage = statusMessage,
                         onSelectMovement = { movementId ->
                             onSelectMovement(movementId)
@@ -173,7 +201,10 @@ internal fun MovementsContent(
                 .fillMaxSize()
                 .consumeWindowInsets(contentPadding),
             contentPadding = rememberContentPadding(contentPadding, horizontal = 16.dp, vertical = 16.dp),
-            uiState = uiState,
+            uiState = visibleState,
+            hiddenDeletedCount = hiddenDeletedCount,
+            includeDeletedComponents = includeDeletedComponents,
+            onIncludeDeletedChange = { includeDeletedComponents = it },
             statusMessage = statusMessage,
             onSelectMovement = { movementId ->
                 onSelectMovement(movementId)
@@ -294,6 +325,9 @@ private fun MovementMasterPane(
     modifier: Modifier,
     contentPadding: PaddingValues,
     uiState: MovementsUiState,
+    hiddenDeletedCount: Int,
+    includeDeletedComponents: Boolean,
+    onIncludeDeletedChange: (Boolean) -> Unit,
     statusMessage: String,
     onSelectMovement: (String) -> Unit,
     onScanMovementLabel: () -> Unit,
@@ -313,7 +347,7 @@ private fun MovementMasterPane(
     val strings = vaultStrings()
 
     LazyColumn(
-        modifier = modifier,
+        modifier = modifier.testTag("movements_master_list"),
         contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -331,6 +365,21 @@ private fun MovementMasterPane(
             )
         }
 
+        if (uiState.activeComponentIds != null) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.movements_include_deleted_components, hiddenDeletedCount),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = includeDeletedComponents, onCheckedChange = onIncludeDeletedChange,
+                        modifier = Modifier.testTag("movements_include_deleted_components"))
+                }
+            }
+        }
         if (uiState.batchSession.queuedItems.isNotEmpty()) {
             item {
                 OutlinedButton(onClick = onOpenMovementBatchReview, modifier = Modifier.fillMaxWidth()) {
@@ -359,6 +408,7 @@ private fun MovementMasterPane(
                 MovementHistoryRow(
                     movement = movement,
                     selected = movement.id == uiState.selectedMovementId,
+                    componentDeleted = uiState.activeComponentIds?.let { movement.componentId !in it } == true,
                     onClick = { onSelectMovement(movement.id) },
                 )
             }

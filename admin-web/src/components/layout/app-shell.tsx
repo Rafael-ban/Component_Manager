@@ -16,7 +16,7 @@ const navigationItems = [
 
 export function AppShell() {
   const { t } = useI18n();
-  const { identity, logout, session } = useAuth();
+  const { identity, logout, session, logoutError } = useAuth();
 
   return (
     <div className="min-h-screen">
@@ -64,7 +64,7 @@ export function AppShell() {
                 {identity ? <p className="text-sm text-slate-600">{identity.role === "admin" && identity.name === "Administrator" ? t("管理员") : `${identity.name} · ${identity.role === "admin" ? t("管理员") : t("普通用户")}`}</p> : null}
               </div>
               <div className="flex items-center gap-3">
-                <Badge variant="success">{t("令牌有效")}</Badge>
+                <Badge variant="success">{t("会话有效")}</Badge>
                 <Button variant="outline" onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   {t("退出登录")}
@@ -74,6 +74,7 @@ export function AppShell() {
           </header>
 
           <main className="px-4 py-5 md:px-6 md:py-6">
+            {logoutError ? <p role="alert" className="mb-4 text-red-700">{t("退出失败，请重试。")}{logoutError}</p> : null}
             <Outlet />
           </main>
         </div>

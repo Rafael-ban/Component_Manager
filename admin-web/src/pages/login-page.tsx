@@ -27,7 +27,7 @@ export function LoginPage() {
   const location = useLocation();
   const { login, session } = useAuth();
   const [apiBaseUrl, setApiBaseUrl] = useState(() => session?.apiBaseUrl ?? loadStoredSession()?.apiBaseUrl ?? DEFAULT_API_BASE_URL);
-  const [token, setToken] = useState(() => session?.token ?? loadStoredSession()?.token ?? "");
+  const [token, setToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);

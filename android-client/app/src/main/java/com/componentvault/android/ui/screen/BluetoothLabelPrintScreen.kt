@@ -79,6 +79,7 @@ import com.componentvault.android.data.LabelElementType
 import com.componentvault.android.data.LabelPrintItemState
 import com.componentvault.android.data.M1ComponentLabelRenderer
 import com.componentvault.android.data.M1TestPaperProfile
+import com.componentvault.android.data.LabelPaperSize
 import com.componentvault.android.model.ComponentLabelSeed
 import com.componentvault.android.model.ComponentRecord
 import com.componentvault.android.model.toLabelSeed
@@ -112,9 +113,16 @@ internal fun BluetoothLabelPrintScreen(
     initialTemplateId: String = ComponentLabelTemplate.default.id,
     initialTextTemplateId: String = ComponentTextLabelTemplate.default.id,
     initialToolTemplate: LabelToolTemplate = LabelToolTemplate.Component,
+    initialPaper: M1TestPaperProfile? = null,
     onDismiss: () -> Unit,
 ) {
-    val freeMode = initialToolTemplate != LabelToolTemplate.Component
+    val freeMode = initialToolTemplate !in setOf(
+        LabelToolTemplate.Component, LabelToolTemplate.ComponentCompact, LabelToolTemplate.ComponentText)
+    val selectedInitialTemplateId = when (initialToolTemplate) {
+        LabelToolTemplate.ComponentCompact -> ComponentLabelTemplate.Qr10x40.id
+        LabelToolTemplate.ComponentText -> ComponentLabelTemplate.TextOnly.id
+        else -> initialTemplateId
+    }
     val freeTemplate = when (initialToolTemplate) {
         LabelToolTemplate.Qr -> FreeLabelTemplate.Qr
         LabelToolTemplate.Free -> FreeLabelTemplate.Free
@@ -165,8 +173,9 @@ internal fun BluetoothLabelPrintScreen(
     var draftDesignJson by rememberSaveable { mutableStateOf("{}") }
     var pendingTemplateId by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingTextTemplateId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingPaperSize by remember { mutableStateOf<LabelPaperSize?>(null) }
     val draftDesigns = remember(draftDesignJson) { readLabelDrafts(draftDesignJson) }
-    var templateId by rememberSaveable(initialTemplateId) { mutableStateOf(initialTemplateId) }
+    var templateId by rememberSaveable(selectedInitialTemplateId) { mutableStateOf(selectedInitialTemplateId) }
     var textTemplateId by rememberSaveable(initialTextTemplateId) { mutableStateOf(initialTextTemplateId) }
     var widthText by rememberSaveable { mutableStateOf("40") }
     var heightText by rememberSaveable { mutableStateOf("60") }
@@ -246,12 +255,12 @@ internal fun BluetoothLabelPrintScreen(
     }
     LaunchedEffect(controller.loaded, hasQueue) {
         if (controller.loaded && !hasQueue && !restoredPaper) {
-            widthText = queue.paper.widthMm.toString()
-            heightText = queue.paper.heightMm.toString()
+            widthText = (initialPaper?.widthMm ?: queue.paper.widthMm).toString()
+            heightText = (initialPaper?.heightMm ?: queue.paper.heightMm).toString()
             rotationText = queue.paper.rotationDegrees.toString()
             offsetXText = queue.paper.offsetXmm.toString()
             offsetYText = queue.paper.offsetYmm.toString()
-            if (initialSeed == null) {
+            if (initialSeed == null && initialPaper == null) {
                 templateId = queue.templateId
                 textTemplateId = queue.textTemplateId
             }
@@ -519,6 +528,10 @@ internal fun BluetoothLabelPrintScreen(
                     }
                 }
                 if (previewPaper != null && (previewSeed != null || previewFreeLabel != null)) {
+                    Text(stringResource(R.string.label_ui_paper_summary,
+                        previewPaper.widthMm.toString(), previewPaper.heightMm.toString(),
+                        previewPaper.rotationDegrees.toString()),
+                        style = MaterialTheme.typography.bodyMedium)
                     LabelEditorCanvas(if (preview.error == null && preview.request == previewRequest)
                         preview.bitmap else null,
                         activeDesign, previewPaper, selectedElementId, false, {}, { _, _, _ -> }, 210.dp)
@@ -642,6 +655,16 @@ internal fun BluetoothLabelPrintScreen(
                 }
                 "paper" -> {
                     Text(stringResource(R.string.label_ui_paper), style = MaterialTheme.typography.titleLarge)
+                    LabelPaperChoices(paper?.widthMm, paper?.heightMm, editable) { size ->
+                        if (paper?.let { it.widthMm == size.widthMm && it.heightMm == size.heightMm } != true) {
+                            if (draftDesigns.isNotEmpty()) pendingPaperSize = size
+                            else {
+                                widthText = size.widthMm.toInt().toString()
+                                heightText = size.heightMm.toInt().toString()
+                            }
+                        }
+                    }
+                    Text(stringResource(R.string.label_ui_custom_size), style = MaterialTheme.typography.titleSmall)
                     PrintNumberField(stringResource(R.string.bluetooth_label_print_width), widthText, { widthText = it }, editable)
                     PrintNumberField(stringResource(R.string.bluetooth_label_print_height), heightText, { heightText = it }, editable)
                     if (previewFreeLabel == null) {
@@ -676,8 +699,18 @@ internal fun BluetoothLabelPrintScreen(
                         Text(stringResource(R.string.label_editor_calibration))
                     }
                     if (calibrationExpanded) {
-                        PrintNumberField(stringResource(R.string.bluetooth_label_print_rotation), rotationText,
-                            { rotationText = it }, editable)
+                        Text(stringResource(R.string.bluetooth_label_print_rotation),
+                            style = MaterialTheme.typography.labelLarge)
+                        Row(Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            M1TestPaperProfile.Rotations.sorted().forEach { degrees ->
+                                FilterChip(selected = rotationText == degrees.toString(),
+                                    onClick = { rotationText = degrees.toString() },
+                                    label = { Text("$degrees°") }, enabled = editable)
+                            }
+                        }
+                        Text(stringResource(R.string.m1_paper_rotation_hint),
+                            style = MaterialTheme.typography.bodySmall)
                         PrintNumberField(stringResource(R.string.bluetooth_label_print_offset_x), offsetXText,
                             { offsetXText = it }, editable)
                         PrintNumberField(stringResource(R.string.bluetooth_label_print_offset_y), offsetYText,
@@ -782,6 +815,24 @@ internal fun BluetoothLabelPrintScreen(
             },
         )
     }
+    if (pendingPaperSize != null) AlertDialog(
+        onDismissRequest = { pendingPaperSize = null },
+        title = { Text(stringResource(R.string.label_ui_change_paper_title)) },
+        text = { Text(stringResource(R.string.label_ui_change_paper_warning)) },
+        confirmButton = { TextButton(onClick = {
+            pendingPaperSize?.let { size ->
+                widthText = size.widthMm.toInt().toString()
+                heightText = size.heightMm.toInt().toString()
+                draftDesignJson = "{}"
+                selectedElementId = null
+                invalidGeometryFields = arrayListOf()
+            }
+            pendingPaperSize = null
+        }) { Text(stringResource(R.string.label_editor_reset_confirm)) } },
+        dismissButton = { TextButton(onClick = { pendingPaperSize = null }) {
+            Text(stringResource(R.string.bluetooth_label_print_cancel))
+        } },
+    )
     if (pendingTemplateId != null || pendingTextTemplateId != null) AlertDialog(
         onDismissRequest = { pendingTemplateId = null; pendingTextTemplateId = null },
         title = { Text(stringResource(R.string.label_editor_reset_title)) },

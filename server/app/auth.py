@@ -3,19 +3,28 @@ from __future__ import annotations
 from typing import Annotated
 from pathlib import Path
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 
 from .config import Settings, get_settings
 from .accounts import Account, authenticate
+from .web_sessions import COOKIE_NAME, authenticate_session, csrf_for_token
 
 
 def require_token(
+    request: Request,
     authorization: Annotated[str | None, Header()] = None,
     x_api_token: Annotated[str | None, Header()] = None,
     settings: Settings = Depends(get_settings),
 ) -> Account:
     token = _extract_token(authorization=authorization, x_api_token=x_api_token)
-    account = authenticate(settings, token or "")
+    account = authenticate(settings, token) if token else None
+    if account is None and not token:
+        cookie = request.cookies.get(COOKIE_NAME)
+        account = authenticate_session(settings, cookie)
+        if account is not None and request.method not in {"GET", "HEAD", "OPTIONS"}:
+            supplied_csrf = request.headers.get("X-CSRF-Token", "")
+            if not cookie or not supplied_csrf or supplied_csrf != csrf_for_token(cookie):
+                raise HTTPException(status_code=403, detail="CSRF token required.")
     if account is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

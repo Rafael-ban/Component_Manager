@@ -117,6 +117,7 @@ class EnrichmentJob:
     failed: int = 0
     cancel: Event = field(default_factory=Event)
     lock: Lock = field(default_factory=Lock)
+    thread: Thread | None = None
 
     def snapshot(self) -> dict[str, object]:
         with self.lock:
@@ -147,11 +148,24 @@ class EnrichmentJobs:
     def __init__(self) -> None:
         self._jobs: dict[str, EnrichmentJob] = {}
         self._lock = Lock()
+        self._blocked_accounts: set[tuple[str, str]] = set()
 
     def cancel_all(self) -> None:
         with self._lock:
             for job in self._jobs.values():
                 job.cancel.set()
+
+    def cancel_account_and_wait(self, account_id: str, database_path: str) -> None:
+        with self._lock:
+            self._blocked_accounts.add((account_id, database_path))
+            threads = []
+            for job in self._jobs.values():
+                if job.account_id == account_id and job.database_path == database_path:
+                    job.cancel.set()
+                    if job.thread is not None:
+                        threads.append(job.thread)
+        for thread in threads:
+            thread.join()
 
     def get(self, job_id: str, account: Account) -> EnrichmentJob | None:
         with self._lock:
@@ -197,6 +211,8 @@ class EnrichmentJobs:
             items=[{**item, "status": "pending", "reason": ""} for item in items],
         )
         with self._lock:
+            if (account.account_id, account.database_path) in self._blocked_accounts:
+                raise ValueError("This account is being deleted.")
             if any(
                 existing.account_id == account.account_id
                 and existing.database_path == account.database_path
@@ -205,7 +221,8 @@ class EnrichmentJobs:
             ):
                 raise ValueError("An enrichment job is already running for this account.")
             self._jobs[job.id] = job
-        Thread(target=self._run, args=(job, account, settings), daemon=True).start()
+        job.thread = Thread(target=self._run, args=(job, account, settings), daemon=True)
+        job.thread.start()
         return job
 
     def _run(self, job: EnrichmentJob, account: Account, settings: Settings) -> None:

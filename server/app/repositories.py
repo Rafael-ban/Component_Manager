@@ -11,6 +11,7 @@ from .storage import (
     check_component_version, load_allocations, save_allocations,
     save_locations, validate_inventory_push,
 )
+from .sync_observability import record_conflict, record_entity_source, record_push
 
 
 def save_components(
@@ -18,12 +19,15 @@ def save_components(
     components: list[ComponentPayload],
     *,
     mqtt_topic_prefix: str | None = None,
+    device_id: str | None = None,
 ) -> int:
     accepted = 0
     for component in components:
         try:
-            was_accepted = _upsert_component(connection, component)
+            was_accepted = _upsert_component(connection, component, device_id=device_id)
             accepted += int(was_accepted)
+            if was_accepted:
+                record_entity_source(connection, "component", component.id, device_id)
             if was_accepted and mqtt_topic_prefix is not None:
                 from .mqtt import enqueue_component_state
 
@@ -38,10 +42,14 @@ def save_components(
 def save_stock_movements(
     connection: sqlite3.Connection,
     stock_movements: list[StockMovementPayload],
+    *, device_id: str | None = None,
 ) -> int:
     accepted = 0
     for stock_movement in stock_movements:
-        accepted += int(_upsert_stock_movement(connection, stock_movement))
+        was_accepted = _upsert_stock_movement(connection, stock_movement, device_id=device_id)
+        accepted += int(was_accepted)
+        if was_accepted:
+            record_entity_source(connection, "stock_movement", stock_movement.id, device_id)
     return accepted
 
 
@@ -81,11 +89,14 @@ def save_sync_payload_in_transaction(
         connection,
         payload.components,
         mqtt_topic_prefix=mqtt_topic_prefix,
+        device_id=payload.device_id,
     )
     accepted_stock_movements = save_stock_movements(
         connection,
         payload.stock_movements,
+        device_id=payload.device_id,
     )
+    record_push(connection, payload.device_id, accepted_components, accepted_stock_movements)
     invalid_location = connection.execute("""
         SELECT a.location_id FROM component_allocations a
         JOIN storage_locations l ON l.id = a.location_id
@@ -160,6 +171,7 @@ def pull_sync_snapshot(
 def _upsert_component(
     connection: sqlite3.Connection,
     component: ComponentPayload,
+    *, device_id: str | None = None,
 ) -> bool:
     new_updated_at = _to_storage_time(component.updated_at)
     existing = connection.execute(
@@ -168,10 +180,26 @@ def _upsert_component(
     ).fetchone()
     if check_component_version(connection, existing, component):
         return False
-    if component.allocations is None and existing and _parse_storage_time(existing["updated_at"]) > _as_utc(
-        component.updated_at
-    ):
-        return False
+    if component.allocations is None and existing:
+        old_time = _parse_storage_time(existing["updated_at"])
+        new_time = _as_utc(component.updated_at)
+        fields = ("sku", "name", "category", "package_name", "location", "description",
+                  "quantity", "min_stock", "deleted")
+        incoming = component.model_dump()
+        different = any(
+            (bool(existing[key]) != bool(incoming[key]) if key == "deleted"
+             else existing[key] != incoming[key]) for key in fields
+        )
+        if different and old_time >= new_time:
+            record_conflict(
+                connection, entity_type="component", entity_id=component.id,
+                device_id=device_id,
+                kind="stale_lww" if old_time > new_time else "equal_timestamp_lww",
+                winner="server" if old_time > new_time else "incoming",
+                server_value=dict(existing), incoming_value=component.model_dump(mode="json"),
+            )
+        if old_time > new_time:
+            return False
 
     sync_revision = _next_sync_revision(connection)
 
@@ -227,16 +255,33 @@ def _upsert_component(
 def _upsert_stock_movement(
     connection: sqlite3.Connection,
     stock_movement: StockMovementPayload,
+    *, device_id: str | None = None,
 ) -> bool:
     new_updated_at = _to_storage_time(stock_movement.updated_at)
     existing = connection.execute(
-        "SELECT updated_at FROM stock_movements WHERE id = ?",
+        "SELECT * FROM stock_movements WHERE id = ?",
         (stock_movement.id,),
     ).fetchone()
-    if existing and _parse_storage_time(existing["updated_at"]) > _as_utc(
-        stock_movement.updated_at
-    ):
-        return False
+    if existing:
+        old_time = _parse_storage_time(existing["updated_at"])
+        new_time = _as_utc(stock_movement.updated_at)
+        fields = ("component_id", "movement_type", "quantity", "reason", "note",
+                  "location_id", "destination_location_id", "deleted")
+        incoming = stock_movement.model_dump()
+        different = any(
+            (bool(existing[key]) != bool(incoming[key]) if key == "deleted"
+             else existing[key] != incoming[key]) for key in fields
+        )
+        if different and old_time >= new_time:
+            record_conflict(
+                connection, entity_type="stock_movement", entity_id=stock_movement.id,
+                device_id=device_id,
+                kind="stale_lww" if old_time > new_time else "equal_timestamp_lww",
+                winner="server" if old_time > new_time else "incoming",
+                server_value=dict(existing), incoming_value=stock_movement.model_dump(mode="json"),
+            )
+        if old_time > new_time:
+            return False
 
     sync_revision = _next_sync_revision(connection)
 

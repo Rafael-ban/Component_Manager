@@ -10,12 +10,13 @@ from typing import Annotated, Iterator
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .application_logging import log_event, recent_log_lines
 from .auth import _extract_token
+from .web_sessions import COOKIE_NAME, authenticate_session, csrf_for_token
 from .config import (
     PERSISTED_ENVIRONMENT_FIELDS,
     config_path,
@@ -69,19 +70,24 @@ def _configured() -> bool:
 
 
 def _require_current_token(
+    request: Request,
     authorization: str | None,
     x_api_token: str | None,
 ) -> None:
     expected = get_settings().api_token
     supplied = _extract_token(authorization, x_api_token)
-    if (
-        not expected
-        or not supplied
-        or not secrets.compare_digest(
-            supplied.encode("utf-8"), expected.encode("utf-8")
-        )
-    ):
+    if supplied:
+        if expected and secrets.compare_digest(supplied.encode(), expected.encode()):
+            return
         raise HTTPException(status_code=401, detail="Invalid API token")
+    cookie = request.cookies.get(COOKIE_NAME)
+    account = authenticate_session(get_settings(), cookie)
+    if account is None or account.role != "admin":
+        raise HTTPException(status_code=401, detail="Invalid API token")
+    if request.method not in {"GET", "HEAD", "OPTIONS"} and (
+        not cookie or request.headers.get("X-CSRF-Token") != csrf_for_token(cookie)
+    ):
+        raise HTTPException(status_code=403, detail="CSRF token required.")
 
 
 def _validate_requested_token(token: str) -> None:
@@ -146,10 +152,11 @@ def setup_status() -> dict[str, bool]:
 
 @router.get("/setup/config")
 def setup_config(
+    request: Request,
     authorization: Annotated[str | None, Header()] = None,
     x_api_token: Annotated[str | None, Header()] = None,
 ) -> dict[str, object]:
-    _require_current_token(authorization, x_api_token)
+    _require_current_token(request, authorization, x_api_token)
     settings = get_settings()
     return {
         "configured": True,
@@ -165,17 +172,18 @@ def setup_config(
 @router.post("/setup/config")
 def update_setup_config(
     update: DeploymentConfigurationUpdate,
+    request: Request,
     authorization: Annotated[str | None, Header()] = None,
     x_api_token: Annotated[str | None, Header()] = None,
 ) -> dict[str, object]:
     was_configured = _configured()
     if was_configured:
-        _require_current_token(authorization, x_api_token)
+        _require_current_token(request, authorization, x_api_token)
     with _exclusive_configuration_write():
         get_settings.cache_clear()
         current = get_settings()
         if was_configured:
-            _require_current_token(authorization, x_api_token)
+            _require_current_token(request, authorization, x_api_token)
         if not was_configured and current.api_token:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -240,8 +248,9 @@ def update_setup_config(
 
 @router.get("/setup/logs")
 def setup_logs(
+    request: Request,
     authorization: Annotated[str | None, Header()] = None,
     x_api_token: Annotated[str | None, Header()] = None,
 ) -> dict[str, object]:
-    _require_current_token(authorization, x_api_token)
+    _require_current_token(request, authorization, x_api_token)
     return {"lines": recent_log_lines(), "log_path": str(log_path())}

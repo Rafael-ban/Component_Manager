@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { useAdminResource } from "@/hooks/use-admin-resource";
 import { useAuth } from "@/hooks/use-auth";
-import { ApiError, patchJson, postJson } from "@/lib/api";
+import { ApiError, deleteJson, patchJson, postJson } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { useI18n } from "@/lib/i18n";
 import type { IssuedKey, ManagedAccount } from "@/lib/types";
@@ -23,6 +23,8 @@ export function AccountsSettingsCard() {
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [pendingRotate, setPendingRotate] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [deleteName, setDeleteName] = useState("");
 
   async function act(key: string, operation: () => Promise<unknown>, success: string) {
     setBusy(key);
@@ -72,7 +74,19 @@ export function AccountsSettingsCard() {
               <Button size="sm" variant="outline" disabled={busy !== null || !draft.trim() || draft.trim() === account.name} onClick={() => { if (!session) return; void act(account.account_id, () => patchJson(session, `/admin-api/accounts/${encodeURIComponent(account.account_id)}`, { name: draft.trim() }), t("账户已更新。")); }}>{t("保存名称")}</Button>
               <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => { if (!session) return; void act(account.account_id, () => patchJson(session, `/admin-api/accounts/${encodeURIComponent(account.account_id)}`, { active: !account.active }), t("账户已更新。")); }}>{account.active ? t("停用账户") : t("启用账户")}</Button>
               <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => setPendingRotate(account.account_id)}>{t("重置密钥")}</Button>
+              <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => { setPendingDelete(account.account_id); setDeleteName(""); setPendingRotate(null); }}>{t("删除账户")}</Button>
             </div>
+            {pendingDelete === account.account_id ? <div role="group" aria-label={t("删除账户")} className="mt-4 space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
+              <p className="text-sm text-red-900">{t("这会永久删除该账户及其服务端库存、流水和同步记录，无法撤销。客户端本地数据不会被远程删除。")}</p>
+              <label className="block text-sm">{t("输入账户名称确认：")}<strong>{account.name}</strong><Input className="mt-2" autoComplete="off" value={deleteName} onChange={(event) => setDeleteName(event.target.value)} /></label>
+              <div className="flex gap-2"><Button size="sm" variant="destructive" disabled={busy !== null || deleteName !== account.name} onClick={() => {
+                if (!session) return;
+                void act(account.account_id, async () => {
+                  await deleteJson(session, `/admin-api/accounts/${encodeURIComponent(account.account_id)}`);
+                  setPendingDelete(null); setIssuedKey(null);
+                }, t("账户和服务端数据已删除。"));
+              }}>{t("永久删除")}</Button><Button size="sm" variant="outline" disabled={busy !== null} onClick={() => setPendingDelete(null)}>{t("取消")}</Button></div>
+            </div> : null}
             {pendingRotate === account.account_id ? <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm"><p>{t("重置后旧密钥会立即失效。")}</p><div className="mt-2 flex gap-2"><Button size="sm" disabled={busy !== null} onClick={() => { if (!session) return; setPendingRotate(null); void act(account.account_id, async () => { const rotated = await postJson<IssuedKey>(session, `/admin-api/accounts/${encodeURIComponent(account.account_id)}/rotate-key`, {}); setIssuedKey(rotated.api_token); setCopied(false); }, t("密钥已重置。")); }}>{t("确认重置密钥")}</Button><Button size="sm" variant="ghost" onClick={() => setPendingRotate(null)}>{t("取消重置")}</Button></div></div> : null}
           </div>;
         })}

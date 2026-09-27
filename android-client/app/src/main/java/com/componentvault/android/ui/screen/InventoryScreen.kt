@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,6 +52,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -69,7 +71,19 @@ import com.componentvault.android.model.StockUsageSummary
 import com.componentvault.android.ui.theme.VaultWarning
 import com.componentvault.android.ui.theme.VaultWarningContainer
 import kotlinx.coroutines.launch
+import java.util.Locale
 
+internal fun localizedOfficialParameterValue(kind: String?, value: String, locale: Locale): String {
+    if (kind != "type" || !locale.language.equals("zh", ignoreCase = true)) return value
+    return when (value.trim().lowercase(Locale.ROOT)) {
+        "ceramic", "ceramic capacitor" -> "陶瓷电容"
+        "multilayer ceramic capacitor", "multilayer ceramic capacitors", "mlcc" -> "多层陶瓷电容"
+        "thick film" -> "厚膜"
+        "thin film" -> "薄膜"
+        "smd", "surface mount" -> "贴片"
+        else -> value
+    }
+}
 @Composable
 internal fun InventoryScreen(
     contentPadding: PaddingValues,
@@ -550,7 +564,13 @@ private fun FilterMenuButton(
     menuContent: @Composable ColumnScope.() -> Unit,
 ) {
     Box {
-        OutlinedButton(onClick = { onExpandedChange(true) }) {
+        OutlinedButton(
+            onClick = { onExpandedChange(true) },
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (expanded) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -570,6 +590,8 @@ private fun FilterMenuButton(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) },
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            shape = MaterialTheme.shapes.medium,
         ) {
             menuContent()
         }
@@ -692,9 +714,13 @@ internal fun InventoryDetailPane(
                         "voltage" -> stringResource(R.string.inventory_param_voltage)
                         "tolerance" -> stringResource(R.string.inventory_param_tolerance)
                         "power" -> stringResource(R.string.inventory_param_power)
+                        "operating_temperature" -> stringResource(R.string.inventory_param_operating_temperature)
+                        "type" -> stringResource(R.string.inventory_param_type)
+                        "temperature_coefficient" -> stringResource(R.string.inventory_param_temperature_coefficient)
                         else -> key
                     }
-                    ValueBlock(label = label, value = value)
+                    val locale = LocalContext.current.resources.configuration.locales[0] ?: Locale.getDefault()
+                    ValueBlock(label = label, value = localizedOfficialParameterValue(officialParameterKind(key), value, locale))
                 }
             }
         }
