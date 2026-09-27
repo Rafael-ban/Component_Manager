@@ -25,11 +25,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -389,8 +393,8 @@ internal fun BluetoothLabelPrintScreen(
         },
     ) { padding ->
         if (!showPrintView) {
-            Column(Modifier.padding(padding).fillMaxSize().padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.padding(padding).fillMaxSize().padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
                     Text(previewFreeLabel?.title ?: previewSeed?.let { it.name.ifBlank { it.sku } }
@@ -402,6 +406,9 @@ internal fun BluetoothLabelPrintScreen(
                         Text(paper?.let { context.getString(R.string.label_ui_paper_summary,
                             it.widthMm.toString(), it.heightMm.toString(), it.rotationDegrees.toString()) }
                             ?: stringResource(R.string.label_ui_paper))
+                    }
+                    IconButton(onClick = { sheetPanel = "export" }) {
+                        Icon(Icons.Default.Share, contentDescription = stringResource(R.string.label_ui_export))
                     }
                 }
                 if (!controller.loaded || controller.working) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -441,37 +448,15 @@ internal fun BluetoothLabelPrintScreen(
                         TextButton(onClick = {
                             if (panel == "content") {
                                 if (selectedElementId == null) selectedElementId = activeDesign?.elements?.firstOrNull()?.id
-                            } else sheetPanel = panel
+                            }
+                            sheetPanel = panel
                         }, modifier = Modifier.weight(1f)) { Text(stringResource(title)) }
                     }
                 }
-                if (activeDesign != null) Row(Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    activeDesign.elements.forEach { element ->
-                        FilterChip(selected = selectedElementId == element.id,
-                            onClick = { selectedElementId = element.id; invalidGeometryFields = arrayListOf() },
-                            label = { Text(element.text.take(16).ifBlank { element.id }) })
-                    }
-                }
-                if (selectedElement == null) Text(stringResource(R.string.label_ui_select_element),
-                        style = MaterialTheme.typography.bodySmall)
-                else if (selectedElement.type == LabelElementType.Text) {
-                        OutlinedTextField(selectedElement.text,
-                            { activeDesign?.let { design -> updateDesign(design.withText(selectedElement.id, it)) } },
-                            label = { Text(stringResource(R.string.label_editor_text)) },
-                            modifier = Modifier.fillMaxWidth(), enabled = editable, maxLines = 3)
-                } else if (previewFreeLabel != null) {
-                        OutlinedTextField(selectedElement.text,
-                            { activeDesign?.let { design -> updateDesign(design.withQrPayload(selectedElement.id, it)) } },
-                            label = { Text(stringResource(R.string.label_tool_qr_payload)) },
-                            modifier = Modifier.fillMaxWidth(), enabled = editable, maxLines = 3)
-                } else Text(stringResource(R.string.label_editor_qr_identity),
-                        style = MaterialTheme.typography.bodySmall)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { sheetPanel = "export" }) {
-                        Text(stringResource(R.string.label_ui_export))
-                    }
-                }
+                Text(selectedElement?.text?.take(48)?.ifBlank { selectedElement.id }
+                    ?: stringResource(R.string.label_ui_select_element),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall)
             }
         } else {
             Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
@@ -584,6 +569,31 @@ internal fun BluetoothLabelPrintScreen(
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             when (sheetPanel) {
+                "content" -> {
+                    Text(stringResource(R.string.label_ui_content), style = MaterialTheme.typography.titleLarge)
+                    if (activeDesign != null) Row(Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        activeDesign.elements.forEach { element ->
+                            FilterChip(selected = selectedElementId == element.id,
+                                onClick = { selectedElementId = element.id; invalidGeometryFields = arrayListOf() },
+                                label = { Text(element.text.take(16).ifBlank { element.id }) })
+                        }
+                    }
+                    if (selectedElement == null) Text(stringResource(R.string.label_ui_select_element),
+                        style = MaterialTheme.typography.bodySmall)
+                    else if (selectedElement.type == LabelElementType.Text) {
+                        OutlinedTextField(selectedElement.text,
+                            { activeDesign?.let { design -> updateDesign(design.withText(selectedElement.id, it)) } },
+                            label = { Text(stringResource(R.string.label_editor_text)) },
+                            modifier = Modifier.fillMaxWidth(), enabled = editable, maxLines = 3)
+                    } else if (previewFreeLabel != null) {
+                        OutlinedTextField(selectedElement.text,
+                            { activeDesign?.let { design -> updateDesign(design.withQrPayload(selectedElement.id, it)) } },
+                            label = { Text(stringResource(R.string.label_tool_qr_payload)) },
+                            modifier = Modifier.fillMaxWidth(), enabled = editable, maxLines = 3)
+                    } else Text(stringResource(R.string.label_editor_qr_identity),
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 "position" -> {
                     Text(stringResource(R.string.label_ui_position), style = MaterialTheme.typography.titleLarge)
                     Text(stringResource(R.string.label_editor_preview_hint),

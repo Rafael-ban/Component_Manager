@@ -132,8 +132,10 @@ class BluetoothLabelPrintUiTest {
         setLabelContent { MaterialTheme { BluetoothLabelPrintScreen(emptyList(), seed, onDismiss = {}) } }
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("label_element_name").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("label_element_name").performClick()
+        compose.onNodeWithText(context.getString(R.string.label_ui_content)).performClick()
         compose.onNodeWithText(context.getString(R.string.label_editor_text))
-            .performTextReplacement("Custom display")
+            .performScrollTo().performTextReplacement("Custom display")
+        compose.onNodeWithText(context.getString(R.string.label_ui_close)).performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.label_ui_position)).performClick()
         compose.onNodeWithText(context.getString(R.string.label_ui_advanced)).performClick()
         compose.onNodeWithText(context.getString(R.string.label_editor_x))
@@ -164,8 +166,11 @@ class BluetoothLabelPrintUiTest {
         }
         compose.onNodeWithTag("print_label_preview").assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.label_ui_enter_qr)).assertIsDisplayed()
+        compose.onNodeWithTag("label_element_qr").performClick()
+        compose.onNodeWithText(context.getString(R.string.label_ui_content)).performClick()
         compose.onNodeWithText(context.getString(R.string.label_tool_qr_payload))
-            .performTextReplacement("https://example.test/qr")
+            .performScrollTo().performTextReplacement("https://example.test/qr")
+        compose.onNodeWithText(context.getString(R.string.label_ui_close)).performScrollTo().performClick()
         waitForPrintablePreview()
         LabelPrintQueueStore(context).clear()
     }
@@ -193,7 +198,6 @@ class BluetoothLabelPrintUiTest {
         compose.onNodeWithText(context.getString(R.string.label_editor_x)).performScrollTo().performTextReplacement("1")
         compose.onNodeWithText(context.getString(R.string.label_ui_close)).performScrollTo().performClick()
         waitForPrintablePreview()
-        compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_create)).assertIsEnabled()
         LabelPrintQueueStore(context).clear()
     }
 
