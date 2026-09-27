@@ -188,7 +188,7 @@ internal fun BluetoothLabelPrintScreen(
         if (controller.running) {
             leaveAfterStop = true
             confirmStop = true
-        } else if (showPrintView) showPrintView = false
+        } else if (showPrintView && controller.queue.items.isEmpty()) showPrintView = false
         else onDismiss()
     }
 
