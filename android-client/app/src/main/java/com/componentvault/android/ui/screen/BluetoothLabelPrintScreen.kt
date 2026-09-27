@@ -8,11 +8,13 @@ import kotlinx.coroutines.CancellationException
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
@@ -28,8 +30,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -46,11 +50,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.mapSaver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -95,6 +100,7 @@ private data class PrintPreview(
     val error: String? = null,
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun BluetoothLabelPrintScreen(
     components: List<ComponentRecord>,
@@ -114,8 +120,8 @@ internal fun BluetoothLabelPrintScreen(
     val clipboard = LocalClipboardManager.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val controller = remember(context) { LabelPrintController(context) }
-    val choices = remember(components, initialSeed) {
-        buildList {
+    val choices = remember(components, initialSeed, freeMode) {
+        if (freeMode) emptyList<PrintableComponent>() else buildList {
             if (initialSeed != null) add(PrintableComponent("initial:${initialSeed.sku}", initialSeed))
             components.filterNot(ComponentRecord::deleted).filter { initialSeed == null || it.sku != initialSeed.sku }
                 .forEach { add(PrintableComponent(it.id, it.toLabelSeed())) }
@@ -140,7 +146,6 @@ internal fun BluetoothLabelPrintScreen(
     )) { mutableStateMapOf<String, String>() }
     var search by rememberSaveable { mutableStateOf("") }
     var troubleshootingExpanded by remember { mutableStateOf(false) }
-    var choosingComponents by rememberSaveable { mutableStateOf(initialSeed == null && !freeMode) }
     var freeTitle by rememberSaveable { mutableStateOf(context.getString(when (initialToolTemplate) {
         LabelToolTemplate.Qr -> R.string.label_tool_qr
         LabelToolTemplate.Text -> R.string.label_tool_text
@@ -171,12 +176,16 @@ internal fun BluetoothLabelPrintScreen(
     var localMessage by remember { mutableStateOf<String?>(null) }
     var confirmStop by remember { mutableStateOf(false) }
     var leaveAfterStop by remember { mutableStateOf(false) }
+    var showPrintView by rememberSaveable { mutableStateOf(false) }
+    var sheetPanel by remember { mutableStateOf<String?>(null) }
+    var advancedGeometry by rememberSaveable { mutableStateOf(false) }
 
     fun requestBack() {
         if (controller.running) {
             leaveAfterStop = true
             confirmStop = true
-        } else onDismiss()
+        } else if (showPrintView) showPrintView = false
+        else onDismiss()
     }
 
     LaunchedEffect(controller) { controller.load() }
@@ -228,6 +237,9 @@ internal fun BluetoothLabelPrintScreen(
         (freeCopies.toIntOrNull() ?: 0) in 1..99
     val queue = controller.queue
     val hasQueue = queue.items.isNotEmpty()
+    LaunchedEffect(controller.loaded, hasQueue) {
+        if (controller.loaded && hasQueue) showPrintView = true
+    }
     LaunchedEffect(controller.loaded, hasQueue) {
         if (controller.loaded && !hasQueue && !restoredPaper) {
             widthText = queue.paper.widthMm.toString()
@@ -320,153 +332,89 @@ internal fun BluetoothLabelPrintScreen(
     // Once published to Compose, the RenderThread may retain this bitmap past disposal.
     // Let GC release displayed previews; only recycle temporary, never-published rasters.
 
+    val selectedCandidate = controller.transport.candidates.firstOrNull {
+        it.paired && it.type in setOf(BluetoothDevice.DEVICE_TYPE_CLASSIC, BluetoothDevice.DEVICE_TYPE_DUAL) &&
+            it.address == controller.selectedAddress
+    }
+    val blankQr = previewFreeLabel != null && activeDesign?.elements?.any {
+        it.type == LabelElementType.Qr && it.text.isBlank()
+    } == true
+    val previewError = preview.error.takeIf { preview.request == previewRequest }
+    val canCreate = editable && (if (draftFreeLabel != null) validFree
+        else validSelection && printDesigns.size == draftSelections.size) &&
+        paper != null && invalidGeometryFields.isEmpty() && !blankQr &&
+        preview.request == previewRequest && preview.bitmap != null && preview.error == null
+    val selectedElement = activeDesign?.elements?.firstOrNull { it.id == selectedElementId }
+
     SecondaryPageScaffold(
-        title = stringResource(R.string.bluetooth_label_print_title),
+        title = stringResource(if (showPrintView) R.string.label_ui_print_ready else R.string.bluetooth_label_print_title),
         onBack = ::requestBack,
         bottomBar = {
-            val selectedCandidate = controller.transport.candidates.firstOrNull {
-                it.paired && it.type in setOf(BluetoothDevice.DEVICE_TYPE_CLASSIC, BluetoothDevice.DEVICE_TYPE_DUAL) &&
-                    it.address == controller.selectedAddress
-            }
-            Row(
-                Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (!hasQueue) {
-                    Button(
-                        onClick = { paper?.let { sheet ->
-                            if (draftFreeLabel != null && activeDesign != null) {
-                                controller.createFree(draftFreeLabel, freeCopies.toInt(), sheet, activeDesign)
-                            } else controller.create(draftSelections, templateId, textTemplateId, sheet, printDesigns)
-                        } },
-                        modifier = Modifier.weight(1f),
-                        enabled = editable && (if (draftFreeLabel != null) validFree
-                            else validSelection && printDesigns.size == draftSelections.size) &&
-                            paper != null && invalidGeometryFields.isEmpty() && preview.request == previewRequest &&
-                            preview.bitmap != null && preview.error == null,
-                    ) { Text(stringResource(R.string.bluetooth_label_print_create)) }
-                } else if (controller.running) {
-                    OutlinedButton(onClick = controller::pause, enabled = !controller.pauseRequested, modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.bluetooth_label_print_pause))
+            Row(Modifier.fillMaxWidth().navigationBarsPadding().imePadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!showPrintView) {
+                    Button(onClick = { showPrintView = true }, enabled = controller.loaded && !controller.working,
+                        modifier = Modifier.weight(1f).testTag("label_print_open")) {
+                        Text(stringResource(R.string.label_ui_print))
                     }
+                } else if (!hasQueue) {
+                    OutlinedButton(onClick = { showPrintView = false }, modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.label_ui_edit))
+                    }
+                    Button(onClick = { paper?.let { sheet ->
+                        if (draftFreeLabel != null && activeDesign != null)
+                            controller.createFree(draftFreeLabel, freeCopies.toInt(), sheet, activeDesign)
+                        else controller.create(draftSelections, templateId, textTemplateId, sheet, printDesigns)
+                    } }, enabled = canCreate, modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.bluetooth_label_print_create))
+                    }
+                } else if (controller.running) {
+                    OutlinedButton(onClick = controller::pause, enabled = !controller.pauseRequested,
+                        modifier = Modifier.weight(1f)) { Text(stringResource(R.string.bluetooth_label_print_pause)) }
                     Button(onClick = { leaveAfterStop = false; confirmStop = true }, modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.bluetooth_label_print_stop))
                     }
                 } else {
-                    Button(
-                        onClick = { selectedCandidate?.let(controller::start) },
+                    Button(onClick = { selectedCandidate?.let(controller::start) },
                         enabled = !controller.working && selectedCandidate != null &&
                             queue.items.any { it.state == LabelPrintItemState.Pending } &&
-                            queue.items.none { it.state in listOf(LabelPrintItemState.Uncertain, LabelPrintItemState.Failed, LabelPrintItemState.Sending) },
-                        modifier = Modifier.weight(1f).testTag("print_queue_start"),
-                    ) { Text(stringResource(R.string.bluetooth_label_print_start)) }
+                            queue.items.none { it.state in listOf(LabelPrintItemState.Uncertain,
+                                LabelPrintItemState.Failed, LabelPrintItemState.Sending) },
+                        modifier = Modifier.weight(1f).testTag("print_queue_start")) {
+                        Text(stringResource(R.string.bluetooth_label_print_start))
+                    }
                 }
             }
         },
     ) { padding ->
-        Column(
-            Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(stringResource(R.string.bluetooth_label_print_intro), style = MaterialTheme.typography.bodyMedium)
-            localMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-            if (!controller.loaded || controller.working) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (!hasQueue) {
-                if (previewFreeLabel != null) PrintSection(stringResource(R.string.label_tool_title)) {
-                    OutlinedTextField(freeTitle, { freeTitle = it.take(80) },
-                        label = { Text(stringResource(R.string.label_tool_title_field)) },
-                        modifier = Modifier.fillMaxWidth(), enabled = editable)
-                    OutlinedTextField(freeCopies, { freeCopies = it.filter(Char::isDigit).take(2) },
-                        label = { Text(stringResource(R.string.bluetooth_label_print_copies)) },
-                        modifier = Modifier.fillMaxWidth(), enabled = editable, singleLine = true)
-                } else PrintSection(stringResource(R.string.bluetooth_label_print_components)) {
-                    if (!choosingComponents) {
-                        draftSelections.forEach { (seed, count) ->
-                            Text("${seed.name.ifBlank { seed.sku }} · ${seed.sku} · $count", style = MaterialTheme.typography.bodyMedium)
-                        }
-                        TextButton(onClick = { choosingComponents = true }) {
-                            Text(stringResource(R.string.label_editor_change_components))
-                        }
-                    } else {
-                    OutlinedTextField(
-                        value = search,
-                        onValueChange = { search = it },
-                        label = { Text(stringResource(R.string.bluetooth_label_print_search)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    val visible = choices.filter {
-                        search.isBlank() || it.seed.name.contains(search, true) || it.seed.sku.contains(search, true)
-                    }
-                    if (visible.isEmpty()) Text(stringResource(R.string.bluetooth_label_print_empty))
-                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
-                        items(visible, key = PrintableComponent::id) { choice ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Checkbox(
-                                checked = selected[choice.id] == true,
-                                onCheckedChange = { selected[choice.id] = it },
-                                enabled = editable,
-                            )
-                            Column(Modifier.weight(1f).clickable(enabled = editable) {
-                                selected[choice.id] = selected[choice.id] != true
-                            }) {
-                                Text(choice.seed.name.ifBlank { choice.seed.sku }, style = MaterialTheme.typography.bodyMedium)
-                                Text(choice.seed.sku, style = MaterialTheme.typography.bodySmall)
-                            }
-                            if (selected[choice.id] == true) {
-                                OutlinedTextField(
-                                    value = copies[choice.id] ?: "1",
-                                    onValueChange = { copies[choice.id] = it.filter(Char::isDigit).take(2) },
-                                    label = { Text(stringResource(R.string.bluetooth_label_print_copies)) },
-                                    modifier = Modifier.weight(0.45f),
-                                    enabled = editable,
-                                    singleLine = true,
-                                )
-                            }
-                        }
-                        }
-                    }
-                    TextButton(onClick = { choosingComponents = false }) {
-                        Text(stringResource(R.string.label_editor_done_components))
-                    }
-                    }
-                    Text(stringResource(R.string.bluetooth_label_print_count, draftSelections.sumOf { it.second }))
-                    if (!validSelection && draftSelections.isNotEmpty()) {
-                        Text(stringResource(R.string.bluetooth_label_print_count_invalid), color = MaterialTheme.colorScheme.error)
+        if (!showPrintView) {
+            Column(Modifier.padding(padding).fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(previewFreeLabel?.title ?: previewSeed?.let { it.name.ifBlank { it.sku } }
+                        ?: stringResource(R.string.bluetooth_label_print_title),
+                        modifier = Modifier.weight(1f), maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleMedium)
+                    TextButton(onClick = { sheetPanel = "paper" }) {
+                        Text(paper?.let { context.getString(R.string.label_ui_paper_summary,
+                            it.widthMm.toString(), it.heightMm.toString(), it.rotationDegrees.toString()) }
+                            ?: stringResource(R.string.label_ui_paper))
                     }
                 }
-                PrintSection(stringResource(R.string.bluetooth_label_print_preview)) {
-                    if (draftSelections.size > 1) {
-                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        draftSelections.forEach { (seed, _) ->
-                            FilterChip(
-                                selected = previewSeed?.sku == seed.sku,
-                                onClick = {
-                                    if (editingSku != seed.sku) {
-                                        editingSku = seed.sku
-                                        selectedElementId = null
-                                        invalidGeometryFields = arrayListOf()
-                                    }
-                                },
-                                label = { Text(seed.name.ifBlank { seed.sku }) },
-                            )
-                        }
-                        }
-                    }
-                    if (preview.bitmap != null && previewPaper != null &&
-                        (previewSeed != null || previewFreeLabel != null)) {
-                        LabelEditorCanvas(preview.bitmap!!, activeDesign, requireNotNull(previewPaper),
-                            selectedElementId, editable,
-                            onSelect = {
-                                if (selectedElementId != it) {
-                                    selectedElementId = it
-                                    invalidGeometryFields = arrayListOf()
-                                }
-                            },
+                if (!controller.loaded || controller.working) LinearProgressIndicator(Modifier.fillMaxWidth())
+                Box(Modifier.fillMaxWidth().weight(1f)
+                    .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                    if (previewPaper != null && (previewSeed != null || previewFreeLabel != null)) {
+                        LabelEditorCanvas(if (preview.error == null && preview.request == previewRequest)
+                            preview.bitmap else null,
+                            activeDesign, previewPaper, selectedElementId, editable,
+                            onSelect = { selectedElementId = it; invalidGeometryFields = arrayListOf() },
                             onMove = { id, x, y ->
                                 val design = activeDesign ?: return@LabelEditorCanvas
-                                val sheet = previewPaper ?: return@LabelEditorCanvas
-                                val moved = design.moved(id, x, y, sheet)
+                                val moved = design.moved(id, x, y, previewPaper)
                                 updateDesign(moved)
                                 val before = design.elements.firstOrNull { it.id == id }
                                 val after = moved.elements.firstOrNull { it.id == id }
@@ -476,295 +424,321 @@ internal fun BluetoothLabelPrintScreen(
                                         (it == "${prefix}y" && before?.yMm != after?.yMm)
                                 })
                             })
-                        Text(stringResource(R.string.label_editor_preview_hint), style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (preview.error != null) {
-                        Text(stringResource(R.string.label_editor_invalid), color = MaterialTheme.colorScheme.error)
-                        Text(preview.error!!, color = MaterialTheme.colorScheme.error)
-                    } else if (preview.bitmap == null) {
-                        Text(stringResource(R.string.bluetooth_label_print_preview_unavailable))
-                    }
-                    LabelRasterExportActions(
-                        bitmap = preview.bitmap,
-                        paper = previewPaper,
-                        copies = if (previewFreeLabel != null) freeCopies.toIntOrNull() ?: 1
-                            else draftSelections.firstOrNull { it.first.sku == previewSeed?.sku }?.second ?: 1,
-                        sku = previewFreeLabel?.title ?: previewSeed?.sku.orEmpty(),
-                        enabled = (if (previewFreeLabel != null) validFree else validSelection) &&
-                            preview.request == previewRequest && preview.error == null &&
-                            invalidGeometryFields.isEmpty() && preview.bitmap != null,
-                        onFeedback = { localMessage = it },
-                    )
-                    if (previewFreeLabel != null && activeDesign != null && previewPaper != null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = {
-                                val id = (1..16).map { "text$it" }.first { candidate ->
-                                    activeDesign.elements.none { it.id == candidate }
-                                }
-                                val newText = LabelElement(id, LabelElementType.Text, "", 1f, 1f,
-                                    minOf(20f, previewPaper.widthMm - 2f),
-                                    minOf(5f, previewPaper.heightMm - 2f))
-                                updateDesign(activeDesign.copy(elements = activeDesign.elements + newText))
-                                selectedElementId = id
-                            }, enabled = editable && activeDesign.elements.size < 16) {
-                                Text(stringResource(R.string.label_tool_add_text))
-                            }
-                            if (activeDesign.elements.none { it.type == LabelElementType.Qr }) {
-                                TextButton(onClick = {
-                                    val side = minOf(previewPaper.widthMm - 2f, previewPaper.heightMm * 0.55f)
-                                    updateDesign(activeDesign.copy(elements = activeDesign.elements + LabelElement(
-                                        "qr", LabelElementType.Qr, "", 1f + (previewPaper.widthMm - 2f - side) / 2f,
-                                        previewPaper.heightMm - 1f - side, side, side)))
-                                    selectedElementId = "qr"
-                                }, enabled = editable && activeDesign.elements.size < 16) {
-                                    Text(stringResource(R.string.label_tool_add_qr))
-                                }
-                            }
-                        }
-                    }
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    activeDesign?.elements?.forEach { element ->
-                        FilterChip(
-                            selected = selectedElementId == element.id,
-                            onClick = {
-                                if (selectedElementId != element.id) {
-                                    selectedElementId = element.id
-                                    invalidGeometryFields = arrayListOf()
-                                }
-                            },
-                            label = { Text(element.text.take(24).ifBlank { element.id }) },
-                            enabled = editable,
-                        )
-                    }
-                    }
-                    val editableDesign = activeDesign
-                    val selectedElement = editableDesign?.elements?.firstOrNull { it.id == selectedElementId }
-                    if (selectedElement != null && editableDesign != null) {
-                            val fieldPrefix = "${previewSeed?.sku ?: "__free__"}:${selectedElement.id}:"
-                            Text(stringResource(R.string.label_editor_element), style = MaterialTheme.typography.titleSmall)
-                            if (selectedElement.type == LabelElementType.Text) {
-                                OutlinedTextField(
-                                    value = selectedElement.text,
-                                    onValueChange = { updateDesign(editableDesign.withText(selectedElement.id, it)) },
-                                    label = { Text(stringResource(R.string.label_editor_text)) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    enabled = editable,
-                                )
-                            } else if (previewFreeLabel != null) {
-                                OutlinedTextField(
-                                    value = selectedElement.text,
-                                    onValueChange = { updateDesign(editableDesign.withQrPayload(selectedElement.id, it)) },
-                                    label = { Text(stringResource(R.string.label_tool_qr_payload)) },
-                                    modifier = Modifier.fillMaxWidth(), enabled = editable,
-                                )
-                            } else Text(stringResource(R.string.label_editor_qr_identity), style = MaterialTheme.typography.bodySmall)
-                            LabelElementNumberField("${fieldPrefix}x", stringResource(R.string.label_editor_x),
-                                selectedElement.xMm, editable,
-                                { recordGeometryValidity("${fieldPrefix}x", it) }) { value ->
-                                updateDesign(editableDesign.withElement(selectedElement.copy(xMm = value)))
-                            }
-                            LabelElementNumberField("${fieldPrefix}y", stringResource(R.string.label_editor_y),
-                                selectedElement.yMm, editable,
-                                { recordGeometryValidity("${fieldPrefix}y", it) }) { value ->
-                                updateDesign(editableDesign.withElement(selectedElement.copy(yMm = value)))
-                            }
-                            LabelElementNumberField("${fieldPrefix}width", stringResource(R.string.label_editor_width),
-                                selectedElement.widthMm, editable,
-                                { recordGeometryValidity("${fieldPrefix}width", it) }) { value ->
-                                updateDesign(editableDesign.withElement(selectedElement.copy(widthMm = value)))
-                            }
-                            LabelElementNumberField("${fieldPrefix}height", stringResource(R.string.label_editor_height),
-                                selectedElement.heightMm, editable,
-                                { recordGeometryValidity("${fieldPrefix}height", it) }) { value ->
-                                updateDesign(editableDesign.withElement(selectedElement.copy(heightMm = value)))
-                            }
-                            if (previewFreeLabel != null && editableDesign.elements.size > 1) {
-                                TextButton(onClick = {
-                                    updateDesign(editableDesign.copy(elements = editableDesign.elements.filterNot {
-                                        it.id == selectedElement.id
-                                    }))
-                                    invalidGeometryFields = ArrayList(invalidGeometryFields.filterNot {
-                                        it.startsWith(fieldPrefix)
-                                    })
-                                    selectedElementId = null
-                                }, enabled = editable) { Text(stringResource(R.string.label_tool_remove_element)) }
-                            }
-                    }
-                    if (invalidGeometryFields.isNotEmpty()) Text(stringResource(R.string.label_editor_invalid), color = MaterialTheme.colorScheme.error)
-                    Text(stringResource(R.string.label_editor_draft_only), style = MaterialTheme.typography.bodySmall)
-                    if (previewFreeLabel == null) {
-                    Text(stringResource(R.string.bluetooth_label_print_layout), style = MaterialTheme.typography.titleSmall)
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ComponentLabelTemplate.entries.forEach { template ->
-                            FilterChip(
-                                selected = templateId == template.id,
-                                onClick = {
-                                    if (template.id != templateId) {
-                                        if (draftDesigns.isNotEmpty()) pendingTemplateId = template.id
-                                        else {
-                                            templateId = template.id
-                                            selectedElementId = null
-                                            invalidGeometryFields = arrayListOf()
-                                        }
-                                    }
-                                },
-                                label = { Text(stringResource(when (template) {
-                                    ComponentLabelTemplate.Qr10x40 -> R.string.bluetooth_label_print_compact_qr
-                                    ComponentLabelTemplate.Qr30x40 -> R.string.bluetooth_label_print_full_qr
-                                    else -> R.string.bluetooth_label_print_text_only
-                                })) },
-                                enabled = editable,
-                            )
-                        }
-                    }
-                    if (ComponentLabelTemplate.fromId(templateId) == ComponentLabelTemplate.TextOnly) {
-                        ComponentTextLabelTemplate.entries.forEach { textTemplate ->
-                            FilterChip(
-                                selected = textTemplateId == textTemplate.id,
-                                onClick = {
-                                    if (textTemplate.id != textTemplateId) {
-                                        if (draftDesigns.isNotEmpty()) pendingTextTemplateId = textTemplate.id
-                                        else {
-                                            textTemplateId = textTemplate.id
-                                            selectedElementId = null
-                                            invalidGeometryFields = arrayListOf()
-                                        }
-                                    }
-                                },
-                                label = { Text(stringResource(when (textTemplate) {
-                                    ComponentTextLabelTemplate.NameSku -> R.string.bluetooth_label_print_text_name_sku
-                                    ComponentTextLabelTemplate.NamePackageSku -> R.string.bluetooth_label_print_text_name_package_sku
-                                    ComponentTextLabelTemplate.NameModel -> R.string.bluetooth_label_print_text_name_model
-                                })) },
-                            )
-                        }
-                    }
-                    Text(stringResource(R.string.bluetooth_label_print_qr_hint), style = MaterialTheme.typography.bodySmall)
-                    }
-                    Text(stringResource(R.string.bluetooth_label_print_paper), style = MaterialTheme.typography.titleSmall)
-                    PrintNumberField(stringResource(R.string.bluetooth_label_print_width), widthText, { widthText = it }, editable)
-                    PrintNumberField(stringResource(R.string.bluetooth_label_print_height), heightText, { heightText = it }, editable)
-                    TextButton(onClick = { calibrationExpanded = !calibrationExpanded }) {
-                        Text(stringResource(R.string.label_editor_calibration))
-                    }
-                    if (calibrationExpanded) {
-                        PrintNumberField(stringResource(R.string.bluetooth_label_print_rotation), rotationText, { rotationText = it }, editable)
-                        PrintNumberField(stringResource(R.string.bluetooth_label_print_offset_x), offsetXText, { offsetXText = it }, editable)
-                        PrintNumberField(stringResource(R.string.bluetooth_label_print_offset_y), offsetYText, { offsetYText = it }, editable)
-                    }
-                    if (paper == null) Text(stringResource(R.string.bluetooth_label_print_paper_invalid), color = MaterialTheme.colorScheme.error)
-                    Text(stringResource(R.string.bluetooth_label_print_paper_hint), style = MaterialTheme.typography.bodySmall)
-
+                    } else Text(stringResource(R.string.label_ui_no_component),
+                        Modifier.padding(24.dp), style = MaterialTheme.typography.bodyMedium)
                 }
-            } else {
-                val sent = queue.items.count { it.state == LabelPrintItemState.Sent }
-                val skipped = queue.items.count { it.state == LabelPrintItemState.Skipped }
-                PrintSection(stringResource(R.string.bluetooth_label_print_queue)) {
-                    Text(stringResource(R.string.bluetooth_label_print_progress, sent + skipped, queue.items.size))
-                    LinearProgressIndicator(
-                        progress = { if (queue.items.isEmpty()) 0f else (sent + skipped).toFloat() / queue.items.size },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(stringResource(R.string.bluetooth_label_print_locked, queue.paper.widthMm.toString(), queue.paper.heightMm.toString()))
-                    Text(stringResource(
-                        R.string.bluetooth_label_print_locked_detail,
-                        labelTemplateText(ComponentLabelTemplate.fromId(queue.templateId), context),
-                        queue.paper.rotationDegrees,
-                        queue.paper.offsetXmm.toString(),
-                        queue.paper.offsetYmm.toString(),
-                    ), style = MaterialTheme.typography.bodySmall)
-                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp).testTag("print_queue_list")) {
-                        items(queue.items, key = { it.id }) { item ->
-                        Row(Modifier.fillMaxWidth().testTag("print_queue_item_${item.id}"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Column(Modifier.weight(1f)) {
-                                Text(item.freeLabel?.title ?: item.seed?.let { it.name.ifBlank { it.sku } }.orEmpty())
-                                Text("${item.seed?.sku ?: stringResource(R.string.label_tool_free)} · ${item.copyNumber}/${item.copies} · ${labelStateText(item.state, context)}", style = MaterialTheme.typography.bodySmall)
-                                if (item.detail.isNotBlank()) Text(printErrorText(item.detail, context), style = MaterialTheme.typography.bodySmall)
-                            }
-                            if (!controller.running && !controller.working && item.state in listOf(LabelPrintItemState.Uncertain, LabelPrintItemState.Failed)) {
-                                TextButton(onClick = { reviewItemId = item.id }) {
-                                    Text(stringResource(R.string.bluetooth_label_print_review))
-                                }
-                            }
-                        }
-                        }
-                    }
-                    PrintSection(stringResource(R.string.bluetooth_label_print_preview)) {
-                        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 128.dp)) {
-                            items(queue.items.distinctBy { it.seed ?: it.freeLabel }, key = { it.id }) { item ->
-                                Row(Modifier.fillMaxWidth().clickable { previewQueueItemId = item.id }) {
-                                    RadioButton(
-                                        selected = (previewQueueItemId ?: queue.items.firstOrNull()?.id) == item.id,
-                                        onClick = { previewQueueItemId = item.id },
-                                    )
-                                    Column {
-                                        Text(item.freeLabel?.title ?: item.seed?.let { it.name.ifBlank { it.sku } }.orEmpty())
-                                        Text(item.seed?.sku ?: stringResource(R.string.label_tool_free), style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-                            }
-                        }
-                        if (preview.bitmap != null && previewPaper != null &&
-                            (previewSeed != null || previewFreeLabel != null)) LabelEditorCanvas(preview.bitmap!!, activeDesign, previewPaper,
-                            selectedElementId, false, {}, { _, _, _ -> })
-                        else Text(preview.error ?: stringResource(R.string.bluetooth_label_print_preview_unavailable))
-                        LabelRasterExportActions(
-                            bitmap = preview.bitmap,
-                            paper = previewPaper,
-                            copies = queue.items.count { if (previewFreeLabel != null) it.freeLabel == previewFreeLabel
-                                else it.seed?.sku == previewSeed?.sku }.coerceAtLeast(1),
-                            sku = previewFreeLabel?.title ?: previewSeed?.sku.orEmpty(),
-                            enabled = preview.request == previewRequest && preview.error == null && preview.bitmap != null,
-                            onFeedback = { localMessage = it },
-                        )
+                if (blankQr && (previewError == null || previewError.contains("请输入二维码内容")))
+                    Text(stringResource(R.string.label_ui_enter_qr),
+                    color = MaterialTheme.colorScheme.primary)
+                else previewError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("content" to R.string.label_ui_content,
+                        "position" to R.string.label_ui_position,
+                        "paper" to R.string.label_ui_paper,
+                        (if (previewFreeLabel != null) "add" else "components") to
+                            (if (previewFreeLabel != null) R.string.label_ui_add else R.string.label_ui_components)
+                    ).forEach { (panel, title) ->
+                        TextButton(onClick = {
+                            if (panel == "content") {
+                                if (selectedElementId == null) selectedElementId = activeDesign?.elements?.firstOrNull()?.id
+                            } else sheetPanel = panel
+                        }, modifier = Modifier.weight(1f)) { Text(stringResource(title)) }
                     }
                 }
-                OutlinedButton(onClick = { confirmNewQueue = true }, enabled = !controller.running && !controller.working, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.bluetooth_label_print_new_queue))
+                if (activeDesign != null) Row(Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    activeDesign.elements.forEach { element ->
+                        FilterChip(selected = selectedElementId == element.id,
+                            onClick = { selectedElementId = element.id; invalidGeometryFields = arrayListOf() },
+                            label = { Text(element.text.take(16).ifBlank { element.id }) })
+                    }
+                }
+                if (selectedElement == null) Text(stringResource(R.string.label_ui_select_element),
+                        style = MaterialTheme.typography.bodySmall)
+                else if (selectedElement.type == LabelElementType.Text) {
+                        OutlinedTextField(selectedElement.text,
+                            { activeDesign?.let { design -> updateDesign(design.withText(selectedElement.id, it)) } },
+                            label = { Text(stringResource(R.string.label_editor_text)) },
+                            modifier = Modifier.fillMaxWidth(), enabled = editable, maxLines = 3)
+                } else if (previewFreeLabel != null) {
+                        OutlinedTextField(selectedElement.text,
+                            { activeDesign?.let { design -> updateDesign(design.withQrPayload(selectedElement.id, it)) } },
+                            label = { Text(stringResource(R.string.label_tool_qr_payload)) },
+                            modifier = Modifier.fillMaxWidth(), enabled = editable, maxLines = 3)
+                } else Text(stringResource(R.string.label_editor_qr_identity),
+                        style = MaterialTheme.typography.bodySmall)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { sheetPanel = "export" }) {
+                        Text(stringResource(R.string.label_ui_export))
+                    }
                 }
             }
+        } else {
+            Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                localMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+                if (!controller.loaded || controller.working) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (!hasQueue) {
+                    if (!canCreate) Text(stringResource(R.string.label_ui_print_blocked),
+                        color = MaterialTheme.colorScheme.error)
+                    if (previewFreeLabel != null) {
+                        OutlinedTextField(freeTitle, { freeTitle = it.take(80) },
+                            label = { Text(stringResource(R.string.label_tool_title_field)) },
+                            modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(freeCopies, { freeCopies = it.filter(Char::isDigit).take(2) },
+                            label = { Text(stringResource(R.string.bluetooth_label_print_copies)) },
+                            modifier = Modifier.fillMaxWidth())
+                    } else {
+                        Text(stringResource(R.string.bluetooth_label_print_count,
+                            draftSelections.sumOf { it.second }))
+                        draftSelections.forEach { (seed, count) -> Text("${seed.name} · ${seed.sku} · $count") }
+                        TextButton(onClick = { sheetPanel = "components" }) {
+                            Text(stringResource(R.string.label_editor_change_components))
+                        }
+                    }
+                } else {
+                    val sent = queue.items.count { it.state == LabelPrintItemState.Sent }
+                    val skipped = queue.items.count { it.state == LabelPrintItemState.Skipped }
+                    Text(stringResource(R.string.bluetooth_label_print_progress, sent + skipped, queue.items.size),
+                        style = MaterialTheme.typography.titleMedium)
+                    LinearProgressIndicator(progress = {
+                        (sent + skipped).toFloat() / queue.items.size
+                    }, modifier = Modifier.fillMaxWidth())
+                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp).testTag("print_queue_list")) {
+                        items(queue.items, key = { it.id }) { item ->
+                            Row(Modifier.fillMaxWidth().testTag("print_queue_item_${item.id}")
+                                .clickable { previewQueueItemId = item.id },
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(item.freeLabel?.title ?: item.seed?.name.orEmpty())
+                                    Text("${item.seed?.sku ?: stringResource(R.string.label_tool_free)} · " +
+                                        "${item.copyNumber}/${item.copies} · ${labelStateText(item.state, context)}",
+                                        style = MaterialTheme.typography.bodySmall)
+                                    if (item.detail.isNotBlank()) Text(printErrorText(item.detail, context))
+                                }
+                                if (!controller.running && !controller.working &&
+                                    item.state in listOf(LabelPrintItemState.Uncertain, LabelPrintItemState.Failed)) {
+                                    TextButton(onClick = { reviewItemId = item.id }) {
+                                        Text(stringResource(R.string.bluetooth_label_print_review))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    TextButton(onClick = { confirmNewQueue = true }, enabled = !controller.running && !controller.working) {
+                        Text(stringResource(R.string.bluetooth_label_print_new_queue))
+                    }
+                }
+                if (previewPaper != null && (previewSeed != null || previewFreeLabel != null)) {
+                    LabelEditorCanvas(if (preview.error == null && preview.request == previewRequest)
+                        preview.bitmap else null,
+                        activeDesign, previewPaper, selectedElementId, false, {}, { _, _, _ -> }, 210.dp)
+                }
+                LabelRasterExportActions(preview.bitmap, previewPaper,
+                    if (hasQueue) queue.items.count { if (previewFreeLabel != null)
+                        it.freeLabel == previewFreeLabel else it.seed?.sku == previewSeed?.sku }.coerceAtLeast(1)
+                    else if (previewFreeLabel != null) freeCopies.toIntOrNull() ?: 1
+                    else draftSelections.firstOrNull { it.first.sku == previewSeed?.sku }?.second ?: 1,
+                    previewFreeLabel?.title ?: previewSeed?.sku.orEmpty(),
+                    preview.request == previewRequest && preview.error == null && preview.bitmap != null,
+                    { localMessage = it })
                 PrintSection(stringResource(R.string.bluetooth_label_print_device)) {
                     OutlinedButton(onClick = ::refreshDevices, enabled = !controller.running && !controller.working) {
                         Text(stringResource(R.string.bluetooth_label_print_refresh_devices))
                     }
-                    if (controller.transport.candidates.isEmpty()) Text(stringResource(R.string.bluetooth_label_print_pair_hint))
-                    controller.transport.candidates.filter {
-                        it.paired && it.type in setOf(BluetoothDevice.DEVICE_TYPE_CLASSIC, BluetoothDevice.DEVICE_TYPE_DUAL)
+                    if (controller.transport.candidates.isEmpty())
+                        Text(stringResource(R.string.bluetooth_label_print_pair_hint))
+                    controller.transport.candidates.filter { it.paired &&
+                        it.type in setOf(BluetoothDevice.DEVICE_TYPE_CLASSIC, BluetoothDevice.DEVICE_TYPE_DUAL)
                     }.forEach { candidate ->
-                        Row(
-                            Modifier.fillMaxWidth().clickable(enabled = !controller.running && !controller.working) {
-                                controller.selectDevice(candidate.address)
-                            },
-                        ) {
-                            RadioButton(
-                                selected = controller.selectedAddress == candidate.address,
+                        Row(Modifier.fillMaxWidth().clickable(enabled = !controller.running && !controller.working) {
+                            controller.selectDevice(candidate.address)
+                        }) {
+                            RadioButton(controller.selectedAddress == candidate.address,
                                 onClick = { controller.selectDevice(candidate.address) },
-                                enabled = !controller.running && !controller.working,
-                            )
+                                enabled = !controller.running && !controller.working)
                             Column {
                                 Text(candidate.name ?: stringResource(R.string.bluetooth_label_print_unknown_device))
-                                Text("…${candidate.address.takeLast(5)}", style = MaterialTheme.typography.bodySmall)
+                                Text("…${candidate.address.takeLast(5)}")
                             }
                         }
                     }
-                    OutlinedButton(onClick = {
-                        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
-                    }) { Text(stringResource(R.string.bluetooth_label_print_pair_settings)) }
-                    TextButton(
-                        onClick = { troubleshootingExpanded = !troubleshootingExpanded },
-                        enabled = !controller.running && !controller.working,
-                    ) { Text(stringResource(R.string.label_editor_troubleshooting)) }
-                    if (troubleshootingExpanded) {
-                        OutlinedButton(onClick = {
-                            clipboard.setText(AnnotatedString(controller.transport.report))
-                        }, enabled = controller.transport.report.isNotBlank() && !controller.running && !controller.working) {
-                            Text(stringResource(R.string.bluetooth_label_print_copy_report))
-                        }
+                    TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }) {
+                        Text(stringResource(R.string.bluetooth_label_print_pair_settings))
+                    }
+                    TextButton(onClick = { troubleshootingExpanded = !troubleshootingExpanded }) {
+                        Text(stringResource(R.string.label_editor_troubleshooting))
+                    }
+                    if (troubleshootingExpanded) TextButton(onClick = {
+                        clipboard.setText(AnnotatedString(controller.transport.report))
+                    }, enabled = controller.transport.report.isNotBlank()) {
+                        Text(stringResource(R.string.bluetooth_label_print_copy_report))
                     }
                     if (controller.pauseRequested) Text(stringResource(R.string.bluetooth_label_print_pausing))
                 }
+            }
         }
     }
+
+    if (sheetPanel != null) ModalBottomSheet(onDismissRequest = { sheetPanel = null }) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            when (sheetPanel) {
+                "position" -> {
+                    Text(stringResource(R.string.label_ui_position), style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(R.string.label_editor_preview_hint),
+                        style = MaterialTheme.typography.bodySmall)
+                    if (selectedElement == null) Text(stringResource(R.string.label_ui_select_element))
+                    else {
+                        TextButton(onClick = { advancedGeometry = !advancedGeometry }) {
+                            Text(stringResource(R.string.label_ui_advanced))
+                        }
+                        if (advancedGeometry) {
+                            val prefix = "${previewSeed?.sku ?: "__free__"}:${selectedElement.id}:"
+                            LabelElementNumberField("${prefix}x", stringResource(R.string.label_editor_x),
+                                selectedElement.xMm, editable,
+                                { recordGeometryValidity("${prefix}x", it) }) { value ->
+                                activeDesign?.let { updateDesign(it.withElement(selectedElement.copy(xMm = value))) }
+                            }
+                            LabelElementNumberField("${prefix}y", stringResource(R.string.label_editor_y),
+                                selectedElement.yMm, editable,
+                                { recordGeometryValidity("${prefix}y", it) }) { value ->
+                                activeDesign?.let { updateDesign(it.withElement(selectedElement.copy(yMm = value))) }
+                            }
+                            LabelElementNumberField("${prefix}width", stringResource(R.string.label_editor_width),
+                                selectedElement.widthMm, editable,
+                                { recordGeometryValidity("${prefix}width", it) }) { value ->
+                                activeDesign?.let { updateDesign(it.withElement(selectedElement.copy(widthMm = value))) }
+                            }
+                            LabelElementNumberField("${prefix}height", stringResource(R.string.label_editor_height),
+                                selectedElement.heightMm, editable,
+                                { recordGeometryValidity("${prefix}height", it) }) { value ->
+                                activeDesign?.let { updateDesign(it.withElement(selectedElement.copy(heightMm = value))) }
+                            }
+                        }
+                    }
+                }
+                "paper" -> {
+                    Text(stringResource(R.string.label_ui_paper), style = MaterialTheme.typography.titleLarge)
+                    PrintNumberField(stringResource(R.string.bluetooth_label_print_width), widthText, { widthText = it }, editable)
+                    PrintNumberField(stringResource(R.string.bluetooth_label_print_height), heightText, { heightText = it }, editable)
+                    if (previewFreeLabel == null) {
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ComponentLabelTemplate.entries.forEach { template ->
+                                FilterChip(templateId == template.id, onClick = {
+                                    if (template.id != templateId) {
+                                        if (draftDesigns.isNotEmpty()) pendingTemplateId = template.id
+                                        else templateId = template.id
+                                    }
+                                }, label = { Text(labelTemplateText(template, context)) }, enabled = editable)
+                            }
+                        }
+                        if (ComponentLabelTemplate.fromId(templateId) == ComponentLabelTemplate.TextOnly)
+                            Row(Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                ComponentTextLabelTemplate.entries.forEach { template ->
+                                    FilterChip(textTemplateId == template.id, onClick = {
+                                        if (template.id != textTemplateId) {
+                                            if (draftDesigns.isNotEmpty()) pendingTextTemplateId = template.id
+                                            else textTemplateId = template.id
+                                        }
+                                    }, label = { Text(context.getString(when (template) {
+                                        ComponentTextLabelTemplate.NameSku -> R.string.bluetooth_label_print_text_name_sku
+                                        ComponentTextLabelTemplate.NamePackageSku -> R.string.bluetooth_label_print_text_name_package_sku
+                                        ComponentTextLabelTemplate.NameModel -> R.string.bluetooth_label_print_text_name_model
+                                    })) }, enabled = editable)
+                                }
+                            }
+                    }
+                    TextButton(onClick = { calibrationExpanded = !calibrationExpanded }) {
+                        Text(stringResource(R.string.label_editor_calibration))
+                    }
+                    if (calibrationExpanded) {
+                        PrintNumberField(stringResource(R.string.bluetooth_label_print_rotation), rotationText,
+                            { rotationText = it }, editable)
+                        PrintNumberField(stringResource(R.string.bluetooth_label_print_offset_x), offsetXText,
+                            { offsetXText = it }, editable)
+                        PrintNumberField(stringResource(R.string.bluetooth_label_print_offset_y), offsetYText,
+                            { offsetYText = it }, editable)
+                    }
+                    if (paper == null) Text(stringResource(R.string.bluetooth_label_print_paper_invalid),
+                        color = MaterialTheme.colorScheme.error)
+                }
+                "components" -> {
+                    Text(stringResource(R.string.label_ui_components), style = MaterialTheme.typography.titleLarge)
+                    OutlinedTextField(search, { search = it },
+                        label = { Text(stringResource(R.string.bluetooth_label_print_search)) },
+                        modifier = Modifier.fillMaxWidth())
+                    val visible = choices.filter { search.isBlank() || it.seed.name.contains(search, true) ||
+                        it.seed.sku.contains(search, true) }
+                    if (visible.isEmpty()) Text(stringResource(R.string.bluetooth_label_print_empty))
+                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 340.dp)) {
+                        items(visible, key = PrintableComponent::id) { choice ->
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(selected[choice.id] == true, { selected[choice.id] = it }, enabled = editable)
+                                Column(Modifier.weight(1f).clickable(enabled = editable) {
+                                    selected[choice.id] = selected[choice.id] != true
+                                }) {
+                                    Text(choice.seed.name.ifBlank { choice.seed.sku })
+                                    Text(choice.seed.sku, style = MaterialTheme.typography.bodySmall)
+                                }
+                                if (selected[choice.id] == true) OutlinedTextField(
+                                    copies[choice.id] ?: "1", { copies[choice.id] = it.filter(Char::isDigit).take(2) },
+                                    label = { Text(stringResource(R.string.bluetooth_label_print_copies)) },
+                                    modifier = Modifier.weight(0.38f), enabled = editable)
+                            }
+                        }
+                    }
+                }
+                "add" -> {
+                    Text(stringResource(R.string.label_ui_add), style = MaterialTheme.typography.titleLarge)
+                    if (activeDesign != null && previewPaper != null) {
+                        TextButton(onClick = {
+                            val id = (1..16).map { "text$it" }.first { candidate ->
+                                activeDesign.elements.none { it.id == candidate }
+                            }
+                            updateDesign(activeDesign.copy(elements = activeDesign.elements +
+                                LabelElement(id, LabelElementType.Text, "", 1f, 1f,
+                                    minOf(20f, previewPaper.widthMm - 2f), minOf(5f, previewPaper.heightMm - 2f))))
+                            selectedElementId = id; sheetPanel = null
+                        }, enabled = editable && activeDesign.elements.size < 16) {
+                            Text(stringResource(R.string.label_tool_add_text))
+                        }
+                        if (activeDesign.elements.none { it.type == LabelElementType.Qr })
+                            TextButton(onClick = {
+                                val side = minOf(previewPaper.widthMm - 2f, previewPaper.heightMm * 0.55f)
+                                updateDesign(activeDesign.copy(elements = activeDesign.elements + LabelElement(
+                                    "qr", LabelElementType.Qr, "", 1f + (previewPaper.widthMm - 2f - side) / 2f,
+                                    previewPaper.heightMm - 1f - side, side, side)))
+                                selectedElementId = "qr"; sheetPanel = null
+                            }, enabled = editable && activeDesign.elements.size < 16) {
+                                Text(stringResource(R.string.label_tool_add_qr))
+                            }
+                        if (selectedElement != null && activeDesign.elements.size > 1) {
+                            TextButton(onClick = {
+                                updateDesign(activeDesign.copy(elements = activeDesign.elements.filterNot {
+                                    it.id == selectedElement.id
+                                }))
+                                val prefix = "__free__:${selectedElement.id}:"
+                                invalidGeometryFields = ArrayList(invalidGeometryFields.filterNot { it.startsWith(prefix) })
+                                selectedElementId = null; sheetPanel = null
+                            }, enabled = editable) { Text(stringResource(R.string.label_tool_remove_element)) }
+                        }
+                    }
+                }
+                "export" -> LabelRasterExportActions(preview.bitmap, previewPaper,
+                    if (previewFreeLabel != null) freeCopies.toIntOrNull() ?: 1
+                    else draftSelections.firstOrNull { it.first.sku == previewSeed?.sku }?.second ?: 1,
+                    previewFreeLabel?.title ?: previewSeed?.sku.orEmpty(),
+                    preview.request == previewRequest && preview.error == null && preview.bitmap != null,
+                    { localMessage = it })
+            }
+            TextButton(onClick = { sheetPanel = null }, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.label_ui_close))
+            }
+        }
+    }
+
     controller.error?.let { error ->
         AlertDialog(
             onDismissRequest = controller::clearError,

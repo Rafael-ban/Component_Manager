@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="inventory_ui_select">Select</string>
+    <string name="inventory_ui_more_actions">More inventory actions</string>
+    <string name="inventory_ui_clear_search">Clear search</string>
+    <string name="inventory_ui_route">Locations</string>
+    <string name="inventory_ui_transfer_items">Transfer quantities</string>
+</resources>

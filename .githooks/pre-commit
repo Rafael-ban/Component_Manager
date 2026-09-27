@@ -10,16 +10,16 @@ if [ ! -f "$SCRIPT_PATH" ]; then
 fi
 
 if command -v python3 >/dev/null 2>&1; then
-  exec python3 "$SCRIPT_PATH" --apply
+  exec python3 "$SCRIPT_PATH" --validate
 fi
 
 if command -v python >/dev/null 2>&1; then
-  exec python "$SCRIPT_PATH" --apply
+  exec python "$SCRIPT_PATH" --validate
 fi
 
 if command -v py >/dev/null 2>&1; then
-  exec py -3 "$SCRIPT_PATH" --apply
+  exec py -3 "$SCRIPT_PATH" --validate
 fi
 
-echo "Python 3 is required for changelog-driven version sync." >&2
+echo "Python 3 is required for changelog version validation." >&2
 exit 1

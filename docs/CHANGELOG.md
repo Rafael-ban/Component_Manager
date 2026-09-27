@@ -1,6 +1,7 @@
 # Changelog
 
 Dev 预发布单独记录，不触发正式版版本递增：
+[0.7.7-dev.1：库存搜索与标签编辑交互重做](releases/0.7.7-dev.1.md)、
 [0.7.6-dev.1：统一标签编辑与蓝牙打印](releases/0.7.6-dev.1.md)、
 [0.7.4-dev.8：打印预览生命周期修复](releases/0.7.4-dev.8.md)、
 [0.7.4-dev.7：Android M1 标签队列与服务端设置入口](releases/0.7.4-dev.7.md)、

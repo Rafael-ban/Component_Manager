@@ -13,6 +13,8 @@ Component Vault 面向电子元器件的入库、出库、查找与盘点。Andr
 
 原生客户端无需服务器即可管理本地库存。准备同步时，先部署 API，在客户端“设置 → 连接与同步”填写服务器地址与账户密钥，再测试连接并同步。首次部署通过 `http://服务器IP:8787/setup` 配置管理员密钥；不要把 Docker Hub 或 GitHub 的登录凭据填进这里。服务端库存保存在持久化的 `/data` 中，升级时保留该数据卷。
 
+日常功能与界面调整先发布 **dev 预发布**，通过实际使用验证后再决定正式发布。应用“设置 → 关于”可选择更新通道；dev 安装包见 [全部 Releases](https://github.com/Rafael-ban/Component_Manager/releases)。发布渠道由更新日志的最新具体版本标题决定：`0.7.7-dev.1` 为预发布，`0.7.7` 为正式版；只修改 `Unreleased` 不发布。dev 不会替换 Docker `latest`，详见[发布流程](docs/runbook.md#versioning-workflow)。
+
 ## 平台与能力
 
 | 平台 | 技术与用途 |

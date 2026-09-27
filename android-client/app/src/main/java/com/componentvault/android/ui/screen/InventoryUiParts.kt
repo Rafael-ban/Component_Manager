@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -217,11 +218,19 @@ internal fun InventoryListRow(
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer),
                     contentAlignment = Alignment.CenterEnd,
                 ) {
-                    Button(onClick = {
-                        scope.launch { dismissState.reset() }
-                        onRequestDelete()
-                    }, modifier = Modifier.padding(end = 12.dp)) {
-                        Text(stringResource(R.string.action_delete))
+                    Row(
+                        modifier = Modifier.padding(end = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        TextButton(onClick = { scope.launch { dismissState.reset() } }) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                        Button(onClick = {
+                            scope.launch { dismissState.reset() }
+                            onRequestDelete()
+                        }) {
+                            Text(stringResource(R.string.action_delete))
+                        }
                     }
                 }
             },

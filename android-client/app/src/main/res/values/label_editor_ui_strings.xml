@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="label_ui_component_desc">Print a label from an inventory component</string>
+    <string name="label_ui_text_desc">A simple note with editable text</string>
+    <string name="label_ui_qr_desc">A QR code with your own content</string>
+    <string name="label_ui_free_desc">Arrange text and a QR code freely</string>
+    <string name="label_ui_content">Content</string>
+    <string name="label_ui_position">Position</string>
+    <string name="label_ui_paper">Paper</string>
+    <string name="label_ui_components">Components</string>
+    <string name="label_ui_add">Add</string>
+    <string name="label_ui_print">Print…</string>
+    <string name="label_ui_edit">Back to editor</string>
+    <string name="label_ui_print_ready">Print preparation</string>
+    <string name="label_ui_select_element">Tap an element on the label to edit it</string>
+    <string name="label_ui_enter_qr">Enter QR content to preview and print</string>
+    <string name="label_ui_advanced">Advanced dimensions</string>
+    <string name="label_ui_close">Done</string>
+    <string name="label_ui_paper_summary">%1$s × %2$s mm · %3$s°</string>
+    <string name="label_ui_no_component">Choose a component to preview the label</string>
+    <string name="label_ui_print_blocked">Complete the label and check the preview before creating the print queue.</string>
+    <string name="label_ui_export">Export</string>
+</resources>

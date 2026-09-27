@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -29,30 +31,34 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.componentvault.android.data.LabelDesign
 import com.componentvault.android.data.M1TestPaperProfile
 
 /** The raster is exactly what the printer receives. Selection frames live in this UI layer only. */
 @Composable
 internal fun LabelEditorCanvas(
-    bitmap: Bitmap,
+    bitmap: Bitmap?,
     design: LabelDesign?,
     paper: M1TestPaperProfile,
     selectedId: String?,
     editable: Boolean,
     onSelect: (String) -> Unit,
     onMove: (String, Float, Float) -> Unit,
+    maxPaperHeight: Dp = 340.dp,
 ) {
     val density = LocalDensity.current
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val paperWidth = maxWidth
+    BoxWithConstraints(Modifier.fillMaxWidth().heightIn(max = maxPaperHeight),
+        contentAlignment = Alignment.TopCenter) {
+        val availableHeight = minOf(maxHeight, maxPaperHeight)
+        val paperWidth = minOf(maxWidth, availableHeight * paper.widthMm / paper.heightMm)
         val paperHeight = paperWidth * paper.heightMm / paper.widthMm
         val pxPerMm = with(density) { paperWidth.toPx() } / paper.widthMm
         val dpPerMm = paperWidth / paper.widthMm
-        Box(Modifier.size(paperWidth, paperHeight).clipToBounds().testTag("print_label_preview")) {
-            Image(
-                bitmap.asImageBitmap(),
-                contentDescription = null,
+        Box(Modifier.size(paperWidth, paperHeight).clipToBounds()
+            .background(Color.White).testTag("print_label_preview")) {
+            if (bitmap != null) Image(
+                bitmap.asImageBitmap(), contentDescription = null,
                 modifier = Modifier.fillMaxWidth().aspectRatio(paper.widthMm / paper.heightMm),
                 contentScale = ContentScale.FillBounds,
             )

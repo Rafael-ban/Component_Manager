@@ -85,29 +85,22 @@
             <CommandBar
                 Grid.Column="1"
                 Background="Transparent"
-                DefaultLabelPosition="Right">
-                <AppBarButton
-                    Click="OnImportComponentHubClicked"
-                    Icon="Upload"
-                    Label="导入" />
-                <AppBarButton Click="OnBatchJlcInboundClicked" Label="嘉立创批量入库">
-                    <AppBarButton.Icon><FontIcon Glyph="&#xE8B7;" /></AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarButton
-                    Click="OnManageLocationsClicked"
-                    Label="库位">
-                    <AppBarButton.Icon>
-                        <FontIcon Glyph="&#xE707;" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarButton Click="OnBatchTransferClicked" Label="批量转移">
-                    <AppBarButton.Icon><FontIcon Glyph="&#xE8AB;" /></AppBarButton.Icon>
-                </AppBarButton>
+                DefaultLabelPosition="Right"
+                IsDynamicOverflowEnabled="True">
                 <AppBarButton
                     x:Uid="ComponentsViewAddButton"
                     Click="OnAddComponentClicked"
                     Icon="Add"
                     Label="新增元器件" />
+                <CommandBar.SecondaryCommands>
+                    <AppBarButton Click="OnBatchJlcInboundClicked" Label="嘉立创批量入库">
+                        <AppBarButton.Icon><FontIcon Glyph="&#xE8B7;" /></AppBarButton.Icon>
+                    </AppBarButton>
+                    <AppBarButton Click="OnImportComponentHubClicked" Icon="Upload" Label="导入元器件" />
+                    <AppBarButton Click="OnManageLocationsClicked" Label="管理库位">
+                        <AppBarButton.Icon><FontIcon Glyph="&#xE707;" /></AppBarButton.Icon>
+                    </AppBarButton>
+                </CommandBar.SecondaryCommands>
             </CommandBar>
         </Grid>
         <Border
@@ -222,9 +215,43 @@
                         <RowDefinition
                             Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBlock
-                        Style="{StaticResource CaptionTextStyle}"
-                        Text="{Binding ComponentInventorySummary}" />
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="InventoryListSummary"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource CaptionTextStyle}"
+                            Text="{Binding ComponentInventorySummary}" />
+                        <Button
+                            x:Name="StartBatchSelectionButton"
+                            Grid.Column="1"
+                            Click="OnStartBatchSelectionClicked"
+                            Content="批量选择" />
+                        <TextBlock
+                            x:Name="BatchSelectionSummary"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed"
+                            FontWeight="SemiBold"
+                            Text="已选择 0 项" />
+                        <StackPanel
+                            x:Name="BatchSelectionActions"
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            Visibility="Collapsed">
+                            <Button Click="OnSelectAllVisibleClicked" Content="选择当前结果" />
+                            <Button
+                                x:Name="TransferSelectedButton"
+                                Click="OnBatchTransferClicked"
+                                Content="转移所选"
+                                IsEnabled="False"
+                                Style="{StaticResource AccentButtonStyle}" />
+                            <Button Click="OnCancelBatchSelectionClicked" Content="完成" />
+                        </StackPanel>
+                    </Grid>
                     <Grid
                         Grid.Row="1"
                         Padding="12,7"
@@ -266,7 +293,6 @@
                         x:Name="ComponentsListView"
                         Grid.Row="2"
                         ItemsSource="{Binding Components}"
-                        SelectedItem="{Binding SelectedComponent, Mode=TwoWay}"
                         SelectionChanged="OnComponentSelectionChanged"
                         SelectionMode="Single">
                         <ListView.ItemTemplate>
@@ -290,17 +316,12 @@
                                     <Grid
                                         ColumnSpacing="8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition
                                                 Width="40" />
                                             <ColumnDefinition
                                                 Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <CheckBox
-                                            VerticalAlignment="Center"
-                                            IsChecked="{Binding IsBatchSelected, Mode=TwoWay}" />
                                         <Border
-                                            Grid.Column="1"
                                             Width="40"
                                             Height="40"
                                             Background="{StaticResource VaultPanelBrush}"
@@ -316,7 +337,7 @@
                                             </Grid>
                                         </Border>
                                         <StackPanel
-                                            Grid.Column="2">
+                                            Grid.Column="1">
                                             <TextBlock
                                                 FontWeight="SemiBold"
                                                 Text="{Binding Name}"
@@ -374,6 +395,16 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
+                    <TextBlock
+                        x:Name="InventoryEmptyState"
+                        Grid.Row="2"
+                        Margin="24"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Text="{Binding InventoryEmptyMessage}"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap"
+                        Visibility="Collapsed" />
                 </Grid>
             </Border>
             <Border

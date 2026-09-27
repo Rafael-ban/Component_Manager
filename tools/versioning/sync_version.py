@@ -25,13 +25,16 @@ CHANGELOG_HEADER_RE = re.compile(
 )
 BUMP_LINE_RE = re.compile(r"^bump:\s*(major|minor|patch)\s*$", re.IGNORECASE)
 SEMVER_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+DEV_VERSION_RE = re.compile(
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-dev\.([1-9]\d*)$"
+)
 
 
 class VersionSyncError(RuntimeError):
     pass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class SemVer:
     major: int
     minor: int
@@ -63,6 +66,7 @@ class SemVer:
 @dataclass(frozen=True)
 class ChangelogState:
     text: str
+    latest_heading: str
     latest_release: SemVer
     unreleased_has_entries: bool
     bump_kind: str
@@ -121,9 +125,12 @@ def parse_changelog() -> ChangelogState:
     unreleased_start = header_positions[0][0]
     unreleased_end = header_positions[1][0] if len(header_positions) > 1 else len(lines)
 
+    latest_heading = header_positions[1][1] if len(header_positions) > 1 else ""
     for _, header_name in header_positions[1:]:
         if header_name == "Unreleased":
             raise VersionSyncError("docs/CHANGELOG.md may only contain one 'Unreleased' section.")
+        if DEV_VERSION_RE.fullmatch(header_name):
+            continue
         latest_release = SemVer.parse(header_name)
         break
 
@@ -157,6 +164,7 @@ def parse_changelog() -> ChangelogState:
 
     return ChangelogState(
         text=text,
+        latest_heading=latest_heading,
         latest_release=latest_release,
         unreleased_has_entries=unreleased_has_entries,
         bump_kind=bump_kind,
@@ -476,11 +484,36 @@ def apply_version_sync(output_path: Path | None = None) -> None:
     print(f"Synchronized repository version to {next_version}.")
 
 
+def sync_latest_stable_metadata() -> None:
+    """Align version files with an explicit stable changelog heading."""
+    state = parse_changelog()
+    version = SemVer.parse(state.latest_heading)
+    current_version = SemVer.parse(read_current_versions()["android.versionName"])
+    if version < current_version:
+        raise VersionSyncError(
+            f"Latest stable heading {version} is older than current metadata {current_version}."
+        )
+    if version == current_version:
+        try:
+            validate_synced_versions(version)
+        except VersionSyncError:
+            pass
+        else:
+            print(f"Version files are already synchronized at {version}.")
+            return
+
+    update_android_build(version, increment_code=version > current_version)
+    update_admin_web(version)
+    update_windows(version)
+    stage_version_files()
+    print(f"Synchronized explicit stable heading {version} without consuming Unreleased.")
+
+
 def check_version_sync() -> None:
     changelog_state = parse_changelog()
     if changelog_state.unreleased_has_entries:
         raise VersionSyncError(
-            "docs/CHANGELOG.md still has unreleased entries. Run the version sync before pushing or merge the commit created by the pre-commit hook.",
+            "docs/CHANGELOG.md still has unreleased entries. --check requires a completed release section; use --validate for draft changelog work.",
         )
 
     validate_synced_versions(changelog_state.latest_release)
@@ -510,6 +543,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply version updates from the Unreleased changelog section.",
     )
     parser.add_argument(
+        "--sync-latest-stable",
+        action="store_true",
+        help="Sync metadata to the latest explicit stable heading without consuming Unreleased.",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="Validate that all version files match the latest released changelog entry.",
@@ -530,10 +568,12 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    selected_modes = sum(bool(flag) for flag in (args.apply, args.check, args.validate))
+    selected_modes = sum(bool(flag) for flag in (
+        args.apply, args.sync_latest_stable, args.check, args.validate
+    ))
     if selected_modes > 1:
-        parser.error("Use only one of --apply, --check, or --validate.")
-    if args.github_output and (args.check or args.validate):
+        parser.error("Use only one version sync mode.")
+    if args.github_output and (args.sync_latest_stable or args.check or args.validate):
         parser.error("--github-output can only be used with apply mode.")
 
     output_path = Path(args.github_output) if args.github_output else None
@@ -543,6 +583,8 @@ def main() -> int:
             check_version_sync()
         elif args.validate:
             validate_version_state()
+        elif args.sync_latest_stable:
+            sync_latest_stable_metadata()
         else:
             apply_version_sync(output_path)
     except VersionSyncError as exc:

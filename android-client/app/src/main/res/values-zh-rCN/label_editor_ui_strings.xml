@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="label_ui_component_desc">从库存元件生成标签</string>
+    <string name="label_ui_text_desc">编辑简洁的文字便签</string>
+    <string name="label_ui_qr_desc">输入自己的二维码内容</string>
+    <string name="label_ui_free_desc">自由排列文字和二维码</string>
+    <string name="label_ui_content">内容</string>
+    <string name="label_ui_position">位置</string>
+    <string name="label_ui_paper">纸张</string>
+    <string name="label_ui_components">元件</string>
+    <string name="label_ui_add">添加</string>
+    <string name="label_ui_print">打印…</string>
+    <string name="label_ui_edit">返回编辑</string>
+    <string name="label_ui_print_ready">打印准备</string>
+    <string name="label_ui_select_element">点选标签上的元素后编辑</string>
+    <string name="label_ui_enter_qr">输入二维码内容后即可预览和打印</string>
+    <string name="label_ui_advanced">高级尺寸</string>
+    <string name="label_ui_close">完成</string>
+    <string name="label_ui_paper_summary">%1$s × %2$s 毫米 · %3$s°</string>
+    <string name="label_ui_no_component">选择元件后预览标签</string>
+    <string name="label_ui_print_blocked">请先完善标签并检查预览，再建立打印队列。</string>
+    <string name="label_ui_export">导出</string>
+</resources>

@@ -216,7 +216,7 @@ See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
   window size classes for width handling, and
   `NavigableListDetailPaneScaffold` for Inventory list-detail behavior. The
   Inventory header now treats search as the primary action through
-  `SearchBar`, with fixed horizontal filters and denser inventory rows instead
+  an inline `OutlinedTextField`, with results visible while typing, fixed horizontal filters and denser inventory rows instead
   of the older stacked filter-card layout. It now also includes quantity-first
   import flows for JLC copied mobile product text, package QR payloads,
   supplier packaging OCR, and generated warehouse labels.
@@ -314,18 +314,20 @@ See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
 ## Versioning
 
 - `docs/CHANGELOG.md` is the repository-wide version source.
-- A local pre-commit hook consumes the `Unreleased` changelog section and
-  synchronizes semantic versions to Android, admin-web, and Windows targets.
-- The default-branch GitHub workflow `release-from-changelog.yml` also uses the
-  changelog as input. It applies the same sync server-side when needed, pushes
-  the matching `vX.Y.Z` tag, and then directly invokes the reusable release
-  workflow in the same orchestration chain.
+- The local pre-commit hook validates version state; it does not consume
+  `Unreleased` or generate a stable version automatically.
+- On changelog pushes to the default branch, `release-from-changelog.yml` reads
+  the latest concrete version heading via `tools/versioning/changelog_release.py`.
+  A `-dev.N` suffix selects prerelease; a stable heading synchronizes Android,
+  admin-web and Windows metadata to that exact version. Changes limited to
+  `Unreleased` do not publish. Existing releases are skipped; a manual run can
+  retry a failed build from its existing tag when no release was created.
 - Android uses semver for `versionName` plus a monotonically increasing
   `versionCode`.
 - Windows package and assembly metadata use the same semver mapped to four-part
   versions as `major.minor.patch.0`.
 - The release path is:
-  `docs/CHANGELOG.md -> tools/versioning/sync_version.py -> release commit if needed -> vX.Y.Z tag -> reusable .github/workflows/release.yml build and GitHub Release publish`
+  `docs/CHANGELOG.md latest heading -> changelog_release.py -> stable metadata sync if needed -> version tag -> reusable release.yml build and GitHub Release publish`
 - Dev tags (`vX.Y.Z-dev.N`) build the same `master` code as prereleases, injecting
   artifact version names and monotonically ordered Android version codes. They
   do not advance the stable changelog or publish Docker Hub images. Windows
@@ -741,6 +743,8 @@ Android 和 Windows 的连接测试执行协议与账户接口检查而不保存
 Android 与 Windows 的批量库位转移使用现有 allocations 和 transfer 流水，不增加库存 schema。
 原生端在一个本地事务内先核对所有来源、目标、复核版本与数量，再写全部分配、流水及同步队列。
 源库存不足或复核过期时不提交部分结果。Android 左滑删除先展示操作并二次确认，沿用软删除。
+Android 以“选择”进入批量操作，转移表单滚动、复核提交固定可见；Windows 使用原生列表多选与上下文命令栏。
 
 标签工具入口只选择起始模板，再交给已有编辑器。自由标签由独立数据与 LabelDesign 组成，
 与库存 seed 二选一；没有为通用标签创建虚拟元件。队列恢复保留旧任务，中断项仍需人工核对。
+编辑器以适屏画布为中心，选中元素后编辑内容；纸张、元素位置和元件选择使用按需面板。打印准备与队列属于同一编辑器，继续复用既有渲染和 M1 传输流程。

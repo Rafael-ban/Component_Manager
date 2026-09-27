@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,8 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -292,6 +292,7 @@ private fun InventoryListPane(
     var selecting by androidx.compose.runtime.remember { mutableStateOf(false) }
     var selectedIds by androidx.compose.runtime.remember { mutableStateOf(emptySet<String>()) }
     var transferVisible by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var actionsExpanded by androidx.compose.runtime.remember { mutableStateOf(false) }
     LaunchedEffect(uiState.list.items.map { it.id }) {
         selectedIds = selectedIds.intersect(uiState.list.items.map { it.id }.toSet())
     }
@@ -311,32 +312,58 @@ private fun InventoryListPane(
             onLocationChange = onLocationChange,
             onSortChange = onSortChange,
         )
-        OutlinedButton(
-            onClick = onOpenBluetoothPrint,
+        Row(
             modifier = Modifier.fillMaxWidth(),
-        ) { Text(stringResource(R.string.label_tool_title)) }
-        if (onBatchTransfer != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { if (selecting) exitSelection() else selecting = true }) {
-                    Text(stringResource(if (selecting) R.string.action_cancel else R.string.batch_transfer_select))
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = strings.inventory.resultsSummary(
+                    uiState.list.items.size,
+                    uiState.availableCategories.size,
+                    uiState.availableLocations.size,
+                ),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (onBatchTransfer != null && !selecting) {
+                TextButton(onClick = { selecting = true }) {
+                    Text(stringResource(R.string.inventory_ui_select))
                 }
-                if (selecting) {
-                    FilledTonalButton(
-                        enabled = selectedItems.isNotEmpty(),
-                        onClick = { transferVisible = true },
-                    ) { Text(stringResource(R.string.batch_transfer_selected_count, selectedItems.size)) }
+            }
+            if (!selecting) {
+                Box {
+                    IconButton(onClick = { actionsExpanded = true }) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.inventory_ui_more_actions))
+                    }
+                    DropdownMenu(expanded = actionsExpanded, onDismissRequest = { actionsExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.label_tool_title)) },
+                            onClick = { actionsExpanded = false; onOpenBluetoothPrint() },
+                        )
+                    }
                 }
             }
         }
-        Text(
-            text = strings.inventory.resultsSummary(
-                uiState.list.items.size,
-                uiState.availableCategories.size,
-                uiState.availableLocations.size,
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (selecting) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    stringResource(R.string.batch_transfer_selected_count, selectedItems.size),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                TextButton(onClick = ::exitSelection) { Text(stringResource(R.string.action_cancel)) }
+                FilledTonalButton(
+                    enabled = selectedItems.isNotEmpty(),
+                    onClick = { transferVisible = true },
+                ) { Text(stringResource(R.string.batch_transfer_select)) }
+            }
+        }
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 12.dp),
@@ -392,54 +419,25 @@ private fun InventoryFilterHeader(
     var categoryMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var locationMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
-    var searchExpanded by rememberSaveable { mutableStateOf(false) }
 
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SearchBar(
+        OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
-            inputField = {
-                SearchBarDefaults.InputField(
-                    query = uiState.filters.query,
-                    onQueryChange = onQueryChange,
-                    onSearch = { searchExpanded = false },
-                    expanded = searchExpanded,
-                    onExpandedChange = { searchExpanded = it },
-                    placeholder = { Text(strings.inventory.searchPlaceholder) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Search,
-                            contentDescription = null,
-                        )
-                    },
-                    trailingIcon = {
-                        if (uiState.filters.query.isNotBlank()) {
-                            IconButton(
-                                onClick = {
-                                    onQueryChange("")
-                                    searchExpanded = false
-                                },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Clear,
-                                    contentDescription = null,
-                                )
-                            }
-                        }
-                    },
-                )
+            value = uiState.filters.query,
+            onValueChange = onQueryChange,
+            placeholder = { Text(strings.inventory.searchPlaceholder) },
+            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+            trailingIcon = {
+                if (uiState.filters.query.isNotBlank()) {
+                    IconButton(onClick = { onQueryChange("") }) {
+                        Icon(Icons.Outlined.Clear, contentDescription = stringResource(R.string.inventory_ui_clear_search))
+                    }
+                }
             },
-            expanded = searchExpanded,
-            onExpandedChange = { searchExpanded = it },
-        ) {
-            Text(
-                text = strings.inventory.filtersSubtitle,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            singleLine = true,
+        )
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

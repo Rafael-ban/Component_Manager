@@ -7,6 +7,7 @@ using ComponentVault.WinUI.Services.Catalog;
 using ComponentVault.WinUI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.UI;
@@ -20,6 +21,7 @@ public sealed partial class ComponentsView : Page
     private readonly LcscPublicLookup _catalogLookup = new();
     private readonly HashSet<string> _lazyLookupAttempted = new(StringComparer.OrdinalIgnoreCase);
     private bool _catalogAppendBusy;
+    private bool _isBatchSelecting;
     private MainViewModel? RuntimeViewModel => ViewModelResolver.GetRuntimeViewModel(DataContext);
 
     public ComponentsView()
@@ -27,6 +29,24 @@ public sealed partial class ComponentsView : Page
         InitializeComponent();
         NavigationCacheMode = NavigationCacheMode.Required;
         DataContext = ViewModelResolver.ResolveMainViewModel();
+        if (RuntimeViewModel is { } viewModel)
+        {
+            viewModel.Components.CollectionChanged += (_, _) => UpdateInventoryListState();
+            viewModel.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(MainViewModel.SelectedComponent) && !_isBatchSelecting)
+                    ComponentsListView.SelectedItem = viewModel.SelectedComponent;
+            };
+            ComponentsListView.SelectedItem = viewModel.SelectedComponent;
+        }
+        UpdateInventoryListState();
+    }
+
+    private void UpdateInventoryListState()
+    {
+        InventoryEmptyState.Visibility = RuntimeViewModel?.Components.Count == 0
+            ? Visibility.Visible : Visibility.Collapsed;
+        if (_isBatchSelecting) UpdateBatchSelectionSummary();
     }
 
     private void OnSearchTextChanged(
@@ -50,11 +70,60 @@ public sealed partial class ComponentsView : Page
 
     private void OnComponentSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_isBatchSelecting)
+        {
+            UpdateBatchSelectionSummary();
+            return;
+        }
         if (RuntimeViewModel is { } viewModel)
         {
             viewModel.SelectedComponent = ComponentsListView.SelectedItem as ComponentRecord;
             _ = TryLazyImageLookupAsync(viewModel.SelectedComponent);
         }
+    }
+
+    private void OnStartBatchSelectionClicked(object sender, RoutedEventArgs e)
+    {
+        _isBatchSelecting = true;
+        ComponentsListView.SelectionMode = ListViewSelectionMode.Multiple;
+        ComponentsListView.SelectedItems.Clear();
+        InventoryListSummary.Visibility = Visibility.Collapsed;
+        StartBatchSelectionButton.Visibility = Visibility.Collapsed;
+        BatchSelectionSummary.Visibility = Visibility.Visible;
+        BatchSelectionActions.Visibility = Visibility.Visible;
+        UpdateBatchSelectionSummary();
+    }
+
+    private void OnCancelBatchSelectionClicked(object sender, RoutedEventArgs e) => EndBatchSelection();
+
+    private void OnSelectAllVisibleClicked(object sender, RoutedEventArgs e)
+    {
+        if (!_isBatchSelecting) return;
+        ComponentsListView.SelectAll();
+        UpdateBatchSelectionSummary();
+    }
+
+    private void UpdateBatchSelectionSummary()
+    {
+        var count = ComponentsListView.SelectedItems.Count;
+        BatchSelectionSummary.Text = count > 500
+            ? $"已选择 {count} 项（最多转移 500 项）"
+            : $"已选择 {count} 项";
+        TransferSelectedButton.IsEnabled = count is > 0 and <= 500;
+    }
+
+    private void EndBatchSelection()
+    {
+        if (!_isBatchSelecting) return;
+        _isBatchSelecting = false;
+        var selectedId = RuntimeViewModel?.SelectedComponent?.Id;
+        ComponentsListView.SelectionMode = ListViewSelectionMode.Single;
+        ComponentsListView.SelectedItem = RuntimeViewModel?.Components.FirstOrDefault(item => item.Id == selectedId)
+            ?? RuntimeViewModel?.Components.FirstOrDefault();
+        InventoryListSummary.Visibility = Visibility.Visible;
+        StartBatchSelectionButton.Visibility = Visibility.Visible;
+        BatchSelectionSummary.Visibility = Visibility.Collapsed;
+        BatchSelectionActions.Visibility = Visibility.Collapsed;
     }
 
     private async void OnAddComponentClicked(object sender, RoutedEventArgs e)
@@ -127,13 +196,9 @@ public sealed partial class ComponentsView : Page
 
     private async void OnBatchTransferClicked(object sender, RoutedEventArgs e)
     {
-        if (RuntimeViewModel is not { } viewModel) return;
-        var selected = viewModel.Components.Where(component => component.IsBatchSelected).ToArray();
-        if (selected.Length == 0)
-        {
-            await ShowMessageAsync("批量转移", "请先勾选要转移的元器件。");
-            return;
-        }
+        if (!_isBatchSelecting || RuntimeViewModel is not { } viewModel) return;
+        var selected = ComponentsListView.SelectedItems.Cast<ComponentRecord>().ToArray();
+        if (selected.Length is 0 or > 500) return;
 
         var sourceIds = selected.SelectMany(component => component.Allocations
                 .Where(allocation => allocation.Quantity > 0).Select(allocation => allocation.LocationId))
@@ -142,89 +207,109 @@ public sealed partial class ComponentsView : Page
             .Select(group => group.Key).OrderBy(id => id, StringComparer.Ordinal).ToArray();
         if (sourceIds.Length == 0)
         {
-            await ShowMessageAsync("无法批量转移", "所选元器件没有共同且有库存的来源库位。请调整勾选范围。");
+            await ShowMessageAsync("无法批量转移", "所选元器件没有共同且有库存的来源库位。请调整选择范围。");
             return;
         }
+
         var targetIds = viewModel.StorageLocations.Where(location => !location.Deleted)
             .Select(location => location.Id).OrderBy(id => id, StringComparer.Ordinal).ToArray();
-        var sourceBox = new ComboBox { Header = "统一来源库位", ItemsSource = sourceIds, SelectedIndex = 0 };
-        var targetBox = new ComboBox { Header = "统一目标库位", ItemsSource = targetIds, SelectedIndex = -1 };
-        var locationPanel = new StackPanel { Width = 420, Spacing = 12 };
-        locationPanel.Children.Add(new TextBlock { Text = $"已勾选 {selected.Length} 个元器件。", TextWrapping = TextWrapping.Wrap });
-        locationPanel.Children.Add(sourceBox);
-        locationPanel.Children.Add(targetBox);
-        var locationError = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        locationPanel.Children.Add(locationError);
-        var locationsDialog = new ContentDialog
+        var sourceBox = new ComboBox { Header = "来源库位", ItemsSource = sourceIds, SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch };
+        var targetBox = new ComboBox { Header = "目标库位", ItemsSource = targetIds, SelectedIndex = -1,
+            HorizontalAlignment = HorizontalAlignment.Stretch };
+        var route = new Grid { ColumnSpacing = 12 };
+        route.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        route.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        route.Children.Add(sourceBox);
+        Grid.SetColumn(targetBox, 1);
+        route.Children.Add(targetBox);
+
+        var quantityRows = new StackPanel { Spacing = 4 };
+        var inputs = new List<(ComponentRecord Component, NumberBox Input)>();
+        void RebuildQuantityRows()
         {
-            Title = "选择批量转移库位", Content = locationPanel,
-            PrimaryButtonText = "填写数量", CloseButtonText = "取消", XamlRoot = XamlRoot,
+            quantityRows.Children.Clear();
+            inputs.Clear();
+            if (sourceBox.SelectedItem is not string sourceId) return;
+            foreach (var component in selected)
+            {
+                var available = component.Allocations.First(allocation => allocation.LocationId == sourceId).Quantity;
+                var row = new Grid { ColumnSpacing = 12, Padding = new Thickness(0, 6, 0, 6) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(116) });
+                var caption = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+                caption.Children.Add(new TextBlock { Text = $"{component.Sku} · {component.Name}",
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+                caption.Children.Add(new TextBlock { Text = $"来源可用 {available} 件" });
+                row.Children.Add(caption);
+                var input = new NumberBox { Value = available, Minimum = 1, Maximum = available,
+                    SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
+                AutomationProperties.SetName(input, $"{component.Sku} 转移数量");
+                Grid.SetColumn(input, 1);
+                row.Children.Add(input);
+                quantityRows.Children.Add(row);
+                inputs.Add((component, input));
+            }
+        }
+        sourceBox.SelectionChanged += (_, _) => RebuildQuantityRows();
+        RebuildQuantityRows();
+
+        var form = new StackPanel { MaxWidth = 560, Spacing = 12 };
+        form.Children.Add(new TextBlock { Text = $"第 1 步：选择库位并填写 {selected.Length} 项数量。",
+            TextWrapping = TextWrapping.Wrap });
+        form.Children.Add(route);
+        form.Children.Add(new TextBlock { Text = "转移数量", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        form.Children.Add(new ScrollViewer { Content = quantityRows, MaxHeight = 340,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        var formError = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        form.Children.Add(formError);
+        var formDialog = new ContentDialog
+        {
+            Title = "批量转移 · 设置", Content = form,
+            PrimaryButtonText = "下一步：复核", CloseButtonText = "取消", XamlRoot = XamlRoot,
         };
-        locationsDialog.PrimaryButtonClick += (_, args) =>
+        formDialog.PrimaryButtonClick += (_, args) =>
         {
-            if (sourceBox.SelectedItem is string sourceId && targetBox.SelectedItem is string targetId && sourceId != targetId)
+            if (sourceBox.SelectedItem is not string sourceId || targetBox.SelectedItem is not string targetId
+                || sourceId == targetId)
+            {
+                formError.Text = "请选择不同的来源库位和目标库位。";
+                args.Cancel = true;
                 return;
-            locationError.Text = "请选择不同的来源库位和目标库位。";
-            args.Cancel = true;
+            }
+            if (inputs.Any(item => !double.IsFinite(item.Input.Value)
+                || item.Input.Value != Math.Truncate(item.Input.Value)
+                || item.Input.Value < 1
+                || item.Input.Value > item.Component.Allocations.First(allocation => allocation.LocationId == sourceId).Quantity))
+            {
+                formError.Text = "每项数量必须是正整数，且不超过来源库位可用数量。";
+                args.Cancel = true;
+            }
         };
-        if (await locationsDialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await formDialog.ShowAsync() != ContentDialogResult.Primary) return;
+
         var source = (string)sourceBox.SelectedItem;
         var target = (string)targetBox.SelectedItem;
-
-        var quantityPanel = new StackPanel { Width = 500, Spacing = 8 };
-        var inputs = new List<(ComponentRecord Component, NumberBox Input)>();
-        foreach (var component in selected)
-        {
-            var available = component.Allocations.First(allocation => allocation.LocationId == source).Quantity;
-            var input = new NumberBox
-            {
-                Header = $"{component.Sku} · {component.Name}（来源可用 {available}）",
-                Value = available, Minimum = 1, Maximum = available,
-                SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
-            };
-            quantityPanel.Children.Add(input);
-            inputs.Add((component, input));
-        }
-        var quantityError = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        quantityPanel.Children.Add(quantityError);
-        var quantityDialog = new ContentDialog
-        {
-            Title = $"{source} → {target} · 逐项数量", Content = new ScrollViewer
-            {
-                Content = quantityPanel, MaxHeight = 500,
-            },
-            PrimaryButtonText = "复核", CloseButtonText = "取消", XamlRoot = XamlRoot,
-        };
-        quantityDialog.PrimaryButtonClick += (_, args) =>
-        {
-            if (inputs.All(item => double.IsFinite(item.Input.Value)
-                && item.Input.Value == Math.Truncate(item.Input.Value)
-                && item.Input.Value >= 1
-                && item.Input.Value <= item.Component.Allocations.First(allocation => allocation.LocationId == source).Quantity))
-                return;
-            quantityError.Text = "每项调拨数量必须为正整数，且不能超过来源库位可用数量。";
-            args.Cancel = true;
-        };
-        if (await quantityDialog.ShowAsync() != ContentDialogResult.Primary) return;
         var lines = inputs.Select(item => new InventoryStore.BatchTransferLine(
             item.Component.Id, (int)item.Input.Value, item.Component.UpdatedAt)).ToArray();
-        var review = string.Join("\n", inputs.Select(item => $"{item.Component.Sku} · {item.Input.Value:0} 件"));
+        var review = string.Join("\n", inputs.Select(item => $"{item.Component.Sku} · {item.Component.Name} · {item.Input.Value:0} 件"));
         var confirmation = new ContentDialog
         {
-            Title = "确认批量转移", Content = new ScrollViewer
+            Title = "批量转移 · 复核", Content = new ScrollViewer
             {
-                MaxHeight = 500, Content = new TextBlock
+                MaxHeight = 420, Content = new TextBlock
                 {
-                    Text = $"来源：{source}\n目标：{target}\n\n{review}\n\n总库存保持不变。",
+                    Text = $"第 2 步：确认 {selected.Length} 项转移\n{source} → {target}\n\n{review}\n\n总库存保持不变。",
                     TextWrapping = TextWrapping.Wrap,
                 },
             },
-            PrimaryButtonText = "确认一次提交", CloseButtonText = "取消",
+            PrimaryButtonText = "确认转移", CloseButtonText = "返回库存",
             DefaultButton = ContentDialogButton.Close, XamlRoot = XamlRoot,
         };
         if (await confirmation.ShowAsync() != ContentDialogResult.Primary) return;
         var result = viewModel.TransferBatch(new(source, target, lines));
         await ShowOperationResultAsync(result);
+        if (result.IsSuccess) EndBatchSelection();
     }
 
     private async void OnImportComponentHubClicked(object sender, RoutedEventArgs e)

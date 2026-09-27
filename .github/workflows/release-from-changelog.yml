@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'docs/CHANGELOG.md'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -25,8 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       publish_release: ${{ steps.tag_state.outputs.publish_release }}
-      version: ${{ steps.version_sync.outputs.version }}
-      tag: ${{ steps.version_sync.outputs.tag }}
+      version: ${{ steps.release_entry.outputs.version }}
+      tag: ${{ steps.release_entry.outputs.tag }}
       source_ref: ${{ steps.tag_state.outputs.source_ref }}
       release_name: ${{ steps.tag_state.outputs.release_name }}
       release_notes: ${{ steps.release_notes.outputs.release_notes }}
@@ -41,41 +42,81 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Apply changelog-driven version sync
-        id: version_sync
-        run: python tools/versioning/sync_version.py --apply --github-output "$GITHUB_OUTPUT"
+      - name: Read latest concrete release entry
+        id: release_entry
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          previous_args=()
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ -n "$BEFORE_SHA" ] &&
+             git cat-file -e "${BEFORE_SHA}:docs/CHANGELOG.md" 2>/dev/null; then
+            git show "${BEFORE_SHA}:docs/CHANGELOG.md" > "$RUNNER_TEMP/previous-changelog.md"
+            previous_args=(--previous-changelog "$RUNNER_TEMP/previous-changelog.md")
+          fi
+          python -m tools.versioning.changelog_release \
+            --github-output "$GITHUB_OUTPUT" "${previous_args[@]}"
+
+      - name: Check existing tag and release
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release_entry.outputs.tag }}
+          HAS_RELEASE: ${{ steps.release_entry.outputs.has_release }}
+          SECTION_CHANGED: ${{ steps.release_entry.outputs.section_changed }}
+        run: |
+          if [ "$HAS_RELEASE" != true ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No concrete release heading yet; skipping."
+          elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$SECTION_CHANGED" != true ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Latest release section is unchanged; skipping."
+          elif gh release view "$TAG" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG already exists; skipping."
+          elif git ls-remote --exit-code --tags --refs origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+            if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+              echo "Retrying release build from existing tag $TAG."
+            else
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Tag $TAG already exists; use workflow_dispatch to retry its release."
+            fi
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync explicit stable version metadata
+        if: steps.existing.outputs.skip == 'false' && steps.existing.outputs.tag_exists != 'true' && steps.release_entry.outputs.prerelease != 'true'
+        run: python tools/versioning/sync_version.py --sync-latest-stable
 
       - name: Configure git author
+        if: steps.existing.outputs.skip == 'false' && steps.existing.outputs.tag_exists != 'true' && steps.release_entry.outputs.prerelease != 'true'
         run: |
           git config user.name "component-vault-release-bot"
           git config user.email "component-vault-release-bot@users.noreply.github.com"
 
       - name: Commit synchronized version files
-        if: steps.version_sync.outputs.released == 'true'
+        if: steps.existing.outputs.skip == 'false' && steps.existing.outputs.tag_exists != 'true' && steps.release_entry.outputs.prerelease != 'true'
         env:
-          VERSION: ${{ steps.version_sync.outputs.version }}
+          VERSION: ${{ steps.release_entry.outputs.version }}
         run: |
-          if git diff --cached --quiet; then
-            echo "Version sync reported a release but no staged changes were found."
-            exit 1
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(release): sync version to ${VERSION}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
-
-          git commit -m "chore(release): sync version to ${VERSION}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
-
-      - name: Fetch remote tags
-        run: git fetch --tags origin
 
       - name: Ensure release tag exists
         id: tag_state
+        if: steps.existing.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version_sync.outputs.tag }}
-          VERSION: ${{ steps.version_sync.outputs.version }}
+          TAG: ${{ steps.release_entry.outputs.tag }}
+          VERSION: ${{ steps.release_entry.outputs.version }}
+          TAG_EXISTS: ${{ steps.existing.outputs.tag_exists }}
         run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "Tag ${TAG} already exists on origin."
-          else
+          if [ "$TAG_EXISTS" != true ]; then
             git tag -a "${TAG}" -m "Release ${VERSION}"
             git push origin "${TAG}"
           fi
@@ -94,7 +135,7 @@ jobs:
         id: release_notes
         if: steps.tag_state.outputs.publish_release == 'true'
         env:
-          VERSION: ${{ steps.version_sync.outputs.version }}
+          VERSION: ${{ steps.release_entry.outputs.version }}
         run: |
           python - <<'PY'
           from pathlib import Path

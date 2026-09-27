@@ -36,7 +36,7 @@ jobs:
         run: python tools/versioning/sync_version.py --validate
 
       - name: Test release channel version ordering
-        run: python -m unittest tools.versioning.test_release_channel
+        run: python -m unittest tools.versioning.test_release_channel tools.versioning.test_changelog_release tools.versioning.test_sync_version
 
   server-test:
     runs-on: ubuntu-latest
@@ -184,6 +184,7 @@ jobs:
           --tests 'com.componentvault.android.ui.screen.StartupFailureDetailsTest'
           --tests 'com.componentvault.android.ui.screen.ContinuousCaptureGateTest'
           --tests 'com.componentvault.android.ui.screen.InventoryNavigationUiTest'
+          --tests 'com.componentvault.android.ui.screen.InventoryInteractionUiTest'
           --tests 'com.componentvault.android.ui.screen.SettingsDraftUiTest'
           --tests 'com.componentvault.android.ui.screen.LocationManagementUiTest'
           --tests 'com.componentvault.android.ui.screen.ImportFlowUiTest'

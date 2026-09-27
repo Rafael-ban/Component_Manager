@@ -267,30 +267,21 @@ On macOS/Linux:
 sh ./scripts/setup-git-hooks.sh
 ```
 
-Daily flow:
+发布流程由 `docs/CHANGELOG.md` 的最新具体版本标题决定：
 
-1. Add release notes under `## [Unreleased]` in `docs/CHANGELOG.md`
-2. Set `bump:` to `major`, `minor`, or `patch`
-3. Run `git commit`
+1. 开发中的内容可以暂存在 `## [Unreleased]`，只修改这里不会发布。
+2. 代码通过 CI、准备测试版本时，在其下添加 `## [0.7.7-dev.1] - 日期` 和本次说明；提交到 `master` 后自动构建预发布。
+3. dev 经实际使用验证、决定发布正式版时，添加无后缀的标题，例如 `## [0.7.7] - 日期`。先运行 `python tools/versioning/sync_version.py --sync-latest-stable` 同步版本元数据，再提交；GitHub 工作流也会补齐尚未同步的元数据。
 
-The pre-commit hook then:
+本地 pre-commit 只执行 `--validate`，不再把 `Unreleased` 自动转换成正式版本。旧的 `--apply` 仍是显式生成稳定版本的工具，日常提交无需使用。
 
-- computes the next version from the latest released changelog entry
-- updates Android, admin-web, and Windows version files
-- converts `Unreleased` into a concrete release section
-- creates a fresh empty `Unreleased` template
+CI 与发布的处理方式：
 
-CI/default-branch flow:
-
-- `ci.yml` runs `python tools/versioning/sync_version.py --validate`
-- `release-from-changelog.yml` watches `docs/CHANGELOG.md` on the repository
-  default branch
-- if unreleased notes arrive without the local hook, the workflow applies the
-  same sync server-side and pushes `chore(release): sync version to X.Y.Z`
-- whether the release was synced locally or by GitHub Actions, the workflow
-  pushes the matching `vX.Y.Z` tag if it does not already exist
-- the same workflow run then calls `release.yml` directly to build Android,
-  admin-web, and Windows artifacts and create or update the GitHub Release
+- `ci.yml` 校验版本元数据并执行标题解析与版本通道测试。
+- `release-from-changelog.yml` 只读取最新具体版本章节；历史 dev 记录、教程链接或正文中的 dev 字样不影响判断。
+- 若只修改 `Unreleased` 或已有 Release，则跳过；新版本创建对应 tag，再调用 `release.yml` 构建产物。
+- 如果 tag 已创建但构建失败、尚无 Release，在 Actions 手动运行 `Release From Changelog` 可从原 tag 重试；不会将 tag 移到新提交。
+- dev 发布为 GitHub prerelease，保持稳定版本元数据和 Docker `latest` 不变。正式标题才同步稳定版本及发布正式镜像。
 
 Manual checks:
 
@@ -738,13 +729,9 @@ topic/deletion behavior.
 
 #### Stable and Dev publishing
 
-Keep one `master` branch. Stable releases continue through the changelog workflow;
-add their notes to `docs/CHANGELOG.md` only when ready to publish a stable build.
-For faster device tests, put notes in `docs/releases/X.Y.Z-dev.N.md`, commit and
-push the tested code to `master`, then tag that CI-verified commit as
-`vX.Y.Z-dev.N` and push the tag. `Release Artifacts` builds signed Android and
-self-contained Windows packages and marks the release as a GitHub prerelease.
-Dev does not publish Docker Hub images or replace the stable `latest` release.
+只保留 `master` 主线。日常功能和界面调整先发 dev，CI 成功不能代替实际 UI 验收。准备发布时，将最新版本标题和说明写入 `docs/CHANGELOG.md`：`X.Y.Z-dev.N` 自动走预发布，无后缀的 `X.Y.Z` 自动走正式发布；详细测试说明可链接到 `docs/releases/`。
+
+也可直接给已通过 CI 的提交推送 `vX.Y.Z-dev.N` tag，沿用 `Release Artifacts` 构建。两种入口共用同一渠道识别和构建流程，dev 均不发布 Docker 镜像、不替换稳定版 `latest`。
 
 Both channels keep the same Android application ID and signing key. Published
 Android version codes are derived from the release tag:
