@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,6 +21,10 @@ import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -86,6 +91,7 @@ internal fun InventoryScreen(
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
     onBatchTransfer: BatchTransferAction? = null,
+    onQuickMovement: QuickMovementAction? = null,
 ) {
     InventoryContent(
         contentPadding = contentPadding,
@@ -106,6 +112,7 @@ internal fun InventoryScreen(
         onRequestDeleteComponent = onRequestDeleteComponent,
         onRecordMovement = onRecordMovement,
         onBatchTransfer = onBatchTransfer,
+        onQuickMovement = onQuickMovement,
     )
 }
 
@@ -130,6 +137,7 @@ internal fun InventoryContent(
     onRequestDeleteComponent: (String) -> Unit,
     onRecordMovement: (String) -> Unit,
     onBatchTransfer: BatchTransferAction? = null,
+    onQuickMovement: QuickMovementAction? = null,
 ) {
     if (layoutMode.showsListDetail) {
         val navigator = rememberListDetailPaneScaffoldNavigator<String>()
@@ -170,6 +178,7 @@ internal fun InventoryContent(
                         onOpenBluetoothPrint = onOpenBluetoothPrint,
                         onRequestDeleteComponent = onRequestDeleteComponent,
                         onBatchTransfer = onBatchTransfer,
+                        onQuickMovement = onQuickMovement,
                     )
                 }
             },
@@ -206,6 +215,7 @@ internal fun InventoryContent(
             onOpenBluetoothPrint = onOpenBluetoothPrint,
             onRequestDeleteComponent = onRequestDeleteComponent,
             onBatchTransfer = onBatchTransfer,
+            onQuickMovement = onQuickMovement,
         )
     }
 }
@@ -287,11 +297,15 @@ private fun InventoryListPane(
     onOpenBluetoothPrint: () -> Unit,
     onRequestDeleteComponent: (String) -> Unit,
     onBatchTransfer: BatchTransferAction?,
+    onQuickMovement: QuickMovementAction?,
 ) {
     val strings = vaultStrings()
     var selecting by androidx.compose.runtime.remember { mutableStateOf(false) }
     var selectedIds by androidx.compose.runtime.remember { mutableStateOf(emptySet<String>()) }
     var transferVisible by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var quickActionItem by androidx.compose.runtime.remember { mutableStateOf<com.componentvault.android.model.InventoryListItemUiState?>(null) }
+    var quickMovement by androidx.compose.runtime.remember { mutableStateOf<Pair<com.componentvault.android.model.InventoryListItemUiState, Boolean>?>(null) }
+    var quickTransferItem by androidx.compose.runtime.remember { mutableStateOf<com.componentvault.android.model.InventoryListItemUiState?>(null) }
     var actionsExpanded by androidx.compose.runtime.remember { mutableStateOf(false) }
     LaunchedEffect(uiState.list.items.map { it.id }) {
         selectedIds = selectedIds.intersect(uiState.list.items.map { it.id }.toSet())
@@ -383,7 +397,7 @@ private fun InventoryListPane(
                             if (selecting) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
                             else onSelectComponent(item.id)
                         },
-                        onRequestDelete = if (selecting) null else ({ onRequestDeleteComponent(item.id) }),
+                        onOpenActions = if (selecting) null else ({ quickActionItem = item }),
                     )
                 }
             }
@@ -397,6 +411,50 @@ private fun InventoryListPane(
             onDismiss = ::exitSelection,
             onSubmit = onBatchTransfer,
         )
+    }
+    quickActionItem?.let { item ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { quickActionItem = null },
+            title = { Text("${item.name} · ${item.sku}", maxLines = 2, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column {
+                    listOf(
+                        Triple(R.string.inventory_quick_inbound, Icons.Outlined.Add, { quickMovement = item to true }),
+                        Triple(R.string.inventory_quick_outbound, Icons.Outlined.Remove, { quickMovement = item to false }),
+                        Triple(R.string.inventory_quick_transfer, Icons.Outlined.SwapHoriz, { quickTransferItem = item }),
+                        Triple(R.string.action_delete, Icons.Outlined.Delete, { onRequestDeleteComponent(item.id) }),
+                    ).forEach { (title, icon, action) ->
+                        TextButton(onClick = { quickActionItem = null; action() },
+                            enabled = when (title) {
+                                R.string.inventory_quick_inbound, R.string.inventory_quick_outbound -> onQuickMovement != null
+                                R.string.inventory_quick_transfer -> onBatchTransfer != null
+                                else -> true
+                            }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                val color = if (title == R.string.action_delete) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurface
+                                Icon(icon, contentDescription = null, tint = color)
+                                Text(stringResource(title), color = color)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { quickActionItem = null }) {
+                Text(stringResource(R.string.action_cancel))
+            } },
+        )
+    }
+    quickMovement?.let { (item, inbound) ->
+        if (onQuickMovement != null) QuickStockActionDialog(item, inbound,
+            uiState.allocations, uiState.storageLocations,
+            onDismiss = { quickMovement = null }, onSubmit = onQuickMovement)
+    }
+    quickTransferItem?.let { item ->
+        if (onBatchTransfer != null) BatchTransferDialog(
+            items = listOf(item), allocations = uiState.allocations, locations = uiState.storageLocations,
+            onDismiss = { quickTransferItem = null }, onSubmit = onBatchTransfer, singleItemMode = true)
     }
 }
 

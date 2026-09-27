@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -212,9 +212,9 @@ internal fun InventoryListRow(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     selectionMode: Boolean = false,
-    onRequestDelete: (() -> Unit)? = null,
+    onOpenActions: (() -> Unit)? = null,
 ) {
-    if (!selectionMode && onRequestDelete != null) {
+    if (!selectionMode && onOpenActions != null) {
         val revealWidth = 80.dp
         val revealPx = with(LocalDensity.current) { revealWidth.toPx() }
         var offsetPx by remember(item.id) { mutableFloatStateOf(0f) }
@@ -230,15 +230,16 @@ internal fun InventoryListRow(
                     onClick = {
                         settleJob?.cancel()
                         offsetPx = 0f
-                        onRequestDelete()
+                        onOpenActions()
                     },
                     modifier = Modifier.width(revealWidth).fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.errorContainer).testTag("inventory_delete_action"),
+                        .background(MaterialTheme.colorScheme.primaryContainer).testTag("inventory_quick_action"),
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Delete, contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error)
-                        Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Default.MoreHoriz, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(stringResource(R.string.inventory_quick_actions),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
             }

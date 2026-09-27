@@ -51,6 +51,7 @@ internal fun BatchTransferDialog(
     locations: List<StorageLocationRecord>,
     onDismiss: () -> Unit,
     onSubmit: BatchTransferAction,
+    singleItemMode: Boolean = false,
 ) {
     val sourceOptions = locations.filter { location ->
         items.isNotEmpty() && items.all { item ->
@@ -102,14 +103,16 @@ internal fun BatchTransferDialog(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
-                        stringResource(R.string.batch_transfer_title),
+                        stringResource(if (singleItemMode) R.string.inventory_quick_transfer
+                            else R.string.batch_transfer_title),
                         style = MaterialTheme.typography.headlineSmall,
                     )
-                    Text(
-                        stringResource(R.string.batch_transfer_count, items.size),
+                    if (singleItemMode) Text(items.singleOrNull()?.sku.orEmpty(),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else Text(stringResource(R.string.batch_transfer_count, items.size),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 HorizontalDivider()
                 Column(
@@ -185,7 +188,8 @@ internal fun BatchTransferDialog(
                         HorizontalDivider()
                     }
                     if (reviewing) {
-                        Text(stringResource(R.string.batch_transfer_review_prompt))
+                        Text(stringResource(if (singleItemMode) R.string.inventory_quick_transfer_review
+                            else R.string.batch_transfer_review_prompt))
                     }
                     if (error.isNotBlank()) {
                         Text(error, color = MaterialTheme.colorScheme.error)

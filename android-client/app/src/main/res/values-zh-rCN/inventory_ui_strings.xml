@@ -6,4 +6,17 @@
     <string name="inventory_ui_clear_search">清除搜索</string>
     <string name="inventory_ui_route">库位</string>
     <string name="inventory_ui_transfer_items">转移数量</string>
+    <string name="inventory_quick_actions">操作</string>
+    <string name="inventory_quick_inbound">入库</string>
+    <string name="inventory_quick_outbound">出库</string>
+    <string name="inventory_quick_transfer">转移库存</string>
+    <string name="inventory_quick_quantity">数量</string>
+    <string name="inventory_quick_choose_location">选择库位</string>
+    <string name="inventory_quick_no_location">暂无可用库位</string>
+    <string name="inventory_quick_available">该库位可用：%1$d</string>
+    <string name="inventory_quick_exceeds_stock">数量超过该库位库存</string>
+    <string name="inventory_quick_submit">确认</string>
+    <string name="inventory_quick_inbound_reason">快捷入库</string>
+    <string name="inventory_quick_outbound_reason">快捷出库</string>
+    <string name="inventory_quick_transfer_review">请核对来源库位、目标库位和数量后确认。</string>
 </resources>

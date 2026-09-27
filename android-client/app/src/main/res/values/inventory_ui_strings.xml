@@ -6,4 +6,17 @@
     <string name="inventory_ui_clear_search">Clear search</string>
     <string name="inventory_ui_route">Locations</string>
     <string name="inventory_ui_transfer_items">Transfer quantities</string>
+    <string name="inventory_quick_actions">Actions</string>
+    <string name="inventory_quick_inbound">Stock in</string>
+    <string name="inventory_quick_outbound">Stock out</string>
+    <string name="inventory_quick_transfer">Transfer stock</string>
+    <string name="inventory_quick_quantity">Quantity</string>
+    <string name="inventory_quick_choose_location">Choose location</string>
+    <string name="inventory_quick_no_location">No available location</string>
+    <string name="inventory_quick_available">Available here: %1$d</string>
+    <string name="inventory_quick_exceeds_stock">Quantity exceeds stock at this location</string>
+    <string name="inventory_quick_submit">Confirm</string>
+    <string name="inventory_quick_inbound_reason">Quick stock in</string>
+    <string name="inventory_quick_outbound_reason">Quick stock out</string>
+    <string name="inventory_quick_transfer_review">Check the source, destination, and quantity before confirming.</string>
 </resources>

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
@@ -24,6 +26,8 @@ import com.componentvault.android.model.InventoryFiltersUiState
 import com.componentvault.android.model.InventoryListItemUiState
 import com.componentvault.android.model.InventoryListUiState
 import com.componentvault.android.model.InventoryScreenUiState
+import com.componentvault.android.model.MovementEntryDraft
+import com.componentvault.android.model.OperationResult
 import com.componentvault.android.model.StorageLocationRecord
 import org.junit.Rule
 import org.junit.Test
@@ -61,32 +65,32 @@ class InventoryInteractionUiTest {
     )
 
     @Test
-    fun swipeRevealsOnlyNarrowDeleteActionAndTapClosesWithoutOpeningItem() {
+    fun swipeRevealsOnlyNarrowActionsAndTapClosesWithoutOpeningItem() {
         var opens = 0
-        var deletes = 0
+        var actions = 0
         setInventoryContent {
             MaterialTheme {
                 InventoryListRow(item, selected = false, onClick = { opens++ },
-                    onRequestDelete = { deletes++ })
+                    onOpenActions = { actions++ })
             }
         }
         val card = compose.onNodeWithTag("inventory_reveal_card")
-        compose.onNodeWithTag("inventory_delete_action").assertDoesNotExist()
+        compose.onNodeWithTag("inventory_quick_action").assertDoesNotExist()
         val closedLeft = card.getUnclippedBoundsInRoot().left
         card.performTouchInput { swipeLeft() }
         compose.waitForIdle()
         val openLeft = card.getUnclippedBoundsInRoot().left
-        val actionBounds = compose.onNodeWithTag("inventory_delete_action").getUnclippedBoundsInRoot()
+        val actionBounds = compose.onNodeWithTag("inventory_quick_action").getUnclippedBoundsInRoot()
         val actionWidth = actionBounds.right - actionBounds.left
         assertTrue(abs(((closedLeft - openLeft) - actionWidth).value) < 2f)
         compose.onNodeWithText(item.name).assertIsDisplayed()
-        compose.onNodeWithTag("inventory_delete_action").assertIsDisplayed()
-        compose.runOnIdle { assertEquals(0, deletes) }
+        compose.onNodeWithTag("inventory_quick_action").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(0, actions) }
 
         card.performClick()
         compose.waitForIdle()
         assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f)
-        compose.onNodeWithTag("inventory_delete_action").assertDoesNotExist()
+        compose.onNodeWithTag("inventory_quick_action").assertDoesNotExist()
         compose.runOnIdle { assertEquals(0, opens) }
 
         card.performTouchInput { swipeLeft() }
@@ -95,9 +99,9 @@ class InventoryInteractionUiTest {
         compose.waitForIdle()
         assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f)
         card.performTouchInput { swipeLeft() }
-        compose.onNodeWithTag("inventory_delete_action").performClick()
+        compose.onNodeWithTag("inventory_quick_action").performClick()
         compose.runOnIdle {
-            assertEquals(1, deletes)
+            assertEquals(1, actions)
             assertEquals(0, opens)
         }
     }
@@ -107,11 +111,104 @@ class InventoryInteractionUiTest {
         setInventoryContent {
             MaterialTheme {
                 InventoryListRow(item, selected = true, selectionMode = true,
-                    onClick = {}, onRequestDelete = {})
+                    onClick = {}, onOpenActions = {})
             }
         }
-        compose.onNodeWithTag("inventory_delete_action").assertDoesNotExist()
+        compose.onNodeWithTag("inventory_quick_action").assertDoesNotExist()
         compose.onNodeWithText(item.name).assertIsDisplayed()
+    }
+
+    @Test
+    fun quickActionMenuShowsSkuAndUsesExistingDeleteCallback() {
+        var deletedId: String? = null
+        setInventoryContent {
+            MaterialTheme {
+                InventoryContent(
+                    contentPadding = PaddingValues(),
+                    uiState = InventoryScreenUiState(
+                        list = InventoryListUiState(items = listOf(item)),
+                        storageLocations = listOf(StorageLocationRecord("A", "Shelf A", ""),
+                            StorageLocationRecord("B", "Shelf B", "")),
+                        allocations = listOf(ComponentAllocationRecord(item.id, "A", "Shelf A", 10)),
+                    ),
+                    statusMessage = "", layoutMode = compactMode,
+                    onQueryChange = {}, onStockFilterChange = {}, onCategoryChange = {},
+                    onLocationChange = {}, onSortChange = {}, onSelectComponent = {},
+                    onOpenComponentDetail = {}, onImportComponent = {}, onGenerateLabel = {},
+                    onEditComponent = {}, onRequestDeleteComponent = { deletedId = it },
+                    onRecordMovement = {},
+                    onQuickMovement = { _, _ -> },
+                    onBatchTransfer = { _, _, _, _ -> },
+                )
+            }
+        }
+        compose.onNodeWithTag("inventory_reveal_card").performTouchInput { swipeLeft() }
+        compose.onNodeWithTag("inventory_quick_action").performClick()
+        compose.onNodeWithText("${item.name} · ${item.sku}").assertIsDisplayed()
+        listOf(R.string.inventory_quick_inbound, R.string.inventory_quick_outbound,
+            R.string.inventory_quick_transfer, R.string.action_delete).forEach { label ->
+            compose.onNodeWithText(context.getString(label)).assertIsDisplayed()
+        }
+        compose.onNodeWithText(context.getString(R.string.inventory_quick_transfer)).performClick()
+        compose.onNodeWithText(context.getString(R.string.inventory_quick_transfer)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.batch_transfer_count, 1)).assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.action_cancel)).performClick()
+
+        compose.onNodeWithTag("inventory_reveal_card").performTouchInput { swipeLeft() }
+        compose.onNodeWithTag("inventory_quick_action").performClick()
+        compose.onNodeWithText(context.getString(R.string.action_delete)).performClick()
+        compose.runOnIdle { assertEquals(item.id, deletedId) }
+    }
+
+    @Test
+    fun quickStockFormKeepsInputOnFailureAndBlocksDuplicateSubmit() {
+        var draft: MovementEntryDraft? = null
+        var completion: ((OperationResult) -> Unit)? = null
+        var dismissals = 0
+        setInventoryContent {
+            MaterialTheme {
+                QuickStockActionDialog(item, inbound = true, allocations = emptyList(),
+                    locations = listOf(StorageLocationRecord("A", "Shelf A", "")),
+                    onDismiss = { dismissals++ }, onSubmit = { submitted, callback ->
+                        draft = submitted; completion = callback
+                    })
+            }
+        }
+        compose.onNodeWithTag("quick_quantity").performTextReplacement("3")
+        compose.onNodeWithTag("quick_submit").performClick()
+        compose.runOnIdle {
+            assertEquals("inbound", draft?.movementType)
+            assertEquals(item.id, draft?.componentId)
+            assertEquals("A", draft?.locationId)
+            assertEquals(3, draft?.quantity)
+            assertEquals(0, dismissals)
+        }
+        compose.onNodeWithTag("quick_submit").assertIsNotEnabled()
+        compose.onNodeWithText(context.getString(R.string.action_cancel)).assertIsNotEnabled()
+        compose.runOnIdle { completion?.invoke(OperationResult(false, "temporary failure")) }
+        compose.onNodeWithText("temporary failure").assertIsDisplayed()
+        assertEquals("3", compose.onNodeWithTag("quick_quantity")
+            .fetchSemanticsNode().config[SemanticsProperties.EditableText].text)
+        compose.onNodeWithTag("quick_submit").performClick()
+        compose.runOnIdle { completion?.invoke(OperationResult(true, "saved")) }
+        compose.runOnIdle { assertEquals(1, dismissals) }
+    }
+
+    @Test
+    fun quickOutboundRejectsMoreThanSourceAllocation() {
+        var submitted = false
+        setInventoryContent {
+            MaterialTheme {
+                QuickStockActionDialog(item, inbound = false,
+                    allocations = listOf(ComponentAllocationRecord(item.id, "A", "Shelf A", 2)),
+                    locations = listOf(StorageLocationRecord("A", "Shelf A", "")),
+                    onDismiss = {}, onSubmit = { _, _ -> submitted = true })
+            }
+        }
+        compose.onNodeWithTag("quick_quantity").performTextReplacement("3")
+        compose.onNodeWithText(context.getString(R.string.inventory_quick_exceeds_stock)).assertIsDisplayed()
+        compose.onNodeWithTag("quick_submit").assertIsNotEnabled()
+        compose.runOnIdle { assertEquals(false, submitted) }
     }
 
     @Test

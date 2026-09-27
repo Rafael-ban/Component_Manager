@@ -521,6 +521,7 @@ fun ComponentVaultApp(
                         showDeleteConfirmation = true
                     },
                     onBatchTransfer = viewModel::transferComponentsBatch,
+                    onQuickMovement = viewModel::recordMovement,
                     onScanMovementLabel = {
                         destination = InventoryDestination.Movements
                         movementBatchReviewVisible = false
