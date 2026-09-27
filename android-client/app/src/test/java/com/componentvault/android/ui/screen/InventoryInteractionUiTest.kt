@@ -7,9 +7,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -24,7 +26,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
-import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.test.swipe
 import com.componentvault.android.R
 import com.componentvault.android.model.ComponentAllocationRecord
 import com.componentvault.android.model.ComponentRecord
@@ -134,19 +136,25 @@ class InventoryInteractionUiTest {
         }
         compose.runOnIdle { assertEquals(listOf(0, 0, 0, 0), listOf(inbound, outbound, transfers, deletes)) }
 
-        card.performClick()
+        card.performTouchInput { click(Offset(size.width - 16f, center.y)) }
         compose.waitForIdle()
-        assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f,
-            "Card must return to original left bound after closing")
+        val afterTapLeft = card.getUnclippedBoundsInRoot().left
+        assertTrue(abs((afterTapLeft - closedLeft).value) < 2f,
+            "Tap-close card left $afterTapLeft must return to $closedLeft")
         compose.onNodeWithTag("inventory_quick_actions").assertDoesNotExist()
         compose.runOnIdle { assertEquals(0, opens) }
 
         card.performTouchInput { swipeLeft() }
         compose.waitForIdle()
-        card.performTouchInput { swipeRight() }
+        val closeDragPx = actionWidth.value * context.resources.displayMetrics.density * 0.75f
+        card.performTouchInput {
+            val start = Offset(size.width - 16f, center.y)
+            swipe(start, start.copy(x = start.x + closeDragPx), 300L)
+        }
         compose.waitForIdle()
-        assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f,
-            "Card must return to original left bound after closing")
+        val afterRightSwipeLeft = card.getUnclippedBoundsInRoot().left
+        assertTrue(abs((afterRightSwipeLeft - closedLeft).value) < 2f,
+            "Right-swipe-close card left $afterRightSwipeLeft must return to $closedLeft")
         card.performTouchInput { swipeLeft() }
         compose.onNodeWithTag("inventory_quick_inbound").performClick()
         compose.runOnIdle {
