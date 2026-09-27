@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
@@ -81,10 +83,14 @@ class InventoryInteractionUiTest {
                     onRecordMovement = {})
             }
         }
-        compose.onNodeWithText(context.getString(R.string.inventory_param_capacitance))
+        val capacitanceLabel = context.getString(R.string.inventory_param_capacitance)
+        compose.onNodeWithTag("inventory_detail_list").performScrollToNode(hasText(capacitanceLabel))
+        compose.onNodeWithText(capacitanceLabel)
             .performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("100nF").assertIsDisplayed()
-        compose.onNodeWithText(context.getString(R.string.inventory_param_voltage))
+        val voltageLabel = context.getString(R.string.inventory_param_voltage)
+        compose.onNodeWithTag("inventory_detail_list").performScrollToNode(hasText(voltageLabel))
+        compose.onNodeWithText(voltageLabel)
             .performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("50V").assertIsDisplayed()
     }
