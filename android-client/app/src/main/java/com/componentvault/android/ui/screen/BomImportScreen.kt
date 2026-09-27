@@ -456,7 +456,7 @@ internal fun BomImportScreen(
             if (fileBytes != null || activePreset != null) {
                 Button(
                     onClick = ::requestPreview,
-                    enabled = !busy && !releaseApplied && (selectedMode != BomImportMode.Bom || inspection != null),
+                    enabled = !busy && !releaseApplied && (selectedMode != BomImportMode.Bom || inspection != null || activePreset != null),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 ) { Text(stringResource(if (selectedMode == BomImportMode.Bom) R.string.bom_match_inventory else R.string.bom_generate_preview)) }
             }

@@ -20,11 +20,11 @@
     <string name="bom_saved_project_summary">%1$d items · Last used %2$d sets</string>
     <string name="bom_open_preset">Open and rematch</string>
     <string name="bom_delete">Delete</string>
-    <string name="bom_preset_hint">Matching this saved BOM against current inventory.</string>
+    <string name="bom_preset_hint">Project preset loaded. Adjust the build quantity, then tap Match inventory to review current stock.</string>
     <string name="bom_detected">BOM columns detected</string>
     <string name="bom_detection_needs_review">Review BOM columns</string>
     <string name="bom_table_summary">%1$s · %2$d item rows · Header row %3$d</string>
-    <string name="bom_mapping_summary">Quantity: %1$s · Part number/model: %2$s</string>
+    <string name="bom_mapping_summary">Quantity column: %1$s · Part information columns: %2$s</string>
     <string name="bom_mapping_missing">A quantity or identity column is missing. Adjust the column choices.</string>
     <string name="bom_mapping_expand">Adjust columns</string>
     <string name="bom_mapping_collapse">Hide columns</string>

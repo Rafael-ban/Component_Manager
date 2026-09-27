@@ -20,11 +20,11 @@
     <string name="bom_saved_project_summary">%1$d 项 · 上次 %2$d 套</string>
     <string name="bom_open_preset">打开并重新匹配</string>
     <string name="bom_delete">删除</string>
-    <string name="bom_preset_hint">正在用当前库存重新匹配已保存的项目。</string>
+    <string name="bom_preset_hint">已加载项目预设。可调整套数，再点击“匹配库存”重新核对。</string>
     <string name="bom_detected">已自动识别用料表</string>
     <string name="bom_detection_needs_review">需要确认用料列</string>
     <string name="bom_table_summary">%1$s · %2$d 行物料 · 表头第 %3$d 行</string>
-    <string name="bom_mapping_summary">数量：%1$s · 料号/型号：%2$s</string>
+    <string name="bom_mapping_summary">数量列：%1$s · 物料信息列：%2$s</string>
     <string name="bom_mapping_missing">缺少数量列或物料识别列，请调整列选择。</string>
     <string name="bom_mapping_expand">调整识别列</string>
     <string name="bom_mapping_collapse">收起识别列</string>
