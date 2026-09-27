@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .admin.api import router as admin_router
+from .admin.spec_enrichment import EnrichmentJobs
 from .account_api import router as account_router
 from .accounts import Account
 from .build_info import BUILD_REVISION, BUILD_VERSION
@@ -61,6 +62,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        app.state.spec_enrichment_jobs.cancel_all()
         publisher.stop()
         close_application_logger()
 
@@ -86,6 +88,7 @@ class DynamicCORSMiddleware:
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="Component Vault Sync", lifespan=lifespan)
+    app.state.spec_enrichment_jobs = EnrichmentJobs()
 
     @app.exception_handler(RequestValidationError)
     async def mqtt_validation_error(

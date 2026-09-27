@@ -3,7 +3,8 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import replace
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
 
 from ..accounts import Account
 from ..auth import require_token, require_admin
@@ -50,6 +51,7 @@ from .operations import (
     record_stock_movement,
     update_component,
 )
+from .spec_enrichment import EnrichmentJobs, candidates
 
 router = APIRouter(
     prefix="/admin-api",
@@ -143,6 +145,127 @@ def get_component_detail(
             detail="Component not found.",
         )
     return AdminComponentDetail.model_validate(component)
+
+
+class SpecEnrichmentStart(BaseModel):
+    component_ids: list[str] | None = Field(default=None, max_length=5000)
+
+
+@router.get("/components/spec-enrichment/candidates")
+def get_spec_enrichment_candidates(
+    connection: sqlite3.Connection = Depends(get_db),
+) -> dict[str, object]:
+    total, items = candidates(connection, limit=50)
+    return {"total": total, "items": items}
+
+
+@router.post("/components/spec-enrichment/jobs", status_code=status.HTTP_202_ACCEPTED)
+def post_spec_enrichment_job(
+    request: Request,
+    draft: SpecEnrichmentStart,
+    settings: Settings = Depends(get_settings),
+    connection: sqlite3.Connection = Depends(get_db),
+    account: Account = Depends(require_token),
+) -> dict[str, object]:
+    _require_web_inventory(settings)
+    _, available = candidates(connection)
+    if draft.component_ids is not None:
+        selected = set(draft.component_ids)
+        if len(selected) != len(draft.component_ids):
+            raise HTTPException(status_code=422, detail="Duplicate component IDs.")
+        available = [item for item in available if item["id"] in selected]
+        if len(available) != len(selected):
+            raise HTTPException(status_code=422, detail="Selected components are not eligible.")
+    manager: EnrichmentJobs = request.app.state.spec_enrichment_jobs
+    try:
+        job = manager.start(account, settings, available)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return job.snapshot()
+
+
+@router.get("/components/spec-enrichment/jobs/active")
+def get_active_spec_enrichment_job(
+    request: Request,
+    account: Account = Depends(require_token),
+) -> dict[str, object] | None:
+    manager: EnrichmentJobs = request.app.state.spec_enrichment_jobs
+    job = manager.active(account)
+    return job.snapshot() if job is not None else None
+
+
+@router.get("/components/spec-enrichment/jobs/{job_id}")
+def get_spec_enrichment_job(
+    job_id: str,
+    request: Request,
+    account: Account = Depends(require_token),
+) -> dict[str, object]:
+    manager: EnrichmentJobs = request.app.state.spec_enrichment_jobs
+    job = manager.get(job_id, account)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Enrichment job not found.")
+    return job.snapshot()
+
+
+@router.post("/components/spec-enrichment/jobs/{job_id}/cancel")
+def post_spec_enrichment_cancel(
+    job_id: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    account: Account = Depends(require_token),
+) -> dict[str, object]:
+    _require_web_inventory(settings)
+    manager: EnrichmentJobs = request.app.state.spec_enrichment_jobs
+    job = manager.get(job_id, account)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Enrichment job not found.")
+    job.cancel.set()
+    return job.snapshot()
+
+
+@router.post("/components/spec-enrichment/jobs/{job_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+def post_spec_enrichment_retry(
+    job_id: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    account: Account = Depends(require_token),
+) -> dict[str, object]:
+    _require_web_inventory(settings)
+    manager: EnrichmentJobs = request.app.state.spec_enrichment_jobs
+    job = manager.get(job_id, account)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Enrichment job not found.")
+    snapshot = job.snapshot()
+    if snapshot["state"] not in {"completed", "cancelled"}:
+        raise HTTPException(status_code=409, detail="Wait for the job to finish.")
+    retry_items = [
+        {"id": item["id"], "sku": item["sku"], "name": item["name"]}
+        for item in job.items if item["status"] in {"failed", "pending"}
+    ]
+    if not retry_items:
+        raise HTTPException(status_code=409, detail="No failed or pending items to retry.")
+    try:
+        return manager.start(account, settings, retry_items).snapshot()
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.post("/components/spec-enrichment/jobs/{job_id}/clear")
+def post_spec_enrichment_clear(
+    job_id: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    account: Account = Depends(require_token),
+) -> dict[str, bool]:
+    _require_web_inventory(settings)
+    manager: EnrichmentJobs = request.app.state.spec_enrichment_jobs
+    try:
+        found = manager.clear(job_id, account)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if not found:
+        raise HTTPException(status_code=404, detail="Enrichment job not found.")
+    return {"cleared": True}
 
 
 @router.get(

@@ -218,6 +218,35 @@ def lookup_part_metadata(
     )
 
 
+def lookup_explicit_sku_metadata(
+    settings: Settings, sku: str,
+) -> LcscLookupResponse:
+    """Resolve a user-requested exact LCSC SKU without the automatic fallback switch.
+
+    The automatic part lookup intentionally tolerates unavailable sources. This
+    explicit enrichment path reports an actual public network failure so the job
+    can retry the row instead of silently treating it as absent catalog data.
+    """
+    normalized = _normalize_text(sku)
+    if normalized is None or _build_lcsc_product_url(normalized) is None:
+        raise ValueError("A valid LCSC SKU is required.")
+    try:
+        official = lookup_lcsc_product(settings=settings, sku=normalized)
+    except (LookupConfigurationError, LookupRequestError):
+        official = None
+    if official is not None and official.found and official.sku and (
+        official.sku.casefold() == normalized.casefold()
+    ) and (official.parameters or official.description):
+        return official
+    try:
+        public = _lookup_public_web_detail(normalized, "sku")
+    except Exception as error:
+        raise LookupRequestError(
+            f"Public LCSC SKU lookup failed ({type(error).__name__})."
+        ) from error
+    return public or LcscLookupResponse(found=False, source="lcsc_public_web")
+
+
 def get_recognition_rules_meta(
     settings: Settings,
     refreshed: bool = False,

@@ -543,3 +543,19 @@ without authentication, and GitHub issue-report credentials are unrelated.
 `/admin-api/lcsc/lookup` 与 `/admin-api/part-lookup` 新增可选 `description` 和 `parameters`（键值对象，缺失为空对象）。参数只取上游明确值；无参数时不从型号解码。默认展示名称使用品牌和型号，长商品说明进入 `description`。
 
 Android 和 Windows 将官方参数保存在既有元件 `description` 的参数行中，保持现有同步和备份格式；无需新增数据库字段。客户端基本信息与 Web 详情解析中英参数行，检索覆盖原值、单位及常见字段别名。已有名称不批量改写，旧记录未保存过的参数仍需要重新联网查询。
+
+## 旧库存参数批量补全 API
+
+所有路径位于 `/admin-api/components/spec-enrichment`，使用现有 Bearer 账户密钥，数据库从认证身份解析。写请求受 `WEB_INVENTORY_ENABLED` 控制，读请求可在只读模式下预览。
+
+| 方法与子路径 | 行为 |
+| --- | --- |
+| `GET /candidates` | 返回当前账户候选总数与前 50 条 ID、SKU、名称 |
+| `POST /jobs` | `{}` 处理全部候选；可传 `component_ids` 选择候选（最多 5000 个 ID）；返回 202 与任务快照 |
+| `GET /jobs/active` | 返回当前账户活动任务或 `null`，用于启动超时或页面恢复 |
+| `GET /jobs/{id}` | 返回状态、计数与最多 50 条结果摘要，失败项优先 |
+| `POST /jobs/{id}/cancel` | 请求取消；当前查询结束后停止 |
+| `POST /jobs/{id}/retry` | 新任务 ID，重试失败及取消后未处理项 |
+| `POST /jobs/{id}/clear` | 清除已结束任务的内存记录，不删除业务数据 |
+
+状态为 `queued/running/completed/cancelled`；计数含 `total/processed/updated/skipped/failed`。同账户同时只能有一项活动任务，重复启动返回 409；任务跨账户不可访问。联网在事务外执行，提交前检查元件版本；成功写入 description、updated_at 与 sync revision，增量 `/sync/pull` 可获取更新。服务重启后任务 ID 失效，需重新预览剩余候选。具体使用范围见[操作指南](parameter-enrichment.md)。

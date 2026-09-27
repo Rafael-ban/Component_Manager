@@ -12,6 +12,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { InventoryActions } from "@/components/inventory-actions";
+import { SpecEnrichmentPanel } from "@/components/spec-enrichment-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -115,6 +116,8 @@ export function InventoryPage() {
           void detail.reload();
         }}
       />
+
+      <SpecEnrichmentPanel enabled={inventoryEnabled} onChanged={() => { void reload(); void detail.reload(); }} />
 
       <Card className="bg-white/90">
         <CardContent className="pt-6">

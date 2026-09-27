@@ -754,3 +754,7 @@ release workflow. A missing package, HTTP 404, rate limit or network failure is
 shown in the UI; users can still open the fixed release page. Applications do
 not silently install or import signing certificates. See [application updates](app-updates.md)
 for installation and Debug/Release signing boundaries.
+
+## 旧库存参数补全
+
+包含工具的 API 与 Web 需一起升级。在 Web 库存页预览当前账户缺少参数的 LCSC 元件，再确认批量补全；写入需要管理员启用 Web 库存操作。先同步各客户端，完成后再次同步获取参数；数量、库位及流水不变。取消保留成功项，重启后重新预览剩余候选。开发版不推送 Docker 稳定标签；源码 Compose 与现有数据卷的部署说明、恢复步骤见[旧库存参数补全指南](parameter-enrichment.md)。

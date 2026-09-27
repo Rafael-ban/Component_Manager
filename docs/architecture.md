@@ -754,3 +754,9 @@ Android 以“选择”进入批量操作，转移表单滚动、复核提交固
 `/admin-api/lcsc/lookup` 与 `/admin-api/part-lookup` 新增可选 `description` 和 `parameters`（键值对象，缺失为空对象）。参数只取上游明确值；无参数时不从型号解码。默认展示名称使用品牌和型号，长商品说明进入 `description`。
 
 Android 和 Windows 将官方参数保存在既有元件 `description` 的参数行中，保持现有同步和备份格式；无需新增数据库字段。客户端基本信息与 Web 详情解析中英参数行，检索覆盖原值、单位及常见字段别名。已有名称不批量改写，旧记录未保存过的参数仍需要重新联网查询。
+
+## 旧库存参数维护工具
+
+Web 库存页的 `SpecEnrichmentPanel` 使用 `/admin-api/components/spec-enrichment/*`，按已认证账户预览、启动、恢复、取消和重试参数补全。服务端 `EnrichmentJobs` 逐项查询明确的 LCSC SKU；优先配置的 API，否则查询公开详情，独立于自动识别 fallback 开关。仅保存官方明确参数及描述，不改名称、数量、库位或流水。
+
+查询不持有写事务；回写以 updated_at/SKU/删除状态复核，复用 `save_sync_payload_in_transaction` 和原有账户同步 revision，因此原生客户端可通过增量同步获取。任务进度为进程内状态，每账户只保留最近完成任务及活动任务，提供清除入口；重启不自动重跑，已完成资料持久化，其余由候选重新选择。完整行为和部署边界见[旧库存参数补全](parameter-enrichment.md)。
