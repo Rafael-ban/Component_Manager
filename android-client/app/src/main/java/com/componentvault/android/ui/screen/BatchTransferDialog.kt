@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -108,6 +109,7 @@ internal fun BatchTransferDialog(
                         style = MaterialTheme.typography.headlineSmall,
                     )
                     if (singleItemMode) Text(items.singleOrNull()?.sku.orEmpty(),
+                        modifier = Modifier.testTag("inventory_quick_transfer_sku"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     else Text(stringResource(R.string.batch_transfer_count, items.size),

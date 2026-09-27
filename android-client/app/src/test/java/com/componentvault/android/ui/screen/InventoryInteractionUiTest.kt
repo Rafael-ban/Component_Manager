@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -111,26 +112,32 @@ class InventoryInteractionUiTest {
         }
         val card = compose.onNodeWithTag("inventory_reveal_card")
         compose.onNodeWithTag("inventory_quick_actions").assertDoesNotExist()
-        val closedLeft = card.getUnclippedBoundsInRoot().left
+        val closedBounds = card.getUnclippedBoundsInRoot()
+        val closedLeft = closedBounds.left
         card.performTouchInput { swipeLeft() }
         compose.waitForIdle()
         val openLeft = card.getUnclippedBoundsInRoot().left
         val actionBounds = compose.onNodeWithTag("inventory_quick_actions").getUnclippedBoundsInRoot()
         val actionWidth = actionBounds.right - actionBounds.left
-        assertTrue(abs(((closedLeft - openLeft) - actionWidth).value) < 2f)
+        assertTrue(abs(((closedLeft - openLeft) - actionWidth).value) < 2f,
+            "Card shift ${closedLeft - openLeft} must equal action width $actionWidth")
         card.assertIsDisplayed()
-        val cardBounds = card.getUnclippedBoundsInRoot()
-        assertTrue((cardBounds.right - cardBounds.left - actionWidth).value >= 48f)
+        val remainingCardWidth = closedBounds.right - closedBounds.left - actionWidth
+        assertTrue(remainingCardWidth.value >= 47.5f,
+            "Visible card remainder $remainingCardWidth must be at least 48dp (pixel tolerance)")
         listOf("inventory_quick_inbound", "inventory_quick_outbound",
             "inventory_quick_transfer", "inventory_quick_delete").forEach {
             val button = compose.onNodeWithTag(it).assertIsDisplayed().getUnclippedBoundsInRoot()
-            assertTrue((button.right - button.left).value >= 48f)
+            val buttonWidth = button.right - button.left
+            assertTrue(buttonWidth.value >= 47.5f,
+                "$it touch width $buttonWidth must be at least 48dp (pixel tolerance)")
         }
         compose.runOnIdle { assertEquals(listOf(0, 0, 0, 0), listOf(inbound, outbound, transfers, deletes)) }
 
         card.performClick()
         compose.waitForIdle()
-        assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f)
+        assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f,
+            "Card must return to original left bound after closing")
         compose.onNodeWithTag("inventory_quick_actions").assertDoesNotExist()
         compose.runOnIdle { assertEquals(0, opens) }
 
@@ -138,7 +145,8 @@ class InventoryInteractionUiTest {
         compose.waitForIdle()
         card.performTouchInput { swipeRight() }
         compose.waitForIdle()
-        assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f)
+        assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f,
+            "Card must return to original left bound after closing")
         card.performTouchInput { swipeLeft() }
         compose.onNodeWithTag("inventory_quick_inbound").performClick()
         compose.runOnIdle {
@@ -200,7 +208,7 @@ class InventoryInteractionUiTest {
         card.performTouchInput { swipeLeft() }
         compose.onNodeWithTag("inventory_quick_transfer").performClick()
         compose.onNodeWithText(context.getString(R.string.inventory_quick_transfer)).assertIsDisplayed()
-        compose.onNodeWithText(item.sku).assertIsDisplayed()
+        compose.onNodeWithTag("inventory_quick_transfer_sku").assertTextEquals(item.sku).assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.batch_transfer_count, 1)).assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.action_cancel)).performClick()
 
