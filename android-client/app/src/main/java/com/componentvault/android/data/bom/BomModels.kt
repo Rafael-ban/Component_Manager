@@ -48,10 +48,12 @@ data class BomColumnMapping(
 ) {
     fun validate(columnCount: Int) {
         require(quantity != null) { "请选择需求数量列。" }
-        require(sku != null || model != null) { "请至少选择 SKU 或型号列。" }
-        listOfNotNull(sku, model, packageName, quantity, name, reference).forEach {
+        require(sku != null || model != null || name != null) { "请至少选择 SKU、型号或名称列，以便保留待人工匹配的行。" }
+        val selected = listOfNotNull(sku, model, packageName, quantity, name, reference)
+        selected.forEach {
             require(it in 0 until columnCount) { "列映射超出表头范围。" }
         }
+        require(selected.size == selected.toSet().size) { "同一列不能映射到多个字段；请重新选择列映射。" }
     }
 }
 
@@ -60,6 +62,8 @@ data class BomTableInspection(
     val headers: List<String>,
     val headerRowNumber: Int,
     val automaticMapping: BomColumnMapping,
+    val sampleRows: List<List<String>> = emptyList(),
+    val dataRowCount: Int = 0,
 )
 
 data class BomSourceRow(

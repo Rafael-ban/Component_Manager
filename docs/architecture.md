@@ -581,6 +581,15 @@ is independent of synchronization and defaults to enabled.
 
 ## Project BOM and component-hub migration (2026-09-15)
 
+Android 与 Windows 的 BOM 入口采用文件识别、库存匹配、确认出库的顺序。
+列映射默认折叠，异常时调整；选择器同时显示表头与源数据样例。嘉立创
+`Comment` 仅作为行说明，`Supplier Part` 与 `Manufacturer Part` 分别用于料号和型号。
+无料号、无型号的非空行保留独立源行身份，必须手选库存或显式跳过。
+跳过集合属于当前预览状态，原始解析数据保留以便恢复；跳过行不进入聚合扣料计划。
+最终出库继续使用原有事务与幂等标记，不新增数据库表或同步协议。
+可选项目预设以客户端本地 JSON 保存解析后的单套清单和匹配/跳过选择，支持删除。
+重新使用时创建新批次并从当前数据库生成库存计划；预设不保存库存快照、不参与同步。
+
 Both native clients provide bounded CSV/XLSX readers, exact-SKU and
 model/package matching, preview, explicit confirmation and transactional stock
 depletion. Duplicate demands are aggregated by final component ID. Each commit

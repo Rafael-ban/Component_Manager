@@ -1290,6 +1290,7 @@ class InventoryRepository(
         parsed: com.componentvault.android.data.bom.BomParseResult,
         selections: Map<String, String> = emptyMap(),
         searchQueries: Map<String, String> = emptyMap(),
+        excludedKeys: Set<String> = emptySet(),
     ): com.componentvault.android.data.bom.BomReleasePreview = withContext(Dispatchers.IO) {
         val components = loadComponents()
         val inventory = components.map { component ->
@@ -1304,7 +1305,7 @@ class InventoryRepository(
             )
         }
         val matches = com.componentvault.android.data.bom.BomInventoryMatcher.match(
-            parsed.requirements,
+            parsed.requirements.filterNot { it.identity.canonicalKey in excludedKeys },
             inventory.filter { it.active },
         )
         val componentsById = components.associateBy { it.id }

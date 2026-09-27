@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using ComponentVault.WinUI.Services.Bom;
 using ComponentVault.WinUI.ViewModels;
 using ComponentVault.WinUI.Models;
@@ -14,7 +15,9 @@ public sealed partial class BomView : Page
 {
     private readonly BomFileReader _reader = new();
     private readonly BomPlanningService _planner = new();
+    private readonly BomPresetStore _presetStore = new();
     private readonly Dictionary<int, string> _selections = [];
+    private readonly HashSet<int> _skippedRows = [];
     private BomDocument? _document;
     private BomPreview? _preview;
     private BomTableInspection? _inspection;
@@ -25,7 +28,95 @@ public sealed partial class BomView : Page
     private bool _confirmed;
     private MainViewModel ViewModel => ((App)Application.Current).MainViewModel!;
 
-    public BomView() => InitializeComponent();
+    public BomView()
+    {
+        InitializeComponent();
+        Loaded += async (_, _) =>
+        {
+            try { RefreshPresets(); }
+            catch (Exception error) { await ShowMessageAsync("预设读取失败", error.Message); }
+        };
+    }
+
+    private void RefreshPresets(string? selected = null)
+    {
+        var names = _presetStore.LoadAll().Select(item => item.Name).ToArray();
+        PresetBox.ItemsSource = names;
+        PresetBox.SelectedItem = names.FirstOrDefault(name => string.Equals(name, selected, StringComparison.OrdinalIgnoreCase));
+        UpdatePresetButtons();
+    }
+
+    private void OnPresetSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdatePresetButtons();
+
+    private void UpdatePresetButtons()
+    {
+        var selected = PresetBox.SelectedItem is string;
+        LoadPresetButton.IsEnabled = selected;
+        DeletePresetButton.IsEnabled = selected;
+    }
+
+    private async void OnLoadPresetClicked(object sender, RoutedEventArgs e)
+    {
+        if (PresetBox.SelectedItem is not string name) return;
+        try
+        {
+            var preset = _presetStore.LoadAll().First(item => item.Name == name);
+            _document = null;
+            ProjectNameBox.Text = preset.ProjectName;
+            BatchQuantityBox.Value = preset.BatchQuantity;
+            _document = preset.Document;
+            _filePath = null;
+            _inspection = null;
+            _mapping = null;
+            MappingExpander.IsEnabled = false;
+            MappingExpander.IsExpanded = false;
+            _selections.Clear();
+            foreach (var pair in preset.SelectedComponents) _selections[pair.Key] = pair.Value;
+            _skippedRows.Clear();
+            foreach (var row in preset.SkippedRows) _skippedRows.Add(row);
+            ResetBatchIdentity();
+            RefreshPreview();
+        }
+        catch (Exception error) { await ShowMessageAsync("预设加载失败", error.Message); }
+    }
+
+    private async void OnDeletePresetClicked(object sender, RoutedEventArgs e)
+    {
+        if (PresetBox.SelectedItem is not string name) return;
+        var confirm = new ContentDialog { Title = "删除 BOM 预设", Content = $"删除“{name}”？已加载的本次预览仍可继续使用。", PrimaryButtonText = "删除", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close, XamlRoot = XamlRoot };
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+        try { _presetStore.Delete(name); RefreshPresets(); }
+        catch (Exception error) { await ShowMessageAsync("预设删除失败", error.Message); }
+    }
+
+    private async void OnSavePresetClicked(object sender, RoutedEventArgs e)
+    {
+        if (_document is null || _confirmed) return;
+        var quantity = BatchQuantityBox.Value;
+        if (string.IsNullOrWhiteSpace(ProjectNameBox.Text) || !double.IsFinite(quantity) || quantity < 1 || quantity > int.MaxValue || quantity != Math.Truncate(quantity))
+        {
+            await ShowMessageAsync("无法保存预设", "请先填写项目名称和有效的生产批数。");
+            return;
+        }
+        var nameBox = new TextBox { Header = "预设名称", Text = ProjectNameBox.Text.Trim(), MinWidth = 360 };
+        var dialog = new ContentDialog { Title = "保存 BOM 预设", Content = nameBox, PrimaryButtonText = "保存", CloseButtonText = "取消", XamlRoot = XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var name = nameBox.Text.Trim();
+        if (name.Length == 0) { await ShowMessageAsync("无法保存预设", "请输入预设名称。"); return; }
+        try
+        {
+            if (_presetStore.LoadAll().Any(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                var overwrite = new ContentDialog { Title = "覆盖已有预设", Content = $"“{name}”已存在。用当前 BOM 行、匹配与跳过状态覆盖吗？", PrimaryButtonText = "覆盖", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close, XamlRoot = XamlRoot };
+                if (await overwrite.ShowAsync() != ContentDialogResult.Primary) return;
+            }
+            _presetStore.Save(new(name, _document, ProjectNameBox.Text.Trim(), (int)quantity,
+                new Dictionary<int, string>(_selections), _skippedRows.Order().ToList()));
+            RefreshPresets(name);
+            await ShowMessageAsync("预设已保存", $"“{name}”已保存。下次加载会重新核对当前库存。");
+        }
+        catch (Exception error) { await ShowMessageAsync("预设保存失败", error.Message); }
+    }
 
     private async void OnChooseFileClicked(object sender, RoutedEventArgs e)
     {
@@ -47,20 +138,25 @@ public sealed partial class BomView : Page
             }
             _inspection = _reader.Inspect(file.Path, sheet);
             _mapping = _inspection.AutomaticMapping;
-            if (_mapping.Quantity is null || _mapping.Sku is null && _mapping.Model is null)
+            MappingExpander.IsEnabled = true;
+            UpdateMappingSummary();
+            if (_mapping.Quantity is null || _mapping.Sku is null && _mapping.Model is null && _mapping.Name is null)
             {
                 _document = null;
                 _selections.Clear();
+                _skippedRows.Clear();
                 ResetBatchIdentity();
-                MappingButton.IsEnabled = true;
+                PreviewList.ItemsSource = null;
+                MappingExpander.IsExpanded = true;
                 ExportButton.IsEnabled = false;
                 ConfirmButton.IsEnabled = false;
-                SummaryText.Text = $"{_inspection.SourceName} · 未自动识别必需列，请调整列映射。";
-                await ShowMessageAsync("需要列映射", "请选择需求数量列，并至少选择 SKU 或型号列。原文件已保留，可直接继续映射。");
+                SummaryText.Text = $"{_inspection.SourceName} · 未识别必需列，请展开列识别并调整。";
+                await ShowMessageAsync("需要列映射", "请选择需求数量列，并至少选择 SKU、型号或名称列。原文件已保留，可直接继续映射。");
                 return;
             }
             _document = _reader.Read(file.Path, sheet, _mapping);
             _selections.Clear();
+            _skippedRows.Clear();
             ResetBatchIdentity();
             RefreshPreview();
         }
@@ -73,14 +169,64 @@ public sealed partial class BomView : Page
         var value = BatchQuantityBox.Value;
         var batches = double.IsFinite(value) && value >= 1 && value <= int.MaxValue && value == Math.Truncate(value)
             ? (int)value : 0;
-        _preview = ViewModel.CreateBomPreview(_document, ProjectNameBox.Text, batches, _selections);
-        PreviewList.ItemsSource = _preview.Lines.Select(line => $"{PreviewIdentity(line)} · 单批 {line.UnitQuantity} · 总需 {line.RequiredQuantity} · 库存 {line.AvailableQuantity} · 扣料 {AllocationPlan(line)}")
-            .Concat(_preview.Issues.Select(issue => $"第 {issue.RowNumber?.ToString() ?? "-"} 行 · {issue.Message}")).ToArray();
-        SummaryText.Text = $"{_document.SourceName}{(_document.WorksheetName is null ? "" : $" / {_document.WorksheetName}")} · {_preview.Lines.Count} 个匹配 · {_preview.Issues.Count} 个阻止项";
-        ResolveButton.IsEnabled = _preview.SelectionGroups is { Count: > 0 };
+        var selectedRow = (PreviewList.SelectedItem as BomRowItem)?.RowNumber;
+        _preview = ViewModel.CreateBomPreview(_document, ProjectNameBox.Text, batches, _selections, _skippedRows);
+        var items = _document.Rows.Select(row => new BomRowItem(row.RowNumber, FormatRow(row, _preview))).ToArray();
+        PreviewList.ItemsSource = items;
+        PreviewList.SelectedItem = items.FirstOrDefault(item => item.RowNumber == selectedRow);
+        var pending = _preview.Issues.Count(issue => issue.RowNumber is not null && issue.Code is "unmatched" or "ambiguous" or "missing_identity");
+        SummaryText.Text = $"{_document.SourceName}{(_document.WorksheetName is null ? "" : $" / {_document.WorksheetName}")} · 共 {_document.Rows.Count} 行 · 待匹配 {pending} 行 · 跳过 {_skippedRows.Count} 行 · 出库 {_preview.Lines.Count} 项";
         MappingButton.IsEnabled = _inspection is not null && !_confirmed;
         ExportButton.IsEnabled = _preview is not null;
         ConfirmButton.IsEnabled = _preview.CanConfirm && !_confirmed;
+        SavePresetButton.IsEnabled = !_confirmed;
+        UpdateSelectionButtons();
+    }
+
+    private string FormatRow(BomSourceRow row, BomPreview preview)
+    {
+        var identity = string.Join(" · ", new[] { row.Sku, row.SupplierPartNumber, row.Name, row.PackageName, row.Reference }
+            .Where(value => !string.IsNullOrWhiteSpace(value)).Distinct());
+        if (_skippedRows.Contains(row.RowNumber)) return $"跳过 · 第 {row.RowNumber} 行 · {identity} · 单批 {row.Quantity?.ToString() ?? "?"}";
+        var issue = preview.Issues.FirstOrDefault(item => item.RowNumber == row.RowNumber);
+        if (issue is not null) return $"待处理 · 第 {row.RowNumber} 行 · {identity} · {issue.Message}";
+        var line = preview.Lines.FirstOrDefault(item => item.SourceRows.Contains(row.RowNumber));
+        if (line is null) return $"待处理 · 第 {row.RowNumber} 行 · {identity}";
+        return $"已匹配 · 第 {row.RowNumber} 行 · {identity} → {line.ComponentSku} · 单批 {row.Quantity} · 总需 {line.RequiredQuantity} · 库存 {line.AvailableQuantity}";
+    }
+
+    private void UpdateMappingSummary()
+    {
+        if (_inspection is null || _mapping is null) return;
+        string Label(int? index) => index is { } value && value < _inspection.Headers.Count
+            ? $"{_inspection.Headers[value]}（第 {value + 1} 列）" : "未识别";
+        MappingSummaryText.Text = $"数量：{Label(_mapping.Quantity)} · 库存编码：{Label(_mapping.Sku)} · 型号：{Label(_mapping.Model)}\n封装：{Label(_mapping.Package)} · 名称：{Label(_mapping.Name)} · 位号：{Label(_mapping.Reference)}";
+    }
+
+    private void OnPreviewSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateSelectionButtons();
+
+    private void UpdateSelectionButtons()
+    {
+        var row = (PreviewList.SelectedItem as BomRowItem)?.RowNumber;
+        ResolveButton.IsEnabled = row is not null && !_confirmed && !_skippedRows.Contains(row.Value);
+        SkipButton.IsEnabled = row is not null && !_confirmed && !_skippedRows.Contains(row.Value);
+        RestoreButton.IsEnabled = row is not null && !_confirmed && _skippedRows.Contains(row.Value);
+        SkipButton.Visibility = row is not null && _skippedRows.Contains(row.Value) ? Visibility.Collapsed : Visibility.Visible;
+        RestoreButton.Visibility = row is not null && _skippedRows.Contains(row.Value) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnSkipClicked(object sender, RoutedEventArgs e)
+    {
+        if ((PreviewList.SelectedItem as BomRowItem)?.RowNumber is not { } row || _confirmed) return;
+        _skippedRows.Add(row);
+        RefreshPreview();
+    }
+
+    private void OnRestoreClicked(object sender, RoutedEventArgs e)
+    {
+        if ((PreviewList.SelectedItem as BomRowItem)?.RowNumber is not { } row || _confirmed) return;
+        _skippedRows.Remove(row);
+        RefreshPreview();
     }
 
     private string PreviewIdentity(BomConsumptionLine line)
@@ -107,62 +253,52 @@ public sealed partial class BomView : Page
 
     private async void OnResolveClicked(object sender, RoutedEventArgs e)
     {
-        if (_preview is null) return;
+        if (_preview is null || _document is null || (PreviewList.SelectedItem as BomRowItem)?.RowNumber is not { } rowNumber) return;
+        var row = _document.Rows.First(item => item.RowNumber == rowNumber);
+        var group = _preview.SelectionGroups?.Values.FirstOrDefault(rows => rows.Contains(rowNumber)) ?? [rowNumber];
         var panel = new StackPanel { Spacing = 12, Width = 520 };
-        var choices = new Dictionary<int, BomMatchCandidate>();
-        foreach (var pair in _preview.SelectionGroups ?? new Dictionary<int, IReadOnlyList<int>>())
+        panel.Children.Add(new TextBlock
         {
-            panel.Children.Add(new TextBlock
+            Text = $"第 {string.Join("、", group)} 行 · {string.Join(" · ", new[] { row.Sku, row.SupplierPartNumber, row.Name, row.PackageName, row.Reference }.Where(value => !string.IsNullOrWhiteSpace(value)))}",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        panel.Children.Add(new TextBlock { Text = "输入 SKU、型号、封装或名称，选择一个库存项。" });
+        var box = new AutoSuggestBox { PlaceholderText = "搜索库存", HorizontalAlignment = HorizontalAlignment.Stretch };
+        BomMatchCandidate? choice = null;
+        box.TextChanged += (_, args) =>
+        {
+            if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
             {
-                Text = $"BOM 第 {string.Join("、", pair.Value)} 行",
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            });
-            var box = new AutoSuggestBox
-            {
-                PlaceholderText = "搜索 SKU、型号、封装或名称",
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-            };
-            box.TextChanged += (_, args) =>
-            {
-                if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
-                    box.ItemsSource = _planner.SearchInventory(ViewModel.Components, box.Text);
-            };
-            box.SuggestionChosen += (_, args) =>
-            {
-                if (args.SelectedItem is BomMatchCandidate candidate) choices[pair.Key] = candidate;
-            };
-            var currentId = _selections.GetValueOrDefault(pair.Key)
-                ?? _preview.Lines.FirstOrDefault(line => line.SourceRows.Contains(pair.Key))?.ComponentId;
-            if (currentId is { } selectedId &&
-                ViewModel.Components.FirstOrDefault(item => item.Id == selectedId) is { } selected)
-            {
-                var selectedCandidate = _planner.SearchInventory(ViewModel.Components, selected.Sku)
-                    .FirstOrDefault(item => item.ComponentId == selectedId);
-                if (selectedCandidate is not null)
-                {
-                    choices[pair.Key] = selectedCandidate;
-                    box.Text = selectedCandidate.ToString();
-                }
+                choice = null;
+                box.ItemsSource = _planner.SearchInventory(ViewModel.Components, box.Text);
             }
-            panel.Children.Add(box);
+        };
+        box.SuggestionChosen += (_, args) => choice = args.SelectedItem as BomMatchCandidate;
+        var initial = row.Sku ?? row.SupplierPartNumber ?? row.Name;
+        if (!string.IsNullOrWhiteSpace(initial))
+        {
+            box.Text = initial;
+            box.ItemsSource = _planner.SearchInventory(ViewModel.Components, initial);
         }
+        panel.Children.Add(box);
         var dialog = new ContentDialog { Title = "选择库存匹配", Content = panel, PrimaryButtonText = "应用", CloseButtonText = "取消", XamlRoot = XamlRoot };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-        foreach (var pair in choices)
+        if (choice is null)
         {
-            var sourceRows = _preview.SelectionGroups?.GetValueOrDefault(pair.Key) ?? [pair.Key];
-            foreach (var sourceRow in sourceRows) _selections[sourceRow] = pair.Value.ComponentId;
+            await ShowMessageAsync("尚未选择库存", "请从搜索建议中选择一个库存项，然后应用。");
+            return;
         }
+        foreach (var sourceRow in group) _selections[sourceRow] = choice.ComponentId;
         RefreshPreview();
     }
 
     private async void OnConfirmClicked(object sender, RoutedEventArgs e)
     {
         RefreshPreview();
-        if (_confirmed || _preview is not { CanConfirm: true } preview || _filePath is null) return;
-        var dialog = new ContentDialog { Title = "确认批量扣减", Content = $"项目：{preview.ProjectName}\n生产批数：{preview.BatchQuantity}\n库存项：{preview.Lines.Count}", PrimaryButtonText = "确认扣减", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close, XamlRoot = XamlRoot };
+        if (_confirmed || _preview is not { CanConfirm: true } preview || _document is null) return;
+        var dialog = new ContentDialog { Title = "最终确认出库", Content = $"项目：{preview.ProjectName}\n生产批数：{preview.BatchQuantity}\n出库库存项：{preview.Lines.Count}\n明确跳过：{_skippedRows.Count} 行\n本次会一次性扣减全部匹配项。", PrimaryButtonText = "确认出库", CloseButtonText = "返回检查", DefaultButton = ContentDialogButton.Close, XamlRoot = XamlRoot };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-        var hash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(_filePath)));
+        var hash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(_document)));
         var result = ViewModel.ConfirmBomConsumption(new(_releaseId, _batchId, preview.ProjectName, preview.BatchQuantity, hash, preview.Lines));
         if (result.IsSuccess) _confirmed = true;
         await ShowMessageAsync(result.IsSuccess ? "BOM 扣减完成" : "BOM 扣减失败", result.Message);
@@ -183,7 +319,12 @@ public sealed partial class BomView : Page
     {
         if (_inspection is null || _filePath is null) return;
         var panel = new StackPanel { Spacing = 8, Width = 520 };
-        var choices = _inspection.Headers.Select((header, index) => new ColumnChoice(index, $"{index + 1}. {(string.IsNullOrWhiteSpace(header) ? "未命名" : header)}")).ToArray();
+        var choices = _inspection.Headers.Select((header, index) =>
+        {
+            var sample = _inspection.Samples?.ElementAtOrDefault(index);
+            if (sample?.Length > 28) sample = sample[..28] + "…";
+            return new ColumnChoice(index, $"{index + 1}. {(string.IsNullOrWhiteSpace(header) ? "未命名" : header)}{(string.IsNullOrWhiteSpace(sample) ? "" : $" · 例：{sample}")}");
+        }).ToArray();
         ComboBox Add(string label, int? selected, bool optional)
         {
             panel.Children.Add(new TextBlock { Text = label });
@@ -194,14 +335,14 @@ public sealed partial class BomView : Page
         var sku = Add("SKU", _mapping?.Sku, true); var model = Add("型号", _mapping?.Model, true);
         var quantity = Add("需求数量（必选）", _mapping?.Quantity, false); var package = Add("封装", _mapping?.Package, true);
         var name = Add("名称", _mapping?.Name, true); var reference = Add("位号", _mapping?.Reference, true);
-        var dialog = new ContentDialog { Title = "调整 BOM 列映射", Content = panel, PrimaryButtonText = "重新预览", CloseButtonText = "取消", XamlRoot = XamlRoot };
+        var dialog = new ContentDialog { Title = "调整 BOM 列映射", Content = new ScrollViewer { Content = panel, MaxHeight = 460, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, PrimaryButtonText = "重新预览", CloseButtonText = "取消", XamlRoot = XamlRoot };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         try
         {
             _mapping = new(((ColumnChoice?)sku.SelectedItem)?.Index, ((ColumnChoice?)model.SelectedItem)?.Index, ((ColumnChoice?)package.SelectedItem)?.Index, ((ColumnChoice?)quantity.SelectedItem)?.Index, ((ColumnChoice?)name.SelectedItem)?.Index, ((ColumnChoice?)reference.SelectedItem)?.Index);
-            _mapping.Validate(_inspection.Headers.Count);
+            _mapping.Validate(_inspection.Headers.Count, _inspection.Headers);
             _document = _reader.Read(_filePath, _inspection.WorksheetName, _mapping);
-            _selections.Clear(); ResetBatchIdentity(); RefreshPreview();
+            _selections.Clear(); _skippedRows.Clear(); ResetBatchIdentity(); UpdateMappingSummary(); RefreshPreview();
         }
         catch (Exception exception) { await ShowMessageAsync("列映射无效", exception.Message); }
     }
@@ -237,4 +378,9 @@ public sealed partial class BomView : Page
     private async Task ShowMessageAsync(string title, string message) => await new ContentDialog { Title = title, Content = message, CloseButtonText = "关闭", XamlRoot = XamlRoot }.ShowAsync();
 
     private sealed record ColumnChoice(int? Index, string Label);
+
+    private sealed record BomRowItem(int RowNumber, string Label)
+    {
+        public override string ToString() => Label;
+    }
 }

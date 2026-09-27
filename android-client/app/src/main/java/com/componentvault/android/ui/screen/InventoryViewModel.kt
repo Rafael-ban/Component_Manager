@@ -1087,6 +1087,7 @@ class InventoryViewModel(
         mapping: com.componentvault.android.data.bom.BomColumnMapping? = null,
         selections: Map<String, String> = emptyMap(),
         searchQueries: Map<String, String> = emptyMap(),
+        excludedKeys: Set<String> = emptySet(),
         onComplete: (Result<BomReleasePreview>) -> Unit,
     ) {
         viewModelScope.launch {
@@ -1097,7 +1098,7 @@ class InventoryViewModel(
                     require(fileName.endsWith(".csv", true)) { "仅支持 CSV 或 XLSX BOM。" }
                     BomParser.parseCsv(bytes, projectName, productionSets, mapping)
                 } }
-                repository.previewBomRelease(parsed, selections, searchQueries)
+                repository.previewBomRelease(parsed, selections, searchQueries, excludedKeys)
             })
         }
     }
@@ -1116,6 +1117,20 @@ class InventoryViewModel(
                 if (uiState.appPreferences.syncAfterLocalChanges) runSyncInternal()
             }
             onComplete(result)
+        }
+    }
+
+    fun previewBomPreset(
+        parsed: BomParseResult,
+        selections: Map<String, String>,
+        searchQueries: Map<String, String>,
+        excludedKeys: Set<String>,
+        onComplete: (Result<BomReleasePreview>) -> Unit,
+    ) {
+        viewModelScope.launch {
+            onComplete(runCatching {
+                repository.previewBomRelease(parsed, selections, searchQueries, excludedKeys)
+            })
         }
     }
 

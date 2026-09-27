@@ -197,6 +197,7 @@ jobs:
           --tests 'com.componentvault.android.ui.screen.CategoryLocalizationTest'
           --tests 'com.componentvault.android.ui.screen.CategoryFilterSemanticsTest'
           --tests 'com.componentvault.android.data.bom.*'
+          --tests 'com.componentvault.android.data.BomReleaseExclusionTest'
           --console=plain 2>&1 | tee android-tests.log
 
       - name: Upload Android UI review and test reports

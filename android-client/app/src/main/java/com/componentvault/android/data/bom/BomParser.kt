@@ -191,7 +191,7 @@ internal object BomRowsMapper {
         ),
         ColumnKind.PACKAGE to setOf("package", "packagecase", "封装", "封装规格", "footprint", "encapstandard"),
         ColumnKind.QUANTITY to setOf("qty", "quantity", "数量", "用量", "单套用量", "需求数量"),
-        ColumnKind.NAME to setOf("name", "名称", "品名", "元件名称", "description", "描述"),
+        ColumnKind.NAME to setOf("name", "名称", "品名", "元件名称", "description", "描述", "comment"),
         ColumnKind.REFERENCE to setOf("reference", "references", "refdes", "designator", "位号", "参考位号"),
     )
 
@@ -206,7 +206,15 @@ internal object BomRowsMapper {
         }
         val headers = rows[headerIndex].values.map(String::trim)
         val columns = detectColumns(headers)
-        return BomTableInspection(sheet, headers, rows[headerIndex].rowNumber, columns.toMapping())
+        val dataRows = rows.drop(headerIndex + 1).filter { row -> row.values.any(String::isNotBlank) }
+        return BomTableInspection(
+            sheet = sheet,
+            headers = headers,
+            headerRowNumber = rows[headerIndex].rowNumber,
+            automaticMapping = columns.toMapping(),
+            sampleRows = dataRows.take(3).map { row -> headers.indices.map { row.values.getOrNull(it).orEmpty() } },
+            dataRowCount = dataRows.size,
+        )
     }
 
     fun map(rows: List<TabularRow>, sheetName: String, productionSets: Int, mapping: BomColumnMapping? = null): List<BomRequirement> {
@@ -215,6 +223,14 @@ internal object BomRowsMapper {
         val headers = inspection.headers
         val selected = mapping ?: inspection.automaticMapping
         selected.validate(headers.size)
+        val quantityColumn = requireNotNull(selected.quantity)
+        if (normalizeHeader(headers[quantityColumn]) in setOf("no", "number", "序号", "行号", "itemno")) {
+            throw LocalImportException(
+                LocalImportErrorCode.MISSING_REQUIRED_COLUMN,
+                "当前数量列是序号列；请选择包含单套用量的 Quantity/数量列。",
+                sheetName,
+            )
+        }
         val columns = buildMap {
             selected.sku?.let { put(ColumnKind.SKU, it) }
             selected.model?.let { put(ColumnKind.MODEL, it) }
@@ -224,7 +240,9 @@ internal object BomRowsMapper {
             selected.reference?.let { put(ColumnKind.REFERENCE, it) }
         }
         if (columns[ColumnKind.QUANTITY] == null) missingColumn(sheetName, "数量/qty")
-        if (columns[ColumnKind.SKU] == null && columns[ColumnKind.MODEL] == null) missingColumn(sheetName, "料号/SKU 或 型号/MPN")
+        if (columns[ColumnKind.SKU] == null && columns[ColumnKind.MODEL] == null && columns[ColumnKind.NAME] == null) {
+            missingColumn(sheetName, "料号/SKU、型号/MPN 或名称/Comment")
+        }
 
         val dataRows = rows.drop(headerIndex + 1).filter { row -> row.values.any(String::isNotBlank) }
         if (dataRows.size > LocalImportLimits.MAX_DATA_ROWS) throw LocalImportException(LocalImportErrorCode.TOO_MANY_ROWS, "BOM 数据行超过 5000 行限制。", sheetName)
@@ -270,12 +288,7 @@ internal object BomRowsMapper {
             val identity = when {
                 !sku.isNullOrBlank() -> "sku:${sku.normalizedIdentityPart()}"
                 !model.isNullOrBlank() -> "model:${model.normalizedIdentityPart()}|package:${packageName.orEmpty().normalizedIdentityPart()}"
-                else -> throw LocalImportException(
-                    LocalImportErrorCode.MISSING_REQUIRED_COLUMN,
-                    "第 ${row.rowNumber} 行缺少料号和型号，无法确定元件身份。",
-                    sheetName,
-                    row.rowNumber,
-                )
+                else -> "row:$sheetName:${row.rowNumber}"
             }
             val sourceFields = buildMap {
                 headers.forEachIndexed { index, header ->

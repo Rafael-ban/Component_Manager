@@ -2,23 +2,30 @@ namespace ComponentVault.WinUI.Services.Bom;
 
 public sealed record BomColumnMapping(int? Sku, int? Model, int? Package, int? Quantity, int? Name = null, int? Reference = null)
 {
-    public void Validate(int columnCount)
+    public void Validate(int columnCount, IReadOnlyList<string>? headers = null)
     {
         if (Quantity is null) throw new InvalidDataException("请选择需求数量列。");
-        if (Sku is null && Model is null) throw new InvalidDataException("请至少选择 SKU 或型号列。");
-        if (new[] { Sku, Model, Package, Quantity, Name, Reference }.Where(value => value is not null).Any(value => value < 0 || value >= columnCount))
+        if (Sku is null && Model is null && Name is null) throw new InvalidDataException("请至少选择 SKU、型号或名称列。");
+        var mapped = new[] { Sku, Model, Package, Quantity, Name, Reference }.Where(value => value is not null).Select(value => value!.Value).ToArray();
+        if (mapped.Any(value => value < 0 || value >= columnCount))
             throw new InvalidDataException("列映射超出表头范围。");
+        if (mapped.Distinct().Count() != mapped.Length) throw new InvalidDataException("同一源列不能映射到多个字段。");
+        if (headers is not null && new[] { "no", "no.", "序号", "序列号", "行号" }.Contains(headers[Quantity.Value].Trim(), StringComparer.OrdinalIgnoreCase))
+            throw new InvalidDataException("序号列不能作为需求数量列。");
     }
 }
 
-public sealed record BomTableInspection(string SourceName, string? WorksheetName, IReadOnlyList<string> Headers, int HeaderRowNumber, BomColumnMapping AutomaticMapping);
+public sealed record BomTableInspection(string SourceName, string? WorksheetName, IReadOnlyList<string> Headers, int HeaderRowNumber,
+    BomColumnMapping AutomaticMapping, IReadOnlyList<string>? Samples = null);
 
 public sealed record BomSourceRow(
     int RowNumber,
     string? Sku,
     string? SupplierPartNumber,
     string? PackageName,
-    int? Quantity
+    int? Quantity,
+    string? Name = null,
+    string? Reference = null
 );
 
 public sealed record BomDocument(
@@ -53,7 +60,8 @@ public sealed record BomPreview(
     IReadOnlyList<BomConsumptionLine> Lines,
     IReadOnlyList<BomIssue> Issues,
     IReadOnlyDictionary<int, IReadOnlyList<BomMatchCandidate>> Candidates,
-    IReadOnlyDictionary<int, IReadOnlyList<int>>? SelectionGroups = null
+    IReadOnlyDictionary<int, IReadOnlyList<int>>? SelectionGroups = null,
+    IReadOnlyList<int>? SkippedRows = null
 )
 {
     public bool CanConfirm => Issues.Count == 0 && Lines.Count > 0;

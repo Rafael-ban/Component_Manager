@@ -64,6 +64,57 @@ class BomParserTest {
     }
 
     @Test
+    fun xlsxWithSupplierPartAndCommentKeepsUnidentifiedRowsForManualMatching() {
+        val headers = listOf(
+            "No.", "Quantity", "Comment", "Designator", "Footprint", "Value",
+            "Manufacturer Part", "Manufacturer", "Supplier Part", "Supplier",
+        )
+        val xlsx = workbook(linkedMapOf("BOM" to worksheet(listOf(
+            headers,
+            listOf("1", "3", "Test-Point", "TP1,TP2,TP3", "TP", "", "", "", "", ""),
+            listOf("2", "2", "Resistor", "R1,R2", "0603", "10k", "RC0603", "Maker", "C1001", "Supplier"),
+            listOf("3", "1", "Test-Point", "TP4", "TP", "", "", "", "", ""),
+        ))))
+
+        val inspection = BomParser.inspectXlsx(xlsx)
+        assertEquals(BomColumnMapping(sku = 8, model = 6, packageName = 4, quantity = 1, name = 2, reference = 3), inspection.automaticMapping)
+        assertEquals(3, inspection.dataRowCount)
+        assertEquals(3, inspection.sampleRows.size)
+        assertEquals("Test-Point", inspection.sampleRows.first()[2])
+
+        val requirements = BomParser.parseXlsx(xlsx, "Board", 4).requirements
+        assertEquals(3, requirements.size)
+        assertEquals(listOf("row:BOM:2", "sku:C1001", "row:BOM:4"), requirements.map { it.identity.canonicalKey })
+        assertEquals("Test-Point", requirements.first().name)
+        assertNull(requirements.first().sku)
+        assertNull(requirements.first().model)
+        assertEquals(3, requirements.first().quantityPerSet)
+        assertEquals(12, requirements.first().requiredQuantity)
+        assertEquals(8, requirements[1].requiredQuantity)
+        assertEquals(BomMatchKind.NONE, BomInventoryMatcher.match(requirements, listOf(
+            InventoryMatchCandidate("test-point", "TP-1", null, "TP", "Test-Point"),
+        )).first().kind)
+    }
+
+    @Test
+    fun nameOnlyRowsRemainSeparateAndQuantityMappingCannotUseRowNumberOrDuplicateColumn() {
+        val csv = "No.,Quantity,Comment,Designator\n1,3,Test-Point,TP1\n2,1,Test-Point,TP2".toByteArray()
+        val nameOnly = BomColumnMapping(quantity = 1, name = 2, reference = 3)
+        val requirements = BomParser.parseCsv(csv, "P", 2, nameOnly).requirements
+        assertEquals(listOf("row:CSV:2", "row:CSV:3"), requirements.map { it.identity.canonicalKey })
+        assertEquals(listOf(6, 2), requirements.map { it.requiredQuantity })
+
+        val wrongQuantity = assertFailsWith<LocalImportException> {
+            BomParser.parseCsv(csv, "P", 1, nameOnly.copy(quantity = 0))
+        }
+        assertTrue(wrongQuantity.message.orEmpty().contains("序号列"))
+        val duplicate = assertFailsWith<IllegalArgumentException> {
+            BomParser.parseCsv(csv, "P", 1, nameOnly.copy(quantity = 2))
+        }
+        assertTrue(duplicate.message.orEmpty().contains("同一列"))
+    }
+
+    @Test
     fun rejectsNonPositiveFractionalAndOverflowingQuantities() {
         listOf("0", "-1", "1.5", "+1").forEach { quantity ->
             val error = assertFailsWith<LocalImportException> {

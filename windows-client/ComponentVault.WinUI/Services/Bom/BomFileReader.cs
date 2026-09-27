@@ -14,6 +14,8 @@ public sealed class BomFileReader
     private static readonly string[] PartHeaders = ["mpn", "manufacturer part", "manufacturer part number", "供应商型号", "制造商型号", "型号"];
     private static readonly string[] PackageHeaders = ["package", "footprint", "封装"];
     private static readonly string[] QuantityHeaders = ["quantity", "qty", "用量", "数量"];
+    private static readonly string[] NameHeaders = ["comment", "name", "description", "名称", "备注"];
+    private static readonly string[] ReferenceHeaders = ["designator", "reference", "refdes", "位号"];
 
     public IReadOnlyList<string> GetWorksheetNames(string filePath)
     {
@@ -38,7 +40,9 @@ public sealed class BomFileReader
             : ReadXlsxRecords(filePath, worksheetName);
         var headerIndex = FindHeaderIndex(raw.Records);
         var headers = raw.Records[headerIndex].Select(value => value.Trim()).ToArray();
-        return new(raw.SourceName, raw.WorksheetName, headers, headerIndex + 1, DetectMapping(headers));
+        var samples = Enumerable.Range(0, headers.Length).Select(column =>
+            raw.Records.Skip(headerIndex + 1).Select(row => Cell(row, column)).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty).ToArray();
+        return new(raw.SourceName, raw.WorksheetName, headers, headerIndex + 1, DetectMapping(headers), samples);
     }
 
     private static BomDocument ReadCsv(string filePath, BomColumnMapping? mapping)
@@ -114,7 +118,7 @@ public sealed class BomFileReader
         var headerIndex = FindHeaderIndex(records);
         var header = records[headerIndex];
         var selected = mapping ?? DetectMapping(header);
-        selected.Validate(header.Count);
+        selected.Validate(header.Count, header);
         var skuColumn = selected.Sku ?? -1;
         var partColumn = selected.Model ?? -1;
         var packageColumn = selected.Package ?? -1;
@@ -130,7 +134,8 @@ public sealed class BomFileReader
             }
             var quantityText = Cell(record, quantityColumn);
             int? quantity = int.TryParse(quantityText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
-            rows.Add(new(index + 1, Cell(record, skuColumn), Cell(record, partColumn), Cell(record, packageColumn), quantity));
+            rows.Add(new(index + 1, Cell(record, skuColumn), Cell(record, partColumn), Cell(record, packageColumn), quantity,
+                Cell(record, selected.Name ?? -1), Cell(record, selected.Reference ?? -1)));
         }
         return new(sourceName, worksheetName, rows, []);
     }
@@ -147,7 +152,8 @@ public sealed class BomFileReader
 
     private static BomColumnMapping DetectMapping(IReadOnlyList<string> header) => new(
         NullColumn(FindColumn(header, SkuHeaders)), NullColumn(FindColumn(header, PartHeaders)),
-        NullColumn(FindColumn(header, PackageHeaders)), NullColumn(FindColumn(header, QuantityHeaders)));
+        NullColumn(FindColumn(header, PackageHeaders)), NullColumn(FindColumn(header, QuantityHeaders)),
+        NullColumn(FindColumn(header, NameHeaders)), NullColumn(FindColumn(header, ReferenceHeaders)));
 
     private static int? NullColumn(int value) => value < 0 ? null : value;
 

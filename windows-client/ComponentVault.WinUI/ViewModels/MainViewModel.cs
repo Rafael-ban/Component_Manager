@@ -641,12 +641,14 @@ public sealed class MainViewModel : ObservableObject
         BomDocument document,
         string projectName,
         int batchQuantity,
-        IReadOnlyDictionary<int, string>? selectedComponentIds = null
+        IReadOnlyDictionary<int, string>? selectedComponentIds = null,
+        IReadOnlySet<int>? skippedRows = null
     ) => _bomPlanningService.CreatePreview(
         document,
         new BomImportOptions(projectName, batchQuantity),
         _store.GetComponents(),
-        selectedComponentIds
+        selectedComponentIds,
+        skippedRows
     );
 
     public BomConfirmResult ConfirmBomConsumption(BomConfirmRequest request)

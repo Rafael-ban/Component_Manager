@@ -142,6 +142,91 @@ public sealed class BomCoreTests : IDisposable
     }
 
     [Fact]
+    public void CsvReader_RecognizesProductionBomColumnsAndKeepsUnidentifiedRows()
+    {
+        Directory.CreateDirectory(_testRoot);
+        var path = Path.Combine(_testRoot, "production.csv");
+        File.WriteAllText(path, "No.,Quantity,Comment,Designator,Footprint,Value,Manufacturer Part,Manufacturer,Supplier Part,Supplier\n" +
+            "1,3,Test-Point,BOOT EN GND,Test-Point-0.5mm,,,,,\n" +
+            "2,1,Connector,J1,0603,,MODEL-1,,C9900254697,");
+        var reader = new BomFileReader();
+
+        var inspection = reader.Inspect(path);
+        Assert.Equal(new BomColumnMapping(8, 6, 4, 1, 2, 3), inspection.AutomaticMapping);
+        Assert.Equal("Test-Point", inspection.Samples![2]);
+        var rows = reader.Read(path).Rows;
+        Assert.Equal(2, rows.Count);
+        Assert.True(string.IsNullOrEmpty(rows[0].Sku));
+        Assert.True(string.IsNullOrEmpty(rows[0].SupplierPartNumber));
+        Assert.Equal("Test-Point", rows[0].Name);
+        Assert.Equal("BOOT EN GND", rows[0].Reference);
+        Assert.Equal("C9900254697", rows[1].Sku);
+    }
+
+    [Fact]
+    public void Preview_UnidentifiedRowRequiresExplicitSelectionOrSkip()
+    {
+        var document = Document(new BomSourceRow(2, null, null, "Test-Point-0.5mm", 3, "Test-Point", "BOOT,EN,GND"),
+            new BomSourceRow(3, "C9900254697", null, null, 1));
+        var inventory = new[] { Component("testpoint", "TP", 5), Component("connector", "C9900254697", 2) };
+        var planner = new BomPlanningService();
+
+        var unresolved = planner.CreatePreview(document, new("Project", 1), inventory);
+        Assert.False(unresolved.CanConfirm);
+        Assert.Contains(unresolved.Issues, issue => issue.RowNumber == 2 && issue.Code == "missing_identity");
+
+        var selected = planner.CreatePreview(document, new("Project", 1), inventory,
+            new Dictionary<int, string> { [2] = "testpoint" });
+        Assert.True(selected.CanConfirm);
+        Assert.Equal(2, selected.Lines.Count);
+
+        var skipped = planner.CreatePreview(document, new("Project", 1), inventory,
+            skippedRows: new HashSet<int> { 2 });
+        Assert.True(skipped.CanConfirm);
+        Assert.Equal([2], skipped.SkippedRows);
+        Assert.Equal("connector", Assert.Single(skipped.Lines).ComponentId);
+
+        var restored = planner.CreatePreview(document, new("Project", 1), inventory);
+        Assert.False(restored.CanConfirm);
+        Assert.Equal(0, BomShortageCsvExporter.ShortageCount(document, skipped));
+        Assert.DoesNotContain("Test-Point", System.Text.Encoding.UTF8.GetString(BomShortageCsvExporter.Export(document, skipped)));
+    }
+
+    [Fact]
+    public void Preset_RoundTripsSelectionsAndSkipsWithoutInventorySnapshot()
+    {
+        Directory.CreateDirectory(_testRoot);
+        var store = new BomPresetStore(Path.Combine(_testRoot, "presets.json"));
+        var document = Document(new BomSourceRow(2, null, null, null, 3, "Test-Point"),
+            new BomSourceRow(3, "C1", null, null, 1));
+        store.Save(new BomPreset("Board", document, "Project", 2,
+            new Dictionary<int, string> { [3] = "id-1" }, [2]));
+
+        var loaded = Assert.Single(store.LoadAll());
+        Assert.Equal("Board", loaded.Name);
+        Assert.Equal(2, loaded.BatchQuantity);
+        Assert.Equal("id-1", loaded.SelectedComponents[3]);
+        Assert.Equal([2], loaded.SkippedRows);
+        Assert.Equal("Test-Point", loaded.Document.Rows[0].Name);
+        Assert.DoesNotContain("AvailableQuantity", File.ReadAllText(Path.Combine(_testRoot, "presets.json")));
+
+        store.Save(loaded with { BatchQuantity = 4 });
+        Assert.Equal(4, Assert.Single(store.LoadAll()).BatchQuantity);
+        Assert.True(store.Delete("Board"));
+        Assert.Empty(store.LoadAll());
+    }
+
+    [Fact]
+    public void Mapping_AllowsNameOnlyButRejectsDuplicateAndSequenceNumber()
+    {
+        new BomColumnMapping(null, null, null, 1, 2).Validate(3, ["No.", "Quantity", "Comment"]);
+        Assert.Throws<InvalidDataException>(() => new BomColumnMapping(null, null, null, 0, 2)
+            .Validate(3, ["No.", "Quantity", "Comment"]));
+        Assert.Throws<InvalidDataException>(() => new BomColumnMapping(1, null, null, 1)
+            .Validate(3, ["SKU", "Quantity", "Comment"]));
+    }
+
+    [Fact]
     public void CsvReader_AllowsQuotedNewlines()
     {
         Directory.CreateDirectory(_testRoot);

@@ -8,7 +8,8 @@ public sealed class BomPlanningService
         BomDocument document,
         BomImportOptions options,
         IReadOnlyList<ComponentRecord> inventory,
-        IReadOnlyDictionary<int, string>? selectedComponentIds = null
+        IReadOnlyDictionary<int, string>? selectedComponentIds = null,
+        IReadOnlySet<int>? skippedRows = null
     )
     {
         var issues = new List<BomIssue>();
@@ -27,6 +28,7 @@ public sealed class BomPlanningService
         var aggregates = new Dictionary<string, Aggregate>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in document.Rows)
         {
+            if (skippedRows?.Contains(row.RowNumber) == true) continue;
             if (row.Quantity is null or <= 0)
             {
                 issues.Add(new(row.RowNumber, "invalid_quantity", "用量必须是正整数。"));
@@ -36,13 +38,14 @@ public sealed class BomPlanningService
             var sku = Normalize(row.Sku);
             var part = Normalize(row.SupplierPartNumber);
             var package = Normalize(row.PackageName);
-            if (sku.Length == 0 && part.Length == 0)
+            var selectedId = selectedComponentIds?.GetValueOrDefault(row.RowNumber);
+            if (sku.Length == 0 && part.Length == 0 && selectedId is null)
             {
                 issues.Add(new(row.RowNumber, "missing_identity", "需要 SKU 或供应商型号。"));
                 continue;
             }
 
-            var key = sku.Length > 0 ? $"sku:{sku}" : $"part:{part}|package:{package}";
+            var key = sku.Length > 0 ? $"sku:{sku}" : part.Length > 0 ? $"part:{part}|package:{package}" : $"row:{row.RowNumber}";
             if (!aggregates.TryGetValue(key, out var aggregate))
             {
                 aggregate = new Aggregate(row, 0, []);
@@ -133,7 +136,10 @@ public sealed class BomPlanningService
         {
             issues.Add(new(null, "empty_bom", "BOM 中没有可读取的数据行。"));
         }
-        return new(options.ProjectName.Trim(), options.BatchQuantity, lines, issues, candidates, selectionGroups);
+        if (document.Rows.Count > 0 && aggregates.Count == 0 && issues.Count == 0)
+            issues.Add(new(null, "empty_selection", "所有 BOM 行均已跳过，没有可出库项目。"));
+        return new(options.ProjectName.Trim(), options.BatchQuantity, lines, issues, candidates, selectionGroups,
+            document.Rows.Where(row => skippedRows?.Contains(row.RowNumber) == true).Select(row => row.RowNumber).ToArray());
     }
 
     private static IReadOnlyList<ComponentRecord> FindExactMatches(
