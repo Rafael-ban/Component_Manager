@@ -87,12 +87,12 @@ class InventoryInteractionUiTest {
         compose.onNodeWithTag("inventory_detail_list").performScrollToNode(hasText(capacitanceLabel))
         compose.onNodeWithText(capacitanceLabel)
             .performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("100nF").assertIsDisplayed()
+        compose.onNodeWithText("100nF").performScrollTo().assertIsDisplayed()
         val voltageLabel = context.getString(R.string.inventory_param_voltage)
         compose.onNodeWithTag("inventory_detail_list").performScrollToNode(hasText(voltageLabel))
         compose.onNodeWithText(voltageLabel)
             .performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("50V").assertIsDisplayed()
+        compose.onNodeWithText("50V").performScrollTo().assertIsDisplayed()
     }
 
     @Test
