@@ -17,6 +17,15 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.7.7-dev.5] - 2026-09-27
+
+### 旧库存参数批量补全
+
+- Web 库存页增加当前账户的旧元件参数补全：先预览，再按 SKU 批量查询，支持进度、取消、失败/未处理项重试和活动任务恢复。默认无需配置立创 API；不会从型号编码猜值。
+- 只追加官方描述与参数，名称、数量、库位和流水不变；写入使用现有同步版本，手机与 Windows 正常同步即可取得资料。查询期间元件变化则暂停该条覆盖并列为可重试失败。
+- 工具复用 Web 库存写开关与账户隔离，已完成任务可清理；重启后重新预览剩余候选。已有参数行不自动重写。详见[操作教程](parameter-enrichment.md)与[版本说明](releases/0.7.7-dev.5.md)。
+- 实现 [CI](https://github.com/Rafael-ban/Component_Manager/actions/runs/36309810660) 全部通过。沿用 dev.4 四按钮左滑；开发版不更新 Docker `latest` / `web-latest`，服务端工具先提供源码构建与对应 Web 附件。
+
 ## [0.7.7-dev.4] - 2026-09-27
 
 ### 左滑直达操作
