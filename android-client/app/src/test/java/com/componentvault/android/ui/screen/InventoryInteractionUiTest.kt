@@ -96,32 +96,42 @@ class InventoryInteractionUiTest {
     }
 
     @Test
-    fun swipeRevealsOnlyNarrowActionsAndTapClosesWithoutOpeningItem() {
+    fun swipeRevealsFourBoundedActionsAndTapOrRightSwipeCloses() {
         var opens = 0
-        var actions = 0
+        var inbound = 0
+        var outbound = 0
+        var transfers = 0
+        var deletes = 0
         setInventoryContent {
             MaterialTheme {
                 InventoryListRow(item, selected = false, onClick = { opens++ },
-                    onOpenActions = { actions++ })
+                    onInbound = { inbound++ }, onOutbound = { outbound++ },
+                    onTransfer = { transfers++ }, onDelete = { deletes++ })
             }
         }
         val card = compose.onNodeWithTag("inventory_reveal_card")
-        compose.onNodeWithTag("inventory_quick_action").assertDoesNotExist()
+        compose.onNodeWithTag("inventory_quick_actions").assertDoesNotExist()
         val closedLeft = card.getUnclippedBoundsInRoot().left
         card.performTouchInput { swipeLeft() }
         compose.waitForIdle()
         val openLeft = card.getUnclippedBoundsInRoot().left
-        val actionBounds = compose.onNodeWithTag("inventory_quick_action").getUnclippedBoundsInRoot()
+        val actionBounds = compose.onNodeWithTag("inventory_quick_actions").getUnclippedBoundsInRoot()
         val actionWidth = actionBounds.right - actionBounds.left
         assertTrue(abs(((closedLeft - openLeft) - actionWidth).value) < 2f)
-        compose.onNodeWithText(item.name).assertIsDisplayed()
-        compose.onNodeWithTag("inventory_quick_action").assertIsDisplayed()
-        compose.runOnIdle { assertEquals(0, actions) }
+        card.assertIsDisplayed()
+        val cardBounds = card.getUnclippedBoundsInRoot()
+        assertTrue((cardBounds.right - cardBounds.left - actionWidth).value >= 48f)
+        listOf("inventory_quick_inbound", "inventory_quick_outbound",
+            "inventory_quick_transfer", "inventory_quick_delete").forEach {
+            val button = compose.onNodeWithTag(it).assertIsDisplayed().getUnclippedBoundsInRoot()
+            assertTrue((button.right - button.left).value >= 48f)
+        }
+        compose.runOnIdle { assertEquals(listOf(0, 0, 0, 0), listOf(inbound, outbound, transfers, deletes)) }
 
         card.performClick()
         compose.waitForIdle()
         assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f)
-        compose.onNodeWithTag("inventory_quick_action").assertDoesNotExist()
+        compose.onNodeWithTag("inventory_quick_actions").assertDoesNotExist()
         compose.runOnIdle { assertEquals(0, opens) }
 
         card.performTouchInput { swipeLeft() }
@@ -130,27 +140,28 @@ class InventoryInteractionUiTest {
         compose.waitForIdle()
         assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f)
         card.performTouchInput { swipeLeft() }
-        compose.onNodeWithTag("inventory_quick_action").performClick()
+        compose.onNodeWithTag("inventory_quick_inbound").performClick()
         compose.runOnIdle {
-            assertEquals(1, actions)
+            assertEquals(1, inbound)
+            assertEquals(listOf(0, 0, 0), listOf(outbound, transfers, deletes))
             assertEquals(0, opens)
         }
     }
 
     @Test
-    fun selectionModeHasNoSwipeDeleteAction() {
+    fun selectionModeHasNoSwipeActions() {
         setInventoryContent {
             MaterialTheme {
                 InventoryListRow(item, selected = true, selectionMode = true,
-                    onClick = {}, onOpenActions = {})
+                    onClick = {}, onInbound = {}, onOutbound = {}, onTransfer = {}, onDelete = {})
             }
         }
-        compose.onNodeWithTag("inventory_quick_action").assertDoesNotExist()
+        compose.onNodeWithTag("inventory_quick_actions").assertDoesNotExist()
         compose.onNodeWithText(item.name).assertIsDisplayed()
     }
 
     @Test
-    fun quickActionMenuShowsSkuAndUsesExistingDeleteCallback() {
+    fun quickActionsOpenFormsDirectlyAndDeleteUsesExistingCallback() {
         var deletedId: String? = null
         setInventoryContent {
             MaterialTheme {
@@ -173,24 +184,30 @@ class InventoryInteractionUiTest {
                 )
             }
         }
-        compose.onNodeWithTag("inventory_reveal_card").performTouchInput { swipeLeft() }
-        compose.onNodeWithTag("inventory_quick_action").performClick()
-        compose.onNodeWithText("${item.name} · ${item.sku}").assertIsDisplayed()
-        listOf(R.string.inventory_quick_inbound, R.string.inventory_quick_outbound,
-            R.string.inventory_quick_transfer, R.string.action_delete).forEach { label ->
-            compose.onNodeWithText(context.getString(label)).assertIsDisplayed()
-        }
-        compose.onNodeWithText(context.getString(R.string.inventory_quick_transfer)).performClick()
+        val card = compose.onNodeWithTag("inventory_reveal_card")
+        card.performTouchInput { swipeLeft() }
+        compose.onNodeWithTag("inventory_quick_inbound").performClick()
+        compose.onNodeWithText(context.getString(R.string.inventory_quick_inbound) + " · " + item.sku)
+            .assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.action_cancel)).performClick()
+
+        card.performTouchInput { swipeLeft() }
+        compose.onNodeWithTag("inventory_quick_outbound").performClick()
+        compose.onNodeWithText(context.getString(R.string.inventory_quick_outbound) + " · " + item.sku)
+            .assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.action_cancel)).performClick()
+
+        card.performTouchInput { swipeLeft() }
+        compose.onNodeWithTag("inventory_quick_transfer").performClick()
         compose.onNodeWithText(context.getString(R.string.inventory_quick_transfer)).assertIsDisplayed()
+        compose.onNodeWithText(item.sku).assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.batch_transfer_count, 1)).assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.action_cancel)).performClick()
 
-        compose.onNodeWithTag("inventory_reveal_card").performTouchInput { swipeLeft() }
-        compose.onNodeWithTag("inventory_quick_action").performClick()
-        compose.onNodeWithText(context.getString(R.string.action_delete)).performClick()
+        card.performTouchInput { swipeLeft() }
+        compose.onNodeWithTag("inventory_quick_delete").performClick()
         compose.runOnIdle { assertEquals(item.id, deletedId) }
     }
-
     @Test
     fun quickStockFormKeepsInputOnFailureAndBlocksDuplicateSubmit() {
         var draft: MovementEntryDraft? = null

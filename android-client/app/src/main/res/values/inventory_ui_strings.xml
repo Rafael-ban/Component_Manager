@@ -6,7 +6,6 @@
     <string name="inventory_ui_clear_search">Clear search</string>
     <string name="inventory_ui_route">Locations</string>
     <string name="inventory_ui_transfer_items">Transfer quantities</string>
-    <string name="inventory_quick_actions">Actions</string>
     <string name="inventory_quick_inbound">Stock in</string>
     <string name="inventory_quick_outbound">Stock out</string>
     <string name="inventory_quick_transfer">Transfer stock</string>

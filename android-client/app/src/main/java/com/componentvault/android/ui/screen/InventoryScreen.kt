@@ -22,10 +22,6 @@ import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Remove
-import androidx.compose.material.icons.outlined.SwapHoriz
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -306,7 +302,6 @@ private fun InventoryListPane(
     var selecting by androidx.compose.runtime.remember { mutableStateOf(false) }
     var selectedIds by androidx.compose.runtime.remember { mutableStateOf(emptySet<String>()) }
     var transferVisible by androidx.compose.runtime.remember { mutableStateOf(false) }
-    var quickActionItem by androidx.compose.runtime.remember { mutableStateOf<com.componentvault.android.model.InventoryListItemUiState?>(null) }
     var quickMovement by androidx.compose.runtime.remember { mutableStateOf<Pair<com.componentvault.android.model.InventoryListItemUiState, Boolean>?>(null) }
     var quickTransferItem by androidx.compose.runtime.remember { mutableStateOf<com.componentvault.android.model.InventoryListItemUiState?>(null) }
     var actionsExpanded by androidx.compose.runtime.remember { mutableStateOf(false) }
@@ -400,7 +395,10 @@ private fun InventoryListPane(
                             if (selecting) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
                             else onSelectComponent(item.id)
                         },
-                        onOpenActions = if (selecting) null else ({ quickActionItem = item }),
+                        onInbound = if (onQuickMovement == null || selecting) null else ({ quickMovement = item to true }),
+                        onOutbound = if (onQuickMovement == null || selecting) null else ({ quickMovement = item to false }),
+                        onTransfer = if (onBatchTransfer == null || selecting) null else ({ quickTransferItem = item }),
+                        onDelete = if (selecting) null else ({ onRequestDeleteComponent(item.id) }),
                     )
                 }
             }
@@ -413,40 +411,6 @@ private fun InventoryListPane(
             locations = uiState.storageLocations,
             onDismiss = ::exitSelection,
             onSubmit = onBatchTransfer,
-        )
-    }
-    quickActionItem?.let { item ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { quickActionItem = null },
-            title = { Text("${item.name} · ${item.sku}", maxLines = 2, overflow = TextOverflow.Ellipsis) },
-            text = {
-                Column {
-                    listOf(
-                        Triple(R.string.inventory_quick_inbound, Icons.Outlined.Add, { quickMovement = item to true }),
-                        Triple(R.string.inventory_quick_outbound, Icons.Outlined.Remove, { quickMovement = item to false }),
-                        Triple(R.string.inventory_quick_transfer, Icons.Outlined.SwapHoriz, { quickTransferItem = item }),
-                        Triple(R.string.action_delete, Icons.Outlined.Delete, { onRequestDeleteComponent(item.id) }),
-                    ).forEach { (title, icon, action) ->
-                        TextButton(onClick = { quickActionItem = null; action() },
-                            enabled = when (title) {
-                                R.string.inventory_quick_inbound, R.string.inventory_quick_outbound -> onQuickMovement != null
-                                R.string.inventory_quick_transfer -> onBatchTransfer != null
-                                else -> true
-                            }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
-                                val color = if (title == R.string.action_delete) MaterialTheme.colorScheme.error
-                                    else MaterialTheme.colorScheme.onSurface
-                                Icon(icon, contentDescription = null, tint = color)
-                                Text(stringResource(title), color = color)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { quickActionItem = null }) {
-                Text(stringResource(R.string.action_cancel))
-            } },
         )
     }
     quickMovement?.let { (item, inbound) ->

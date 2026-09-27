@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -22,7 +23,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,7 +35,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -212,62 +215,90 @@ internal fun InventoryListRow(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     selectionMode: Boolean = false,
-    onOpenActions: (() -> Unit)? = null,
+    onInbound: (() -> Unit)? = null,
+    onOutbound: (() -> Unit)? = null,
+    onTransfer: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
 ) {
-    if (!selectionMode && onOpenActions != null) {
-        val revealWidth = 80.dp
-        val revealPx = with(LocalDensity.current) { revealWidth.toPx() }
-        var offsetPx by remember(item.id) { mutableFloatStateOf(0f) }
-        val scope = rememberCoroutineScope()
-        var settleJob by remember { mutableStateOf<Job?>(null) }
-        val dragState = rememberDraggableState { delta ->
-            offsetPx = (offsetPx + delta).coerceIn(-revealPx, 0f)
-        }
-        val shape = RoundedCornerShape(16.dp)
-        Box(modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surface)) {
-            if (offsetPx < 0f) Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
-                TextButton(
-                    onClick = {
-                        settleJob?.cancel()
-                        offsetPx = 0f
-                        onOpenActions()
-                    },
+    if (!selectionMode && listOf(onInbound, onOutbound, onTransfer, onDelete).any { it != null }) {
+        BoxWithConstraints(modifier.fillMaxWidth()) {
+            val buttonWidth = ((maxWidth - 96.dp) / 4).coerceIn(48.dp, 56.dp)
+            val revealWidth = buttonWidth * 4
+            val revealPx = with(LocalDensity.current) { revealWidth.toPx() }
+            var offsetPx by remember(item.id) { mutableFloatStateOf(0f) }
+            val scope = rememberCoroutineScope()
+            var settleJob by remember { mutableStateOf<Job?>(null) }
+            val dragState = rememberDraggableState { delta ->
+                offsetPx = (offsetPx + delta).coerceIn(-revealPx, 0f)
+            }
+            fun close() {
+                settleJob?.cancel()
+                offsetPx = 0f
+            }
+            val shape = RoundedCornerShape(16.dp)
+            Box(Modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surface)) {
+                if (offsetPx < 0f) Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
+                    Row(
                     modifier = Modifier.width(revealWidth).fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.primaryContainer).testTag("inventory_quick_action"),
+                        .testTag("inventory_quick_actions"),
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.MoreHoriz, contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Text(stringResource(R.string.inventory_quick_actions),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    val colors = MaterialTheme.colorScheme
+                    listOf(
+                        Triple(R.string.inventory_quick_inbound, Icons.Outlined.Add, onInbound) to
+                            Pair(colors.primaryContainer, colors.onPrimaryContainer),
+                        Triple(R.string.inventory_quick_outbound, Icons.Outlined.Remove, onOutbound) to
+                            Pair(colors.secondaryContainer, colors.onSecondaryContainer),
+                        Triple(R.string.inventory_quick_transfer, Icons.Outlined.SwapHoriz, onTransfer) to
+                            Pair(colors.tertiaryContainer, colors.onTertiaryContainer),
+                        Triple(R.string.action_delete, Icons.Outlined.Delete, onDelete) to
+                            Pair(colors.errorContainer, colors.onErrorContainer),
+                    ).forEachIndexed { index, (action, palette) ->
+                        val (label, icon, callback) = action
+                        Box(
+                            modifier = Modifier.width(buttonWidth).fillMaxHeight()
+                                .background(palette.first)
+                                .clickable(enabled = callback != null) {
+                                    close()
+                                    callback?.invoke()
+                                }
+                                .testTag(listOf("inventory_quick_inbound", "inventory_quick_outbound",
+                                    "inventory_quick_transfer", "inventory_quick_delete")[index]),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(icon, contentDescription = null, tint = palette.second)
+                                Text(stringResource(label), color = palette.second,
+                                    style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                            }
+                        }
                     }
                 }
+                }
+                InventoryListRowContent(item, selected,
+                    Modifier.offset { IntOffset(offsetPx.roundToInt(), 0) }
+                        .draggable(
+                            state = dragState,
+                            orientation = Orientation.Horizontal,
+                            onDragStarted = { settleJob?.cancel() },
+                            onDragStopped = {
+                                val target = if (offsetPx <= -revealPx / 2) -revealPx else 0f
+                                settleJob = scope.launch {
+                                    animate(offsetPx, target) { value, _ -> offsetPx = value }
+                                }
+                            },
+                        ).testTag("inventory_reveal_card"),
+                    onClick = {
+                        if (offsetPx < 0f) {
+                            settleJob?.cancel()
+                            settleJob = scope.launch { animate(offsetPx, 0f) { value, _ -> offsetPx = value } }
+                        } else onClick()
+                    }, selectionMode)
             }
-            InventoryListRowContent(item, selected,
-                Modifier.offset { IntOffset(offsetPx.roundToInt(), 0) }
-                    .draggable(
-                        state = dragState,
-                        orientation = Orientation.Horizontal,
-                        onDragStarted = { settleJob?.cancel() },
-                        onDragStopped = {
-                            val target = if (offsetPx <= -revealPx / 2) -revealPx else 0f
-                            settleJob = scope.launch {
-                                animate(offsetPx, target) { value, _ -> offsetPx = value }
-                            }
-                        },
-                    ).testTag("inventory_reveal_card"),
-                onClick = {
-                    if (offsetPx < 0f) {
-                        settleJob?.cancel()
-                        settleJob = scope.launch { animate(offsetPx, 0f) { value, _ -> offsetPx = value } }
-                    } else onClick()
-                }, selectionMode)
         }
     } else {
         InventoryListRowContent(item, selected, modifier, onClick, selectionMode)
     }
 }
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InventoryListRowContent(

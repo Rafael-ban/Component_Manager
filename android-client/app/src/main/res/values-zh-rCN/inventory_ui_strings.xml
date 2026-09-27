@@ -6,7 +6,6 @@
     <string name="inventory_ui_clear_search">清除搜索</string>
     <string name="inventory_ui_route">库位</string>
     <string name="inventory_ui_transfer_items">转移数量</string>
-    <string name="inventory_quick_actions">操作</string>
     <string name="inventory_quick_inbound">入库</string>
     <string name="inventory_quick_outbound">出库</string>
     <string name="inventory_quick_transfer">转移库存</string>

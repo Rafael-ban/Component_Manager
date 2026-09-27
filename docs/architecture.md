@@ -742,7 +742,7 @@ Android 和 Windows 的连接测试执行协议与账户接口检查而不保存
 
 Android 与 Windows 的批量库位转移使用现有 allocations 和 transfer 流水，不增加库存 schema。
 原生端在一个本地事务内先核对所有来源、目标、复核版本与数量，再写全部分配、流水及同步队列。
-源库存不足或复核过期时不提交部分结果。Android 左滑最多展开 80 dp 的“操作”入口，单 SKU 菜单提供入库、出库、转移和删除。入/出弹层通过 InventoryViewModel.recordMovement 复用本地事务及同步队列；转移复用单项 BatchTransferDialog 和原有事务。提交期间禁止重复点击，失败保留输入；删除沿用软删除并二次确认。
+源库存不足或复核过期时不提交部分结果。Android 左滑直接展开入库、出库、转移、删除四个按钮；单按钮宽 48–56 dp，保留可见卡片主体。点卡片或右滑收起，不以完整滑动触发操作，多选时关闭滑动。入/出弹层通过 InventoryViewModel.recordMovement 复用本地事务及同步队列；转移复用单项 BatchTransferDialog 和原有事务。提交期间禁止重复点击，失败保留输入；删除沿用软删除并二次确认。
 Android 以“选择”进入批量操作，转移表单滚动、复核提交固定可见；Windows 使用原生列表多选与上下文命令栏。
 
 标签工具入口只选择起始模板，再交给已有编辑器。自由标签由独立数据与 LabelDesign 组成，
