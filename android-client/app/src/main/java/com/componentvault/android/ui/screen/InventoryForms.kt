@@ -162,7 +162,7 @@ internal fun ComponentEditorSurface(
                     onValueChange = { category = it },
                     label = strings.common.fieldCategory,
                     options = availableCategories.distinct(),
-                    optionLabel = ::localizedCategoryLabel,
+                    optionLabel = { localizedCategoryLabel(it) },
                     tag = "component_editor_category",
                 )
                 OutlinedTextField(
@@ -231,7 +231,7 @@ private fun EditableChoiceField(
     onValueChange: (String) -> Unit,
     label: String,
     options: List<String>,
-    optionLabel: (String) -> String,
+    optionLabel: @Composable (String) -> String,
     tag: String,
 ) {
     var expanded by remember { mutableStateOf(false) }
