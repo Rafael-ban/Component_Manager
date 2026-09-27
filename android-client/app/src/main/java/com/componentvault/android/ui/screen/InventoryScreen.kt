@@ -318,11 +318,7 @@ private fun InventoryListPane(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = strings.inventory.resultsSummary(
-                    uiState.list.items.size,
-                    uiState.availableCategories.size,
-                    uiState.availableLocations.size,
-                ),
+                text = stringResource(R.string.inventory_ui_result_count, uiState.list.items.size),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

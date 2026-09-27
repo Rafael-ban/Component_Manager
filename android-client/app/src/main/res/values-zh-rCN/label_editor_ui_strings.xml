@@ -14,6 +14,8 @@
     <string name="label_ui_print_ready">打印准备</string>
     <string name="label_ui_select_element">点选标签上的元素后编辑</string>
     <string name="label_ui_enter_qr">输入二维码内容后即可预览和打印</string>
+    <string name="label_ui_empty_text">文字</string>
+    <string name="label_ui_empty_qr">二维码</string>
     <string name="label_ui_advanced">高级尺寸</string>
     <string name="label_ui_close">完成</string>
     <string name="label_ui_paper_summary">%1$s × %2$s 毫米 · %3$s°</string>

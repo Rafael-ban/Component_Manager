@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="inventory_ui_result_count">%1$d components</string>
     <string name="inventory_ui_select">Select</string>
     <string name="inventory_ui_more_actions">More inventory actions</string>
     <string name="inventory_ui_clear_search">Clear search</string>

@@ -3,6 +3,9 @@ package com.componentvault.android.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,40 +14,45 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.componentvault.android.R
@@ -54,7 +62,10 @@ import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.ui.theme.VaultWarning
 import com.componentvault.android.ui.theme.VaultWarningContainer
+import androidx.compose.animation.core.animate
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
 internal fun StatusBanner(
@@ -193,7 +204,7 @@ internal fun ValueBlock(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun InventoryListRow(
     item: InventoryListItemUiState,
@@ -204,38 +215,52 @@ internal fun InventoryListRow(
     onRequestDelete: (() -> Unit)? = null,
 ) {
     if (!selectionMode && onRequestDelete != null) {
-        val dismissState = rememberSwipeToDismissBoxState(
-            confirmValueChange = { it != SwipeToDismissBoxValue.StartToEnd },
-        )
+        val revealWidth = 80.dp
+        val revealPx = with(LocalDensity.current) { revealWidth.toPx() }
+        var offsetPx by remember(item.id) { mutableFloatStateOf(0f) }
         val scope = rememberCoroutineScope()
-        SwipeToDismissBox(
-            state = dismissState,
-            modifier = modifier,
-            enableDismissFromStartToEnd = false,
-            enableDismissFromEndToStart = true,
-            backgroundContent = {
-                Box(
-                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer),
-                    contentAlignment = Alignment.CenterEnd,
+        var settleJob by remember { mutableStateOf<Job?>(null) }
+        val dragState = rememberDraggableState { delta ->
+            offsetPx = (offsetPx + delta).coerceIn(-revealPx, 0f)
+        }
+        val shape = RoundedCornerShape(16.dp)
+        Box(modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surface)) {
+            if (offsetPx < 0f) Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
+                TextButton(
+                    onClick = {
+                        settleJob?.cancel()
+                        offsetPx = 0f
+                        onRequestDelete()
+                    },
+                    modifier = Modifier.width(revealWidth).fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.errorContainer).testTag("inventory_delete_action"),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(end = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        TextButton(onClick = { scope.launch { dismissState.reset() } }) {
-                            Text(stringResource(R.string.action_cancel))
-                        }
-                        Button(onClick = {
-                            scope.launch { dismissState.reset() }
-                            onRequestDelete()
-                        }) {
-                            Text(stringResource(R.string.action_delete))
-                        }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Delete, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                     }
                 }
-            },
-        ) {
-            InventoryListRowContent(item, selected, Modifier, onClick, selectionMode)
+            }
+            InventoryListRowContent(item, selected,
+                Modifier.offset { IntOffset(offsetPx.roundToInt(), 0) }
+                    .draggable(
+                        state = dragState,
+                        orientation = Orientation.Horizontal,
+                        onDragStarted = { settleJob?.cancel() },
+                        onDragStopped = {
+                            val target = if (offsetPx <= -revealPx / 2) -revealPx else 0f
+                            settleJob = scope.launch {
+                                animate(offsetPx, target) { value, _ -> offsetPx = value }
+                            }
+                        },
+                    ).testTag("inventory_reveal_card"),
+                onClick = {
+                    if (offsetPx < 0f) {
+                        settleJob?.cancel()
+                        settleJob = scope.launch { animate(offsetPx, 0f) { value, _ -> offsetPx = value } }
+                    } else onClick()
+                }, selectionMode)
         }
     } else {
         InventoryListRowContent(item, selected, modifier, onClick, selectionMode)

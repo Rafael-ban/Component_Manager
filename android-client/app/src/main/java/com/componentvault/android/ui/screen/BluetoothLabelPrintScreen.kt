@@ -349,6 +349,10 @@ internal fun BluetoothLabelPrintScreen(
         paper != null && invalidGeometryFields.isEmpty() && !blankQr &&
         preview.request == previewRequest && preview.bitmap != null && preview.error == null
     val selectedElement = activeDesign?.elements?.firstOrNull { it.id == selectedElementId }
+    fun elementCaption(element: LabelElement, limit: Int): String = element.text.take(limit).ifBlank {
+        context.getString(if (element.type == LabelElementType.Text) R.string.label_ui_empty_text
+            else R.string.label_ui_empty_qr)
+    }
 
     SecondaryPageScaffold(
         title = stringResource(if (showPrintView) R.string.label_ui_print_ready else R.string.bluetooth_label_print_title),
@@ -453,7 +457,7 @@ internal fun BluetoothLabelPrintScreen(
                         }, modifier = Modifier.weight(1f)) { Text(stringResource(title)) }
                     }
                 }
-                Text(selectedElement?.text?.take(48)?.ifBlank { selectedElement.id }
+                Text(selectedElement?.let { elementCaption(it, 48) }
                     ?: stringResource(R.string.label_ui_select_element),
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall)
@@ -566,17 +570,25 @@ internal fun BluetoothLabelPrintScreen(
     }
 
     if (sheetPanel != null) ModalBottomSheet(onDismissRequest = { sheetPanel = null }) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().imePadding()) {
+            if (sheetPanel == "content") Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.label_ui_content), modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleLarge)
+                TextButton(onClick = { sheetPanel = null }, modifier = Modifier.testTag("label_content_done")) {
+                    Text(stringResource(R.string.label_ui_close))
+                }
+            }
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
             when (sheetPanel) {
                 "content" -> {
-                    Text(stringResource(R.string.label_ui_content), style = MaterialTheme.typography.titleLarge)
                     if (activeDesign != null) Row(Modifier.horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         activeDesign.elements.forEach { element ->
                             FilterChip(selected = selectedElementId == element.id,
                                 onClick = { selectedElementId = element.id; invalidGeometryFields = arrayListOf() },
-                                label = { Text(element.text.take(16).ifBlank { element.id }) })
+                                label = { Text(elementCaption(element, 16)) })
                         }
                     }
                     if (selectedElement == null) Text(stringResource(R.string.label_ui_select_element),
@@ -743,8 +755,10 @@ internal fun BluetoothLabelPrintScreen(
                     preview.request == previewRequest && preview.error == null && preview.bitmap != null,
                     { localMessage = it })
             }
-            TextButton(onClick = { sheetPanel = null }, modifier = Modifier.align(Alignment.End)) {
+            if (sheetPanel != "content") TextButton(onClick = { sheetPanel = null },
+                modifier = Modifier.align(Alignment.End)) {
                 Text(stringResource(R.string.label_ui_close))
+            }
             }
         }
     }

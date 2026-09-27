@@ -135,7 +135,7 @@ class BluetoothLabelPrintUiTest {
         compose.onNodeWithText(context.getString(R.string.label_ui_content)).performClick()
         compose.onNodeWithText(context.getString(R.string.label_editor_text))
             .performScrollTo().performTextReplacement("Custom display")
-        compose.onNodeWithText(context.getString(R.string.label_ui_close)).performScrollTo().performClick()
+        compose.onNodeWithTag("label_content_done").assertIsDisplayed().performClick()
         compose.onNodeWithText(context.getString(R.string.label_ui_position)).performClick()
         compose.onNodeWithText(context.getString(R.string.label_ui_advanced)).performClick()
         compose.onNodeWithText(context.getString(R.string.label_editor_x))
@@ -166,12 +166,27 @@ class BluetoothLabelPrintUiTest {
         }
         compose.onNodeWithTag("print_label_preview").assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.label_ui_enter_qr)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.label_ui_empty_qr)).assertIsDisplayed()
         compose.onNodeWithTag("label_element_qr").performClick()
         compose.onNodeWithText(context.getString(R.string.label_ui_content)).performClick()
         compose.onNodeWithText(context.getString(R.string.label_tool_qr_payload))
             .performScrollTo().performTextReplacement("https://example.test/qr")
-        compose.onNodeWithText(context.getString(R.string.label_ui_close)).performScrollTo().performClick()
+        compose.onNodeWithTag("label_content_done").assertIsDisplayed().performClick()
         waitForPrintablePreview()
+        LabelPrintQueueStore(context).clear()
+    }
+
+    @Test
+    fun emptyFreeTextShowsLocalizedElementCaption() {
+        LabelPrintQueueStore(context).clear()
+        setLabelContent {
+            MaterialTheme { BluetoothLabelPrintScreen(emptyList(), null,
+                initialToolTemplate = LabelToolTemplate.Text, onDismiss = {}) }
+        }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("label_element_text").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText(context.getString(R.string.label_ui_empty_text)).assertIsDisplayed()
         LabelPrintQueueStore(context).clear()
     }
 

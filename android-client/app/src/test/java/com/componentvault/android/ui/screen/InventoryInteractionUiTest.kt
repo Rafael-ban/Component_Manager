@@ -7,12 +7,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import com.componentvault.android.R
 import com.componentvault.android.model.ComponentAllocationRecord
 import com.componentvault.android.model.InventoryFiltersUiState
@@ -27,6 +33,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.math.abs
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -52,6 +60,59 @@ class InventoryInteractionUiTest {
         isLowStock = false,
         updatedAt = "2026-09-27T00:00:00Z",
     )
+
+    @Test
+    fun swipeRevealsOnlyNarrowDeleteActionAndTapClosesWithoutOpeningItem() {
+        var opens = 0
+        var deletes = 0
+        setInventoryContent {
+            MaterialTheme {
+                InventoryListRow(item, selected = false, onClick = { opens++ },
+                    onRequestDelete = { deletes++ })
+            }
+        }
+        val card = compose.onNodeWithTag("inventory_reveal_card")
+        compose.onNodeWithTag("inventory_delete_action").assertDoesNotExist()
+        val closedLeft = card.getUnclippedBoundsInRoot().left
+        card.performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        val openLeft = card.getUnclippedBoundsInRoot().left
+        val actionWidth = compose.onNodeWithTag("inventory_delete_action").getUnclippedBoundsInRoot().width
+        assertTrue(abs(((closedLeft - openLeft) - actionWidth).value) < 2f)
+        compose.onNodeWithText(item.name).assertIsDisplayed()
+        compose.onNodeWithTag("inventory_delete_action").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(0, deletes) }
+
+        card.performClick()
+        compose.waitForIdle()
+        assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f)
+        compose.onNodeWithTag("inventory_delete_action").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(0, opens) }
+
+        card.performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        card.performTouchInput { swipeRight() }
+        compose.waitForIdle()
+        assertTrue(abs((card.getUnclippedBoundsInRoot().left - closedLeft).value) < 2f)
+        card.performTouchInput { swipeLeft() }
+        compose.onNodeWithTag("inventory_delete_action").performClick()
+        compose.runOnIdle {
+            assertEquals(1, deletes)
+            assertEquals(0, opens)
+        }
+    }
+
+    @Test
+    fun selectionModeHasNoSwipeDeleteAction() {
+        setInventoryContent {
+            MaterialTheme {
+                InventoryListRow(item, selected = true, selectionMode = true,
+                    onClick = {}, onRequestDelete = {})
+            }
+        }
+        compose.onNodeWithTag("inventory_delete_action").assertDoesNotExist()
+        compose.onNodeWithText(item.name).assertIsDisplayed()
+    }
 
     @Test
     fun searchStaysInlineAndResultsRemainVisibleWhileTyping() {
