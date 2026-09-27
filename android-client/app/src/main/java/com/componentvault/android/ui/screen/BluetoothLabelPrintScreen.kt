@@ -255,11 +255,12 @@ internal fun BluetoothLabelPrintScreen(
     }
     LaunchedEffect(controller.loaded, hasQueue) {
         if (controller.loaded && !hasQueue && !restoredPaper) {
-            widthText = (initialPaper?.widthMm ?: queue.paper.widthMm).toString()
-            heightText = (initialPaper?.heightMm ?: queue.paper.heightMm).toString()
-            rotationText = queue.paper.rotationDegrees.toString()
-            offsetXText = queue.paper.offsetXmm.toString()
-            offsetYText = queue.paper.offsetYmm.toString()
+            val selectedPaper = initialPaper ?: queue.paper
+            widthText = selectedPaper.widthMm.toString()
+            heightText = selectedPaper.heightMm.toString()
+            rotationText = selectedPaper.rotationDegrees.toString()
+            offsetXText = selectedPaper.offsetXmm.toString()
+            offsetYText = selectedPaper.offsetYmm.toString()
             if (initialSeed == null && initialPaper == null) {
                 templateId = queue.templateId
                 textTemplateId = queue.textTemplateId

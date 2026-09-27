@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -119,11 +120,11 @@ internal fun LabelToolTemplatePicker(
                     OutlinedTextField(widthText, { widthText = it },
                         label = { Text(stringResource(R.string.bluetooth_label_print_width)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true, modifier = Modifier.weight(1f))
+                        singleLine = true, modifier = Modifier.weight(1f).testTag("label_paper_width"))
                     OutlinedTextField(heightText, { heightText = it },
                         label = { Text(stringResource(R.string.bluetooth_label_print_height)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true, modifier = Modifier.weight(1f))
+                        singleLine = true, modifier = Modifier.weight(1f).testTag("label_paper_height"))
                 }
                 if (paper == null) Text(stringResource(R.string.label_ui_paper_range),
                     color = MaterialTheme.colorScheme.error,

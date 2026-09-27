@@ -276,6 +276,33 @@ class BluetoothLabelPrintUiTest {
         }
     }
     @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun newPaperReplacesRotationAndOffsetsFromAnEmptySavedQueue() {
+        val oldPaper = M1TestPaperProfile(40f, 60f, 90, 48f, -100f)
+        LabelPrintQueueStore(context).save(LabelPrintQueue(paper = oldPaper))
+        val seed = ComponentLabelSeed("ROT-NEW", "Resistor", "Passive", "0603", "A", 1, 0)
+        try {
+            setLabelContent {
+                MaterialTheme { BluetoothLabelPrintScreen(emptyList(), seed,
+                    initialPaper = M1TestPaperProfile(40f, 60f), onDismiss = {}) }
+            }
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithTag("label_element_name").fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.waitUntil(10_000) {
+                compose.onAllNodes(hasTestTag("label_print_open") and isEnabled())
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.waitForIdle()
+            compose.onNodeWithText(context.getString(R.string.label_ui_paper_summary,
+                "40.0", "60.0", "0")).assertExists()
+            // The saved 48 mm / -100 mm offsets would clip the raster and block queue creation.
+            waitForPrintablePreview()
+        } finally {
+            LabelPrintQueueStore(context).clear()
+        }
+    }
+    @Test
     fun restoredQueueKeepsItsSavedRotationWhenNewPaperWasChosen() {
         val seed = ComponentLabelSeed("ROT-90", "Saved label", "IC", "SMD", "A", 1, 0)
         LabelPrintQueueStore(context).save(LabelPrintQueue.create(listOf(seed to 1),
@@ -320,13 +347,13 @@ class BluetoothLabelPrintUiTest {
             }
         }
         compose.onNodeWithText(context.getString(R.string.label_tool_qr)).performClick()
-        compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_width))
-            .performTextReplacement("60")
+        compose.onNodeWithTag("label_paper_width")
+            .performScrollTo().performTextReplacement("60")
         compose.onNodeWithText(context.getString(R.string.label_ui_open_editor)).assertIsNotEnabled()
-        compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_width))
-            .performTextReplacement("35")
-        compose.onNodeWithText(context.getString(R.string.bluetooth_label_print_height))
-            .performTextReplacement("25")
+        compose.onNodeWithTag("label_paper_width")
+            .performScrollTo().performTextReplacement("35")
+        compose.onNodeWithTag("label_paper_height")
+            .performScrollTo().performTextReplacement("25")
         compose.onNodeWithText(context.getString(R.string.label_ui_open_editor)).performClick()
         compose.runOnIdle { assertTrue(selectedPaper == M1TestPaperProfile(35f, 25f)) }
     }
