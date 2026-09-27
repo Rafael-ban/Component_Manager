@@ -7,7 +7,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -77,7 +76,8 @@ class InventoryInteractionUiTest {
         card.performTouchInput { swipeLeft() }
         compose.waitForIdle()
         val openLeft = card.getUnclippedBoundsInRoot().left
-        val actionWidth = compose.onNodeWithTag("inventory_delete_action").getUnclippedBoundsInRoot().width
+        val actionBounds = compose.onNodeWithTag("inventory_delete_action").getUnclippedBoundsInRoot()
+        val actionWidth = actionBounds.right - actionBounds.left
         assertTrue(abs(((closedLeft - openLeft) - actionWidth).value) < 2f)
         compose.onNodeWithText(item.name).assertIsDisplayed()
         compose.onNodeWithTag("inventory_delete_action").assertIsDisplayed()
