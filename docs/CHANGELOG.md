@@ -17,6 +17,14 @@ bump: patch
 
 <!-- Add unreleased notes below this line. -->
 
+## [0.7.7-dev.4] - 2026-09-27
+
+### 左滑直达操作
+
+- 按用户提供的效果图，Android 库存左滑直接横排展开入库、出库、转移和删除，移除 dev.3 中间的“操作”菜单。点击按钮后在当前列表填写表单或确认，无需进入独立页面。
+- 操作按钮保持至少 48 dp 宽，仍保留可见卡片；右滑或点击卡片收起，多选时关闭左滑操作，删除仍需确认。
+- [GitHub CI](https://github.com/Rafael-ban/Component_Manager/actions/runs/36308927220) 全部通过，覆盖四入口、表单、触控尺寸与收起行为。沿用 dev.3 参数功能，不修改业务事务或 Docker 稳定标签；详见 [版本说明](releases/0.7.7-dev.4.md)。
+
 ## [0.7.7-dev.3] - 2026-09-27
 
 ### 元件参数与库存快捷操作
