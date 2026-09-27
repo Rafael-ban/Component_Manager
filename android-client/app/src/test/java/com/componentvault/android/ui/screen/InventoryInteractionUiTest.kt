@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
@@ -33,6 +34,12 @@ class InventoryInteractionUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val context: Application get() = RuntimeEnvironment.getApplication()
 
+    private fun setInventoryContent(content: @Composable () -> Unit) {
+        compose.setContent {
+            ProvideComponentVaultStrings(runtimeComponentVaultStrings()) { content() }
+        }
+    }
+
     private val item = InventoryListItemUiState(
         id = "part-1",
         name = "Ceramic capacitor",
@@ -49,7 +56,7 @@ class InventoryInteractionUiTest {
     @Test
     fun searchStaysInlineAndResultsRemainVisibleWhileTyping() {
         val query = mutableStateOf("")
-        compose.setContent {
+        setInventoryContent {
             MaterialTheme {
                 InventoryContent(
                     contentPadding = PaddingValues(),
@@ -82,7 +89,7 @@ class InventoryInteractionUiTest {
 
     @Test
     fun selectionShowsTransferOnlyAfterAnItemIsSelected() {
-        compose.setContent {
+        setInventoryContent {
             MaterialTheme {
                 InventoryContent(
                     contentPadding = PaddingValues(),
@@ -121,7 +128,7 @@ class InventoryInteractionUiTest {
             StorageLocationRecord("A", "Shelf A", ""),
             StorageLocationRecord("B", "Shelf B", ""),
         )
-        compose.setContent {
+        setInventoryContent {
             MaterialTheme {
                 BatchTransferDialog(
                     items = listOf(item),
