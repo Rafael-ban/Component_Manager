@@ -43,6 +43,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -326,8 +327,10 @@ class BluetoothLabelPrintUiTest {
             compose.waitUntil(10_000) {
                 compose.onAllNodesWithTag("print_queue_list").fetchSemanticsNodes().isNotEmpty()
             }
+            val expectedPaper = savedPaper.copy(rotationDegrees = 0)
+            compose.waitUntil(10_000) { store.load().paper == expectedPaper }
             compose.runOnIdle {
-                assertTrue(store.load().paper == savedPaper.copy(rotationDegrees = 0))
+                assertEquals(expectedPaper, store.load().paper)
             }
         } finally {
             store.clear()
