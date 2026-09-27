@@ -1,12 +1,26 @@
 package com.componentvault.android.data
 
 import com.componentvault.android.model.ComponentOfficialMetadata
+import com.componentvault.android.model.ComponentImportCandidate
+import com.componentvault.android.model.ComponentImportSourceType
+import com.componentvault.android.model.withOfficialMetadata
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class BatchJlcModelsTest {
+    @Test fun batchCandidateUsesBrandModelWhileParametersRemainInDescription() {
+        val metadata = ComponentOfficialMetadata(model = "R0603", brand = "Maker", category = "电阻",
+            parameters = mapOf("阻值" to "10kΩ", "精度" to "±1%"))
+        val candidate = ComponentImportCandidate(sourceType = ComponentImportSourceType.JlcQr,
+            rawPayload = "C1", sourceLabel = "JLC", sku = "C1", name = "R0603", model = "R0603")
+            .withOfficialMetadata(metadata)
+        assertEquals("Maker R0603", candidate.name)
+        val description = metadata.toBatchDescription()
+        assertTrue("参数：阻值：10kΩ" in description)
+        assertTrue("参数：精度：±1%" in description)
+    }
     @Test fun deduplicatesExactRawButKeepsDifferentBagsForSameSku(){
         val first="pc:C70565,qty:10,pdi:A";val second="pc:C70565,qty:20,pdi:B"
         val (draft,duplicates)=BatchJlcDraftCodec.add(BatchJlcDraft(),listOf(first,"  $first  ",second))

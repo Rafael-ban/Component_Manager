@@ -1,109 +1,130 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace ComponentVault.WinUI.Services.Catalog;
 
+public sealed record SpecificationField(string Key, string Value)
+{
+    public string Label => OfficialSpecifications.LocalizeLabel(Key, CultureInfo.CurrentUICulture);
+}
+
 public static class OfficialSpecifications
 {
+    private static readonly IReadOnlyDictionary<string, string> EnglishLabels = new Dictionary<string, string>
+    {
+        ["阻值"] = "Resistance", ["容量"] = "Capacitance", ["电感量"] = "Inductance",
+        ["耐压"] = "Voltage rating", ["精度"] = "Tolerance", ["功率"] = "Power rating",
+    };
+
+    public static string LocalizeLabel(string key, CultureInfo culture) =>
+        culture.TwoLetterISOLanguageName.Equals("zh", StringComparison.OrdinalIgnoreCase)
+            ? key
+            : EnglishLabels.GetValueOrDefault(key, key);
+
     private static readonly (string Label, string[] Keys)[] Fields =
     [
-        ("阻值", ["阻值", "Resistance"]),
-        ("容量", ["容值", "容量", "Capacitance"]),
-        ("电感量", ["电感量", "电感值", "Inductance"]),
-        ("精度", ["精度", "容差", "误差", "Tolerance"]),
+        ("阻值", ["阻值", "电阻值", "Resistance"]),
+        ("容量", ["容值", "容量", "电容量", "Capacitance"]),
+        ("电感量", ["电感量", "电感值", "感值", "Inductance"]),
+        ("耐压", ["耐压", "额定电压", "工作电压", "Voltage Rating", "Rated Voltage", "Voltage"]),
+        ("精度", ["精度", "容差", "误差", "阻值精度", "Tolerance"]),
+        ("功率", ["功率", "额定功率", "Power Rating", "Rated Power", "Power"]),
     ];
 
     public static string AutoName(LcscProductMetadata metadata)
     {
-        var values = new List<string>();
-        if (metadata.Parameters is not null)
-        {
-            foreach (var (label, keys) in Fields)
-            {
-                if (label == "精度") continue;
-                var value = metadata.Parameters.FirstOrDefault(pair =>
-                    keys.Any(key => pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase))).Value;
-                if (ShortValue(value) is { } shortValue) values.Add(shortValue);
-            }
-        }
-        if (values.Count == 0 && metadata.Description is { } description)
-        {
-            var found = FindPrimary(description, metadata.Category);
-            if (found is not null) values.Add(found.Value.Value);
-        }
-        if (values.Count == 0)
-        {
-            var rcl = metadata.Category.Contains("电阻", StringComparison.Ordinal)
-                || metadata.Category.Contains("电容", StringComparison.Ordinal)
-                || metadata.Category.Contains("电感", StringComparison.Ordinal)
-                || metadata.Category.Contains("Resistor", StringComparison.OrdinalIgnoreCase)
-                || metadata.Category.Contains("Capacitor", StringComparison.OrdinalIgnoreCase)
-                || metadata.Category.Contains("Inductor", StringComparison.OrdinalIgnoreCase);
-            if (rcl) return metadata.Model is { Length: <= 80 } model ? model : metadata.Sku;
-            return metadata.Name.Length <= 100 ? metadata.Name : metadata.Model is { Length: <= 80 } fallback ? fallback : metadata.Sku;
-        }
-        var tolerance = metadata.Parameters?.FirstOrDefault(pair =>
-            Fields[^1].Keys.Any(key => pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase))).Value;
-        if (ShortValue(tolerance) is { } shortTolerance) values.Add(shortTolerance);
-        else if (metadata.Description is { } source)
-        {
-            if (FindTolerance(source) is { } found) values.Add(found);
-        }
-        var name = metadata.Model is { Length: <= 80 } shortModel ? shortModel : metadata.Sku;
-        return string.Join(" · ", new[] { name }.Concat(values)
-            .Distinct(StringComparer.OrdinalIgnoreCase));
+        var model = metadata.Model?.Trim();
+        if (string.IsNullOrWhiteSpace(model) || model.Length > 80)
+            model = metadata.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(model) || model.Length > 100)
+            model = metadata.Sku;
+        var brand = metadata.Brand?.Trim();
+        return string.IsNullOrWhiteSpace(brand) || model.StartsWith(brand + " ", StringComparison.OrdinalIgnoreCase)
+            ? model
+            : $"{brand} {model}";
     }
 
-    private static string? ShortValue(string? value) =>
-        string.IsNullOrWhiteSpace(value) || value.Trim().Length > 32 ? null : value.Trim();
-
-    public static string FromDescription(string? description, string? category = null)
+    public static IReadOnlyList<SpecificationField> Parse(string? description, string? category = null)
     {
-        if (string.IsNullOrWhiteSpace(description)) return string.Empty;
+        if (string.IsNullOrWhiteSpace(description)) return [];
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        string? officialDescription = null;
         foreach (var rawLine in description.Split(['\r', '\n', '；'], StringSplitOptions.RemoveEmptyEntries))
         {
             var line = rawLine.Trim();
+            if (line.StartsWith("官方描述：", StringComparison.Ordinal))
+                officialDescription = line[5..].Trim();
             if (!line.StartsWith("参数·", StringComparison.Ordinal)
                 && !line.StartsWith("参数：", StringComparison.Ordinal)
                 && !line.StartsWith("参数:", StringComparison.Ordinal)) continue;
             var parameter = line[3..];
             var separator = parameter.IndexOfAny(['：', ':']);
             if (separator <= 0 || separator == parameter.Length - 1) continue;
-            var key = parameter[..separator].Trim();
+            var rawKey = parameter[..separator].Trim();
+            var key = Regex.Replace(rawKey, @"\s*[（(][^）)]*[）)]\s*$", "").Trim();
             var value = parameter[(separator + 1)..].Trim();
             foreach (var (label, keys) in Fields)
-                if (!values.ContainsKey(label) && keys.Any(candidate => key.Equals(candidate, StringComparison.OrdinalIgnoreCase)))
-                    values[label] = value;
+            {
+                if (values.ContainsKey(label) || !keys.Any(candidate => key.Equals(candidate, StringComparison.OrdinalIgnoreCase))) continue;
+                if (value.Length is 0 or > 64) break;
+                var unit = Regex.Match(rawKey, @"[（(]\s*(Ω|ohm|[pnumµμ]?F|[numµμ]?H|m?V|m?W)\s*[）)]$",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
+                if (unit.Success && Regex.IsMatch(value, @"^\d{1,8}(?:\.\d{1,8})?$"))
+                    value += unit.Groups[1].Value;
+                values[label] = value;
+                break;
+            }
         }
-        if (values.Count == 0 && category is not null && FindPrimary(description, category) is { } primary)
-            values[primary.Label] = primary.Value;
-        if (!values.ContainsKey("精度") && values.Count > 0 && FindTolerance(description) is { } tolerance)
-            values["精度"] = tolerance;
-        return string.Join(" · ", Fields.Where(field => values.ContainsKey(field.Label))
-            .Select(field => $"{field.Label} {values[field.Label]}"));
+
+        // Only an explicitly stored official description may supply missing values.
+        if (officialDescription is not null && category is not null)
+        {
+            if (FindPrimary(officialDescription, category) is { } primary)
+                values.TryAdd(primary.Label, primary.Value);
+            if (values.Count > 0 && FindTolerance(officialDescription) is { } tolerance)
+                values.TryAdd("精度", tolerance);
+            if (IsCategory(category, "电容", "Capacitor") && FindUnit(officialDescription, @"\d{1,6}(?:\.\d{1,6})?\s*(?:mV|V)") is { } voltage)
+                values.TryAdd("耐压", voltage);
+            if (IsCategory(category, "电阻", "Resistor") && FindUnit(officialDescription, @"\d{1,6}(?:\.\d{1,6})?\s*(?:mW|W)") is { } power)
+                values.TryAdd("功率", power);
+        }
+        return Fields.Where(field => values.ContainsKey(field.Label))
+            .Select(field => new SpecificationField(field.Label, values[field.Label])).ToArray();
     }
+
+    public static string FromDescription(string? description, string? category = null, CultureInfo? culture = null) =>
+        string.Join(" · ", Parse(description, category).Select(field =>
+            $"{LocalizeLabel(field.Key, culture ?? CultureInfo.CurrentUICulture)} {field.Value}"));
+
+    public static string SearchText(string? description, string? category = null) =>
+        string.Join(" ", Parse(description, category).SelectMany(field =>
+            new[] { $"{field.Key} {field.Value}", $"{EnglishLabels[field.Key]} {field.Value}" }));
+
+    private static bool IsCategory(string category, string chinese, string english) =>
+        category.Contains(chinese, StringComparison.Ordinal) || category.Contains(english, StringComparison.OrdinalIgnoreCase);
 
     private static (string Label, string Value)? FindPrimary(string description, string category)
     {
         var (label, pattern) = category switch
         {
-            var value when value.Contains("电阻", StringComparison.Ordinal) || value.Contains("Resistor", StringComparison.OrdinalIgnoreCase)
+            var value when IsCategory(value, "电阻", "Resistor")
                 => ("阻值", @"\d{1,6}(?:\.\d{1,6})?\s*(?:[kKmM]?Ω|[kKmM]?ohm)"),
-            var value when value.Contains("电容", StringComparison.Ordinal) || value.Contains("Capacitor", StringComparison.OrdinalIgnoreCase)
+            var value when IsCategory(value, "电容", "Capacitor")
                 => ("容量", @"\d{1,6}(?:\.\d{1,6})?\s*(?:[pnumµμ]?F)"),
-            var value when value.Contains("电感", StringComparison.Ordinal) || value.Contains("Inductor", StringComparison.OrdinalIgnoreCase)
+            var value when IsCategory(value, "电感", "Inductor")
                 => ("电感量", @"\d{1,6}(?:\.\d{1,6})?\s*(?:[numµμ]?H)"),
             _ => (string.Empty, string.Empty),
         };
-        if (pattern.Length == 0) return null;
-        var match = Regex.Match(description, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
-        return match.Success ? (label, match.Value.Trim()) : null;
+        return pattern.Length == 0 ? null : FindUnit(description, pattern) is { } found ? (label, found) : null;
     }
 
-    private static string? FindTolerance(string description)
+    private static string? FindTolerance(string description) =>
+        FindUnit(description, @"(?:±|\+/-)\s*\d{1,3}(?:\.\d{1,3})?\s*%");
+
+    private static string? FindUnit(string description, string pattern)
     {
-        var match = Regex.Match(description, @"(?:±|\+/-)\s*\d{1,3}(?:\.\d{1,3})?\s*%",
-            RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
+        var match = Regex.Match(description, $@"(?<![\p{{L}}\p{{N}}_])(?:{pattern})(?![\p{{L}}\p{{N}}_])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(50));
         return match.Success ? match.Value.Trim() : null;
     }
 }

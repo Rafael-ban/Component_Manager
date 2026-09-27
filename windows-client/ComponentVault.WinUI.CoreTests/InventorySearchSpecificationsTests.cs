@@ -1,3 +1,4 @@
+using System.Globalization;
 using ComponentVault.WinUI.Models;
 using ComponentVault.WinUI.Services;
 using ComponentVault.WinUI.Services.Catalog;
@@ -33,18 +34,19 @@ public sealed class InventorySearchSpecificationsTests
             "0603", "电阻", null, "https://item.szlcsc.com/123.html", null,
             Parameters: new Dictionary<string, string> { ["阻值"] = "10kΩ", ["精度"] = "±1%" });
 
-        Assert.Equal("RC0603FR-0710KL · 10kΩ · ±1%", OfficialSpecifications.AutoName(metadata));
+        Assert.Equal("RC0603FR-0710KL", OfficialSpecifications.AutoName(metadata));
         Assert.Equal("阻值 10kΩ · 精度 ±1%", OfficialSpecifications.FromDescription(
-            "官方描述：贴片电阻 10kΩ ±1%", "电阻"));
-        Assert.Equal("阻值 10kΩ · 精度 ±1%", Component().DisplaySpecifications);
-        Assert.Equal(Component().DisplaySpecifications, OfficialSpecifications.FromDescription(
-            "参数：阻值：10kΩ\n参数：精度：±1%", "电阻"));
+            "官方描述：贴片电阻 10kΩ ±1%", "电阻", CultureInfo.GetCultureInfo("zh-CN")));
+        Assert.Equal("阻值 10kΩ · 精度 ±1%", OfficialSpecifications.FromDescription(
+            Component().Description, "电阻", CultureInfo.GetCultureInfo("zh-CN")));
+        Assert.Equal("阻值 10kΩ · 精度 ±1%", OfficialSpecifications.FromDescription(
+            "参数：阻值：10kΩ\n参数：精度：±1%", "电阻", CultureInfo.GetCultureInfo("zh-CN")));
     }
 
     [Theory]
-    [InlineData("容量", "100nF", "±10%", "CL10B104KB8NNNC · 100nF · ±10%")]
-    [InlineData("电感量", "4.7µH", "±20%", "LQH32MN4R7K23L · 4.7µH · ±20%")]
-    public void OfficialSpecifications_NamesCapacitorsAndInductorsFromOfficialFields(
+    [InlineData("容量", "100nF", "±10%", "CL10B104KB8NNNC")]
+    [InlineData("电感量", "4.7µH", "±20%", "LQH32MN4R7K23L")]
+    public void OfficialSpecifications_KeepsCapacitorAndInductorModelsUnchanged(
         string field, string value, string tolerance, string expected)
     {
         var model = field == "容量" ? "CL10B104KB8NNNC" : "LQH32MN4R7K23L";
@@ -78,7 +80,7 @@ public sealed class InventorySearchSpecificationsTests
             "电阻", null, "https://item.szlcsc.com/1.html", null,
             Description: "贴片电阻 10kΩ ±1%，供货详情");
 
-        Assert.Equal("RC0603FR-0710KL · 10kΩ · ±1%", OfficialSpecifications.AutoName(metadata));
+        Assert.Equal("RC0603FR-0710KL", OfficialSpecifications.AutoName(metadata));
     }
 
     [Fact]
@@ -90,7 +92,64 @@ public sealed class InventorySearchSpecificationsTests
             Parameters: new Dictionary<string, string> { ["容量"] = "100nF", ["精度"] = "±10%" },
             Description: longText);
 
-        Assert.Equal("C1 · 100nF · ±10%", OfficialSpecifications.AutoName(metadata));
+        Assert.Equal("C1", OfficialSpecifications.AutoName(metadata));
+    }
+
+    [Fact]
+    public void OfficialSpecifications_UsesBrandAndModelWithoutAddingValues()
+    {
+        var metadata = new LcscProductMetadata("C5126214", "FRH0603B1002TS", "FRH0603B1002TS", "FOJAN",
+            "0603", "电阻", null, "https://item.szlcsc.com/1.html", null,
+            Parameters: new Dictionary<string, string> { ["阻值"] = "10kΩ", ["精度"] = "±0.1%" });
+
+        Assert.Equal("FOJAN FRH0603B1002TS", OfficialSpecifications.AutoName(metadata));
+    }
+
+    [Fact]
+    public void OfficialSpecifications_ShowsVoltagePowerAndUnitsFromStoredNotes()
+    {
+        var capacitor = ComponentWith("型号：1206X107M6R3NT\n参数：容量：100uF\n参数：额定电压(V)：6.3\n参数：精度：±20%");
+        Assert.Equal("容量 100uF · 耐压 6.3V · 精度 ±20%", OfficialSpecifications.FromDescription(
+            capacitor.Description, capacitor.Category, CultureInfo.GetCultureInfo("zh-CN")));
+        Assert.Equal("6.3V", capacitor.DisplaySpecificationFields.Single(field => field.Key == "耐压").Value);
+        Assert.True(InventorySearch.Matches(capacitor, "耐压6.3V 100uF"));
+
+        var resistor = new LcscProductMetadata("C5126214", "FRH0603B1002TS", "FRH0603B1002TS", "FOJAN",
+            "0603", "电阻", null, "https://item.szlcsc.com/1.html", null,
+            Description: "10kΩ ±0.1% 100mW 0603 Thick Film Resistor");
+        Assert.Equal("阻值 10kΩ · 精度 ±0.1% · 功率 100mW",
+            OfficialSpecifications.FromDescription($"官方描述：{resistor.Description}", resistor.Category,
+                CultureInfo.GetCultureInfo("zh-CN")));
+        Assert.Empty(OfficialSpecifications.Parse("型号：FRH0603B1002TS", "电阻"));
+    }
+
+    [Fact]
+    public void OfficialSpecifications_ReadsEnglishParameterNotesAndVoltageAlias()
+    {
+        var capacitor = ComponentWith("参数·Capacitance：22pF\n参数·Voltage Rating：50V\n参数·Tolerance：±5%");
+        Assert.Equal("容量 22pF · 耐压 50V · 精度 ±5%", OfficialSpecifications.FromDescription(
+            capacitor.Description, capacitor.Category, CultureInfo.GetCultureInfo("zh-CN")));
+        Assert.True(InventorySearch.Matches(capacitor, "耐压50V 22pF"));
+        Assert.True(InventorySearch.Matches(capacitor, "VoltageRating50V 22pF"));
+    }
+
+    [Fact]
+    public void OfficialSpecifications_LocalizesLabelsWithoutChangingSearch()
+    {
+        Assert.Equal("耐压", OfficialSpecifications.LocalizeLabel("耐压", CultureInfo.GetCultureInfo("zh-CN")));
+        Assert.Equal("Voltage rating", OfficialSpecifications.LocalizeLabel("耐压", CultureInfo.GetCultureInfo("en-US")));
+        Assert.Equal("Capacitance 22pF · Voltage rating 50V",
+            OfficialSpecifications.FromDescription("参数·Capacitance：22pF\n参数·Voltage Rating：50V",
+                "Capacitor", CultureInfo.GetCultureInfo("en-US")));
+    }
+
+    [Fact]
+    public void OfficialSpecifications_DoesNotExtractSpecificationsEmbeddedInModelTokens()
+    {
+        Assert.Empty(OfficialSpecifications.Parse(
+            "型号：ABC10kΩX50V\n官方描述：ABC10kΩX50V Ceramic Capacitor", "电容"));
+        Assert.Empty(OfficialSpecifications.Parse(
+            "官方描述：FRH0603B1002TS_10kΩP100mW_R", "电阻"));
     }
 
     private static ComponentRecord ComponentWith(string description) => new()

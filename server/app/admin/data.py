@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 import sqlite3
 import unicodedata
 
@@ -139,7 +140,31 @@ def _normalize_search_term(value: str) -> str:
 
 def _component_search_text(*fields: str | None) -> str:
     # NUL boundaries prevent a term from matching across two unrelated fields.
-    return "\x00".join(_normalize_search_term(field or "") for field in fields)
+    texts = [field or "" for field in fields]
+    aliases = (
+        ("阻值", "电阻值", "resistance"),
+        ("容量", "容值", "电容量", "capacitance"),
+        ("电感量", "感值", "电感值", "inductance"),
+        ("耐压", "额定电压", "工作电压", "voltage", "voltage rating", "rated voltage"),
+        ("精度", "容差", "误差", "阻值精度", "tolerance"),
+        ("功率", "额定功率", "power", "power rating", "rated power"),
+    )
+    for field in fields:
+        pattern = r"(?:^|[\n；])\s*参数[·：:]([^：:\n]+)[：:]([^\n；]+)"
+        for key, value in re.findall(pattern, field or ""):
+            plain_key = re.sub(r"\s*[（(][^）)]*[）)]\s*$", "", key).strip().casefold()
+            unit = re.search(
+                r"[（(]\s*(Ω|ohm|[pnumµμ]?F|[numµμ]?H|m?V|m?W)\s*[）)]$",
+                key, re.I,
+            )
+            value = value.strip()
+            if unit and re.fullmatch(r"\d+(?:\.\d+)?", value):
+                value += unit.group(1)
+            for group in aliases:
+                if plain_key in group:
+                    texts.extend(alias + value for alias in group)
+                    break
+    return "\x00".join(_normalize_search_term(text) for text in texts)
 
 
 def load_admin_snapshot(

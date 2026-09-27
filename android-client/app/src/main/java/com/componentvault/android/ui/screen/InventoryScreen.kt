@@ -65,6 +65,8 @@ import com.componentvault.android.model.InventoryDetailUiState
 import com.componentvault.android.model.InventoryScreenUiState
 import com.componentvault.android.model.InventorySortOption
 import com.componentvault.android.model.InventoryStockFilter
+import com.componentvault.android.model.officialParameters
+import com.componentvault.android.model.officialParameterKind
 import com.componentvault.android.model.StockMovementRecord
 import com.componentvault.android.model.StockUsageSummary
 import com.componentvault.android.ui.theme.VaultWarning
@@ -717,6 +719,18 @@ internal fun InventoryDetailPane(
                 ValueBlock(label = strings.common.fieldName, value = component.name)
                 ValueBlock(label = strings.common.fieldCategory, value = localizedCategoryLabel(component.category))
                 ValueBlock(label = strings.common.fieldPackage, value = component.packageName)
+                component.officialParameters().forEach { (key, value) ->
+                    val label = when (officialParameterKind(key)) {
+                        "resistance" -> stringResource(R.string.inventory_param_resistance)
+                        "capacitance" -> stringResource(R.string.inventory_param_capacitance)
+                        "inductance" -> stringResource(R.string.inventory_param_inductance)
+                        "voltage" -> stringResource(R.string.inventory_param_voltage)
+                        "tolerance" -> stringResource(R.string.inventory_param_tolerance)
+                        "power" -> stringResource(R.string.inventory_param_power)
+                        else -> key
+                    }
+                    ValueBlock(label = label, value = value)
+                }
             }
         }
         item {

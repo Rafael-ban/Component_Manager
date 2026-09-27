@@ -1,6 +1,7 @@
 package com.componentvault.android.ui.screen
 
 import com.componentvault.android.model.ComponentRecord
+import com.componentvault.android.model.officialParameterSearchAliases
 import java.text.Normalizer
 import java.util.Locale
 
@@ -12,7 +13,7 @@ internal object InventorySearch {
 
         val fields = listOf(
             component.name, component.sku, component.category, component.packageName,
-            component.location, component.description,
+            component.location, component.description, component.officialParameterSearchAliases(),
         ).map(::normalize).map { it to compact(it) }
         return terms.all { term ->
             val needle = normalize(term)

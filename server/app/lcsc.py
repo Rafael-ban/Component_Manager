@@ -226,9 +226,11 @@ def _normalize_lookup_response(
         record,
         ("product_model", "productModel", "mfrPartNumber", "mpn", "partNumber"),
     )
-    name = _first_text(
+    description = _first_text(
         record,
         (
+            "description",
+            "lightProductName",
             "productIntroEn",
             "productIntro",
             "productDescEn",
@@ -261,19 +263,47 @@ def _normalize_lookup_response(
         confidence = "exact"
 
     return LcscLookupResponse(
-        found=bool(sku or mpn or name),
+        found=bool(sku or mpn or description),
         sku=sku,
-        name=name,
+        name=" ".join(value for value in (brand, mpn) if value) if mpn else sku,
         mpn=mpn,
         package_name=package_name,
         category=category,
         category_path=category_path,
         brand=brand,
+        description=description,
+        parameters=extract_product_parameters(record),
         official_url=official_url,
         matched_by=matched_by,
         confidence=confidence,
         cache_hit=False,
     )
+
+
+def extract_product_parameters(record: dict[str, Any] | None) -> dict[str, str]:
+    """Retain explicit upstream values, never decode specifications from an MPN."""
+    if record is None:
+        return {}
+    parameters: dict[str, str] = {}
+    for field in ("paramLinkedMap", "parameters"):
+        raw = record.get(field)
+        if isinstance(raw, dict):
+            for key, value in raw.items():
+                if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+                    text = str(value).strip()
+                    if str(key).strip() and text:
+                        parameters[str(key).strip()] = text
+    # Schema.org Product pages may expose structured PropertyValue entries.
+    properties = record.get("additionalProperty", [])
+    if isinstance(properties, list):
+        for prop in properties:
+            if not isinstance(prop, dict):
+                continue
+            key, value = prop.get("name"), prop.get("value")
+            if isinstance(key, str) and isinstance(value, (str, int, float)):
+                if key.strip() and str(value).strip():
+                    parameters.setdefault(key.strip(), str(value).strip())
+    return parameters
 
 
 def _collect_product_records(value: Any) -> list[dict[str, Any]]:

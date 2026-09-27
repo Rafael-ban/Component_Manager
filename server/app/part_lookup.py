@@ -12,7 +12,10 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from .config import Settings
-from .lcsc import LookupConfigurationError, LookupRequestError, lookup_lcsc_product
+from .lcsc import (
+    LookupConfigurationError, LookupRequestError, extract_product_parameters,
+    lookup_lcsc_product,
+)
 from .schemas import LcscLookupResponse, PartLookupResponse, RecognitionRulesMetaResponse
 
 
@@ -443,6 +446,8 @@ def _merge_lcsc_and_local(
             local_result.category_path if local_result else None
         ),
         brand=lcsc_result.brand or values.brand or (local_result.brand if local_result else None),
+        description=lcsc_result.description,
+        parameters=lcsc_result.parameters,
         vendor=(
             local_result.vendor
             if local_result and local_result.vendor
@@ -600,12 +605,14 @@ def _parse_public_web_lookup(
         found=True,
         source="lcsc_public_web",
         sku=sku,
-        name=name,
+        name=" ".join(value for value in (brand, mpn) if value) if mpn else sku,
         mpn=mpn,
         package_name=package_name,
         category=category,
         category_path=category_path,
         brand=brand,
+        description=_lookup_record_text(record, ("description", "lightProductName")) or name,
+        parameters=extract_product_parameters(record),
         official_url=_build_lcsc_product_url(sku) or source_url,
         matched_by=matched_by,
         confidence=confidence,

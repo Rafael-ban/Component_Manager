@@ -524,10 +524,21 @@
                             Spacing="4">
                             <TextBlock
                                 FontWeight="SemiBold"
-                                Text="官方规格" />
-                            <TextBlock
-                                Text="{Binding SelectedComponent.DisplaySpecifications}"
-                                TextWrapping="Wrap" />
+                                Text="基本参数" />
+                            <ItemsControl ItemsSource="{Binding SelectedComponent.DisplaySpecificationFields}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnSpacing="12" Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="72" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="{Binding Label}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                         <StackPanel
                             Spacing="4">

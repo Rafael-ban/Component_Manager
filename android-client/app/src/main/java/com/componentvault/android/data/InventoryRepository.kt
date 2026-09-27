@@ -51,6 +51,21 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+internal data class ServerOfficialDetails(val description: String?, val parameters: Map<String, String>)
+
+internal fun parseServerOfficialDetails(response: JSONObject): ServerOfficialDetails = ServerOfficialDetails(
+    description = response.optString("description").trim()
+        .takeUnless { response.isNull("description") || it.isBlank() },
+    parameters = response.optJSONObject("parameters")?.let { values ->
+        buildMap {
+            values.keys().forEach { key ->
+                val value = values.optString(key).trim()
+                if (key.isNotBlank() && value.isNotBlank()) put(key.trim(), value)
+            }
+        }
+    }.orEmpty(),
+)
+
 class InventoryRepository(
     context: Context,
 ) {
@@ -564,10 +579,12 @@ class InventoryRepository(
                         rawCategory,
                         rawCategoryPath,
                     )
+                val details = parseServerOfficialDetails(response)
                 val metadata = ComponentOfficialMetadata(
                     source = response.optString("source").blankToNull(),
                     sku = rawSku,
                     name = rawName,
+                    description = details.description,
                     packageName = rawPackage,
                     category = ComponentCategoryInferencer.infer(
                         rawCategoryPath,
@@ -586,6 +603,7 @@ class InventoryRepository(
                     matchedBy = response.optString("matched_by").blankToNull(),
                     confidence = response.optString("confidence").blankToNull(),
                     ruleVersion = response.optString("rule_version").blankToNull(),
+                    parameters = details.parameters,
                 )
                 cacheLookup(metadata, SERVER_LOOKUP_CACHE_SCOPE)
                 ComponentOfficialLookupResult(

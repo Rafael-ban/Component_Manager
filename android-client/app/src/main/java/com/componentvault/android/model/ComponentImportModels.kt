@@ -302,20 +302,31 @@ fun ComponentImportCandidate.withOfficialMetadata(
     val metadataOrigin = if (metadata.source in setOf("lcsc_public_web", "lcsc_domestic_web")) {
         ComponentImportFieldOrigin.PublicWeb
     } else ComponentImportFieldOrigin.Server
-    val officialCanonicalName = metadata.compactRclDisplayName()
-        ?: if (metadata.isRclCategory()) {
-            metadata.model?.trim()?.takeIf { it.isNotBlank() && it.length <= 80 }
-                ?: metadata.sku?.trim()?.takeIf(String::isNotBlank)
-                ?: sku.trim().takeIf(String::isNotBlank)
-        } else {
-            metadata.model?.takeIf { it.isNotBlank() }
-                ?: metadata.name?.takeIf { it.isNotBlank() }
-        }
+    val resolvedBrand = if (fieldOrigins.brand in setOf(ComponentImportFieldOrigin.User,
+            ComponentImportFieldOrigin.Learned)) brand?.trim()?.takeIf(String::isNotBlank)
+        else metadata.brand?.trim()?.takeIf(String::isNotBlank)
+            ?: brand?.trim()?.takeIf(String::isNotBlank)
+            ?: vendor?.trim()?.takeIf(String::isNotBlank)
+            ?: metadata.vendor?.trim()?.takeIf(String::isNotBlank)
+    val resolvedStoredModel = if (fieldOrigins.model in setOf(ComponentImportFieldOrigin.User,
+            ComponentImportFieldOrigin.Learned)) model?.trim()?.takeIf(String::isNotBlank)
+        else metadata.model?.trim()?.takeIf(String::isNotBlank)
+            ?: model?.trim()?.takeIf(String::isNotBlank)
+    val resolvedModel = resolvedStoredModel?.takeIf { it.length <= 80 }
+    val officialCanonicalName = resolvedModel?.let { modelName ->
+        listOfNotNull(resolvedBrand?.takeUnless { modelName.startsWith(it, ignoreCase = true) }, modelName)
+            .joinToString(" ")
+    } ?: metadata.name?.trim()?.takeIf { it.isNotBlank() && it.length <= 80 }
+        ?: metadata.sku?.trim()?.takeIf { it.isNotBlank() && it.length <= 80 }
     val resolvedName = when {
         officialCanonicalName == null -> name
         name.isBlank() -> officialCanonicalName
-        name.isLikelyModelLike(sku = sku, model = model) -> officialCanonicalName
+        fieldOrigins.name == ComponentImportFieldOrigin.User ||
+            fieldOrigins.name == ComponentImportFieldOrigin.Learned -> name
+        resolvedModel != null && fieldOrigins.name == ComponentImportFieldOrigin.Parsed -> officialCanonicalName
         name.equals(sku, ignoreCase = true) -> officialCanonicalName
+        !model.isNullOrBlank() && name.equals(model, ignoreCase = true) -> officialCanonicalName
+        !metadata.model.isNullOrBlank() && name.equals(metadata.model, ignoreCase = true) -> officialCanonicalName
         else -> name
     }.orEmpty()
 
@@ -355,10 +366,6 @@ fun ComponentImportCandidate.withOfficialMetadata(
         metadata.ruleVersion?.let { addIfMissing("识别规则版本：$it") }
     }
 
-    val resolvedBrand = brand?.takeIf { it.isNotBlank() }
-        ?: vendor?.takeIf { it.isNotBlank() }
-        ?: metadata.brand?.takeIf { it.isNotBlank() }
-        ?: metadata.vendor?.takeIf { it.isNotBlank() }
     val resolvedVendor = vendor?.takeIf { it.isNotBlank() }
         ?: metadata.vendor?.takeIf { it.isNotBlank() }
         ?: metadata.brand?.takeIf { it.isNotBlank() }
@@ -368,7 +375,7 @@ fun ComponentImportCandidate.withOfficialMetadata(
         name = resolvedName,
         packageName = resolvedPackageName,
         category = resolvedCategory,
-        model = model?.takeIf { it.isNotBlank() } ?: metadata.model?.takeIf { it.isNotBlank() },
+        model = resolvedStoredModel,
         brand = resolvedBrand,
         vendor = resolvedVendor,
         modelFamily = modelFamily?.takeIf { it.isNotBlank() } ?: metadata.modelFamily?.takeIf { it.isNotBlank() },
@@ -397,12 +404,12 @@ fun ComponentImportCandidate.withOfficialMetadata(
             } else {
                 fieldOrigins.packageName
             },
-            model = if (model.isNullOrBlank() && !metadata.model.isNullOrBlank()) {
+            model = if (resolvedStoredModel != model && !metadata.model.isNullOrBlank()) {
                 metadataOrigin
             } else {
                 fieldOrigins.model
             },
-            brand = if (brand.isNullOrBlank() && !resolvedBrand.isNullOrBlank()) {
+            brand = if (resolvedBrand != brand && !metadata.brand.isNullOrBlank()) {
                 metadataOrigin
             } else {
                 fieldOrigins.brand
@@ -411,28 +418,17 @@ fun ComponentImportCandidate.withOfficialMetadata(
     )
 }
 
-/** A concise catalog name; the complete official description remains in the component notes. */
-fun ComponentOfficialMetadata.compactRclDisplayName(): String? {
-    val specs = rclSpecificationValues(
-        listOfNotNull(category, categoryPath).joinToString(" "), parameters, description,
-    )
-    if (specs.isEmpty()) return null
-    val modelName = model?.trim()?.takeIf { it.isNotBlank() && it.length <= 80 }
-        ?: sku?.trim()?.takeIf(String::isNotBlank)
-    return (listOfNotNull(modelName) + specs).distinctBy { it.lowercase(Locale.ROOT) }.joinToString(" · ")
-}
-
-private fun ComponentOfficialMetadata.isRclCategory(): Boolean {
-    val categoryText = listOfNotNull(category, categoryPath).joinToString(" ").lowercase(Locale.ROOT)
-    return listOf("电阻", "resistor", "电容", "capacitor", "电感", "inductor")
-        .any { it in categoryText }
-}
-
 fun ComponentRecord.officialRclSpecificationSummary(): String? {
     val officialDescription = description.lineSequence()
         .firstOrNull { it.trim().startsWith("官方描述：") }
         ?.trim()?.removePrefix("官方描述：")
-    val parameters = description.lineSequence().mapNotNull { line ->
+    val summary = rclSpecificationValues(category, officialParameters(), officialDescription)
+        .takeIf { it.isNotEmpty() }?.joinToString(" · ")
+    return summary
+}
+
+fun ComponentRecord.officialParameters(): Map<String, String> {
+    val stored = description.lineSequence().mapNotNull { line ->
         val trimmed = line.trim()
         val raw = when {
             trimmed.startsWith("参数：") -> trimmed.removePrefix("参数：")
@@ -441,13 +437,68 @@ fun ComponentRecord.officialRclSpecificationSummary(): String? {
         }
         val separator = raw.indexOf('：').takeIf { it >= 0 } ?: raw.indexOf(':')
         if (separator <= 0) return@mapNotNull null
-        raw.substring(0, separator).trim() to raw.substring(separator + 1).trim()
-    }.toMap()
-    val summary = rclSpecificationValues(category, parameters, officialDescription)
-        .takeIf { it.isNotEmpty() }?.joinToString(" · ")
-    return summary?.takeUnless { name.contains(it, ignoreCase = true) }
+        val key = raw.substring(0, separator).trim()
+        val value = raw.substring(separator + 1).trim()
+        if (key.isBlank() || value.isBlank()) null else key to value
+    }.toMap().mapValues { (key, value) ->
+        val unit = Regex("""[（(]([^（）()]*)[）)]\s*$""").find(key)?.groupValues?.get(1)?.trim().orEmpty()
+        if (unit.isNotBlank() && value.matches(Regex("""\d+(?:\.\d+)?"""))) "$value$unit" else value
+    }.toMutableMap()
+    val officialDescription = description.lineSequence()
+        .firstOrNull { it.trim().startsWith("官方描述：") }
+        ?.trim()?.removePrefix("官方描述：")
+    val inferred = rclSpecificationValues(category, stored, officialDescription)
+    val primaryKind = when {
+        "电阻" in category || category.contains("resistor", true) -> "resistance"
+        "电容" in category || category.contains("capacitor", true) -> "capacitance"
+        "电感" in category || category.contains("inductor", true) -> "inductance"
+        else -> null
+    }
+    if (primaryKind != null && stored.keys.none { officialParameterKind(it) == primaryKind }) {
+        inferred.firstOrNull { value -> when (primaryKind) {
+            "resistance" -> value.matches(Regex("""(?i)\d+(?:\.\d+)?\s*(?:[km]?Ω|[km]?ohm)"""))
+            "capacitance" -> value.matches(Regex("""(?i)\d+(?:\.\d+)?\s*(?:pf|nf|uf|μf|mf)"""))
+            else -> value.matches(Regex("""(?i)\d+(?:\.\d+)?\s*(?:nh|uh|μh|mh)"""))
+        } }?.let { stored[when (primaryKind) {
+            "resistance" -> "阻值"
+            "capacitance" -> "容量"
+            else -> "电感量"
+        }] = it }
+    }
+    if (stored.keys.none { officialParameterKind(it) == "tolerance" })
+        inferred.firstOrNull { "%" in it }?.let { stored["精度"] = it }
+    if (primaryKind == "capacitance" && stored.keys.none { officialParameterKind(it) == "voltage" })
+        inferred.firstOrNull { it.matches(Regex("""(?i)\d+(?:\.\d+)?\s*V""")) }
+            ?.let { stored["耐压"] = it }
+    return stored
 }
 
+fun officialParameterKind(key: String): String? {
+    val normalized = java.text.Normalizer.normalize(key.trim(), java.text.Normalizer.Form.NFKC)
+        .replace(Regex("\\s*\\([^()]*\\)$"), "").trim().lowercase(Locale.ROOT)
+    return when (normalized) {
+        "阻值", "电阻值", "resistance" -> "resistance"
+        "容值", "容量", "电容值", "电容量", "capacitance" -> "capacitance"
+        "电感量", "电感值", "感值", "inductance" -> "inductance"
+        "耐压", "额定电压", "工作电压", "电压", "voltage", "rated voltage", "voltage rating" -> "voltage"
+        "精度", "误差", "容差", "阻值精度", "tolerance" -> "tolerance"
+        "功率", "额定功率", "power", "power rating", "rated power" -> "power"
+        else -> null
+    }
+}
+
+fun ComponentRecord.officialParameterSearchAliases(): String = officialParameters().mapNotNull { (key, value) ->
+    val aliases = when (officialParameterKind(key)) {
+        "resistance" -> listOf("阻值", "resistance")
+        "capacitance" -> listOf("容量", "capacitance")
+        "inductance" -> listOf("电感量", "电感值", "inductance")
+        "voltage" -> listOf("耐压", "voltage")
+        "tolerance" -> listOf("精度", "tolerance")
+        "power" -> listOf("功率", "power")
+        else -> emptyList()
+    }
+    aliases.takeIf { it.isNotEmpty() }?.joinToString(" ") { "$it$value" }
+}.joinToString(" ")
 private fun rclSpecificationValues(
     category: String,
     parameters: Map<String, String>,
@@ -463,7 +514,7 @@ private fun rclSpecificationValues(
     val primaryKeys = when (kind) {
         "resistance" -> listOf("阻值", "电阻值", "resistance")
         "capacitance" -> listOf("容值", "容量", "电容值", "电容量", "capacitance")
-        else -> listOf("电感量", "感值", "inductance")
+        else -> listOf("电感量", "电感值", "感值", "inductance")
     }
     fun parameter(keys: List<String>): String? = parameters.entries.firstOrNull { (key, value) ->
         val normalizedKey = java.text.Normalizer.normalize(key.trim(), java.text.Normalizer.Form.NFKC)
@@ -474,9 +525,9 @@ private fun rclSpecificationValues(
 
     val descriptionValue = officialDescription?.let { source ->
         val pattern = when (kind) {
-            "resistance" -> Regex("""(?i)(?<!\d)\d{1,6}(?:\.\d{1,6})?\s*(?:[kKmM]?Ω|[kKmM]?ohm)(?!\d)""")
-            "capacitance" -> Regex("""(?i)(?<!\d)\d{1,6}(?:\.\d{1,6})?\s*(?:pF|nF|uF|μF|mF)(?!\d)""")
-            else -> Regex("""(?i)(?<!\d)\d{1,6}(?:\.\d{1,6})?\s*(?:nH|uH|μH|mH)(?!\d)""")
+            "resistance" -> Regex("""(?i)(?<![a-z0-9])\d{1,6}(?:\.\d{1,6})?\s*(?:[kKmM]?Ω|[kKmM]?ohm)(?![a-z0-9])""")
+            "capacitance" -> Regex("""(?i)(?<![a-z0-9])\d{1,6}(?:\.\d{1,6})?\s*(?:pF|nF|uF|μF|mF)(?![a-z0-9])""")
+            else -> Regex("""(?i)(?<![a-z0-9])\d{1,6}(?:\.\d{1,6})?\s*(?:nH|uH|μH|mH)(?![a-z0-9])""")
         }
         pattern.find(source)?.value?.trim()
     }
@@ -487,6 +538,9 @@ private fun rclSpecificationValues(
     return listOfNotNull(
         primary,
         parameter(listOf("精度", "误差", "容差", "阻值精度", "tolerance")) ?: descriptionTolerance,
+        if (kind == "capacitance") parameter(listOf("耐压", "额定电压", "工作电压", "电压", "voltage", "rated voltage", "voltage rating"))
+            ?: officialDescription?.let { Regex("""(?i)(?<![a-z0-9])\d{1,4}(?:\.\d{1,3})?\s*V(?![a-z0-9])""").find(it)?.value?.trim() }
+        else null,
     ).distinctBy { it.lowercase(Locale.ROOT) }
 }
 
@@ -650,28 +704,6 @@ private fun MutableList<String>.addIfMissing(value: String) {
     if (none { it.equals(value, ignoreCase = true) }) {
         add(value)
     }
-}
-
-private fun String.isLikelyModelLike(
-    sku: String,
-    model: String?,
-): Boolean {
-    val normalized = trim()
-    if (normalized.isBlank()) {
-        return false
-    }
-    if (normalized.equals(sku.trim(), ignoreCase = true)) {
-        return true
-    }
-    if (!model.isNullOrBlank() && normalized.equals(model.trim(), ignoreCase = true)) {
-        return true
-    }
-    if (normalized.any { it.code in 0x4E00..0x9FFF } || normalized.any(Char::isWhitespace)) {
-        return false
-    }
-    val alphaNumericCount = normalized.count(Char::isLetterOrDigit)
-    val hasSeparator = normalized.any { it == '-' || it == '_' || it == '/' || it == '.' }
-    return alphaNumericCount >= 5 && (hasSeparator || normalized.any(Char::isDigit))
 }
 
 private fun String.blankToNull(): String? = takeIf { it.isNotBlank() }

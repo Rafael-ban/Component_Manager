@@ -34,8 +34,23 @@ class LcscPublicCatalogTest {
         val candidate = JlcImportParser.parseQr("{pc:C70565,qty:20}").withOfficialMetadata(metadata)
         assertEquals(20, candidate.suggestedQuantity)
         assertEquals(ComponentImportFieldOrigin.PublicWeb, candidate.fieldOrigins.name)
-        assertEquals("X322512MOB4SI", candidate.name)
+        assertEquals("YXC X322512MOB4SI", candidate.name)
         assertTrue(candidate.notes.contains("官方描述：Crystal 12MHz 12pF"))
+    }
+
+    @Test fun keepsPublishedParametersInDescriptionInsteadOfTheName() {
+        val html = page().replace("{\"name\":\"Package\",\"value\":\"SMD3225-4P\"}",
+            "{\"name\":\"Package\",\"value\":\"SMD3225-4P\"}," +
+                "{\"name\":\"Capacitance\",\"value\":\"12pF\"}," +
+                "{\"name\":\"Rated Voltage\",\"value\":\"50V\"}")
+        val metadata = requireNotNull(LcscPublicCatalog.parsePage("C70565", html))
+        assertEquals("12pF", metadata.parameters["Capacitance"])
+        assertEquals("50V", metadata.parameters["Rated Voltage"])
+        val candidate = JlcImportParser.parseQr("{pc:C70565}").withOfficialMetadata(metadata)
+        assertEquals("YXC X322512MOB4SI", candidate.name)
+        val description = candidate.toComponentDraft(1, "A", 0).description
+        assertTrue("参数：Capacitance：12pF" in description)
+        assertTrue("参数：Rated Voltage：50V" in description)
     }
 
     @Test fun readsTrustedImageStringAndArrayButRejectsOtherHosts() {

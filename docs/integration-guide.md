@@ -537,3 +537,9 @@ without authentication, and GitHub issue-report credentials are unrelated.
 空格分词采用 AND，可跨字段；支持 NFKC 大小写、常见型号分隔符、μ/µ/u 和 Ω/ohm 归一。
 保留数字之间的小数点，不做可能混淆规格的数字编辑距离推测。说明中的品牌与官方参数也可被检索。
 现有分页、总数、低库存和软删除过滤行为保留，查询不修改库存记录。
+
+## 元件参数与名称分离（0.7.7-dev.3）
+
+`/admin-api/lcsc/lookup` 与 `/admin-api/part-lookup` 新增可选 `description` 和 `parameters`（键值对象，缺失为空对象）。参数只取上游明确值；无参数时不从型号解码。默认展示名称使用品牌和型号，长商品说明进入 `description`。
+
+Android 和 Windows 将官方参数保存在既有元件 `description` 的参数行中，保持现有同步和备份格式；无需新增数据库字段。客户端基本信息与 Web 详情解析中英参数行，检索覆盖原值、单位及常见字段别名。已有名称不批量改写，旧记录未保存过的参数仍需要重新联网查询。

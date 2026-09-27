@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -16,12 +17,15 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import com.componentvault.android.R
 import com.componentvault.android.model.ComponentAllocationRecord
+import com.componentvault.android.model.ComponentRecord
+import com.componentvault.android.model.InventoryDetailUiState
 import com.componentvault.android.model.InventoryFiltersUiState
 import com.componentvault.android.model.InventoryListItemUiState
 import com.componentvault.android.model.InventoryListUiState
@@ -63,6 +67,27 @@ class InventoryInteractionUiTest {
         isLowStock = false,
         updatedAt = "2026-09-27T00:00:00Z",
     )
+
+    @Test
+    fun detailShowsStoredCapacitanceAndVoltageInBasicInformation() {
+        val component = ComponentRecord(id = item.id, sku = item.sku, name = "Maker C0603",
+            category = "电容", packageName = "0603", location = "A",
+            description = "参数：容量：100nF\n参数：耐压：50V", quantity = 10,
+            minStock = 1, updatedAt = item.updatedAt, deleted = false)
+        setInventoryContent {
+            MaterialTheme {
+                InventoryDetailPane(InventoryDetailUiState(component = component),
+                    onEditComponent = {}, onGenerateLabel = {}, onRequestDeleteComponent = {},
+                    onRecordMovement = {})
+            }
+        }
+        compose.onNodeWithText(context.getString(R.string.inventory_param_capacitance))
+            .performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("100nF").assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.inventory_param_voltage))
+            .performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("50V").assertIsDisplayed()
+    }
 
     @Test
     fun swipeRevealsOnlyNarrowActionsAndTapClosesWithoutOpeningItem() {

@@ -21,6 +21,7 @@ import {
 import { useAdminResource } from "@/hooks/use-admin-resource";
 import { formatDateTime } from "@/lib/format";
 import { displayCategory } from "@/lib/category-display";
+import { displayParameterLabel, parseComponentParameters } from "@/lib/component-parameters";
 import type {
   AdminComponentDetail,
   AdminComponentListResponse,
@@ -54,6 +55,10 @@ export function InventoryPage() {
     useAdminResource<AdminComponentListResponse>(path);
   const detail = useAdminResource<AdminComponentDetail>(
     selectedId ? `/admin-api/components/${encodeURIComponent(selectedId)}` : null,
+  );
+  const componentParameters = useMemo(
+    () => parseComponentParameters(detail.data?.description),
+    [detail.data?.description],
   );
   const settings = useAdminResource<AdminSettingsResponse>("/admin-api/settings");
   const locations = useAdminResource<AdminStorageLocation[]>("/admin-api/storage-locations");
@@ -115,7 +120,7 @@ export function InventoryPage() {
         <CardContent className="pt-6">
           <form className="grid gap-3 md:grid-cols-[minmax(0,1fr),180px,auto]" onSubmit={submitSearch}>
             <div className="space-y-2">
-              <label htmlFor={searchInputId} className="block text-sm font-medium">{t("料号、名称、分类或库位")}</label>
+              <label htmlFor={searchInputId} className="block text-sm font-medium">{t("料号、名称、品牌、参数或库位")}</label>
               <Input id={searchInputId} value={input} onChange={(event) => setInput(event.target.value)} placeholder={t("例如 C30926、连接器或 A-01")} />
             </div>
             <div className="space-y-2">
@@ -224,6 +229,18 @@ export function InventoryPage() {
               <><dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
                 <Detail label={t("料号")} value={detail.data.sku} /><Detail label={t("名称")} value={detail.data.name} />
                 <Detail label={t("分类")} value={locale === "zh-CN" ? displayCategory(detail.data.category) : detail.data.category} /><Detail label={t("封装")} value={detail.data.package_name} />
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <dt className="text-muted-foreground">{t("元件参数")}</dt>
+                  <dd className="mt-2">
+                    {componentParameters.length ? (
+                      <dl className="grid gap-3 rounded-xl border bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {componentParameters.map((parameter, index) => (
+                          <Detail key={`${parameter.label}-${parameter.value}-${index}`} label={displayParameterLabel(parameter.label, locale)} value={parameter.value} />
+                        ))}
+                      </dl>
+                    ) : <p className="text-sm text-muted-foreground">{t("尚未获取明确参数；可在说明中核对原始资料。")}</p>}
+                  </dd>
+                </div>
                 <Detail label={t("默认库位")} value={locationLabel(detail.data.location)} /><Detail label={t("库存 / 最低库存")} value={`${formatCount(detail.data.quantity, locale)} / ${formatCount(detail.data.min_stock, locale)}`} />
                 <Detail label={t("库存模式")} value={detail.data.inventory_managed ? t("独立库位库存") : t("旧版标量库存")} />
                 <Detail label={t("说明")} value={detail.data.description || "—"} />

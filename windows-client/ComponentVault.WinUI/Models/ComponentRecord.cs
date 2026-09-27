@@ -51,6 +51,8 @@ public sealed class ComponentRecord
 
     public string DisplaySpecifications => OfficialSpecifications.FromDescription(Description, Category);
 
+    public IReadOnlyList<SpecificationField> DisplaySpecificationFields => OfficialSpecifications.Parse(Description, Category);
+
     public string DisplayUpdatedAt => FormatLocalDateTime(UpdatedAt);
 
     private static string FormatLocalDateTime(string value)

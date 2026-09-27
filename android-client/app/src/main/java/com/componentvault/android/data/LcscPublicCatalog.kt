@@ -43,6 +43,15 @@ internal object LcscPublicCatalog {
             val brand = product.optJSONObject("brand")?.text("name") ?: product.text("brand")
             val categoryPath = product.text("category")
             val properties = product.optJSONArray("additionalProperty")
+            val parameters = buildMap {
+                (0 until (properties?.length() ?: 0)).forEach { index ->
+                    val property = properties?.optJSONObject(index) ?: return@forEach
+                    val key = property.text("name")?.trim().orEmpty()
+                    val value = property.text("value")?.trim().orEmpty()
+                    if (key.isNotBlank() && value.isNotBlank() && !key.equals("Package", true))
+                        put(key, value)
+                }
+            }
             val packageName = (0 until (properties?.length() ?: 0)).asSequence()
                 .mapNotNull { properties?.optJSONObject(it) }
                 .firstOrNull { it.text("name").equals("Package", true) }
@@ -69,6 +78,7 @@ internal object LcscPublicCatalog {
                 imageUrl = imageUrl,
                 matchedBy = "sku",
                 confidence = "exact",
+                parameters = parameters,
             )
         }
         return null

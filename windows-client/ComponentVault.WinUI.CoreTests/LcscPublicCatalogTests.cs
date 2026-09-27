@@ -170,7 +170,7 @@ public sealed class LcscPublicCatalogTests
 
         Assert.NotNull(metadata);
         Assert.Equal("0603", metadata.PackageName);
-        Assert.Equal("RC0603FR-0710KL · 10kΩ · ±1%", OfficialSpecifications.AutoName(metadata));
+        Assert.Equal("RC0603FR-0710KL", OfficialSpecifications.AutoName(metadata));
     }
 
     [Theory]
@@ -179,7 +179,7 @@ public sealed class LcscPublicCatalogTests
     [InlineData("C2907005", "FRC0603F2201TS", "2.2kΩ ±1% 100mW 0603 Thick Film Resistor", "Resistors/Chip Resistor - Surface Mount", "Resistance", "2.2kΩ", "±1%")]
     [InlineData("C5126214", "FRH0603B1002TS", "10kΩ ±0.1% 100mW 0603 Thick Film Resistor", "Resistors/Chip Resistor - Surface Mount", "Resistance", "10kΩ", "±0.1%")]
     [InlineData("C5137569", "FCC0402N220J500AT", "22pF ±5% 50V Ceramic Capacitor C0G 0402", "Capacitors/Ceramic Capacitors", "Capacitance", "22pF", "±5%")]
-    public void ParsePage_ActualPublicRclValuesRemainVisibleInAutoName(
+    public void ParsePage_ActualPublicRclValuesRemainSeparateFromName(
         string sku, string model, string description, string category, string key, string value, string tolerance)
     {
         var payload = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object>
@@ -196,7 +196,9 @@ public sealed class LcscPublicCatalogTests
 
         Assert.NotNull(metadata);
         Assert.Equal(value, metadata.Parameters![key]);
-        Assert.Equal($"{model} · {value} · {tolerance}", OfficialSpecifications.AutoName(metadata));
+        Assert.Equal(model, OfficialSpecifications.AutoName(metadata));
+        var notes = $"官方描述：{metadata.Description}\n参数·{key}：{value}\n参数·Tolerance：{tolerance}";
+        Assert.Contains(value, OfficialSpecifications.FromDescription(notes, metadata.Category));
     }
 
     [Fact]

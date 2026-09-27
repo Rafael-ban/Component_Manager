@@ -19,4 +19,10 @@
     <string name="inventory_quick_inbound_reason">Quick stock in</string>
     <string name="inventory_quick_outbound_reason">Quick stock out</string>
     <string name="inventory_quick_transfer_review">Check the source, destination, and quantity before confirming.</string>
+    <string name="inventory_param_resistance">Resistance</string>
+    <string name="inventory_param_capacitance">Capacitance</string>
+    <string name="inventory_param_inductance">Inductance</string>
+    <string name="inventory_param_voltage">Rated voltage</string>
+    <string name="inventory_param_tolerance">Tolerance</string>
+    <string name="inventory_param_power">Power</string>
 </resources>

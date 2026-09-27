@@ -150,6 +150,8 @@ def test_lcsc_lookup_returns_proxy_result(tmp_path: Path, monkeypatch) -> None:
             category="Ceramic Capacitors",
             category_path="Passives / Capacitors / Ceramic Capacitors",
             brand="TDK",
+            description="100nF ±10% 50V",
+            parameters={"Capacitance": "100nF", "Voltage Rating": "50V"},
             official_url="https://www.lcsc.com/product-detail/C30926.html",
             matched_by="sku",
             confidence="exact",
@@ -172,6 +174,8 @@ def test_lcsc_lookup_returns_proxy_result(tmp_path: Path, monkeypatch) -> None:
     assert body["found"] is True
     assert body["package_name"] == "0603"
     assert body["matched_by"] == "sku"
+    assert body["description"] == "100nF ±10% 50V"
+    assert body["parameters"]["Voltage Rating"] == "50V"
 
 
 def test_lcsc_lookup_returns_configuration_error(tmp_path: Path, monkeypatch) -> None:
@@ -294,6 +298,8 @@ def test_part_lookup_uses_public_web_fallback_when_enabled(
             "mpn": "0603B104K500NT",
             "name": "100nF Ceramic Capacitor",
             "packageName": "0603",
+            "description": "100nF ±10% 50V",
+            "paramLinkedMap": {"Capacitance": "100nF", "Voltage Rating": "50V"},
             "brand": {
               "@type": "Brand",
               "name": "FH"
@@ -330,7 +336,9 @@ def test_part_lookup_uses_public_web_fallback_when_enabled(
     body = response.json()
     assert body["found"] is True
     assert body["source"] == "lcsc_public_web+local_rules"
-    assert body["name"] == "100nF Ceramic Capacitor"
+    assert body["name"] == "FH 0603B104K500NT"
+    assert body["description"] == "100nF ±10% 50V"
+    assert body["parameters"]["Capacitance"] == "100nF"
     assert body["brand"] == "FH"
     assert body["package_name"] == "0603"
     assert body["category_path"] == "Capacitors / Ceramic Capacitors"

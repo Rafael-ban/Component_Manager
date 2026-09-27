@@ -365,6 +365,8 @@ class LcscLookupResponse(BaseModel):
     category: str | None = None
     category_path: str | None = None
     brand: str | None = None
+    description: str | None = None
+    parameters: dict[str, str] = Field(default_factory=dict)
     official_url: str | None = None
     matched_by: Literal["sku", "mpn", "name"] | None = None
     confidence: Literal["exact", "fallback", "none"] = "none"
@@ -381,6 +383,8 @@ class PartLookupResponse(BaseModel):
     category: str | None = None
     category_path: str | None = None
     brand: str | None = None
+    description: str | None = None
+    parameters: dict[str, str] = Field(default_factory=dict)
     vendor: str | None = None
     model_family: str | None = None
     official_url: str | None = None

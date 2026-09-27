@@ -2,7 +2,6 @@ package com.componentvault.android.model
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 class ComponentImportModelsTest {
     @Test
@@ -30,8 +29,11 @@ class ComponentImportModelsTest {
                 rawPayload = "", sourceLabel = "JLC", sku = example.sku,
                 name = example.model, model = example.model,
             ).withOfficialMetadata(metadata)
-            assertEquals("${example.model} · ${example.value} · ${example.tolerance}", candidate.name)
+            assertEquals(example.model, candidate.name)
             assertEquals(example.model, candidate.model)
+            assertEquals(example.value, candidate.toComponentDraft(1, "A", 0)
+                .description.lineSequence().first { it.startsWith("参数：${example.key}：") }
+                .substringAfterLast('：'))
         }
     }
 
@@ -48,7 +50,6 @@ class ComponentImportModelsTest {
                 "绝缘电阻" to "100MΩ", "精度" to "±1%",
             ),
         )
-        assertNull(metadata.compactRclDisplayName())
         assertEquals("R0603", candidate.withOfficialMetadata(metadata).name)
     }
 
@@ -60,7 +61,6 @@ class ComponentImportModelsTest {
             source = "lcsc_domestic_web", sku = "C2", category = "电阻",
             model = longModel, description = "官方描述", parameters = mapOf("阻值" to longValue),
         )
-        assertNull(metadata.compactRclDisplayName())
         val candidate = ComponentImportCandidate(
             sourceType = ComponentImportSourceType.JlcText, rawPayload = "", sourceLabel = "JLC",
             sku = "C2", name = longModel, model = longModel,
@@ -69,7 +69,7 @@ class ComponentImportModelsTest {
         assertEquals(longModel, candidate.model)
         assertEquals(true, candidate.notes.any { it == "参数：阻值：$longValue" })
         val valid = metadata.copy(parameters = mapOf("阻值" to "10kΩ"))
-        assertEquals("C2 · 10kΩ", valid.compactRclDisplayName())
+        assertEquals("C2", candidate.withOfficialMetadata(valid).name)
     }
 
     @Test
@@ -85,9 +85,14 @@ class ComponentImportModelsTest {
             sourceLabel = "JLC", sku = "C1", name = "RC0603FR-0710KL", model = "RC0603FR-0710KL",
         )
         val resolved = base.withOfficialMetadata(metadata)
-        assertEquals("RC0603FR-0710KL · 10kΩ · ±1%", resolved.name)
+        assertEquals("RC0603FR-0710KL", resolved.name)
         assertEquals("RC0603FR-0710KL", resolved.model)
-        assertEquals("My resistor", base.copy(name = "My resistor").withOfficialMetadata(metadata).name)
+        assertEquals("My resistor", base.copy(name = "My resistor",
+            fieldOrigins = base.fieldOrigins.copy(name = ComponentImportFieldOrigin.User))
+            .withOfficialMetadata(metadata).name)
+        assertEquals("CUSTOM-100", base.copy(name = "CUSTOM-100",
+            fieldOrigins = base.fieldOrigins.copy(name = ComponentImportFieldOrigin.Learned))
+            .withOfficialMetadata(metadata).name)
         assertEquals("10kΩ · ±1%", ComponentRecord(
             id = "1", sku = "C1", name = "My resistor", category = "电阻",
             packageName = "0603", location = "A", description = resolved.toComponentDraft(1, "A", 0).description,
@@ -99,7 +104,7 @@ class ComponentImportModelsTest {
             description = resolved.toComponentDraft(1, "A", 0).description.replace("参数：", "参数·"),
             quantity = 1, minStock = 0, updatedAt = "now", deleted = false,
         ).officialRclSpecificationSummary())
-        assertNull(ComponentRecord(
+        assertEquals("10kΩ · ±1%", ComponentRecord(
             id = "1", sku = "C1", name = resolved.name, category = "电阻",
             packageName = "0603", location = "A", description = resolved.toComponentDraft(1, "A", 0).description,
             quantity = 1, minStock = 0, updatedAt = "now", deleted = false,
@@ -108,12 +113,18 @@ class ComponentImportModelsTest {
 
     @Test
     fun descriptionFallbackExtractsOnlyTheActualValueAndNonRclKeepsModel() {
-        assertEquals("C0603 · 100nF · ±10%", ComponentOfficialMetadata(
+        val capacitor = ComponentImportCandidate(
+            sourceType = ComponentImportSourceType.JlcQr, rawPayload = "C3", sourceLabel = "JLC",
+            sku = "C3", name = "C0603", model = "C0603", category = "电容",
+        ).withOfficialMetadata(ComponentOfficialMetadata(
             category = "电容", model = "C0603", description = "贴片电容 100nF ±10% 50V 促销",
-        ).compactRclDisplayName())
-        assertNull(ComponentOfficialMetadata(
-            category = "IC", model = "IC-1", parameters = mapOf("精度" to "1%"),
-        ).compactRclDisplayName())
+        ))
+        assertEquals("C0603", capacitor.name)
+        val record = ComponentRecord(id = "3", sku = "C3", name = capacitor.name, category = "电容",
+            packageName = "0603", location = "A", description = capacitor.toComponentDraft(1, "A", 0).description,
+            quantity = 1, minStock = 0, updatedAt = "now", deleted = false)
+        assertEquals("100nF · ±10% · 50V", record.officialRclSpecificationSummary())
+        assertEquals("50V", record.officialParameters()["耐压"])
     }
 
     @Test
@@ -156,7 +167,7 @@ class ComponentImportModelsTest {
     }
 
     @Test
-    fun officialMetadataReplacesModelLikeCanonicalName() {
+    fun modelLikeNameStaysModelWhenOfficialResultOnlyHasMarketingName() {
         val candidate = ComponentImportCandidate(
             sourceType = ComponentImportSourceType.JlcQr,
             rawPayload = "{pc:C30926,pm:0603B104K500NT}",
@@ -173,8 +184,8 @@ class ComponentImportModelsTest {
             ),
         )
 
-        assertEquals("100nF Ceramic Capacitor", resolved.name)
-        assertEquals(ComponentImportFieldOrigin.PublicWeb, resolved.fieldOrigins.name)
+        assertEquals("0603B104K500NT", resolved.name)
+        assertEquals(ComponentImportFieldOrigin.Parsed, resolved.fieldOrigins.name)
     }
 
     @Test
@@ -196,7 +207,8 @@ class ComponentImportModelsTest {
         )
         assertEquals("MODEL-1", imported.name)
 
-        val custom = imported.copy(name = "My controller").withOfficialMetadata(
+        val custom = imported.copy(name = "My controller",
+            fieldOrigins = imported.fieldOrigins.copy(name = ComponentImportFieldOrigin.User)).withOfficialMetadata(
             ComponentOfficialMetadata(name = "Marketplace description", model = "MODEL-2"),
         )
         assertEquals("My controller", custom.name)
@@ -221,5 +233,20 @@ class ComponentImportModelsTest {
 
         assertEquals("FH", resolved.brand)
         assertEquals(ComponentImportFieldOrigin.Rule, resolved.fieldOrigins.brand)
+    }
+    @Test
+    fun unitBearingKeysBecomeReadableValuesWithoutInventingCapacityFromModel() {
+        val record = ComponentRecord(
+            id = "1", sku = "C1", name = "Maker C0603", category = "电容",
+            packageName = "0603", location = "A",
+            description = "型号：C0603F5000\n参数：额定电压(V)：50\n参数：精度：±5%",
+            quantity = 1, minStock = 0, updatedAt = "2026-09-27", deleted = false,
+        )
+        assertEquals("50V", record.officialParameters()["额定电压(V)"])
+        assertEquals("50V", record.copy(description = "参数：额定电压（V）：50").officialParameters()["额定电压（V）"])
+        assertEquals(null, record.officialParameters()["容量"])
+        assertEquals(null, record.officialRclSpecificationSummary())
+        assertEquals("power", officialParameterKind("额定功率(W)"))
+        assertEquals("inductance", officialParameterKind("电感值(uH)"))
     }
 }

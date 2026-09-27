@@ -19,4 +19,10 @@
     <string name="inventory_quick_inbound_reason">快捷入库</string>
     <string name="inventory_quick_outbound_reason">快捷出库</string>
     <string name="inventory_quick_transfer_review">请核对来源库位、目标库位和数量后确认。</string>
+    <string name="inventory_param_resistance">阻值</string>
+    <string name="inventory_param_capacitance">容量</string>
+    <string name="inventory_param_inductance">电感量</string>
+    <string name="inventory_param_voltage">耐压</string>
+    <string name="inventory_param_tolerance">精度</string>
+    <string name="inventory_param_power">功率</string>
 </resources>
