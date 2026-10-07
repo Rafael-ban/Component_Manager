@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="label_workbook_export_title">Label print data export</string>
-    <string name="label_workbook_export_description">Creates one Excel row per active component for third-party label software. Name, SKU, long QR text, and short QR text are selected by default. This does not change the backup format.</string>
+    <string name="label_workbook_export_title">Export label Excel</string>
+    <string name="label_workbook_export_description">By default, exports one row per active component with its total quantity. You can select locations to export one row per component and location for label software.</string>
     <string name="label_workbook_export_action">Export label print Excel</string>
     <string name="label_workbook_export_empty">There are no components to export.</string>
     <string name="label_workbook_export_success">Label print data exported.</string>
     <string name="label_workbook_export_failure">Could not export label print data.</string>
     <string name="label_workbook_export_fields_title">Choose export fields</string>
+    <string name="label_workbook_export_locations_title">Location scope</string>
+    <string name="label_workbook_export_all_locations">All locations (one row per component)</string>
+    <string name="label_workbook_export_selected_locations">Selected locations (one row per component and location)</string>
+    <string name="label_workbook_export_unknown_location">Unknown / no location</string>
+    <string name="label_workbook_export_retry">Export data is no longer available. Open Export label print Excel and choose a save location again.</string>
+    <string name="label_workbook_export_preview_count">%1$d rows to export</string>
     <string name="label_workbook_export_confirm">Choose save location</string>
     <string name="label_workbook_export_cancel">Cancel</string>
     <string name="label_workbook_column_name">Name</string>

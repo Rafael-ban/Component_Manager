@@ -38,6 +38,73 @@ public sealed class LabelWorkbookExporterTests : IDisposable
         Assert.Contains("nm:%E5%90%8D%E7%A7%B0", payload);
     }
 
+    [Fact]
+    public void SelectedLocationsExportAllocationRowsAndMatchingQrQuantities()
+    {
+        var component = WithAllocations(Component("parts"),
+            new("id-parts", "A-01", 2), new("id-parts", "B-02", 5));
+        var locations = new[] { Location("A-01"), Location("B-02") };
+        var columns = new HashSet<LabelWorkbookColumn>
+        {
+            LabelWorkbookColumn.Location, LabelWorkbookColumn.Quantity,
+            LabelWorkbookColumn.LongQrText, LabelWorkbookColumn.ShortQrText,
+        };
+        var rows = LabelWorkbookExporter.CreateRows([component], locations, new HashSet<string> { "A-01", "B-02" });
+        LabelWorkbookExporter.ExportRows(_path, rows, columns);
+
+        var sheet = Assert.Single(SimpleXlsx.Read(_path)).Value;
+        Assert.Equal(3, sheet.Count);
+        Assert.Equal("A-01", sheet[1][0]);
+        Assert.Equal("2", Convert.ToString(sheet[1][1]));
+        Assert.Contains("\"loc\":\"A-01\",\"qty\":2", Assert.IsType<string>(sheet[1][2]));
+        Assert.Equal("cvl3|parts|2", sheet[1][3]);
+        Assert.Equal("B-02", sheet[2][0]);
+        Assert.Equal("5", Convert.ToString(sheet[2][1]));
+        Assert.Contains("\"loc\":\"B-02\",\"qty\":5", Assert.IsType<string>(sheet[2][2]));
+        Assert.Equal("cvl3|parts|5", sheet[2][3]);
+        Assert.Single(LabelWorkbookExporter.CreateRows([component], locations, null));
+    }
+
+    [Fact]
+    public void EmptySelectionAndNoMatchingAllocationYieldNoRows()
+    {
+        var component = WithAllocations(Component("parts"), new("id-parts", "A-01", 2));
+        var locations = new[] { Location("A-01"), Location("B-02") };
+        Assert.Empty(LabelWorkbookExporter.CreateRows([component], locations, new HashSet<string>()));
+        Assert.Empty(LabelWorkbookExporter.CreateRows([component], locations, new HashSet<string> { "B-02" }));
+    }
+
+    [Fact]
+    public void DeletedComponentAndLocationAreExcludedButZeroAllocationIsKept()
+    {
+        var active = WithAllocations(Component("active"),
+            new("id-active", "A-01", 0), new("id-active", "B-02", 3));
+        var deleted = WithAllocations(Component("gone", deleted: true), new("id-gone", "B-02", 4));
+        var rows = LabelWorkbookExporter.CreateRows([active, deleted],
+            [Location("A-01"), Location("B-02", deleted: true)], new HashSet<string> { "A-01", "B-02" });
+        var row = Assert.Single(rows);
+        Assert.Equal("A-01", row.Location);
+        Assert.Equal(0, row.Quantity);
+    }
+
+    [Fact]
+    public void LegacyComponentWithoutAllocationsUsesSingleLocationAndTotal()
+    {
+        var rows = LabelWorkbookExporter.CreateRows([Component("legacy")], [Location("A-01")],
+            new HashSet<string> { "A-01" });
+        var row = Assert.Single(rows);
+        Assert.Equal("A-01", row.Location);
+        Assert.Equal(0, row.Quantity);
+        Assert.Single(LabelWorkbookExporter.CreateRows([Component("legacy")], [], new HashSet<string> { "A-01" }));
+        var blank = new ComponentRecord
+        {
+            Id = "blank", Sku = "blank", Name = "空位", Category = "电阻", PackageName = "0603",
+            Location = "", Description = "", Quantity = 4, MinStock = 0,
+            UpdatedAt = "2026-09-22T00:00:00.000Z", Deleted = false,
+        };
+        Assert.Equal(4, Assert.Single(LabelWorkbookExporter.CreateRows([blank], [], new HashSet<string> { "" })).Quantity);
+    }
+
     private static ComponentRecord Component(string sku, string name = "名称", bool deleted = false) => new()
     {
         Id = $"id-{sku}", Sku = sku, Name = name, Category = "电阻", PackageName = "0603", Location = "A-01",
@@ -51,6 +118,17 @@ public sealed class LabelWorkbookExporterTests : IDisposable
         PackageName = component.PackageName, Location = component.Location, Description = description,
         Quantity = component.Quantity, MinStock = component.MinStock, UpdatedAt = component.UpdatedAt, Deleted = component.Deleted,
     };
+
+    private static ComponentRecord WithAllocations(ComponentRecord component, params ComponentAllocationRecord[] allocations) => new()
+    {
+        Id = component.Id, Sku = component.Sku, Name = component.Name, Category = component.Category,
+        PackageName = component.PackageName, Location = component.Location, Description = component.Description,
+        Quantity = component.Quantity, MinStock = component.MinStock, UpdatedAt = component.UpdatedAt,
+        Deleted = component.Deleted, Allocations = allocations,
+    };
+
+    private static StorageLocationRecord Location(string id, bool deleted = false) =>
+        new(id, id, "2026-09-22T00:00:00.000Z", deleted);
 
     public void Dispose() { if (File.Exists(_path)) File.Delete(_path); }
 }

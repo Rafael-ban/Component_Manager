@@ -211,6 +211,8 @@ public sealed class MainViewModel : ObservableObject
 
     public IReadOnlyList<ComponentRecord> AvailableComponents => _allComponents;
 
+    public IReadOnlyList<StorageLocationRecord> GetAllStorageLocations() => _store.GetStorageLocations(includeDeleted: true);
+
     public StockMovementRecord? SelectedMovement
     {
         get => _selectedMovement;

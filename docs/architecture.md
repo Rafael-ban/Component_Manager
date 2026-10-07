@@ -85,6 +85,12 @@ Both clients export label-printing XLSX independently of full inventory backup.
 The export contains selected columns and active components only. QR cells carry
 the established standard/JLC-compatible long payload and `cvl3` short payload as
 Excel text, so leading zeros and delimiters survive third-party label import.
+The default all-location export keeps one row per component and total quantity.
+An explicit location selection projects the current allocation snapshot into one
+row per component/location, using that location's quantity in both cells and QR
+payloads. Legacy components without allocations fall back to their stored
+location; an empty location is selectable as unassigned. Export is read-only and
+captures the selected rows and columns before opening the destination picker.
 
 Catalog routing prefers domestic LCSC for Chinese and international LCSC for
 English. Android reads its saved app language; Windows uses its current UI

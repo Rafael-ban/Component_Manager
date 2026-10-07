@@ -1,6 +1,7 @@
 package com.componentvault.android.data
 
 import com.componentvault.android.model.ComponentRecord
+import com.componentvault.android.model.ComponentAllocationRecord
 import com.componentvault.android.model.toLabelSeed
 import java.io.ByteArrayInputStream
 import java.util.zip.ZipInputStream
@@ -52,6 +53,44 @@ class LabelWorkbookExporterTest {
         val sheet = entry(bytes, "xl/worksheets/sheet1.xml")
         assertFalse(sheet.contains("component-vault-label"))
         assertFalse(sheet.contains("cvl3|"))
+    }
+
+    @Test
+    fun selectedLocationsUseAllocationQuantityAndLocationInCellsAndQr() {
+        val part = component(sku = "multi").copy(location = "A, B", quantity = 9)
+        val allocations = listOf(
+            ComponentAllocationRecord(part.id, "A", "Shelf A", 2),
+            ComponentAllocationRecord(part.id, "B", "Shelf B", 7),
+        )
+        val rows = LabelWorkbookExporter.rows(listOf(part), allocations, setOf("A", "B"))
+        assertEquals(2, rows.size)
+        val sheet = entry(LabelWorkbookExporter.exportRows(rows, setOf(
+            LabelWorkbookColumn.Location, LabelWorkbookColumn.Quantity,
+            LabelWorkbookColumn.LongQrText, LabelWorkbookColumn.ShortQrText,
+        )), "xl/worksheets/sheet1.xml")
+        assertContains(sheet, "&quot;loc&quot;:&quot;A&quot;,&quot;qty&quot;:2")
+        assertContains(sheet, "&quot;loc&quot;:&quot;B&quot;,&quot;qty&quot;:7")
+        assertFalse(sheet.contains("Shelf A"))
+        assertFalse(sheet.contains("Shelf B"))
+        assertContains(sheet, "cvl3|multi|2")
+        assertContains(sheet, "cvl3|multi|7")
+        assertFalse(sheet.contains("A, B"))
+    }
+
+    @Test
+    fun selectedLocationsHandleEmptyUnknownLegacyAndDeleted() {
+        val legacy = component("legacy").copy(location = "Old shelf", quantity = 4)
+        val unknown = component("unknown").copy(location = "", quantity = 3)
+        val removed = component("removed", deleted = true)
+        val components = listOf(legacy, unknown, removed)
+        val allocations = listOf(ComponentAllocationRecord(removed.id, "A", "Shelf A", 8))
+        assertTrue(LabelWorkbookExporter.rows(components, allocations, emptySet()).isEmpty())
+        assertTrue(LabelWorkbookExporter.rows(components, allocations, setOf("A")).isEmpty())
+        assertEquals(listOf(4), LabelWorkbookExporter.rows(components, allocations, setOf("Old shelf")).map { it.quantity })
+        val unknownRows = LabelWorkbookExporter.rows(components, allocations, setOf(null))
+        assertEquals(listOf("unknown"), unknownRows.map { it.component.sku })
+        assertEquals("", unknownRows.single().location)
+        assertEquals(3, unknownRows.single().quantity)
     }
 
     private fun component(sku: String, name: String = "名称", deleted: Boolean = false) = ComponentRecord(

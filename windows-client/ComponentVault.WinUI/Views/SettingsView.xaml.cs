@@ -20,6 +20,7 @@ public sealed partial class SettingsView : Page
     private CancellationTokenSource? _updateCancellation;
     private GitHubReleaseInfo? _latestRelease;
     private UpdateChannel _updateChannel = UpdateChannel.Stable;
+    private IReadOnlyList<StorageLocationRecord> _labelStorageLocations = [];
     private MainViewModel? RuntimeViewModel => ViewModelResolver.GetRuntimeViewModel(DataContext);
 
     private SyncConfiguration? CurrentSyncConfiguration =>
@@ -205,7 +206,9 @@ public sealed partial class SettingsView : Page
         Add(LabelQuantityColumn, LabelWorkbookColumn.Quantity); Add(LabelLongQrColumn, LabelWorkbookColumn.LongQrText);
         Add(LabelShortQrColumn, LabelWorkbookColumn.ShortQrText);
         if (columns.Count == 0) { await ShowMessageAsync("无法导出", "请至少选择一个导出字段。"); return; }
-        if (!viewModel.AvailableComponents.Any(component => !component.Deleted)) { await ShowMessageAsync("无法导出", "当前没有可导出的元器件。"); return; }
+        var selectedLocations = SelectedLabelLocationIds();
+        var rows = LabelWorkbookExporter.CreateRows(viewModel.AvailableComponents, _labelStorageLocations, selectedLocations);
+        if (rows.Count == 0) { UpdateLabelExportPreview(); return; }
 
         var picker = new FileSavePicker { SuggestedFileName = $"component-vault-labels-{DateTime.Now:yyyyMMdd-HHmmss}" };
         picker.FileTypeChoices.Add("Excel 工作簿", new List<string> { ".xlsx" });
@@ -214,12 +217,75 @@ public sealed partial class SettingsView : Page
         if (file is null) return;
         try
         {
-            LabelWorkbookExporter.Export(file.Path, viewModel.AvailableComponents, columns);
-            await ShowMessageAsync("导出完成", "标签打印数据已导出，每个未删除元器件一行。");
+            LabelWorkbookExporter.ExportRows(file.Path, rows, columns);
+            await ShowMessageAsync("导出完成", $"标签打印数据已导出，共 {rows.Count} 行。");
         }
         catch (Exception exception) { await ShowMessageAsync("导出失败", exception.Message); }
 
         void Add(CheckBox checkBox, LabelWorkbookColumn column) { if (checkBox.IsChecked == true) columns.Add(column); }
+    }
+
+    private IReadOnlySet<string>? SelectedLabelLocationIds() => LabelLocationMode.SelectedIndex == 1
+        ? LabelLocationsList.SelectedItems.OfType<StorageLocationRecord>()
+            .Select(location => location.Id).ToHashSet(StringComparer.Ordinal)
+        : null;
+
+    private void OnPageLoaded(object sender, RoutedEventArgs e)
+    {
+        RefreshLabelLocationOptions();
+        UpdateLabelExportPreview();
+    }
+
+    private void RefreshLabelLocationOptions()
+    {
+        if (RuntimeViewModel is not { } viewModel) return;
+        _labelStorageLocations = viewModel.GetAllStorageLocations();
+        var deleted = _labelStorageLocations.Where(location => location.Deleted)
+            .Select(location => location.Id).ToHashSet(StringComparer.Ordinal);
+        var options = _labelStorageLocations.Where(location => !location.Deleted)
+            .ToDictionary(location => location.Id, StringComparer.Ordinal);
+        foreach (var component in viewModel.AvailableComponents.Where(component => !component.Deleted))
+        {
+            IEnumerable<string> ids = component.Allocations.Count == 0
+                ? [component.Location]
+                : component.Allocations.Where(allocation => allocation.Quantity >= 0)
+                    .Select(allocation => allocation.LocationId);
+            foreach (var id in ids)
+            {
+                if (!deleted.Contains(id) && !options.ContainsKey(id))
+                    options[id] = new StorageLocationRecord(id, id.Length == 0 ? "未指定库位" : id, string.Empty, false);
+            }
+        }
+        LabelLocationsList.ItemsSource = options.Values.OrderBy(location => location.Id, StringComparer.Ordinal).ToArray();
+    }
+
+    private void OnLabelLocationSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateLabelExportPreview();
+
+    private void OnLabelColumnsChanged(object sender, RoutedEventArgs e) => UpdateLabelExportPreview();
+
+    private void UpdateLabelExportPreview()
+    {
+        if (LabelLocationMode is null || LabelLocationsList is null || LabelExportPreview is null || LabelExportButton is null)
+            return;
+        if (RuntimeViewModel is not { } viewModel) return;
+
+        var hasLocations = LabelLocationsList.Items.Count > 0;
+        if (LabelLocationMode.Items.Count > 1 && LabelLocationMode.Items[1] is ComboBoxItem specificMode)
+            specificMode.IsEnabled = hasLocations;
+        if (!hasLocations && LabelLocationMode.SelectedIndex == 1)
+            LabelLocationMode.SelectedIndex = 0;
+
+        var specific = LabelLocationMode.SelectedIndex == 1;
+        LabelLocationsList.Visibility = specific ? Visibility.Visible : Visibility.Collapsed;
+        var selected = SelectedLabelLocationIds();
+        var count = LabelWorkbookExporter.CreateRows(viewModel.AvailableComponents, _labelStorageLocations, selected).Count;
+        var hasColumns = new[] { LabelNameColumn, LabelSkuColumn, LabelModelColumn, LabelPackageColumn,
+            LabelCategoryColumn, LabelLocationColumn, LabelQuantityColumn, LabelLongQrColumn, LabelShortQrColumn }
+            .Any(checkBox => checkBox.IsChecked == true);
+        LabelExportButton.IsEnabled = count > 0 && hasColumns;
+        LabelExportPreview.Text = specific && selected?.Count == 0
+            ? "请选择至少一个库位。预计导出 0 行。"
+            : count == 0 ? "所选库位没有可导出的分配。预计导出 0 行。" : $"预计导出 {count} 行。";
     }
 
     private void OnFeedbackDiagnosticsToggled(object sender, RoutedEventArgs e)
