@@ -68,7 +68,7 @@ public sealed class LabelWorkbookExporterTests : IDisposable
     [Fact]
     public void EmptySelectionAndNoMatchingAllocationYieldNoRows()
     {
-        var component = WithAllocations(Component("parts"), new("id-parts", "A-01", 2));
+        var component = WithAllocations(Component("parts"), new ComponentAllocationRecord("id-parts", "A-01", 2));
         var locations = new[] { Location("A-01"), Location("B-02") };
         Assert.Empty(LabelWorkbookExporter.CreateRows([component], locations, new HashSet<string>()));
         Assert.Empty(LabelWorkbookExporter.CreateRows([component], locations, new HashSet<string> { "B-02" }));
@@ -79,7 +79,7 @@ public sealed class LabelWorkbookExporterTests : IDisposable
     {
         var active = WithAllocations(Component("active"),
             new("id-active", "A-01", 0), new("id-active", "B-02", 3));
-        var deleted = WithAllocations(Component("gone", deleted: true), new("id-gone", "B-02", 4));
+        var deleted = WithAllocations(Component("gone", deleted: true), new ComponentAllocationRecord("id-gone", "B-02", 4));
         var rows = LabelWorkbookExporter.CreateRows([active, deleted],
             [Location("A-01"), Location("B-02", deleted: true)], new HashSet<string> { "A-01", "B-02" });
         var row = Assert.Single(rows);
