@@ -176,13 +176,12 @@ internal fun ComponentEditorSurface(
         }
         item {
             SectionPane(title = strings.forms.componentStockTitle) {
-                OutlinedTextField(
+                QuantityInputField(
                     value = quantityText,
                     onValueChange = { quantityText = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(strings.common.fieldQuantity) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    label = strings.common.fieldQuantity,
+                    minimum = 0,
                 )
                 OutlinedTextField(
                     value = minStockText,
@@ -411,15 +410,15 @@ internal fun MovementEntryFields(
                 }
             }
         }
-        OutlinedTextField(
+        QuantityInputField(
             value = state.quantityText,
             onValueChange = {
                 onStateChange(state.copy(quantityText = it, errorMessage = null))
             },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(strings.common.fieldQuantity) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            label = strings.common.fieldQuantity,
+            minimum = if (state.movementType == "adjustment") Int.MIN_VALUE else 1,
+            skipZero = state.movementType == "adjustment",
         )
         OutlinedTextField(
             value = state.reason,

@@ -186,6 +186,7 @@ jobs:
           --tests 'com.componentvault.android.ui.screen.ContinuousCaptureGateTest'
           --tests 'com.componentvault.android.ui.screen.InventoryNavigationUiTest'
           --tests 'com.componentvault.android.ui.screen.InventoryInteractionUiTest'
+          --tests 'com.componentvault.android.ui.screen.QuantityStepperTest'
           --tests 'com.componentvault.android.ui.screen.MovementsVisibilityUiTest'
           --tests 'com.componentvault.android.ui.screen.OfficialParameterLocalizationTest'
           --tests 'com.componentvault.android.ui.screen.SettingsDraftUiTest'

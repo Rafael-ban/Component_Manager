@@ -29,4 +29,6 @@
     <string name="inventory_param_operating_temperature">Operating temperature</string>
     <string name="inventory_param_type">Type</string>
     <string name="inventory_param_temperature_coefficient">Temperature coefficient</string>
+    <string name="quantity_step_decrease">Decrease quantity</string>
+    <string name="quantity_step_increase">Increase quantity</string>
 </resources>

@@ -87,11 +87,16 @@ internal fun QuickStockActionDialog(
                 }
                 if (!inbound) Text(stringResource(R.string.inventory_quick_available, available),
                     style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(value = quantityText,
+                QuantityInputField(
+                    value = quantityText,
                     onValueChange = { value -> if (value.all(Char::isDigit)) { quantityText = value; error = "" } },
-                    label = { Text(stringResource(R.string.inventory_quick_quantity)) },
-                    singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("quick_quantity"))
+                    label = stringResource(R.string.inventory_quick_quantity),
+                    minimum = 1,
+                    maximum = if (inbound) Int.MAX_VALUE else available.coerceAtLeast(0),
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                    fieldTestTag = "quick_quantity",
+                )
                 if (options.isEmpty()) Text(stringResource(R.string.inventory_quick_no_location),
                     color = MaterialTheme.colorScheme.error)
                 if (!inbound && quantity != null && quantity > available) Text(

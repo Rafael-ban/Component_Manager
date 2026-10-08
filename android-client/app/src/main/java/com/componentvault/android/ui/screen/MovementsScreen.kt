@@ -658,13 +658,15 @@ private fun MovementBatchQueueItemCard(
             movementType = item.movementType,
             onMovementTypeChange = onMovementTypeChange,
         )
-        OutlinedTextField(
+        QuantityInputField(
             value = item.quantityText,
             onValueChange = onQuantityChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(strings.common.fieldQuantity) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            label = strings.common.fieldQuantity,
+            minimum = if (item.movementType == MovementQuickAction.Adjustment.movementType) Int.MIN_VALUE else 1,
+            maximum = if (item.movementType == MovementQuickAction.Outbound.movementType)
+                item.currentStock.coerceAtLeast(0) else Int.MAX_VALUE,
+            skipZero = item.movementType == MovementQuickAction.Adjustment.movementType,
         )
         OutlinedTextField(
             value = item.reason,

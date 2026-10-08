@@ -29,4 +29,6 @@
     <string name="inventory_param_operating_temperature">工作温度</string>
     <string name="inventory_param_type">类型</string>
     <string name="inventory_param_temperature_coefficient">温度系数</string>
+    <string name="quantity_step_decrease">减少数量</string>
+    <string name="quantity_step_increase">增加数量</string>
 </resources>
