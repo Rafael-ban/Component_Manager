@@ -20,7 +20,7 @@ import kotlin.test.assertTrue
 class ImportLearningPersistenceTest {
     @Test
     fun confirmedModelNameAndCategorySurviveRepositoryRecreation() = runBlocking {
-        val context = RuntimeEnvironment.getApplication<Application>()
+        val context: Application = RuntimeEnvironment.getApplication()
         val helper = InventoryDatabaseHelper(context)
         helper.close()
         context.deleteDatabase(helper.databaseName)
