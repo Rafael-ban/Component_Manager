@@ -28,6 +28,8 @@ Component Vault 面向电子元器件的入库、出库、查找与盘点。Andr
 
 主要工作流包括按 SKU 查找元件、入库与出库、库存流水、多库位分配与转移、嘉立创料号查询、BOM 匹配和缺料导出。Android 与 Windows 支持选择多个元件、复核数量后按库位一次批量转移，库存总量不变；Android 左滑直接展开入库、出库、转移、删除四个按钮，可对单个 SKU 快速操作；数量与库位在当前列表弹层内填写，删除仍需确认。客户端支持 Excel 备份与恢复，恢复前会预览冲突。活动元件的 SKU 唯一，库存数量和最低库存不能为负数。
 
+Android 的“记录 → 扫描标签”支持嘉立创原厂包装码：按料号匹配已有库存后进入复核，选择出库并确认数量；默认 1，不直接扣除整包数量。见[扫码出库说明](docs/storage-and-backup.md#扫嘉立创包装出库)。
+
 同步遵循本地优先：原生客户端先写入自己的 SQLite，再按需推送和拉取。BOM 扣料是客户端本地事务；它没有跨设备共享的工程扣料账本。Web 库存写入默认关闭，启用后直接写入服务端 SQLite，并可同步回原生客户端。详见[架构与数据流](docs/architecture.md)和[接口集成](docs/integration-guide.md)。
 
 项目 BOM 按“选择文件 → 库存匹配 → 确认出库”操作。嘉立创 EDA 导出的 `Supplier Part`、`Manufacturer Part`、`Quantity` 等列自动识别；需要修正时再展开带样例的列选择。没有料号的测试点等行保留待处理，可手选库存或明确跳过，并在确认前恢复。可选保存为本地项目预设，下次重新核对实时库存后使用。详见[嘉立创 BOM 导入与扣料教程](docs/bom-and-migration.md#嘉立创-eda-导出文件示例)。
@@ -99,3 +101,5 @@ cd server
 ## 项目与作者
 
 作者：**Rafael-Ikaros**。源代码、问题反馈与发布文件位于 [Rafael-ban/Component_Manager](https://github.com/Rafael-ban/Component_Manager)。
+
+Android CI 的扫码匹配和数量边界检查独立报告，超时与回归日志的查看方法见[测试排查](docs/runbook.md#android-测试超时排查)。

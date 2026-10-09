@@ -211,6 +211,7 @@ class InventoryRepository(
         rawValue: String,
     ): MovementScanResolutionUiState = withContext(Dispatchers.IO) {
         val candidate = ComponentLabelCodec.parseScannedPayload(rawValue)
+            ?: runCatching { ComponentImportParser.parseScannedQr(rawValue) }.getOrNull()
             ?: return@withContext MovementScanResolutionUiState(
                 matchStatus = MovementScanMatchStatus.InvalidLabel,
                 rawValue = rawValue.trim(),
@@ -2123,12 +2124,7 @@ class InventoryRepository(
             ?: sourceCandidate.model?.trim()?.blankToNull()
         val resolvedBrand = parsedDescription.brand?.trim()?.blankToNull()
             ?: sourceCandidate.brand?.trim()?.blankToNull()
-        val resolvedName = draft.name.trim().blankToNull()?.takeUnless {
-            it.isLikelyModelLike(
-                sku = normalizedSourceSku.orEmpty(),
-                model = resolvedModel,
-            )
-        }
+        val resolvedName = draft.name.trim().blankToNull()
 
         val values = ContentValues().apply {
             put("id", mappingId)

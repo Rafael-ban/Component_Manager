@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -52,6 +53,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -496,7 +498,7 @@ private fun InventoryFilterHeader(
                 onExpandedChange = { categoryMenuExpanded = it },
             ) {
                 DropdownMenuItem(
-                    text = { Text(strings.inventory.filterCategoryAll) },
+                    text = { FilterMenuItemText(strings.inventory.filterCategoryAll) },
                     onClick = {
                         onCategoryChange(null)
                         categoryMenuExpanded = false
@@ -504,7 +506,7 @@ private fun InventoryFilterHeader(
                 )
                 uiState.availableCategories.forEach { category ->
                     DropdownMenuItem(
-                        text = { Text(localizedCategoryLabel(category)) },
+                        text = { FilterMenuItemText(localizedCategoryLabel(category)) },
                         onClick = {
                             onCategoryChange(category)
                             categoryMenuExpanded = false
@@ -519,7 +521,7 @@ private fun InventoryFilterHeader(
                 onExpandedChange = { locationMenuExpanded = it },
             ) {
                 DropdownMenuItem(
-                    text = { Text(strings.inventory.filterLocationAll) },
+                    text = { FilterMenuItemText(strings.inventory.filterLocationAll) },
                     onClick = {
                         onLocationChange(null)
                         locationMenuExpanded = false
@@ -527,7 +529,7 @@ private fun InventoryFilterHeader(
                 )
                 uiState.availableLocations.forEach { location ->
                     DropdownMenuItem(
-                        text = { Text(location) },
+                        text = { FilterMenuItemText(location) },
                         onClick = {
                             onLocationChange(location)
                             locationMenuExpanded = false
@@ -543,7 +545,7 @@ private fun InventoryFilterHeader(
             ) {
                 InventorySortOption.entries.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(inventorySortLabel(option)) },
+                        text = { FilterMenuItemText(inventorySortLabel(option)) },
                         onClick = {
                             onSortChange(option)
                             sortMenuExpanded = false
@@ -563,8 +565,13 @@ private fun FilterMenuButton(
     onExpandedChange: (Boolean) -> Unit,
     menuContent: @Composable ColumnScope.() -> Unit,
 ) {
+    val configuration = LocalConfiguration.current
+    val maxMenuWidth = minOf(280.dp, (configuration.screenWidthDp - 32).coerceAtLeast(112).dp)
+    val maxMenuHeight = minOf(320.dp, configuration.screenHeightDp.dp * 0.45f)
+
     Box {
         OutlinedButton(
+            modifier = Modifier.widthIn(max = maxMenuWidth),
             onClick = { onExpandedChange(true) },
             colors = ButtonDefaults.outlinedButtonColors(
                 containerColor = if (expanded) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
@@ -577,6 +584,7 @@ private fun FilterMenuButton(
             ) {
                 Text(
                     text = "$label: $value",
+                    modifier = Modifier.weight(1f, fill = false),
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -590,12 +598,18 @@ private fun FilterMenuButton(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) },
+            modifier = Modifier.widthIn(max = maxMenuWidth).heightIn(max = maxMenuHeight),
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             shape = MaterialTheme.shapes.medium,
         ) {
             menuContent()
         }
     }
+}
+
+@Composable
+private fun FilterMenuItemText(value: String) {
+    Text(text = value, maxLines = 2, overflow = TextOverflow.Ellipsis)
 }
 
 @Composable

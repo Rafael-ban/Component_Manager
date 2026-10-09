@@ -146,7 +146,29 @@ jobs:
                       print('::error::' + line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PY
 
+      - name: Run focused stock scan checks
+        timeout-minutes: 10
+        shell: bash
+        run: >-
+          gradle -p android-client :app:testDebugUnitTest
+          --tests 'com.componentvault.android.data.MovementLabelResolutionTest'
+          --tests 'com.componentvault.android.data.ImportLearningPersistenceTest'
+          --tests 'com.componentvault.android.model.ImportMappingPriorityTest'
+          --tests 'com.componentvault.android.ui.screen.QuantityStepperTest'
+          --info --console=plain 2>&1 | tee android-stock-tests.log
+
+      - name: Upload stock scan test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-stock-scan-tests
+          path: |
+            android-stock-tests.log
+            android-client/app/build/reports/tests/testDebugUnitTest/
+            android-client/app/build/test-results/testDebugUnitTest/
+
       - name: Run Android inventory regressions
+        timeout-minutes: 15
         shell: bash
         run: >-
           gradle -p android-client :app:testDebugUnitTest
@@ -186,7 +208,6 @@ jobs:
           --tests 'com.componentvault.android.ui.screen.ContinuousCaptureGateTest'
           --tests 'com.componentvault.android.ui.screen.InventoryNavigationUiTest'
           --tests 'com.componentvault.android.ui.screen.InventoryInteractionUiTest'
-          --tests 'com.componentvault.android.ui.screen.QuantityStepperTest'
           --tests 'com.componentvault.android.ui.screen.MovementsVisibilityUiTest'
           --tests 'com.componentvault.android.ui.screen.OfficialParameterLocalizationTest'
           --tests 'com.componentvault.android.ui.screen.SettingsDraftUiTest'

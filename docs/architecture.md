@@ -258,9 +258,9 @@ See [feedback and scan diagnostics](feedback-and-scan-diagnostics.md).
   schema change is required for the shorter code path.
 - `Movements` uses the same adaptive approach: compact history-first layouts on
   phones and split history/detail arrangements on larger widths. It now also
-  supports a scan-first workflow for already-generated warehouse labels:
+  supports a scan-first workflow for warehouse labels and original JLC packaging QR codes:
   CameraX + bundled ML Kit barcode scanning returns raw QR content, the client
-  resolves the label locally by parsed `sku`. A successful match closes the
+  resolves the label locally by parsed `sku`, without catalog lookup or automatic component creation. Original packaging quantity is not a stock-out instruction; the review starts at one unit. A successful match closes the
   scanner and opens a dedicated batch review page for `Inbound`, `Outbound`,
   or `Adjustment`, quantities and notes. Adding another scanned item requires
   an explicit action. Returning to history preserves the pending review;
@@ -785,3 +785,10 @@ Web 库存页的 `SpecEnrichmentPanel` 使用 `/admin-api/components/spec-enrich
 - 删除普通账户先撤销访问并取消该账户参数补全，待任务停止后删除其数据库与 SQLite sidecar，再删除注册记录和会话。失败保留停用状态可重试；管理员原库与其他用户数据不动。已有本地客户端副本不会远程删除。
 - 设置关于仅检测更新，容器更新交给部署者选择的 Watchtower；应用本身不挂宿主 Docker socket。
 - Android 标签工具复用既有编辑器/队列；新增模板与选纸步骤，自定义尺寸遵循当前 M1 打印头范围。保存草稿的旋转不强制归零，只有新建纸张为 0°。记录页过滤是展示层行为，不修改流水或同步墓碑。
+
+### Android 库存扫码测试
+
+CI 在原有回归组前单独运行 `MovementLabelResolutionTest`、`QuantityStepperTest`、`ImportLearningPersistenceTest` 和 `ImportMappingPriorityTest`，
+分别保存 `android-stock-scan-tests` 日志和测试报告。直接检查最多运行 10 分钟，
+原有回归组最多 15 分钟，避免再次静默等待到 GitHub 的 6 小时任务上限。
+直接检查成功、完整 CI 成功和实机验收分别报告，不互相替代。

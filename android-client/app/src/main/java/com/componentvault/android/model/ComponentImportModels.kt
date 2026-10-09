@@ -332,6 +332,8 @@ fun ComponentImportCandidate.withOfficialMetadata(
 
     val resolvedPackageName = when {
         packageName.isBlank() && !metadata.packageName.isNullOrBlank() -> metadata.packageName
+        fieldOrigins.packageName in setOf(ComponentImportFieldOrigin.User, ComponentImportFieldOrigin.Learned) ->
+            packageName
         !metadata.packageName.isNullOrBlank() && packageName.equals(sku, ignoreCase = true) -> metadata.packageName
         !metadata.packageName.isNullOrBlank() && !model.isNullOrBlank() &&
             packageName.equals(model, ignoreCase = true) -> metadata.packageName
@@ -342,6 +344,8 @@ fun ComponentImportCandidate.withOfficialMetadata(
 
     val resolvedCategory = when {
         category.isBlank() && !metadata.category.isNullOrBlank() -> metadata.category
+        fieldOrigins.category in setOf(ComponentImportFieldOrigin.User, ComponentImportFieldOrigin.Learned) ->
+            category
         !metadata.categoryPath.isNullOrBlank() && !metadata.category.isNullOrBlank() -> metadata.category
         category.equals("General", ignoreCase = true) && !metadata.category.isNullOrBlank() -> metadata.category
         !metadata.category.isNullOrBlank() && category.count { it == '/' } < metadata.category.count { it == '/' } ->
